@@ -47,10 +47,39 @@ def backfill_enqueue() -> None:
 
 @app.command("backfill-run")
 def backfill_run(limit: int = typer.Option(None, help="max jobs this run")) -> None:
-    """Run pending backfill jobs within the quota budget. Safe to re-run."""
+    """Queue any new (competition, season) jobs, then run unfinished ones within the backfill
+    quota budget. Safe to stop and re-run."""
+    comps = load_competitions()
+    client = _client()
     with get_session() as session:
-        result = backfill.run(session, _client(), load_competitions(), limit)
-    typer.echo(result)
+        queued = backfill.enqueue(session, comps)
+        session.commit()
+        result = backfill.run(session, client, comps, limit)
+    typer.echo(
+        f"queued {queued} new jobs; {result}; account quota used today ~{client.quota_used_today}"
+    )
+
+
+@app.command("backfill-report")
+def backfill_report(out: str = typer.Option("reports/backfill", help="report folder")) -> None:
+    """Completeness report per competition x season (no API requests)."""
+    with get_session() as session:
+        rows = backfill.completeness(session, load_competitions())
+    df = pl.DataFrame(rows, infer_schema_length=None)
+    folder = Path(out)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}.csv"
+    df.write_csv(path)
+    done = df.filter(pl.col("job_status") == "done").height
+    typer.echo(
+        f"{done}/{df.height} seasons done; {df['finished'].sum()} finished matches; "
+        f"{df['detail_returned'].sum()} with detail; report {path}"
+    )
+    flagged = df.filter(pl.col("flags") != "")
+    with pl.Config(tbl_rows=-1, fmt_str_lengths=80, tbl_width_chars=160):
+        typer.echo(
+            flagged.select("competition", "season", "flags") if flagged.height else "no flags"
+        )
 
 
 def _git_sha() -> str:

@@ -109,6 +109,8 @@ class Match(Base):
     kickoff_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # event_time
     neutral: Mapped[bool] = mapped_column(Boolean, default=False)
     status: Mapped[str] = mapped_column(String(16), default="scheduled")
+    # Provider's stage label ("Regular Season - 12", "Round of 16", "Promotion Play-offs").
+    round: Mapped[str | None] = mapped_column(String(64), nullable=True)
     __table_args__ = (
         UniqueConstraint("source_id", "source_ref"),
         Index("ix_match_kickoff", "kickoff_time"),
@@ -304,6 +306,23 @@ class BackfillJob(Base):
     source_ref: Mapped[str] = mapped_column(String(64))
     season_year: Mapped[int] = mapped_column(Integer)
     priority: Mapped[int] = mapped_column(Integer, default=5)
-    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/done/failed
+    # pending -> fixtures (calendar + results ingested) -> done (detail stored); or failed
+    status: Mapped[str] = mapped_column(String(16), default="pending")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_now())
+    requests: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    n_fixtures: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
     __table_args__ = (UniqueConstraint("source_id", "source_ref", "season_year"),)
+
+
+class MatchDetail(Base):
+    """Which post-match detail (lineups, events, statistics, player stats) is stored for a
+    match. The payload itself stays in the raw store (principle 4); this row says where, and
+    which capabilities it carries, so detail can be normalised later without re-fetching."""
+
+    __tablename__ = "match_detail"
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"), primary_key=True)
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    storage_key: Mapped[str] = mapped_column(String(255))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    flags: Mapped[dict[str, Any]] = mapped_column(JsonType)  # capability -> present

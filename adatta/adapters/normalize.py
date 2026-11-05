@@ -259,6 +259,7 @@ def ingest_fixtures(
             matches[ref] = match
         match.status = fx["fixture"]["status"]["short"]
         match.kickoff_time = kickoff
+        match.round = (fx.get("league") or {}).get("round") or match.round
     session.flush()
     finished = [fx for fx in fixtures if fx["fixture"]["status"]["short"] in FINISHED]
     R = models.MatchResult

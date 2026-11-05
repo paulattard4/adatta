@@ -35,8 +35,29 @@ Tick each item only when its acceptance check passes.
 - [x] Alert if a scheduled capture is missed
 
 ## 6. Historical backfill
-- [ ] Prioritised competitions/seasons within quota budget
-- [ ] Backfill resumable and idempotent; completeness report
+- [x] Prioritised competitions/seasons within quota budget (2026-11-05: 150 seasons, 2,648 requests in 45 min, inside the 70% backfill budget)
+- [x] Backfill resumable and idempotent; completeness report (`adatta backfill-report`; `reports/backfill/20261105T150239Z.csv`)
+
+Acceptance test (stated before building, per CLAUDE.md):
+- Scope: every (competition, season) in `config/competitions.yml` (D6: 15 competitions, 2016–2025) has a backfill job that ends `done`, or `failed` with the recorded reason.
+- Completeness report (`adatta backfill-report`, CSV under `reports/backfill/`), per competition-season:
+  listed fixtures; finished; not played, by status; for leagues, regular-season matches vs
+  expected `teams × (teams − 1)`, with any gap explained by listed non-played statuses;
+  finished matches with a normal-time score; finished matches with stored detail (lineups,
+  events, statistics, player stats). Anything short of 100% is flagged, never imputed.
+- Idempotent: re-running a finished backfill makes 0 requests and adds 0 rows.
+- Resumable: a run stopped mid-season (quota or crash) continues where it stopped without
+  re-fetching stored detail batches.
+- Quota: runs only inside the backfill budget (70% of daily quota; 30% reserved for live
+  capture); requests recorded per job.
+- Temporal contract: backfilled rows carry their true `observed_at` (ingest time); the match
+  `kickoff_time` is the event time. Nothing is back-dated.
+
+Result (2026-11-05): all 150 jobs done; 49,476 finished matches, all with stored detail
+(lineups 44,240, player stats 39,560); every league regular season complete (Ligue 1 and
+Ligue 2 2019/20 listed with their COVID cancellations); re-run = 0 requests. Flags left
+as gaps, not filled: 90' score unknown for 3 league play-off matches and for cup AET/PEN
+matches without an extra-time breakdown; Copa del Rey 2016–2017 not in API-Football.
 
 ## 7. Phase 1a baseline + harness
 - [ ] Results-only Dixon-Coles (rho, time decay) fit

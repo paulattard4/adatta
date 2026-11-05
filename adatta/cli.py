@@ -171,3 +171,17 @@ def capture() -> None:
 
 if __name__ == "__main__":
     app()
+
+
+@app.command()
+def baseline(
+    out: str = typer.Option("reports/baseline", help="report folder"),
+) -> None:
+    """Phase 1a: tune the half-life on the dev window, score Dixon-Coles and the baselines,
+    write the report and manifest. Never opens the locked holdout. No API requests."""
+    from adatta.eval import baseline as phase1a
+    from adatta.eval.harness import load_config
+
+    with get_session() as session:
+        path = phase1a.run(session, load_config(), Path(out))
+    typer.echo(f"report written to {path}")

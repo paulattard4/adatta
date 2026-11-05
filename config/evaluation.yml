@@ -1,0 +1,39 @@
+# Evaluation windows and policy (spec §5.3, §14.2–14.3, §19.1). Configuration, not prose,
+# holds these. Decided 2026-11-05 (DECISIONS.md D7).
+backfill_start: 2016
+warmup_seasons: [2016, 2017, 2018]        # training history only, never scored
+dev_seasons: [2019, 2020, 2021, 2022, 2023]  # scored and tuned on freely
+# LOCKED HOLDOUT: never used for tuning or inspection. Opened only for a promotion decision,
+# against the pre-registered gate below. Changing it after use invalidates it.
+holdout_seasons: [2024, 2025]
+live_from_season: 2026                    # scored on arrival (live forward period)
+
+# Lookback (§5.3): core team strength has no hard cutoff in principle; a time-decay weight
+# discounts old matches. A 3-season cap is the data-hygiene default, replicated exactly in
+# every backtest refit (backtest consistency).
+lookback_days: 1095
+half_life_grid_days: [90, 180, 365, 730, 1460]   # tuned on the dev window only
+# Fixed Normal(0, sd) prior on team attack/defence (L2); null = no prior. Tuned on dev only.
+team_prior_sd_grid: [0.2, 0.35, 0.5, 1.0, null]
+refit_every_days: 7                       # walk-forward refit cadence (Monday 00:00 UTC)
+result_available_after_hours: 3           # a result is usable as of kickoff + 3h
+min_warmup_matches: 10                    # fewer prior matches for either team = cold start
+report_cold_start_separately: true
+max_goals: 10                             # score-matrix truncation per team (tail reported)
+
+# Phase 1a scores regular-season league matches only: play-offs have neutral finals and no
+# neutral flag exists yet (SOURCE_FEASIBILITY.md open item), cups need knockout logic (§9).
+bundles:                                  # top flight + feeder, fitted jointly (§19.1)
+  england: [39, 40]
+  spain: [140, 141]
+  italy: [135, 136]
+  germany: [78, 79]
+  france: [61, 62]
+headline_bundle: england
+
+# Pre-registered Phase 1b promotion gate (§14.3, CLAUDE.md), recorded before any holdout use.
+phase1b_gate:
+  min_rel_logloss_gain_1x2: 0.010
+  min_rel_rps_gain: 0.005
+  paired_interval: 0.95                   # per-match score difference interval must exclude 0
+  max_segment_rel_worse: 0.010            # no league x market segment worse than this

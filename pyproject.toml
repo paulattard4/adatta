@@ -16,6 +16,8 @@ dependencies = [
   "polars>=1.0",
   "pyyaml>=6.0",
   "typer>=0.12",
+  "numpy>=2.5.4",
+  "scipy>=1.18.1",
 ]
 
 [dependency-groups]
@@ -26,6 +28,7 @@ dev = [
   "types-pyyaml",
   "types-boto3",
   "respx>=0.21",
+  "scipy-stubs>=1.18.1.1",
 ]
 # Heavy inference deps are added when Phase 1a starts:  uv add pymc arviz numpyro
 

@@ -31,7 +31,14 @@ dev = [
   "scipy-stubs>=1.18.1.1",
   "pre-commit>=4.7.0",
 ]
-# Heavy inference deps are added when Phase 1a starts:  uv add pymc arviz numpyro
+# Bayesian stack (Phase 1b, D10, D13). Linux only: JAX and numba ship no Intel-Mac builds,
+# so it runs in the Docker image (docker/model.Dockerfile) and on GitHub runners.
+model = [
+    "arviz>=1.3.0",
+    "jax>=0.12.0.1",
+    "numpyro>=0.22.0",
+    "pymc>=6.4.0",
+]
 
 [project.scripts]
 adatta = "adatta.cli:app"
@@ -60,6 +67,11 @@ exclude = ["migrations/"]
 
 [[tool.mypy.overrides]]
 module = ["alembic.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# model group (Linux / Docker only, D13): not installed on the Intel Mac
+module = ["pymc.*", "pytensor.*", "arviz.*", "numpyro.*", "jax.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

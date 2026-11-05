@@ -51,6 +51,7 @@ class EvalConfig(BaseModel):
     half_life_grid_days: list[float]
     team_prior_sd_grid: list[float | None]
     refit_every_days: int
+    dev_iteration_refit_every_days: int
     result_available_after_hours: float
     min_warmup_matches: int
     report_cold_start_separately: bool

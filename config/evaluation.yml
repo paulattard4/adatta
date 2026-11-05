@@ -16,6 +16,9 @@ half_life_grid_days: [90, 180, 365, 730, 1460]   # tuned on the dev window only
 # Fixed Normal(0, sd) prior on team attack/defence (L2); null = no prior. Tuned on dev only.
 team_prior_sd_grid: [0.2, 0.35, 0.5, 1.0, null]
 refit_every_days: 7                       # walk-forward refit cadence (Monday 00:00 UTC)
+# D14: while iterating Phase 1b on the dev window, refit every 4 weeks (every model scored on
+# the same grid). Final dev runs and the locked holdout use refit_every_days (weekly, D11).
+dev_iteration_refit_every_days: 28
 result_available_after_hours: 3           # a result is usable as of kickoff + 3h
 min_warmup_matches: 10                    # fewer prior matches for either team = cold start
 report_cold_start_separately: true

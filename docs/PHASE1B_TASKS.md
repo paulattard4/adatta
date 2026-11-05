@@ -47,6 +47,10 @@ Order matters (§14.5): the diagnostics gate first, the backtest comparison seco
 - **D11 Refit cadence — resolved:** weekly refits in production and backtest; daily
   resimulation from stored draws.
 - **D12 Manager data — resolved:** probe `/coachs` coverage first; build only if adequate.
+- **D13 Local model runs — resolved:** Linux Docker (`scripts/model.sh`); the Intel Mac
+  can't install JAX or numba.
+- **D14 Dev iteration cadence — resolved:** refit every 4 weeks while iterating (all models
+  on the same grid); weekly for the final dev run and the holdout.
 
 ## Tasks
 
@@ -64,6 +68,11 @@ Order matters (§14.5): the diagnostics gate first, the backtest comparison seco
 - [x] Migration: allow `model_run.status` values `challenger` and `rejected` (§14.6), in 0006.
 
 ### 2. Model v1: Layers 1–2 on goals (PyMC)
+
+First timing (2026-11-05, Docker, 4 cores): England bundle as of 2023-08-07, 2,808
+matches, 51 teams, 158 weekly steps: 878 s for 4 x 1,000 draws, but 57 divergences, R-hat
+1.02 and ESS 118 on sigma_walk / sigma_season. Sampling needs fixing before the gate.
+
 - [ ] Priors as §5.1: mu_league ~ Normal(log 1.35, 0.3); sigma_attack, sigma_defence ~
       HalfNormal(0.5); sigma_home_adv ~ HalfNormal(0.3).
 - [ ] Attack and defence as non-centred Gaussian random walks per matchweek, sigma_walk ~

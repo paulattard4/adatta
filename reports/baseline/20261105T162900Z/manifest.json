@@ -1,0 +1,90 @@
+{
+  "run": "phase1a_baseline",
+  "created_at": "20261105T162900Z",
+  "code_sha": "d3e94bf6b2aea4f652e42d3ec63ebb93ff467048",
+  "seed": 0,
+  "data_snapshot": {
+    "matches": 38612,
+    "sha256": "d9f39190ca395a805926db2078ff59cac923286e5b8969c6e952c6a971aa7a91"
+  },
+  "libraries": {
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "polars": "2.1.0",
+    "sqlalchemy": "2.1.8"
+  },
+  "config": {
+    "backfill_start": 2016,
+    "warmup_seasons": [
+      2016,
+      2017,
+      2018
+    ],
+    "dev_seasons": [
+      2019,
+      2020,
+      2021,
+      2022,
+      2023
+    ],
+    "holdout_seasons": [
+      2024,
+      2025
+    ],
+    "live_from_season": 2026,
+    "lookback_days": 1095,
+    "half_life_grid_days": [
+      90.0,
+      180.0,
+      365.0,
+      730.0,
+      1460.0
+    ],
+    "team_prior_sd_grid": [
+      0.2,
+      0.35,
+      0.5,
+      1.0,
+      null
+    ],
+    "refit_every_days": 7,
+    "result_available_after_hours": 3.0,
+    "min_warmup_matches": 10,
+    "report_cold_start_separately": true,
+    "max_goals": 10,
+    "bundles": {
+      "england": [
+        39,
+        40
+      ],
+      "spain": [
+        140,
+        141
+      ],
+      "italy": [
+        135,
+        136
+      ],
+      "germany": [
+        78,
+        79
+      ],
+      "france": [
+        61,
+        62
+      ]
+    },
+    "headline_bundle": "england",
+    "phase1b_gate": {
+      "min_rel_logloss_gain_1x2": 0.01,
+      "min_rel_rps_gain": 0.005,
+      "paired_interval": 0.95,
+      "max_segment_rel_worse": 0.01
+    }
+  },
+  "window_scored": "dev",
+  "holdout_opened": false,
+  "half_life_days": 365.0,
+  "team_prior_sd": 0.5,
+  "runtime_seconds": 964.1
+}

@@ -60,7 +60,36 @@ as gaps, not filled: 90' score unknown for 3 league play-off matches and for cup
 matches without an extra-time breakdown; Copa del Rey 2016–2017 not in API-Football.
 
 ## 7. Phase 1a baseline + harness
-- [ ] Results-only Dixon-Coles (rho, time decay) fit
-- [ ] Walk-forward harness: Brier, log loss, RPS, CRPS; segments incl. team_level and confederation
-- [ ] Dev window / locked holdout defined and recorded
-- [ ] Baseline report committed; reproducibility manifest written
+- [x] Results-only Dixon-Coles (rho, time decay) fit (`adatta/model/dixon_coles.py`)
+- [x] Walk-forward harness: Brier, log loss, RPS, CRPS; segments incl. team_level and confederation (`adatta/eval/harness.py`)
+- [x] Dev window / locked holdout defined and recorded (`config/evaluation.yml`, D7)
+- [x] Baseline report committed; reproducibility manifest written (`reports/baseline/20261105T162900Z/`)
+
+Acceptance test (stated before building, per CLAUDE.md; windows in `config/evaluation.yml`):
+- End to end (§19.4 gate): weekly walk-forward over the dev window (2019/20–2023/24) for all
+  5 bundles; every finished regular-season match in a dev season gets a prediction, or is
+  listed as unscorable with the reason.
+- No leakage: each refit trains only on results with kickoff + 3h <= as-of and within the
+  lookback; enforced by an assertion in the harness and a test that planting future results
+  leaves every prediction unchanged.
+- Holdout locked: the harness refuses to score holdout seasons (test).
+- Model correctness: the Dixon-Coles fit recovers simulated parameters; the analytic
+  gradient matches finite differences; each score matrix sums to 1 with truncated tail mass
+  reported.
+- Metrics: 1X2 Brier, log loss, RPS; OU 2.5 and BTTS Brier and log loss; total-goals CRPS;
+  segmented by bundle, league, season, market, team_level and confederation; cold-start
+  matches reported separately.
+- Baselines on the same harness (§14.4): league base rates and a league-only Poisson. Dixon-
+  Coles must beat both on 1X2 log loss in every league over the dev window; a league where
+  it doesn't is flagged as a probable bug, not shipped.
+- Half-life chosen from the grid on the dev window only, and recorded.
+- Report and per-match predictions committed under `reports/baseline/`, with a
+  reproducibility manifest (code SHA, data snapshot hash, seed, library versions, config).
+
+Result (2026-11-05, dev window only; holdout not opened): 19,254 regular-season matches in 5
+bundles, 0 unscorable. Tuned on dev: half-life 365 days, team prior sd 0.5. Warm matches:
+Dixon-Coles 1X2 log loss 1.0261 vs base rate 1.0777 (paired diff -0.052, 95% [-0.056,
+-0.047]); RPS 0.2099 vs 0.2277; beats both baselines on 1X2 log loss in all 10 leagues.
+Totals markets are close to the league-only Poisson (OU 2.5 slightly better, BTTS level):
+static team strengths add little there, which is Phase 1b's job. Cold start (572 matches)
+is reported apart and stays slightly worse than the league baselines.

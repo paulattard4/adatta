@@ -12,6 +12,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
@@ -122,10 +123,16 @@ class MatchResult(Temporal, Base):
     match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
     source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Spec §4.4: normal time, extra time and shootout are separate facts. Layer 2 trains on
+    # normal-time goals only; ET goals (ET-only, not cumulative) feed the ET sub-model.
     home_goals_ht: Mapped[int | None] = mapped_column(Integer, nullable=True)
     away_goals_ht: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    home_goals_ft: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    away_goals_ft: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    home_goals_nt: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    away_goals_nt: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    home_goals_et: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    away_goals_et: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    home_pens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    away_pens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     __table_args__ = (Index("ix_match_result_match", "match_id", "superseded_at"),)
 
 
@@ -143,18 +150,35 @@ class RawPayload(Base):
     __table_args__ = (UniqueConstraint("storage_key"),)
 
 
-class Capability(Base):
-    """Temporal capability table: what each source provides per competition-season."""
+CAPABILITY_STATUSES = ("available", "partial", "absent", "unknown")
 
-    __tablename__ = "capability"
+
+class CompetitionSourceCapability(Base):
+    """Temporal capability facts (spec §3.4): what a source provides per competition-season.
+
+    A row is open while valid_to is NULL. A re-audit that confirms the same status only bumps
+    last_audited_at; a changed status closes the open row and opens a new one (never overwrite).
+    coverage_ratio is NULL when status is 'unknown' (nothing observable to measure).
+    """
+
+    __tablename__ = "competition_source_capability"
     capability_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     competition_id: Mapped[int] = mapped_column(ForeignKey("competition.competition_id"))
-    season_year: Mapped[int] = mapped_column(Integer)
+    season_id: Mapped[int] = mapped_column(ForeignKey("season.season_id"))
     source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
-    capability: Mapped[str] = mapped_column(String(64))  # fixtures, lineups, events, xg, odds...
-    coverage_ratio: Mapped[float] = mapped_column(Float)
-    audited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_now())
-    __table_args__ = (UniqueConstraint("competition_id", "season_year", "source_id", "capability"),)
+    capability: Mapped[str] = mapped_column(String(64))  # has_lineups, has_xg, ...
+    coverage_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    status: Mapped[str] = mapped_column(String(16))  # one of CAPABILITY_STATUSES
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_audited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (
+        UniqueConstraint("competition_id", "season_id", "source_id", "capability", "valid_from"),
+        CheckConstraint(
+            "status IN ('available', 'partial', 'absent', 'unknown')", name="ck_capability_status"
+        ),
+        Index("ix_capability_lookup", "competition_id", "season_id", "capability", "valid_to"),
+    )
 
 
 class OddsSnapshot(Base):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, NamedTuple
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -68,6 +68,84 @@ def _team(session: Session, t: dict[str, Any], country: str) -> models.Team:
     return team
 
 
+class ScoreSplit(NamedTuple):
+    home_goals_ht: int | None
+    away_goals_ht: int | None
+    home_goals_nt: int | None
+    away_goals_nt: int | None
+    home_goals_et: int | None
+    away_goals_et: int | None
+    home_pens: int | None
+    away_pens: int | None
+
+
+def _score_of(r: models.MatchResult) -> ScoreSplit:
+    return ScoreSplit(
+        r.home_goals_ht,
+        r.away_goals_ht,
+        r.home_goals_nt,
+        r.away_goals_nt,
+        r.home_goals_et,
+        r.away_goals_et,
+        r.home_pens,
+        r.away_pens,
+    )
+
+
+def _side(score: dict[str, Any], key: str, side: str) -> int | None:
+    part = score.get(key) or {}
+    v = part.get(side)
+    return int(v) if v is not None else None
+
+
+def _normal_time(goals: int | None, ft: int | None, et: int | None) -> int | None:
+    """90' goals. `goals` is the provider's total (incl. ET); `score.fulltime` should be the
+    90' score [verify in audit]. Accept fulltime only if it reconciles with goals and ET;
+    otherwise return None rather than guess (principle 8: no imputed fiction)."""
+    et0 = et or 0
+    if ft is not None and goals is not None:
+        if ft + et0 == goals:
+            return ft
+        if ft == goals and et is not None:  # provider reported fulltime cumulatively
+            return goals - et0
+        return None
+    if ft is not None:
+        return ft
+    if goals is not None and et is not None:
+        return goals - et
+    return None
+
+
+def split_score(fx: dict[str, Any]) -> ScoreSplit:
+    """Separate normal-time, extra-time (ET-only) and shootout scores from a fixture payload."""
+    status = fx["fixture"]["status"]["short"]
+    score = fx.get("score") or {}
+    goals = fx.get("goals") or {}
+    went_et = status in {"AET", "PEN"}
+    out: list[int | None] = []
+    for side in ("home", "away"):
+        g = goals.get(side)
+        g = int(g) if g is not None else None
+        et = _side(score, "extratime", side) if went_et else None
+        if went_et and et is None and g is not None:
+            nt = None  # cannot separate ET from the total
+        elif went_et:
+            nt = _normal_time(g, _side(score, "fulltime", side), et)
+        else:  # no extra time played: total goals are the 90' score
+            ft = _side(score, "fulltime", side)
+            if g is None:
+                nt = ft
+            elif ft is None or ft == g:
+                nt = g
+            else:
+                nt = None  # total and 90' disagree with no ET: don't guess
+        out += [_side(score, "halftime", side), nt, et]
+    h_ht, h_nt, h_et, a_ht, a_nt, a_et = out
+    pens_h = _side(score, "penalty", "home") if status == "PEN" else None
+    pens_a = _side(score, "penalty", "away") if status == "PEN" else None
+    return ScoreSplit(h_ht, a_ht, h_nt, a_nt, h_et, a_et, pens_h, pens_a)
+
+
 def ingest_fixtures(
     session: Session, season: models.Season, fixtures: list[dict[str, Any]], country: str
 ) -> int:
@@ -100,8 +178,7 @@ def ingest_fixtures(
         session.flush()
         if status not in FINISHED:
             continue
-        goals, ht = fx["goals"], fx["score"]["halftime"]
-        new = (ht["home"], ht["away"], goals["home"], goals["away"])
+        new = split_score(fx)
         cur = session.scalar(
             select(models.MatchResult).where(
                 models.MatchResult.match_id == match.match_id,
@@ -109,20 +186,13 @@ def ingest_fixtures(
             )
         )
         if cur is not None:
-            old = (cur.home_goals_ht, cur.away_goals_ht, cur.home_goals_ft, cur.away_goals_ft)
-            if old == new:
+            if _score_of(cur) == new:
                 continue
             cur.superseded_at = now
             cur.valid_to = now
         session.add(
             models.MatchResult(
-                match_id=match.match_id,
-                source_id=SOURCE_ID,
-                observed_at=now,
-                home_goals_ht=new[0],
-                away_goals_ht=new[1],
-                home_goals_ft=new[2],
-                away_goals_ft=new[3],
+                match_id=match.match_id, source_id=SOURCE_ID, observed_at=now, **new._asdict()
             )
         )
         n += 1

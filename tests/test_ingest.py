@@ -32,5 +32,5 @@ def test_ingest_is_idempotent_and_versions_corrections() -> None:
         rows = s.scalars(select(models.MatchResult)).all()
         assert len(rows) == 2
         live = [r for r in rows if r.superseded_at is None]
-        assert len(live) == 1 and live[0].home_goals_ft == 2
+        assert len(live) == 1 and live[0].home_goals_nt == 2
         assert datetime.now(UTC)  # sanity

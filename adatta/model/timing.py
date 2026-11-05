@@ -11,6 +11,8 @@ import os
 import time
 from datetime import UTC, datetime
 
+import numpy as np
+
 from adatta.db.session import get_session
 from adatta.eval.harness import load_config, load_matches
 from adatta.model import team_strength as ts
@@ -35,7 +37,7 @@ def main() -> None:
     with model:
         idata = pm.sample(
             draws=draws, tune=draws, chains=chains, nuts_sampler="numpyro", random_seed=20261105,
-            target_accept=0.9, progressbar=False,
+            target_accept=float(os.environ.get("TARGET_ACCEPT", "0.95")), progressbar=False,
         )  # fmt: skip
     wall = time.time() - t0
     summ = az.summary(idata, var_names=["~attack", "~defence", "~_z"], filter_vars="like")
@@ -44,6 +46,16 @@ def main() -> None:
           f"rhat_max={summ['r_hat'].max():.3f} ess_bulk_min={summ['ess_bulk'].min():.0f} "
           f"ess_tail_min={summ['ess_tail'].min():.0f}")  # fmt: skip
     print(summ.loc[[i for i in summ.index if "[" not in i or "league" in i]].to_string())
+    energy = idata.sample_stats["energy"].values  # (chain, draw)
+    bfmi = (np.diff(energy, axis=1) ** 2).mean(axis=1) / energy.var(axis=1)
+    print("bfmi per chain:", [round(float(b), 2) for b in bfmi])
+    post, divs = idata.posterior, idata.sample_stats["diverging"]
+    for v in ("sigma_walk", "reset_weeks", "sigma_home", "sigma_attack", "sigma_defence"):
+        x = post[v].values.ravel()
+        d = divs.values.ravel()
+        if d.any():
+            print(f"{v}: divergent mean {x[d].mean():.4f} vs all {x.mean():.4f} "
+                  f"(q05 {np.quantile(x, 0.05):.4f})")  # fmt: skip
 
 
 if __name__ == "__main__":

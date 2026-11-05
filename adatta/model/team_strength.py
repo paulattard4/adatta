@@ -2,7 +2,7 @@
 
     attack[s, t]  = attack0[t] + cumsum_s(sd_s * z_attack[s, t]), centred over teams per step
     defence[s, t] likewise
-    sd_s          = sigma_walk, or sqrt(sigma_walk^2 + sigma_season^2) at a season's first step
+    sd_s          = sigma_walk, or sigma_walk * sqrt(1 + reset_weeks) at a season's first step
                     (the soft reset of §5.3: the prior season's state carries over, inflated)
     log lam_home  = mu_league[l] + h_league[l] + sigma_home * h_team[home]
                     + attack[s, home] - defence[s, away]
@@ -11,8 +11,9 @@
 
 Priors are §5.1–5.2: mu_league ~ Normal(log 1.35, 0.3); sigma_attack, sigma_defence ~
 HalfNormal(0.5); sigma_walk ~ HalfNormal(0.15); sigma_home ~ HalfNormal(0.3). The walk is
-non-centred. Steps are calendar weeks (refits are weekly, D11). Teams are shared across the
-bundle's leagues, so promoted and relegated teams carry their state across (§10.3).
+non-centred, with zero-sum innovations over teams (identification). Steps are calendar
+weeks (refits are weekly, D11). Teams are shared across the bundle's leagues, so promoted
+and relegated teams carry their state across (§10.3).
 
 Only importable where the model dependency group is installed (Linux / Docker, D13).
 """
@@ -93,22 +94,29 @@ def build(fd: FitData) -> Any:
         sigma_attack = pm.HalfNormal("sigma_attack", 0.5)
         sigma_defence = pm.HalfNormal("sigma_defence", 0.5)
         sigma_walk = pm.HalfNormal("sigma_walk", 0.15)
-        sigma_season = pm.HalfNormal("sigma_season", 0.3)
+        # Season reset as a multiple of the weekly step: with only 2–3 season boundaries in a
+        # window, a free scale is nearly unidentified (R-hat 1.02, ESS ~270 in the first fits).
+        # Prior: a reset worth ~16 weeks of drift (a transfer window), within about x2.7.
+        reset_weeks = pm.LogNormal("reset_weeks", np.log(16.0), 0.5)
         sigma_home = pm.HalfNormal("sigma_home", 0.3)
         h_league = pm.Normal("h_league", 0.25, 0.2, dims="league")
         h_team = pm.Normal("h_team", 0.0, 1.0, dims="team")
         rho = pm.Uniform("rho", -0.2, 0.2)
 
         sd = pt.where(
-            pt.as_tensor(fd.season_start), pt.sqrt(sigma_walk**2 + sigma_season**2), sigma_walk
+            pt.as_tensor(fd.season_start), sigma_walk * pt.sqrt(1.0 + reset_weeks), sigma_walk
         )
 
         def walk(name: str, sigma0: Any) -> Any:
-            z0 = pm.Normal(f"{name}_z0", 0.0, 1.0, dims="team")
-            z = pm.Normal(f"{name}_z", 0.0, 1.0, dims=("step", "team"))
-            raw = z0[None, :] * sigma0 + pt.cumsum(z * sd[:, None], axis=0)
-            return pm.Deterministic(name, raw - raw.mean(axis=1, keepdims=True),
-                                    dims=("step", "team"))  # fmt: skip
+            # Zero-sum over teams at every step: identifies the level (it lives in mu_league)
+            # without the redundant directions that re-centring after the fact leaves behind.
+            z0 = pm.ZeroSumNormal(f"{name}_z0", 1.0, dims="team")
+            z = pm.ZeroSumNormal(f"{name}_z", 1.0, dims=("step", "team"))
+            return pm.Deterministic(
+                name,
+                z0[None, :] * sigma0 + pt.cumsum(z * sd[:, None], axis=0),
+                dims=("step", "team"),
+            )
 
         attack = walk("attack", sigma_attack)
         defence = walk("defence", sigma_defence)

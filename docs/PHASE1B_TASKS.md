@@ -72,6 +72,12 @@ Order matters (§14.5): the diagnostics gate first, the backtest comparison seco
 First timing (2026-11-05, Docker, 4 cores): England bundle as of 2023-08-07, 2,808
 matches, 51 teams, 158 weekly steps: 878 s for 4 x 1,000 draws, but 57 divergences, R-hat
 1.02 and ESS 118 on sigma_walk / sigma_season. Sampling needs fixing before the gate.
+After two fixes (zero-sum innovations over teams; the season reset expressed as
+`reset_weeks` of extra drift, LogNormal(log 16, 0.5), with target_accept 0.95): 783 s,
+0 divergences, hyperparameter R-hat <= 1.005, ESS >= 1,062, BFMI 0.94–1.01. Still open:
+PyMC warns R-hat > 1.01 for some team-level parameters (not yet inspected), and
+`reset_weeks` is prior-dominated (posterior 16.3 +/- 7.8 vs prior 16), which the prior-
+sensitivity check must report.
 
 - [ ] Priors as §5.1: mu_league ~ Normal(log 1.35, 0.3); sigma_attack, sigma_defence ~
       HalfNormal(0.5); sigma_home_adv ~ HalfNormal(0.3).

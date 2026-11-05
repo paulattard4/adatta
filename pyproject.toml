@@ -1,0 +1,61 @@
+[project]
+name = "adatta"
+version = "0.1.0"
+description = "Probabilistic football forecasting platform"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "sqlalchemy>=2.0",
+  "alembic>=1.13",
+  "psycopg[binary]>=3.2",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "httpx>=0.27",
+  "tenacity>=8.3",
+  "boto3>=1.34",
+  "polars>=1.0",
+  "pyyaml>=6.0",
+  "typer>=0.12",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.2",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  "types-pyyaml",
+  "types-boto3",
+  "respx>=0.21",
+]
+# Heavy inference deps are added when Phase 1a starts:  uv add pymc arviz numpyro
+
+[project.scripts]
+adatta = "adatta.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["adatta"]
+
+[tool.ruff]
+extend-exclude = ["migrations/versions"]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["migrations/"]
+
+[[tool.mypy.overrides]]
+module = ["alembic.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

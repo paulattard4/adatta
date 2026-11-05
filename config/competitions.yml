@@ -1,0 +1,19 @@
+# Competition registry. Adding a competition = adding a row here (no code change).
+# priority: lower number is backfilled first. seasons: list of season start years.
+# league_id values are API-Football ids: VERIFY each against /leagues before backfilling.
+competitions:
+  - {name: Premier League,   country: England, league_id: 39,  level: senior, tier: 1, priority: 1, seasons: [2022, 2023, 2024, 2025]}
+  - {name: La Liga,          country: Spain,   league_id: 140, level: senior, tier: 1, priority: 1, seasons: [2022, 2023, 2024, 2025]}
+  - {name: Serie A,          country: Italy,   league_id: 135, level: senior, tier: 1, priority: 1, seasons: [2022, 2023, 2024, 2025]}
+  - {name: Bundesliga,       country: Germany, league_id: 78,  level: senior, tier: 1, priority: 1, seasons: [2022, 2023, 2024, 2025]}
+  - {name: Ligue 1,          country: France,  league_id: 61,  level: senior, tier: 1, priority: 1, seasons: [2022, 2023, 2024, 2025]}
+  - {name: Championship,     country: England, league_id: 40,  level: senior, tier: 2, priority: 2, seasons: [2022, 2023, 2024, 2025]}
+  - {name: Segunda Division, country: Spain,   league_id: 141, level: senior, tier: 2, priority: 2, seasons: [2023, 2024, 2025]}
+  - {name: Serie B,          country: Italy,   league_id: 136, level: senior, tier: 2, priority: 2, seasons: [2023, 2024, 2025]}
+  - {name: 2. Bundesliga,    country: Germany, league_id: 79,  level: senior, tier: 2, priority: 2, seasons: [2023, 2024, 2025]}
+  - {name: Ligue 2,          country: France,  league_id: 62,  level: senior, tier: 2, priority: 2, seasons: [2023, 2024, 2025]}
+  - {name: FA Cup,           country: England, league_id: 45,  level: senior, tier: cup, priority: 3, seasons: [2023, 2024, 2025]}
+  - {name: Copa del Rey,     country: Spain,   league_id: 143, level: senior, tier: cup, priority: 3, seasons: [2023, 2024, 2025]}
+  - {name: Coppa Italia,     country: Italy,   league_id: 137, level: senior, tier: cup, priority: 3, seasons: [2023, 2024, 2025]}
+  - {name: DFB Pokal,        country: Germany, league_id: 81,  level: senior, tier: cup, priority: 3, seasons: [2023, 2024, 2025]}
+  - {name: Coupe de France,  country: France,  league_id: 66,  level: senior, tier: cup, priority: 3, seasons: [2023, 2024, 2025]}

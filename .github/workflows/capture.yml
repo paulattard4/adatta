@@ -1,13 +1,24 @@
-# Snapshot capture poller (D2). Runs every 15 minutes; captures whatever is due.
-# The capture command itself is added in Phase 0 task 5. Until then this is a disabled stub.
+# Snapshot capture poller (D2, spec §19.2 step 4). Each run captures whatever is due and is
+# idempotent, so overlapping or repeated runs are harmless.
+# Hosting: the repo is public, so Actions minutes are free (a 15-minute cron on a private repo
+# would need ~2,900 billed minutes/month against GitHub Free's 2,000).
+# Offset minutes avoid the top-of-hour rush, when GitHub delays or drops scheduled runs; any
+# window a delayed run misses is reported by the missed-capture alert. Secrets are not exposed
+# to fork pull requests, and only users with write access can trigger workflow_dispatch.
 name: capture
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: "*/15 * * * *"   # enable once `adatta capture` exists
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+permissions:
+  contents: read
+concurrency:
+  group: capture
+  cancel-in-progress: false
 jobs:
   capture:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -15,9 +26,13 @@ jobs:
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
       STORAGE_BACKEND: r2
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv sync
-      - run: echo "capture command not implemented yet"
+        with:
+          enable-cache: true
+      - run: uv sync --no-dev
+      # exits non-zero on a missed milestone or job error, so the run fails visibly
+      - run: uv run adatta capture

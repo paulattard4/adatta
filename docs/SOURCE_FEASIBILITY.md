@@ -15,7 +15,8 @@ coverage comes **from real payloads, not declared flags**.
 **Groups used below**: *Top-5* = PL, La Liga, Serie A, Bundesliga, Ligue 1 (2022–2025, 20 seasons).
 *Tier-2* = Championship (2022–25), Segunda, Serie B, 2. Bundesliga, Ligue 2 (2023–25), 16 seasons.
 *Cups* = FA Cup, Copa del Rey, Coppa Italia, DFB Pokal, Coupe de France (2023–25), 15 seasons.
-The 2025 seasons were in progress at audit time.
+Season years are start years; all audited seasons (up to 2025/26) are complete. **The current
+season, 2026/27, is not in `config/competitions.yml` and has not been audited.**
 
 **Status key**: `verified` = coverage measured from payloads · `partial` = exists but not
 everywhere · `unavailable` = verified absent from the source · `unverified` = not yet tested.
@@ -45,7 +46,7 @@ everywhere · `unavailable` = verified absent from the source · `unverified` = 
 
 | Field | Status | Source, endpoint | Historical availability | Coverage (from payloads) | Update cadence | As-of reconstructable | Licensing | Fallback | Required phase |
 |---|---|---|---|---|---|---|---|---|---|
-| xG (team) | partial | `/fixtures?ids` statistics `expected_goals` | Top-5: from about **mid-Jan 2023** (2022/23 is 57–68% because it starts mid-season). Championship: from 2023. Other Tier-2: only from 2025 | Top-5 2023+ 98–100%; Championship 2023+ 98–100%; Ligue 2, 2. BL, Serie B, Segunda 2023–24 **0%**, 2025 30–72%; Cups 0–18% | not measured | Yes (post-match fact) | [verify] | Layer 2 fits on goals alone (§4.4) | 1b |
+| xG (team) | partial | `/fixtures?ids` statistics `expected_goals` | Top-5: from about **mid-Jan 2023** (2022/23 is 57–68% because it starts mid-season). Championship: from 2023. Other Tier-2: only from partway through 2025/26 (Serie B and Segunda from about Nov 2025) | Top-5 2023+ 98–100%; Championship 2023+ 98–100%; Ligue 2, 2. BL, Serie B, Segunda 2023–24 **0%**, 2025 30–72%; Cups 0–18% | not measured | Yes (post-match fact) | [verify] | Layer 2 fits on goals alone (§4.4) | 1b |
 | Shots (total, on target, in/out of box, blocked) | verified | statistics `Total Shots` etc. | All audited seasons | Top-5 100%; Tier-2 98–100%; Cups 8–100% | not measured | Yes | [verify] | Style covariates absent from design matrix | 2 |
 | Possession, passes, pass accuracy | verified | statistics `Ball Possession`, `Total passes`, `Passes accurate`, `Passes %` | All audited seasons | Top-5 100%; Tier-2 about 100%; Cups about 52% of sampled fixtures | not measured | Yes | [verify] | As above | 2 |
 | Corners | verified | statistics `Corner Kicks` | All audited seasons | Top-5 100%; Tier-2 98–100%; Cups 8–100% | not measured | Yes | [verify] | Corner markets not offered | 3b |

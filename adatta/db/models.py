@@ -181,21 +181,118 @@ class CompetitionSourceCapability(Base):
     )
 
 
+class OddsCapture(Base):
+    """One row per (match, milestone kind): was the market captured, missed, or not offered?
+
+    Evaluation-only (spec §15). The full provider payload is in the raw store under
+    storage_key; odds_snapshot holds the normalised subset. Never joined into feature builds.
+    """
+
+    __tablename__ = "odds_capture"
+    capture_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    snapshot_kind: Mapped[str] = mapped_column(String(16))  # see capture.snapshots.KINDS
+    # captured / missed (our poller failed) / no_market (provider offered no odds) /
+    # not_published (lineup never published, so the lineup-kind capture could not happen)
+    status: Mapped[str] = mapped_column(String(16))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_now())
+    storage_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    n_bookmakers: Mapped[int] = mapped_column(Integer, default=0)
+    __table_args__ = (UniqueConstraint("match_id", "snapshot_kind"),)
+
+
 class OddsSnapshot(Base):
-    """Evaluation-only. Never a model feature."""
+    """Evaluation-only. Never a model feature. Normalised prices for one capture."""
 
     __tablename__ = "odds_snapshot"
     snapshot_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
     source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    capture_id: Mapped[int | None] = mapped_column(
+        ForeignKey("odds_capture.capture_id"), nullable=True
+    )
     bookmaker: Mapped[str] = mapped_column(String(64))
-    market: Mapped[str] = mapped_column(String(32))  # 1X2, OU2.5, ...
+    market: Mapped[str] = mapped_column(String(32))  # 1X2, OU, BTTS
+    line: Mapped[float | None] = mapped_column(Float, nullable=True)  # 2.5 for OU
     selection: Mapped[str] = mapped_column(String(32))
     decimal_odds: Mapped[float] = mapped_column(Float)
-    snapshot_kind: Mapped[str] = mapped_column(String(16))  # initial/T-7d/T-24h/T-60m/close
+    snapshot_kind: Mapped[str] = mapped_column(String(16))
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_now())
     __table_args__ = (Index("ix_odds_match_kind", "match_id", "snapshot_kind"),)
+
+
+class FixtureSnapshot(Base):
+    """Fixture-calendar snapshots: appended only when kickoff/status/referee/venue changes."""
+
+    __tablename__ = "fixture_snapshot"
+    snapshot_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_now())
+    kickoff_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # event_time
+    status: Mapped[str] = mapped_column(String(16))
+    referee: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    venue_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    round: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    __table_args__ = (Index("ix_fixture_snapshot_match", "match_id", "observed_at"),)
+
+
+class PlayerStatusSnapshot(Temporal, Base):
+    """Spec §7.1: per-player availability as of a date. Open while valid_to is NULL; a change
+    closes the open row and opens a new one. expected_return stays NULL for API-Football
+    (verified unavailable, docs/SOURCE_FEASIBILITY.md)."""
+
+    __tablename__ = "player_status_snapshot"
+    status_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("player.player_id"))
+    team_id: Mapped[int] = mapped_column(ForeignKey("team.team_id"))
+    match_id: Mapped[int | None] = mapped_column(ForeignKey("match.match_id"), nullable=True)
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(32))  # missing / questionable
+    reason: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    expected_return: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    competition_eligible: Mapped[bool] = mapped_column(Boolean, default=True)
+    __table_args__ = (Index("ix_player_status_open", "player_id", "match_id", "valid_to"),)
+
+
+class LineupSnapshot(Base):
+    """Confirmed lineup as first seen before kickoff (observed_at gives its pre-match timing)."""
+
+    __tablename__ = "lineup_snapshot"
+    lineup_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    team_id: Mapped[int] = mapped_column(ForeignKey("team.team_id"))
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_now())
+    formation: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    coach_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    coach_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    starters: Mapped[list[dict[str, Any]]] = mapped_column(JsonType)
+    substitutes: Mapped[list[dict[str, Any]]] = mapped_column(JsonType)
+    __table_args__ = (UniqueConstraint("match_id", "team_id"),)
+
+
+class CaptureLog(Base):
+    """One row per capture job run/scope: proves a feed was polled (so absence = no change),
+    records quota use per job (spec §4.2 rule 4), and carries missed-capture events."""
+
+    __tablename__ = "capture_log"
+    log_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    job: Mapped[str] = mapped_column(String(32))  # calendar / status / odds / lineups
+    scope: Mapped[str] = mapped_column(String(64))  # league id or match id
+    run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    outcome: Mapped[str] = mapped_column(String(16))  # ok / missed / error
+    requests: Mapped[int] = mapped_column(Integer, default=0)
+    detail: Mapped[str] = mapped_column(String(500), default="")
+    __table_args__ = (Index("ix_capture_log_job", "job", "scope", "run_at"),)
 
 
 class BackfillJob(Base):

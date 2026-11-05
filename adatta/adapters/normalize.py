@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from datetime import UTC, datetime
 from typing import Any, NamedTuple
 
@@ -54,6 +55,23 @@ def ensure_season(session: Session, competition_id: int, year: int) -> models.Se
         session.add(season)
         session.flush()
     return season
+
+
+def ensure_team(session: Session, ref: str, name: str, country: str = "") -> models.Team:
+    return _team(session, {"id": ref, "name": name}, country)
+
+
+def ensure_player(session: Session, ref: str, name: str) -> models.Player:
+    player = session.scalar(
+        select(models.Player).where(
+            models.Player.source_id == SOURCE_ID, models.Player.source_ref == ref
+        )
+    )
+    if player is None:
+        player = models.Player(source_id=SOURCE_ID, source_ref=ref, name=name)
+        session.add(player)
+        session.flush()
+    return player
 
 
 def _team(session: Session, t: dict[str, Any], country: str) -> models.Team:
@@ -146,54 +164,125 @@ def split_score(fx: dict[str, Any]) -> ScoreSplit:
     return ScoreSplit(h_ht, a_ht, h_nt, a_nt, h_et, a_et, pens_h, pens_a)
 
 
+def chunks(xs: list[Any], n: int = 500) -> Iterator[list[Any]]:
+    for i in range(0, len(xs), n):
+        yield xs[i : i + n]
+
+
+def teams_by_ref(
+    session: Session, teams: dict[str, str], country: str = ""
+) -> dict[str, models.Team]:
+    """Bulk get-or-create teams from {source_ref: name}: one SELECT per 500 refs, one flush."""
+    T = models.Team
+    out: dict[str, models.Team] = {}
+    for part in chunks(sorted(teams)):
+        out.update(
+            (t.source_ref, t)
+            for t in session.scalars(
+                select(T).where(T.source_id == SOURCE_ID, T.source_ref.in_(part))
+            )
+        )
+    new = [
+        T(source_id=SOURCE_ID, source_ref=ref, name=name, country=country)
+        for ref, name in teams.items()
+        if ref not in out
+    ]
+    if new:
+        session.add_all(new)
+        session.flush()
+        out.update((t.source_ref, t) for t in new)
+    return out
+
+
+def players_by_ref(session: Session, players: dict[str, str]) -> dict[str, models.Player]:
+    """Bulk get-or-create players from {source_ref: name}."""
+    P = models.Player
+    out: dict[str, models.Player] = {}
+    for part in chunks(sorted(players)):
+        out.update(
+            (p.source_ref, p)
+            for p in session.scalars(
+                select(P).where(P.source_id == SOURCE_ID, P.source_ref.in_(part))
+            )
+        )
+    new = [P(source_id=SOURCE_ID, source_ref=r, name=n) for r, n in players.items() if r not in out]
+    if new:
+        session.add_all(new)
+        session.flush()
+        out.update((p.source_ref, p) for p in new)
+    return out
+
+
+def matches_by_ref(session: Session, refs: Iterable[str]) -> dict[str, models.Match]:
+    M = models.Match
+    out: dict[str, models.Match] = {}
+    for part in chunks(sorted(set(refs))):
+        out.update(
+            (m.source_ref, m)
+            for m in session.scalars(
+                select(M).where(M.source_id == SOURCE_ID, M.source_ref.in_(part))
+            )
+        )
+    return out
+
+
 def ingest_fixtures(
     session: Session, season: models.Season, fixtures: list[dict[str, Any]], country: str
 ) -> int:
-    """Upsert matches; add a new MatchResult version only when the score changed."""
+    """Upsert matches; add a new MatchResult version only when the score changed.
+
+    Lookups are batched (a handful of queries per call, not per fixture): against a remote
+    database, per-row round trips made a 380-fixture season take minutes.
+    """
     now = datetime.now(UTC)
-    n = 0
+    teams = teams_by_ref(
+        session,
+        {str(fx["teams"][side]["id"]): fx["teams"][side]["name"] for fx in fixtures
+         for side in ("home", "away")},
+        country,
+    )  # fmt: skip
+    matches = matches_by_ref(session, (str(fx["fixture"]["id"]) for fx in fixtures))
     for fx in fixtures:
         ref = str(fx["fixture"]["id"])
-        home = _team(session, fx["teams"]["home"], country)
-        away = _team(session, fx["teams"]["away"], country)
         kickoff = datetime.fromisoformat(fx["fixture"]["date"])
-        status = fx["fixture"]["status"]["short"]
-        match = session.scalar(
-            select(models.Match).where(
-                models.Match.source_id == SOURCE_ID, models.Match.source_ref == ref
-            )
-        )
+        match = matches.get(ref)
         if match is None:
             match = models.Match(
                 source_id=SOURCE_ID,
                 source_ref=ref,
                 season_id=season.season_id,
-                home_team_id=home.team_id,
-                away_team_id=away.team_id,
+                home_team_id=teams[str(fx["teams"]["home"]["id"])].team_id,
+                away_team_id=teams[str(fx["teams"]["away"]["id"])].team_id,
                 kickoff_time=kickoff,
             )
             session.add(match)
-        match.status = status
+            matches[ref] = match
+        match.status = fx["fixture"]["status"]["short"]
         match.kickoff_time = kickoff
-        session.flush()
-        if status not in FINISHED:
-            continue
-        new = split_score(fx)
-        cur = session.scalar(
-            select(models.MatchResult).where(
-                models.MatchResult.match_id == match.match_id,
-                models.MatchResult.superseded_at.is_(None),
+    session.flush()
+    finished = [fx for fx in fixtures if fx["fixture"]["status"]["short"] in FINISHED]
+    R = models.MatchResult
+    ids = [matches[str(fx["fixture"]["id"])].match_id for fx in finished]
+    current: dict[int, models.MatchResult] = {}
+    for part in chunks(ids):
+        current.update(
+            (r.match_id, r)
+            for r in session.scalars(
+                select(R).where(R.match_id.in_(part), R.superseded_at.is_(None))
             )
         )
+    n = 0
+    for fx in finished:
+        match = matches[str(fx["fixture"]["id"])]
+        new = split_score(fx)
+        cur = current.get(match.match_id)
         if cur is not None:
             if _score_of(cur) == new:
                 continue
             cur.superseded_at = now
             cur.valid_to = now
         session.add(
-            models.MatchResult(
-                match_id=match.match_id, source_id=SOURCE_ID, observed_at=now, **new._asdict()
-            )
+            R(match_id=match.match_id, source_id=SOURCE_ID, observed_at=now, **new._asdict())
         )
         n += 1
     session.flush()

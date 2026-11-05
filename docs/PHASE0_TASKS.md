@@ -30,9 +30,9 @@ Tick each item only when its acceptance check passes.
 - [x] Source-feasibility register: mark unavailable items (PPDA, directness, tracking data, event coordinates, injury return dates) (`docs/SOURCE_FEASIBILITY.md`; open items listed there)
 
 ## 5. Snapshot capture — start running from day one
-- [ ] Scheduler (per D2) captures fixtures, lineups/status, and odds snapshots (initial, T-7d, T-24h, T-60m, close)
-- [ ] Odds stored in separate tables; never joined into feature builds
-- [ ] Alert if a scheduled capture is missed
+- [ ] Scheduler (per D2) captures fixtures, lineups/status, and odds snapshots (initial, T-7d, T-24h, T-60m, close) — built and run live against Neon; 15-min cron enabled in `capture.yml`, goes live once the repo is public with secrets set
+- [x] Odds stored in separate tables; never joined into feature builds
+- [x] Alert if a scheduled capture is missed
 
 ## 6. Historical backfill
 - [ ] Prioritised competitions/seasons within quota budget

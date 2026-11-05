@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     r2_bucket: str = "adatta-raw"
     storage_backend: Literal["r2", "local"] = "local"
 
+    alert_webhook_url: str = ""  # Slack-compatible incoming webhook; optional
+
 
 @lru_cache
 def get_settings() -> Settings:

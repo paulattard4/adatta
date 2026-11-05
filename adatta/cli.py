@@ -14,6 +14,8 @@ from adatta.adapters.api_football import ApiFootballClient
 from adatta.adapters.quota import QuotaPlanner
 from adatta.adapters.storage import make_store
 from adatta.audit import capability as cap_audit
+from adatta.capture import alert
+from adatta.capture.jobs import run_capture
 from adatta.config import get_settings, load_competitions
 from adatta.db.session import get_session
 
@@ -115,6 +117,27 @@ def audit(
     typer.echo(
         f"{len(audits)} seasons audited, {client.requests_made} requests; report in {out_dir}"
     )
+
+
+@app.command()
+def capture() -> None:
+    """Snapshot capture tick: run whatever is due (designed for a ~15-minute schedule).
+
+    Exits non-zero when a milestone was missed or a job errored, so a scheduled CI run fails
+    visibly; the alert webhook (ALERT_WEBHOOK_URL) is notified as well.
+    """
+    settings = get_settings()
+    client = _client()
+    with get_session() as session:
+        report = run_capture(session, client, load_competitions())
+    summary = ", ".join(f"{k}={v}" for k, v in sorted(report.actions.items())) or "nothing due"
+    typer.echo(
+        f"capture {report.started_at:%Y-%m-%dT%H:%MZ}: {summary}; {report.requests} requests"
+    )
+    problems = report.missed + report.errors
+    if problems:
+        alert.send(settings, f"adatta capture: {len(problems)} problem(s)\n" + "\n".join(problems))
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

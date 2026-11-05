@@ -32,6 +32,7 @@ class ApiFootballClient:
         self._store = store
         self._quota = quota
         self._requests_made = 0
+        self.last_storage_key: str | None = None
         self._http = http or httpx.Client(
             base_url=settings.api_football_base_url,
             headers={"x-apisports-key": settings.api_football_key},
@@ -68,6 +69,7 @@ class ApiFootballClient:
         blob, digest = encode_payload(payload)
         now = datetime.now(UTC)
         key = storage_key(SOURCE_ID, endpoint, now.strftime("%Y-%m-%d"), digest)
+        self.last_storage_key = key
         exists = session.scalar(
             select(models.RawPayload.payload_id).where(models.RawPayload.storage_key == key)
         )
@@ -90,19 +92,25 @@ class ApiFootballClient:
         """Cheap connectivity/plan check (/status)."""
         return self.fetch(session, "/status", {}, live=True)
 
-    def fixtures(self, session: Session, league_id: int, season: int) -> list[dict[str, Any]]:
-        data = self.fetch(session, "/fixtures", {"league": league_id, "season": season})
+    def fixtures(
+        self, session: Session, league_id: int, season: int, *, live: bool = False
+    ) -> list[dict[str, Any]]:
+        data = self.fetch(session, "/fixtures", {"league": league_id, "season": season}, live=live)
         out: list[dict[str, Any]] = data.get("response", [])
         return out
 
-    def league_seasons(self, session: Session, league_id: int) -> list[dict[str, Any]]:
+    def league_seasons(
+        self, session: Session, league_id: int, *, live: bool = False
+    ) -> list[dict[str, Any]]:
         """/leagues?id=: every season of one league, each with its declared `coverage` object."""
-        data = self.fetch(session, "/leagues", {"id": league_id})
+        data = self.fetch(session, "/leagues", {"id": league_id}, live=live)
         resp: list[dict[str, Any]] = data.get("response", [])
         seasons: list[dict[str, Any]] = resp[0].get("seasons", []) if resp else []
         return seasons
 
-    def fixtures_by_ids(self, session: Session, ids: list[int]) -> list[dict[str, Any]]:
+    def fixtures_by_ids(
+        self, session: Session, ids: list[int], *, live: bool = False
+    ) -> list[dict[str, Any]]:
         """/fixtures?ids=a-b-c: full detail (events, lineups, statistics, players) per fixture.
 
         The provider caps a batch at IDS_BATCH_MAX ids [verify]; callers must chunk.
@@ -111,6 +119,19 @@ class ApiFootballClient:
             return []
         if len(ids) > IDS_BATCH_MAX:
             raise ValueError(f"at most {IDS_BATCH_MAX} ids per call, got {len(ids)}")
-        data = self.fetch(session, "/fixtures", {"ids": "-".join(str(i) for i in ids)})
+        data = self.fetch(session, "/fixtures", {"ids": "-".join(str(i) for i in ids)}, live=live)
+        out: list[dict[str, Any]] = data.get("response", [])
+        return out
+
+    def odds(self, session: Session, fixture_id: int) -> dict[str, Any] | None:
+        """/odds?fixture=: pre-match odds for one fixture (all bookmakers), or None if not
+        offered. History is not retained by the provider, so this is capture-only."""
+        data = self.fetch(session, "/odds", {"fixture": fixture_id}, live=True)
+        resp: list[dict[str, Any]] = data.get("response", [])
+        return resp[0] if resp else None
+
+    def injuries(self, session: Session, league_id: int, season: int) -> list[dict[str, Any]]:
+        """/injuries?league&season: per-fixture absences (Missing Fixture / Questionable)."""
+        data = self.fetch(session, "/injuries", {"league": league_id, "season": season}, live=True)
         out: list[dict[str, Any]] = data.get("response", [])
         return out

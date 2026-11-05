@@ -26,8 +26,8 @@ Tick each item only when its acceptance check passes.
 ## 4. API-Football adapter + data audit
 - [ ] Quota planner + rate limiter + retry/backoff
 - [ ] Adapter: leagues, teams, fixtures, results, lineups, events, stats; raw payload saved, normalised rows with source_id
-- [ ] Audit notebook/script: coverage by competition x season x capability; fill capability table
-- [ ] Source-feasibility register: mark unavailable items (PPDA, directness, tracking data, event coordinates, injury return dates)
+- [x] Audit notebook/script: coverage by competition x season x capability; fill capability table (`adatta audit`; 2026-11-05: 51 seasons, `reports/capability_audit/`)
+- [x] Source-feasibility register: mark unavailable items (PPDA, directness, tracking data, event coordinates, injury return dates) (`docs/SOURCE_FEASIBILITY.md`; open items listed there)
 
 ## 5. Snapshot capture — start running from day one
 - [ ] Scheduler (per D2) captures fixtures, lineups/status, and odds snapshots (initial, T-7d, T-24h, T-60m, close)

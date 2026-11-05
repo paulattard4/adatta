@@ -17,6 +17,7 @@ from adatta.config import Settings
 from adatta.db import models
 
 SOURCE_ID = "api_football"
+IDS_BATCH_MAX = 20
 
 
 class ApiFootballClient:
@@ -30,11 +31,22 @@ class ApiFootballClient:
         self._settings = settings
         self._store = store
         self._quota = quota
+        self._requests_made = 0
         self._http = http or httpx.Client(
             base_url=settings.api_football_base_url,
             headers={"x-apisports-key": settings.api_football_key},
             timeout=30,
         )
+
+    @property
+    def requests_made(self) -> int:
+        """Requests this client instance sent (the quota planner tracks account-wide usage)."""
+        return self._requests_made
+
+    @property
+    def quota_used_today(self) -> int:
+        """Account-wide usage today, as last reported by the provider's rate-limit header."""
+        return self._quota.used_today
 
     @retry(stop=stop_after_attempt(4), wait=wait_exponential(min=1, max=20), reraise=True)
     def _get(self, endpoint: str, params: dict[str, Any]) -> httpx.Response:
@@ -47,6 +59,7 @@ class ApiFootballClient:
     ) -> dict[str, Any]:
         """Fetch, persist the raw payload (object store + index row), return parsed JSON."""
         self._quota.acquire(live=live)
+        self._requests_made += 1
         resp = self._get(endpoint, params)
         remaining = resp.headers.get("x-ratelimit-requests-remaining")
         if remaining is not None:
@@ -79,5 +92,25 @@ class ApiFootballClient:
 
     def fixtures(self, session: Session, league_id: int, season: int) -> list[dict[str, Any]]:
         data = self.fetch(session, "/fixtures", {"league": league_id, "season": season})
+        out: list[dict[str, Any]] = data.get("response", [])
+        return out
+
+    def league_seasons(self, session: Session, league_id: int) -> list[dict[str, Any]]:
+        """/leagues?id=: every season of one league, each with its declared `coverage` object."""
+        data = self.fetch(session, "/leagues", {"id": league_id})
+        resp: list[dict[str, Any]] = data.get("response", [])
+        seasons: list[dict[str, Any]] = resp[0].get("seasons", []) if resp else []
+        return seasons
+
+    def fixtures_by_ids(self, session: Session, ids: list[int]) -> list[dict[str, Any]]:
+        """/fixtures?ids=a-b-c: full detail (events, lineups, statistics, players) per fixture.
+
+        The provider caps a batch at IDS_BATCH_MAX ids [verify]; callers must chunk.
+        """
+        if not ids:
+            return []
+        if len(ids) > IDS_BATCH_MAX:
+            raise ValueError(f"at most {IDS_BATCH_MAX} ids per call, got {len(ids)}")
+        data = self.fetch(session, "/fixtures", {"ids": "-".join(str(i) for i in ids)})
         out: list[dict[str, Any]] = data.get("response", [])
         return out

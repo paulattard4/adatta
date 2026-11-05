@@ -1,0 +1,137 @@
+# Source-feasibility register
+
+Spec: `docs/adatta_architecture_v2.pdf` §4.3, §4.4, Appendix C (traceability), Appendix E (template).
+One row per field. Per §4.4 this must be completed before the dependent sub-model starts, and
+coverage comes **from real payloads, not declared flags**.
+
+**Evidence base (2026-11-05)**
+- Capability audit `reports/capability_audit/20261105T115828Z.csv` (+ `.manifest.json`):
+  15 competitions × 51 seasons, 40 finished fixtures per season (fixed seed 20261105),
+  2,040 unique fixture-detail payloads. Rows live in `competition_source_capability` (Neon).
+- Field inventory mined from those payloads (raw copies in R2).
+- Live probes, 4 requests: `/injuries?league=39&season=2025`, `/sidelined?player=1125`,
+  `/odds?fixture=868107` (a 2022/23 Premier League match), `/venues?id=556`.
+
+**Groups used below**: *Top-5* = PL, La Liga, Serie A, Bundesliga, Ligue 1 (2022–2025, 20 seasons).
+*Tier-2* = Championship (2022–25), Segunda, Serie B, 2. Bundesliga, Ligue 2 (2023–25), 16 seasons.
+*Cups* = FA Cup, Copa del Rey, Coppa Italia, DFB Pokal, Coupe de France (2023–25), 15 seasons.
+The 2025 seasons were in progress at audit time.
+
+**Status key**: `verified` = coverage measured from payloads · `partial` = exists but not
+everywhere · `unavailable` = verified absent from the source · `unverified` = not yet tested.
+
+**Columns not yet measured (apply to every API-Football row unless stated)**
+- *Update cadence*: not measurable from historical payloads. It will be measured once Phase 0
+  snapshot capture (task 5) records `observed_at` against `event_time`. Marked "not measured".
+- *Licensing*: API-Football terms for the intended use (including any betting-facing output) have
+  **not been reviewed**. Every API-Football row is `[verify]` on licensing until that review is done.
+
+---
+
+## 1. Results and match facts (Phase 1a/1b, 3d)
+
+| Field | Status | Source, endpoint | Historical availability | Coverage (from payloads) | Update cadence | As-of reconstructable | Licensing | Fallback | Required phase |
+|---|---|---|---|---|---|---|---|---|---|
+| Final score, kickoff, teams | verified | API-Football `/fixtures?league&season` | All audited seasons | Every finished fixture in all 51 seasons | not measured | Yes. Results are final facts; corrections are versioned in `match_result` | [verify] | none needed | 1a |
+| Normal-time / ET / shootout split | partial | `/fixtures` `score.fulltime/extratime/penalty` | All audited seasons | FA Cup 2024 proper rounds: 31/31 ET/PEN matches reconcile. **Qualifying rounds: 19/60 inconsistent** (zeroed `extratime`, non-level 90' score) | not measured | Yes | [verify] | Store NULL where it doesn't reconcile (implemented); restrict cups to proper rounds (open decision) | 1a (NT only), 3d (ET, shootouts) |
+| Half-time score | verified | `/fixtures?ids` `score.halftime` | All audited seasons | Top-5 and Tier-2 100%; Cups 45–100% | not measured | Yes | [verify] | Half-split off where absent (§4.4) | 3b |
+| Neutral venue flag | unavailable (direct) | No field in `/fixtures` | – | No `neutral` key in any payload. `match.neutral` is currently always False | – | Derivable from history | – | Derive: venue ≠ home team's usual venue, plus a per-competition rule (finals) | 1b |
+| Stage / round | verified | `/fixtures` `league.round` | All audited seasons | Present on every fixture | not measured | Yes | [verify] | – | 3d, cup stage gating |
+| Referee name | verified | `/fixtures` `fixture.referee` | All audited seasons | Top-5 and Tier-2 100%; Cups 10–100% (Copa del Rey 2025 48%) | Assignment timing not measured | Name: yes. **Pre-match assignment time: no** (needs live capture) | [verify] | Pool prior by competition and tier (§6.2) | 2 |
+| VAR in use (`has_var`) | partial | `/fixtures?ids` events `type=Var` | All audited seasons | VAR events seen (goal/penalty/card reviews); per-competition rate not yet tabulated | – | Yes | [verify] | Competition-level manual fact | 2 |
+| Added (stoppage) time per half | partial | events `time.extra` | All audited seasons | Only events *during* added time carry `extra` (a lower bound). Announced added time is not provided | – | Lower bound only | [verify] | Competition-level average from max `extra` per half | 2, 3 |
+
+## 2. Team statistics and style (Phase 1b, 2)
+
+| Field | Status | Source, endpoint | Historical availability | Coverage (from payloads) | Update cadence | As-of reconstructable | Licensing | Fallback | Required phase |
+|---|---|---|---|---|---|---|---|---|---|
+| xG (team) | partial | `/fixtures?ids` statistics `expected_goals` | Top-5: from about **mid-Jan 2023** (2022/23 is 57–68% because it starts mid-season). Championship: from 2023. Other Tier-2: only from 2025 | Top-5 2023+ 98–100%; Championship 2023+ 98–100%; Ligue 2, 2. BL, Serie B, Segunda 2023–24 **0%**, 2025 30–72%; Cups 0–18% | not measured | Yes (post-match fact) | [verify] | Layer 2 fits on goals alone (§4.4) | 1b |
+| Shots (total, on target, in/out of box, blocked) | verified | statistics `Total Shots` etc. | All audited seasons | Top-5 100%; Tier-2 98–100%; Cups 8–100% | not measured | Yes | [verify] | Style covariates absent from design matrix | 2 |
+| Possession, passes, pass accuracy | verified | statistics `Ball Possession`, `Total passes`, `Passes accurate`, `Passes %` | All audited seasons | Top-5 100%; Tier-2 about 100%; Cups about 52% of sampled fixtures | not measured | Yes | [verify] | As above | 2 |
+| Corners | verified | statistics `Corner Kicks` | All audited seasons | Top-5 100%; Tier-2 98–100%; Cups 8–100% | not measured | Yes | [verify] | Corner markets not offered | 3b |
+| Cards, fouls | verified | statistics `Yellow Cards`/`Red Cards`/`Fouls`, events `type=Card` | All audited seasons | Top-5 and Tier-2 100%; Cups 18–100%. Null = zero for counts (verified) | not measured | Yes | [verify] | Discipline markets not offered | 3b |
+| Offsides, GK saves, `goals_prevented` | verified | statistics | All audited seasons | Present wherever team statistics are present | not measured | Yes | [verify] | – | 2 (candidate) |
+| **PPDA** | unavailable | No field in any endpoint checked | – | Not among the 18 statistic types in 2,040 payloads; no defensive-action locations | – | – | – | Not planned (§6.1, App. C) | – |
+| **Directness** | unavailable | No field | – | Same as PPDA. Pass counts exist but not pass direction or length | – | – | – | Not planned | – |
+
+## 3. Lineups, players and substitutions (Phase 3)
+
+| Field | Status | Source, endpoint | Historical availability | Coverage (from payloads) | Update cadence | As-of reconstructable | Licensing | Fallback | Required phase |
+|---|---|---|---|---|---|---|---|---|---|
+| Starting XI and bench | verified | `/fixtures?ids` `lineups.startXI/substitutes` | All audited seasons | Top-5 and Tier-2 100%; Cups 15–100% (FA Cup 15–22%, Coupe de France 2025 40%) | **Release time vs kickoff not measured** | Final XI: yes. **Pre-kickoff timing: no** (live capture, task 5) | [verify] | Layer 4 off; match-level projections still run | 3a–c |
+| Formation and grid position | verified | `lineups.formation`, `startXI[].player.grid` | All audited seasons | Grid on every starter: Top-5 1599/1600 team-lineups, Tier-2 1277/1280, Cups 663/998 | not measured | Yes | [verify] | Formation-only roles where grid is missing | 3c |
+| Coach per match (manager history) | verified | `lineups.coach.id/name` | All audited seasons | Top-5 1599/1600, Tier-2 1279/1280, Cups 984/998 team-lineups | not measured | Yes (from historical lineups) | [verify] | `/coachs` career endpoint [unverified] | 1b (manager-change widening), 3c |
+| Player match stats (minutes, shots, goals, passes, tackles, duels, dribbles, fouls, cards, penalties) | verified | `/fixtures?ids` `players[].statistics` | All audited seasons | Top-5 100%; Tier-2 98–100%; Cups 8–100% | not measured | Yes | [verify] | Player props suppressed (§4.4) | 3 |
+| Substitution timing | verified | events `type=subst`, `time.elapsed` | All audited seasons | Top-5 and Tier-2 100%; Cups 15–100% | not measured | Yes | [verify] | Expected minutes from role priors only | 3, 3b |
+| Goal type (normal / penalty / own goal / missed penalty) | verified | events `type=Goal`, `detail` | All audited seasons | Seen across the sample: Normal 4,981, Penalty 737, Missed Penalty 167, Own Goal 146. **No set-piece or header type** | not measured | Yes | [verify] | Set-piece share not decomposable from events | 3b |
+| **Event coordinates** | unavailable | No x/y on any event | – | 0% in all 51 seasons (audited) | – | – | – | Not planned | – |
+
+## 4. Availability and status (Phase 3a–b)
+
+| Field | Status | Source, endpoint | Historical availability | Coverage (from payloads) | Update cadence | As-of reconstructable | Licensing | Fallback | Required phase |
+|---|---|---|---|---|---|---|---|---|---|
+| Per-fixture absences | verified (PL 2025 only) | `/injuries?league&season` (also `?fixture`) | PL 2025: 3,417 rows in 1 page | `type`: Missing Fixture 3,201, Questionable 216. `reason` such as Knee Injury or Hamstring Injury. Other competitions and seasons untested | **Publication time not given** | **Partly.** Rows are keyed to fixtures, but with no `published_at` a backtest can't tell whether the report existed before kickoff. Needs daily snapshots (task 5) | [verify] | Statistical availability model (§7.1) | 3a–b |
+| **Injury expected-return date** | unavailable | Not in `/injuries` (fields: player id/name/type/reason, team, fixture, league) | – | Absent | – | – | – | Injuries go to the statistical bucket (§7.1); that bucket's share will be large | 3a–b |
+| Past injury spells | verified (1 player) | `/sidelined?player` `type/start/end` | Back to at least early 2025 for the probed player | 1 player probed | not measured | **No as an expected return.** `end` is known only in hindsight (leakage) | [verify] | Use only for history covariates (`matches_since_return`), never as a pre-match return date | 3, 5 (ramps) |
+| Squads, transfers | unverified | `/players/squads`, `/transfers` | – | not probed | – | Squads: current only [verify]. Needs snapshots | [verify] | – | 3a |
+| Competition eligibility / registration | unavailable (structured) | – | – | Spec §7.1: not reliably available | – | – | – | `competition_eligible` defaults to true; corrected by override | 3a |
+
+## 5. Venue, weather, crowd, physical (Phase 2, backlog)
+
+| Field | Status | Source, endpoint | Historical availability | Coverage (from payloads) | Update cadence | As-of reconstructable | Licensing | Fallback | Required phase |
+|---|---|---|---|---|---|---|---|---|---|
+| Venue identity, surface, capacity | verified | `/fixtures` `fixture.venue{id,name,city}`; `/venues` `address, city, country, capacity, surface` | All audited seasons | Venue on every fixture | – | Yes | [verify] | – | 2 |
+| **Venue coordinates (lat/lon)** | unavailable in API-Football | `/venues` has no lat/lon (probed id 556) | – | – | – | Static | – | Geocode once per venue (Open-Meteo geocoding by city, or a manual table), then cache. **Spec App. C lists weather/altitude as "available" via Open-Meteo, but this precondition isn't covered by API-Football. See open items** | 2 |
+| Weather (forecast, climatology), elevation | unverified | Open-Meteo | – | Not probed in this audit | Forecast horizon about 16 days (§6.2) | Forecast: capture live. Climatology/archive: reconstructable [verify] | Open-Meteo free tier terms vs commercial use **[verify]** | Climatology before forecast (§6.2) | 2 |
+| **Attendance** | unavailable | No field in `/fixtures` | – | 0% in all 51 seasons | – | – | – | Dynamic home advantage absent (backlog) | backlog |
+| **Physical load (distance, sprints)** | unavailable | No field in player statistics (11 stat groups, none physical) | – | 0% in all 51 seasons | – | – | – | Workload risk dropped (§7.2, backlog) | backlog |
+| **Tracking data** | unavailable | No endpoint | – | – | – | – | – | Not planned | – |
+
+## 6. Market data and external sources (Phase 3, 7)
+
+| Field | Status | Source, endpoint | Historical availability | Coverage (from payloads) | Update cadence | As-of reconstructable | Licensing | Fallback | Required phase |
+|---|---|---|---|---|---|---|---|---|---|
+| Pre-match odds | partial | API-Football `/odds?fixture` | **No history.** A 2022/23 PL fixture returns 0 results, so retention is short [exact window unverified] | Not measured | Snapshot schedule §12.3 | **No, capture-only.** Snapshots must start in Phase 0 (task 5) | [verify] | Historical-odds source if CLV backtests need older data (§4.1) | 7 (capture from 0) |
+| Market values | unverified here | Transfermarkt | – | Not in this audit's scope | – | Point-in-time values [verify] | **Licensing review required** (App. C) | Position priors without market value | 3 (cold-start prior) |
+| Contract end dates | unavailable (API-Football) | Transfermarkt | – | Not in this audit's scope | – | [verify] | Licensing review required | Covariate stays in backlog | backlog |
+
+---
+
+## Gate check against Appendix C
+
+| Model term (App. C) | Phase | Capability verdict | Effect |
+|---|---|---|---|
+| Static Dixon-Coles baseline | 1a | Results verified for all 51 seasons; NT/ET split clean except FA Cup qualifying | **Go** (exclude or NULL the unreconciled cup matches) |
+| Random walk, AR(1), home advantage | 1b | Results only, verified | Go |
+| xG auxiliary likelihood | 1b | Top-5 2023+, Championship 2023+; Top-5 2022 partial; other Tier-2 not before 2025 | Gated per season |
+| Manager-change widening | 1b | Coach per match from lineups, ≥99% in leagues | Go (App. C said "verify") |
+| Neutral / host flag | 1b | No direct field | Needs derivation rule before 1b |
+| Style covariates | 2 | Shots, possession, passes verified in leagues | Reduced set, as planned |
+| PPDA, directness | – | Unavailable | Stays not planned |
+| Weather, altitude | 2 | Needs venue coordinates, which API-Football doesn't provide | **Blocked on geocoding**: App. C says "available" |
+| Referee strictness | 2 | Names verified; pre-match assignment timing needs capture | Go for history; pre-match needs task 5 |
+| Status feed, availability | 3a–b | Per-fixture absences, no return dates, no publish time | Statistical bucket dominates; daily snapshots required |
+| Formation, slot codes | 3c | Grid ≥99.8% in leagues | Go |
+| Player rates, ramps | 3 | Player stats verified in leagues | Go |
+| Goal decomposition | 3b | Penalty / own goal verified; no set-piece type | Set-piece allocation needs another signal |
+| Discipline, corners | 3b | Verified in leagues | Go |
+| Half-split | 3b | Half-time score verified | Go |
+| ET and shootout models | 3d | Clean in cup proper rounds only | Proper rounds only |
+| Workload injury risk | backlog | Physical load unavailable | Blocked (confirmed) |
+| Attendance home advantage | backlog | Attendance unavailable | Blocked (confirmed; App. C said "unknown") |
+| CLV | 7 | No odds history | Capture-only: task 5 is time-critical |
+
+## Open items
+
+1. **Cups by stage.** Capability is recorded per season, but cup coverage depends on the round
+   (§3.4 lists stage as a dimension). Decide: restrict cups to proper rounds, or add stage to the
+   capability grain.
+2. **Mid-season start dates.** xG in Top-5 2022/23 begins about mid-January 2023. The audit
+   currently records the whole season as `partial`. §3.4's `valid_from` could carry the true
+   start date (first fixture with the field, refined by a denser sample around it).
+3. **Venue coordinates.** This conflicts with App. C ("Weather, altitude: available"). It needs a
+   geocoding step and a venue table before Phase 2.
+4. **Not yet probed:** `/players/squads`, `/transfers`, `/coachs`, Open-Meteo, odds retention
+   window, and injury coverage outside PL 2025.
+5. **Update cadence and licensing** columns stay open until snapshot capture runs and the
+   API-Football / Open-Meteo / Transfermarkt terms are reviewed.

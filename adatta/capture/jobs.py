@@ -3,7 +3,8 @@
 `run_capture` is idempotent and safe to run on any schedule (designed for a ~15-minute
 poller). Each run does only what is due:
 
-  daily per competition  calendar  current-season fixtures -> match rows, results, and a
+  daily per competition  detail    post-match detail + team stats for newly finished matches
+                         calendar  current-season fixtures -> match rows, results, and a
                                     fixture_snapshot whenever kickoff/status/referee/venue
                                     changes
                          status    /injuries -> player_status_snapshot for unplayed fixtures
@@ -27,7 +28,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from adatta.adapters import api_football_capture as afc
-from adatta.adapters import normalize
+from adatta.adapters import backfill, normalize
 from adatta.adapters.api_football import IDS_BATCH_MAX, SOURCE_ID, ApiFootballClient
 from adatta.adapters.quota import QuotaExceeded
 from adatta.capture import snapshots
@@ -239,6 +240,15 @@ def capture_status(
     return counts
 
 
+def capture_detail(session: Session, client: ApiFootballClient, comp: Competition) -> int:
+    """Daily: post-match detail (lineups, events, statistics incl. xG) for finished matches of
+    the current season that lack it, 20 per request; team stats are parsed as they arrive."""
+    season = _current_season_row(session, comp)
+    if season is None:
+        raise RuntimeError("no season row yet: calendar must run first")
+    return backfill.fetch_detail(session, client, season, lambda: None)
+
+
 # --------------------------------------------------------------------------- per-match jobs
 
 
@@ -445,6 +455,8 @@ def run_capture(
                 report.actions["calendar"] += 1 if n is not None else 0
             if not _ran_recently(session, "status", scope, now):
                 step("status", scope, lambda c=comp: capture_status(session, client, c, now))
+            if not _ran_recently(session, "detail", scope, now):
+                step("detail", scope, lambda c=comp: capture_detail(session, client, c))
         confirmed = step("lineups", "all", lambda: capture_lineups(session, client, now)) or []
         odds = step("odds", "all", lambda: capture_odds(session, client, now, set(confirmed)))
         report.actions.update(odds or {})

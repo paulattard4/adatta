@@ -47,19 +47,21 @@ Order matters (§14.5): the diagnostics gate first, the backtest comparison seco
 - **D11 Refit cadence — resolved:** weekly refits in production and backtest; daily
   resimulation from stored draws.
 - **D12 Manager data — resolved:** probe `/coachs` coverage first; build only if adequate.
+
 ## Tasks
 
 ### 1. Data for Layer 2 (D8 follow-through)
-- [ ] `team_match_stat` table (migration): per match x team, xG, shots, shots on target,
+- [x] `team_match_stat` table (migration 0006): per match x team, xG, shots, shots on target,
       corners, cards, possession, from the stored R2 detail payloads (0 API requests).
       Temporal contract: usable from kickoff + 3h, like results; provider revisions are
-      versioned, not overwritten.
+      versioned, not overwritten. Loaded 2026-11-05 by `adatta stats-load`: 82,336 rows for
+      41,168 matches (the other 8,308 finished matches, mostly cups, have no statistics
+      block). New matches get detail and stats from the daily `detail` capture job.
 - [ ] xG gating by the capability table per league-season (available from 2022/23 only for
       the Top-5, 2023 for the Championship; other second tiers mostly absent).
 - [ ] Probe `/coachs` coverage (D12); if adequate, a `manager_tenure` table and a
       `manager_change` flag per team-matchweek.
-- [ ] Migration: allow `model_run.status` values `challenger` and `rejected` (§14.6). Phase 0
-      created only running / ok / failed / champion / retired.
+- [x] Migration: allow `model_run.status` values `challenger` and `rejected` (§14.6), in 0006.
 
 ### 2. Model v1: Layers 1–2 on goals (PyMC)
 - [ ] Priors as §5.1: mu_league ~ Normal(log 1.35, 0.3); sigma_attack, sigma_defence ~

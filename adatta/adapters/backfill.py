@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from adatta.adapters import api_football_coverage as coverage
+from adatta.adapters import api_football_stats as stats_adapter
 from adatta.adapters import normalize
 from adatta.adapters.api_football import IDS_BATCH_MAX, SOURCE_ID, ApiFootballClient
 from adatta.adapters.quota import QuotaExceeded
@@ -89,7 +90,7 @@ def _pending_detail(session: Session, season_id: int) -> list[models.Match]:
     )
 
 
-def _fetch_detail(
+def fetch_detail(
     session: Session, client: ApiFootballClient, season: models.Season,
     on_commit: Callable[[], None],
 ) -> int:  # fmt: skip
@@ -114,6 +115,11 @@ def _fetch_detail(
                     storage_key=client.last_storage_key or "", observed_at=now, flags=flags,
                 )
             )  # fmt: skip
+            if fx:
+                normalize.ingest_team_stats(
+                    session, by_ref[ref].match_id, stats_adapter.team_stats(fx),
+                    client.last_storage_key or "", now,
+                )  # fmt: skip
         on_commit()
         session.commit()
         done += len(batch)
@@ -154,7 +160,7 @@ def run(
                 job.n_fixtures, job.status, job.error = len(fixtures), "fixtures", None
                 spent()
                 session.commit()
-            counts["detail"] += _fetch_detail(session, client, season, spent)
+            counts["detail"] += fetch_detail(session, client, season, spent)
             job.status = "done"
             spent()
             session.commit()

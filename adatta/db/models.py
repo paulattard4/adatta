@@ -431,7 +431,8 @@ class ModelRun(Base):
     manifest: Mapped[dict[str, Any]] = mapped_column(JsonType, default=dict)
     __table_args__ = (
         CheckConstraint(
-            "status IN ('running', 'ok', 'failed', 'champion', 'retired')",
+            "status IN ('running', 'ok', 'failed', 'challenger', 'champion', 'rejected', "
+            "'retired')",
             name="ck_model_run_status",
         ),
     )
@@ -475,3 +476,30 @@ class MarketProjection(Base):
         CheckConstraint("probability >= 0 AND probability <= 1", name="ck_projection_prob"),
         Index("ix_projection_match", "match_id", "milestone"),
     )
+
+
+class TeamMatchStat(Temporal, Base):
+    """Post-match team statistics for one match x team (Phase 1b, D8), parsed from the stored
+    detail payload. Usable for a prediction as of kickoff + result lag, like the result.
+    A re-fetch with different values supersedes the row instead of overwriting it.
+
+    Counts the provider sends as null are stored as 0 when the team's statistics block is
+    present (the provider omits zero counts); xG null stays null (absent, never imputed)."""
+
+    __tablename__ = "team_match_stat"
+    stat_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    team_id: Mapped[int] = mapped_column(ForeignKey("team.team_id"))
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    storage_key: Mapped[str] = mapped_column(String(255))
+    xg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    shots_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    shots_on_target: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    shots_inside_box: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    corners: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fouls: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    yellow_cards: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    red_cards: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    possession: Mapped[float | None] = mapped_column(Float, nullable=True)  # percent
+    stats: Mapped[dict[str, Any]] = mapped_column(JsonType)  # every provider type -> value
+    __table_args__ = (Index("ix_team_match_stat", "match_id", "team_id", "superseded_at"),)

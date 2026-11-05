@@ -73,6 +73,10 @@ class FakeApi:
                 xi = [{"player": {"id": i}} for i in range(11)]
                 fx["lineups"] = [{"team": {"id": t}, "startXI": xi} for t in (1, 2)]
                 fx["events"] = [{"type": "subst", "time": {"elapsed": 60}}]
+                fx["statistics"] = [
+                    {"team": {"id": t}, "statistics": [{"type": "expected_goals", "value": "1.1"}]}
+                    for t in (1, 2)
+                ]
                 body.append(fx)
             return httpx.Response(200, json={"response": body})
         league = int(q["league"])
@@ -114,6 +118,7 @@ def test_backfill_completes_and_reports_gaps(tmp_path: Path) -> None:
     # per league season: 1 fixtures call + 29 finished / 20 = 2 detail calls; cup: 1 + 1
     assert result == {"attempted": 3, "detail": 62, "done": 3, "requests": 8}
     assert h.count(models.Match) == 64 and h.count(models.MatchDetail) == 62
+    assert h.count(models.TeamMatchStat) == 2 * (62 - 2)  # parsed inline; 2 fixtures withheld
     rows = {(r["competition"], r["season"]): r for r in h.report([LEAGUE, CUP])}
     league = rows[("Test League", 2024)]
     assert league["regular_expected"] == league["regular_listed"] == 30

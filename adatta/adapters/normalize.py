@@ -288,3 +288,44 @@ def ingest_fixtures(
         n += 1
     session.flush()
     return n
+
+
+def ingest_team_stats(
+    session: Session, match_id: int, rows: list[dict[str, Any]], storage_key: str,
+    observed_at: datetime, new_match: bool = False,
+    teams: dict[str, models.Team] | None = None,
+) -> int:  # fmt: skip
+    """Insert team_match_stat rows for one match; supersede a current row whose values
+    differ, skip identical ones. Returns rows added. `new_match=True` (caller guarantees the
+    match has no rows yet) skips the lookup and `teams` (pre-resolved refs) the team lookup, for
+    bulk rebuilds."""
+    if not rows:
+        return 0
+    T = models.TeamMatchStat
+    if teams is None or any(r["team_ref"] not in teams for r in rows):
+        teams = teams_by_ref(session, {r["team_ref"]: r["team_ref"] for r in rows})
+    if new_match:
+        current: dict[int, models.TeamMatchStat] = {}
+    else:
+        current = {
+            t.team_id: t
+            for t in session.scalars(
+                select(T).where(T.match_id == match_id, T.superseded_at.is_(None))
+            )
+        }
+    added = 0
+    for r in rows:
+        team_id = teams[r["team_ref"]].team_id
+        values = {k: v for k, v in r.items() if k != "team_ref"}
+        cur = current.get(team_id)
+        if cur is not None:
+            if cur.stats == values["stats"]:
+                continue
+            cur.superseded_at = observed_at
+            cur.valid_to = observed_at
+        session.add(
+            T(match_id=match_id, team_id=team_id, source_id=SOURCE_ID, storage_key=storage_key,
+              observed_at=observed_at, valid_from=observed_at, **values)
+        )  # fmt: skip
+        added += 1
+    return added

@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from adatta.adapters.normalize import ensure_source
 from adatta.adapters.quota import QuotaPlanner
 from adatta.adapters.storage import RawStore, encode_payload, storage_key
 from adatta.config import Settings
@@ -58,6 +59,7 @@ class ApiFootballClient:
             select(models.RawPayload.payload_id).where(models.RawPayload.storage_key == key)
         )
         if exists is None:
+            ensure_source(session)  # FK target for raw_payload.source_id
             self._store.put(key, blob)
             session.add(
                 models.RawPayload(

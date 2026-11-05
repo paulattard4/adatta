@@ -1,0 +1,241 @@
+league_id,competition,season,n_finished,capability,declared,n_sampled,n_with,coverage_ratio,status,mismatch
+39,Premier League,2017,380,has_lineups,true,40,40,1.0,available,false
+39,Premier League,2017,380,has_player_match_stats,true,40,40,1.0,available,false
+39,Premier League,2017,380,has_shot_stats,true,40,40,1.0,available,false
+39,Premier League,2017,380,has_xg,,40,0,0.0,absent,false
+39,Premier League,2017,380,has_corners_data,true,40,40,1.0,available,false
+39,Premier League,2017,380,has_cards_data,true,40,40,1.0,available,false
+39,Premier League,2017,380,has_half_split_stats,,40,40,1.0,available,false
+39,Premier League,2017,380,has_substitution_timestamps,true,40,40,1.0,available,false
+39,Premier League,2017,380,has_referee_history,,40,40,1.0,available,false
+39,Premier League,2017,380,has_event_coordinates,,40,0,0.0,absent,false
+39,Premier League,2017,380,has_physical_load_data,,40,0,0.0,absent,false
+39,Premier League,2017,380,has_attendance_data,,40,0,0.0,absent,false
+39,Premier League,2017,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+39,Premier League,2017,380,supports_player_goal_props,,0,0,,unknown,false
+39,Premier League,2017,380,supports_player_shot_props,,0,0,,unknown,false
+39,Premier League,2017,380,supports_player_discipline_props,,0,0,,unknown,false
+61,Ligue 1,2017,380,has_lineups,true,40,40,1.0,available,false
+61,Ligue 1,2017,380,has_player_match_stats,true,40,40,1.0,available,false
+61,Ligue 1,2017,380,has_shot_stats,true,40,40,1.0,available,false
+61,Ligue 1,2017,380,has_xg,,40,0,0.0,absent,false
+61,Ligue 1,2017,380,has_corners_data,true,40,40,1.0,available,false
+61,Ligue 1,2017,380,has_cards_data,true,40,40,1.0,available,false
+61,Ligue 1,2017,380,has_half_split_stats,,40,40,1.0,available,false
+61,Ligue 1,2017,380,has_substitution_timestamps,true,40,40,1.0,available,false
+61,Ligue 1,2017,380,has_referee_history,,40,40,1.0,available,false
+61,Ligue 1,2017,380,has_event_coordinates,,40,0,0.0,absent,false
+61,Ligue 1,2017,380,has_physical_load_data,,40,0,0.0,absent,false
+61,Ligue 1,2017,380,has_attendance_data,,40,0,0.0,absent,false
+61,Ligue 1,2017,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+61,Ligue 1,2017,380,supports_player_goal_props,,0,0,,unknown,false
+61,Ligue 1,2017,380,supports_player_shot_props,,0,0,,unknown,false
+61,Ligue 1,2017,380,supports_player_discipline_props,,0,0,,unknown,false
+78,Bundesliga,2017,306,has_lineups,true,40,40,1.0,available,false
+78,Bundesliga,2017,306,has_player_match_stats,true,40,40,1.0,available,false
+78,Bundesliga,2017,306,has_shot_stats,true,40,40,1.0,available,false
+78,Bundesliga,2017,306,has_xg,,40,0,0.0,absent,false
+78,Bundesliga,2017,306,has_corners_data,true,40,40,1.0,available,false
+78,Bundesliga,2017,306,has_cards_data,true,40,40,1.0,available,false
+78,Bundesliga,2017,306,has_half_split_stats,,40,40,1.0,available,false
+78,Bundesliga,2017,306,has_substitution_timestamps,true,40,40,1.0,available,false
+78,Bundesliga,2017,306,has_referee_history,,40,40,1.0,available,false
+78,Bundesliga,2017,306,has_event_coordinates,,40,0,0.0,absent,false
+78,Bundesliga,2017,306,has_physical_load_data,,40,0,0.0,absent,false
+78,Bundesliga,2017,306,has_attendance_data,,40,0,0.0,absent,false
+78,Bundesliga,2017,306,supports_lineup_strength_adjustment,,0,0,,unknown,false
+78,Bundesliga,2017,306,supports_player_goal_props,,0,0,,unknown,false
+78,Bundesliga,2017,306,supports_player_shot_props,,0,0,,unknown,false
+78,Bundesliga,2017,306,supports_player_discipline_props,,0,0,,unknown,false
+135,Serie A,2017,380,has_lineups,true,40,40,1.0,available,false
+135,Serie A,2017,380,has_player_match_stats,true,40,40,1.0,available,false
+135,Serie A,2017,380,has_shot_stats,true,40,40,1.0,available,false
+135,Serie A,2017,380,has_xg,,40,0,0.0,absent,false
+135,Serie A,2017,380,has_corners_data,true,40,40,1.0,available,false
+135,Serie A,2017,380,has_cards_data,true,40,40,1.0,available,false
+135,Serie A,2017,380,has_half_split_stats,,40,40,1.0,available,false
+135,Serie A,2017,380,has_substitution_timestamps,true,40,40,1.0,available,false
+135,Serie A,2017,380,has_referee_history,,40,40,1.0,available,false
+135,Serie A,2017,380,has_event_coordinates,,40,0,0.0,absent,false
+135,Serie A,2017,380,has_physical_load_data,,40,0,0.0,absent,false
+135,Serie A,2017,380,has_attendance_data,,40,0,0.0,absent,false
+135,Serie A,2017,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+135,Serie A,2017,380,supports_player_goal_props,,0,0,,unknown,false
+135,Serie A,2017,380,supports_player_shot_props,,0,0,,unknown,false
+135,Serie A,2017,380,supports_player_discipline_props,,0,0,,unknown,false
+140,La Liga,2017,380,has_lineups,true,40,40,1.0,available,false
+140,La Liga,2017,380,has_player_match_stats,true,40,40,1.0,available,false
+140,La Liga,2017,380,has_shot_stats,true,40,40,1.0,available,false
+140,La Liga,2017,380,has_xg,,40,0,0.0,absent,false
+140,La Liga,2017,380,has_corners_data,true,40,40,1.0,available,false
+140,La Liga,2017,380,has_cards_data,true,40,40,1.0,available,false
+140,La Liga,2017,380,has_half_split_stats,,40,40,1.0,available,false
+140,La Liga,2017,380,has_substitution_timestamps,true,40,40,1.0,available,false
+140,La Liga,2017,380,has_referee_history,,40,40,1.0,available,false
+140,La Liga,2017,380,has_event_coordinates,,40,0,0.0,absent,false
+140,La Liga,2017,380,has_physical_load_data,,40,0,0.0,absent,false
+140,La Liga,2017,380,has_attendance_data,,40,0,0.0,absent,false
+140,La Liga,2017,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+140,La Liga,2017,380,supports_player_goal_props,,0,0,,unknown,false
+140,La Liga,2017,380,supports_player_shot_props,,0,0,,unknown,false
+140,La Liga,2017,380,supports_player_discipline_props,,0,0,,unknown,false
+40,Championship,2017,557,has_lineups,true,40,40,1.0,available,false
+40,Championship,2017,557,has_player_match_stats,true,40,40,1.0,available,false
+40,Championship,2017,557,has_shot_stats,true,40,40,1.0,available,false
+40,Championship,2017,557,has_xg,,40,0,0.0,absent,false
+40,Championship,2017,557,has_corners_data,true,40,40,1.0,available,false
+40,Championship,2017,557,has_cards_data,true,40,40,1.0,available,false
+40,Championship,2017,557,has_half_split_stats,,40,40,1.0,available,false
+40,Championship,2017,557,has_substitution_timestamps,true,40,40,1.0,available,false
+40,Championship,2017,557,has_referee_history,,40,40,1.0,available,false
+40,Championship,2017,557,has_event_coordinates,,40,0,0.0,absent,false
+40,Championship,2017,557,has_physical_load_data,,40,0,0.0,absent,false
+40,Championship,2017,557,has_attendance_data,,40,0,0.0,absent,false
+40,Championship,2017,557,supports_lineup_strength_adjustment,,0,0,,unknown,false
+40,Championship,2017,557,supports_player_goal_props,,0,0,,unknown,false
+40,Championship,2017,557,supports_player_shot_props,,0,0,,unknown,false
+40,Championship,2017,557,supports_player_discipline_props,,0,0,,unknown,false
+62,Ligue 2,2017,382,has_lineups,true,40,40,1.0,available,false
+62,Ligue 2,2017,382,has_player_match_stats,true,40,40,1.0,available,false
+62,Ligue 2,2017,382,has_shot_stats,true,40,40,1.0,available,false
+62,Ligue 2,2017,382,has_xg,,40,0,0.0,absent,false
+62,Ligue 2,2017,382,has_corners_data,true,40,40,1.0,available,false
+62,Ligue 2,2017,382,has_cards_data,true,40,40,1.0,available,false
+62,Ligue 2,2017,382,has_half_split_stats,,40,40,1.0,available,false
+62,Ligue 2,2017,382,has_substitution_timestamps,true,40,40,1.0,available,false
+62,Ligue 2,2017,382,has_referee_history,,40,40,1.0,available,false
+62,Ligue 2,2017,382,has_event_coordinates,,40,0,0.0,absent,false
+62,Ligue 2,2017,382,has_physical_load_data,,40,0,0.0,absent,false
+62,Ligue 2,2017,382,has_attendance_data,,40,0,0.0,absent,false
+62,Ligue 2,2017,382,supports_lineup_strength_adjustment,,0,0,,unknown,false
+62,Ligue 2,2017,382,supports_player_goal_props,,0,0,,unknown,false
+62,Ligue 2,2017,382,supports_player_shot_props,,0,0,,unknown,false
+62,Ligue 2,2017,382,supports_player_discipline_props,,0,0,,unknown,false
+79,2. Bundesliga,2017,306,has_lineups,true,40,40,1.0,available,false
+79,2. Bundesliga,2017,306,has_player_match_stats,true,40,40,1.0,available,false
+79,2. Bundesliga,2017,306,has_shot_stats,true,40,40,1.0,available,false
+79,2. Bundesliga,2017,306,has_xg,,40,0,0.0,absent,false
+79,2. Bundesliga,2017,306,has_corners_data,true,40,40,1.0,available,false
+79,2. Bundesliga,2017,306,has_cards_data,true,40,40,1.0,available,false
+79,2. Bundesliga,2017,306,has_half_split_stats,,40,40,1.0,available,false
+79,2. Bundesliga,2017,306,has_substitution_timestamps,true,40,40,1.0,available,false
+79,2. Bundesliga,2017,306,has_referee_history,,40,40,1.0,available,false
+79,2. Bundesliga,2017,306,has_event_coordinates,,40,0,0.0,absent,false
+79,2. Bundesliga,2017,306,has_physical_load_data,,40,0,0.0,absent,false
+79,2. Bundesliga,2017,306,has_attendance_data,,40,0,0.0,absent,false
+79,2. Bundesliga,2017,306,supports_lineup_strength_adjustment,,0,0,,unknown,false
+79,2. Bundesliga,2017,306,supports_player_goal_props,,0,0,,unknown,false
+79,2. Bundesliga,2017,306,supports_player_shot_props,,0,0,,unknown,false
+79,2. Bundesliga,2017,306,supports_player_discipline_props,,0,0,,unknown,false
+136,Serie B,2017,472,has_lineups,true,40,40,1.0,available,false
+136,Serie B,2017,472,has_player_match_stats,false,40,0,0.0,absent,false
+136,Serie B,2017,472,has_shot_stats,true,40,39,0.975,available,false
+136,Serie B,2017,472,has_xg,,40,0,0.0,absent,false
+136,Serie B,2017,472,has_corners_data,true,40,39,0.975,available,false
+136,Serie B,2017,472,has_cards_data,true,40,39,0.975,available,false
+136,Serie B,2017,472,has_half_split_stats,,40,40,1.0,available,false
+136,Serie B,2017,472,has_substitution_timestamps,true,40,40,1.0,available,false
+136,Serie B,2017,472,has_referee_history,,40,39,0.975,available,false
+136,Serie B,2017,472,has_event_coordinates,,40,0,0.0,absent,false
+136,Serie B,2017,472,has_physical_load_data,,40,0,0.0,absent,false
+136,Serie B,2017,472,has_attendance_data,,40,0,0.0,absent,false
+136,Serie B,2017,472,supports_lineup_strength_adjustment,,0,0,,unknown,false
+136,Serie B,2017,472,supports_player_goal_props,,0,0,,unknown,false
+136,Serie B,2017,472,supports_player_shot_props,,0,0,,unknown,false
+136,Serie B,2017,472,supports_player_discipline_props,,0,0,,unknown,false
+141,Segunda Division,2017,468,has_lineups,true,40,40,1.0,available,false
+141,Segunda Division,2017,468,has_player_match_stats,true,40,39,0.975,available,false
+141,Segunda Division,2017,468,has_shot_stats,true,40,39,0.975,available,false
+141,Segunda Division,2017,468,has_xg,,40,0,0.0,absent,false
+141,Segunda Division,2017,468,has_corners_data,true,40,39,0.975,available,false
+141,Segunda Division,2017,468,has_cards_data,true,40,39,0.975,available,false
+141,Segunda Division,2017,468,has_half_split_stats,,40,40,1.0,available,false
+141,Segunda Division,2017,468,has_substitution_timestamps,true,40,40,1.0,available,false
+141,Segunda Division,2017,468,has_referee_history,,40,39,0.975,available,false
+141,Segunda Division,2017,468,has_event_coordinates,,40,0,0.0,absent,false
+141,Segunda Division,2017,468,has_physical_load_data,,40,0,0.0,absent,false
+141,Segunda Division,2017,468,has_attendance_data,,40,0,0.0,absent,false
+141,Segunda Division,2017,468,supports_lineup_strength_adjustment,,0,0,,unknown,false
+141,Segunda Division,2017,468,supports_player_goal_props,,0,0,,unknown,false
+141,Segunda Division,2017,468,supports_player_shot_props,,0,0,,unknown,false
+141,Segunda Division,2017,468,supports_player_discipline_props,,0,0,,unknown,false
+45,FA Cup,2017,149,has_lineups,true,40,40,1.0,available,false
+45,FA Cup,2017,149,has_player_match_stats,true,40,0,0.0,absent,true
+45,FA Cup,2017,149,has_shot_stats,true,40,0,0.0,absent,true
+45,FA Cup,2017,149,has_xg,,40,0,0.0,absent,false
+45,FA Cup,2017,149,has_corners_data,true,40,0,0.0,absent,true
+45,FA Cup,2017,149,has_cards_data,true,40,0,0.0,absent,true
+45,FA Cup,2017,149,has_half_split_stats,,40,40,1.0,available,false
+45,FA Cup,2017,149,has_substitution_timestamps,true,40,40,1.0,available,false
+45,FA Cup,2017,149,has_referee_history,,40,0,0.0,absent,false
+45,FA Cup,2017,149,has_event_coordinates,,40,0,0.0,absent,false
+45,FA Cup,2017,149,has_physical_load_data,,40,0,0.0,absent,false
+45,FA Cup,2017,149,has_attendance_data,,40,0,0.0,absent,false
+45,FA Cup,2017,149,supports_lineup_strength_adjustment,,0,0,,unknown,false
+45,FA Cup,2017,149,supports_player_goal_props,,0,0,,unknown,false
+45,FA Cup,2017,149,supports_player_shot_props,,0,0,,unknown,false
+45,FA Cup,2017,149,supports_player_discipline_props,,0,0,,unknown,false
+66,Coupe de France,2017,195,has_lineups,true,40,40,1.0,available,false
+66,Coupe de France,2017,195,has_player_match_stats,false,40,0,0.0,absent,false
+66,Coupe de France,2017,195,has_shot_stats,true,40,3,0.075,partial,false
+66,Coupe de France,2017,195,has_xg,,40,0,0.0,absent,false
+66,Coupe de France,2017,195,has_corners_data,true,40,3,0.075,partial,false
+66,Coupe de France,2017,195,has_cards_data,true,40,15,0.375,partial,false
+66,Coupe de France,2017,195,has_half_split_stats,,40,40,1.0,available,false
+66,Coupe de France,2017,195,has_substitution_timestamps,true,40,40,1.0,available,false
+66,Coupe de France,2017,195,has_referee_history,,40,3,0.075,partial,false
+66,Coupe de France,2017,195,has_event_coordinates,,40,0,0.0,absent,false
+66,Coupe de France,2017,195,has_physical_load_data,,40,0,0.0,absent,false
+66,Coupe de France,2017,195,has_attendance_data,,40,0,0.0,absent,false
+66,Coupe de France,2017,195,supports_lineup_strength_adjustment,,0,0,,unknown,false
+66,Coupe de France,2017,195,supports_player_goal_props,,0,0,,unknown,false
+66,Coupe de France,2017,195,supports_player_shot_props,,0,0,,unknown,false
+66,Coupe de France,2017,195,supports_player_discipline_props,,0,0,,unknown,false
+81,DFB Pokal,2017,63,has_lineups,true,40,40,1.0,available,false
+81,DFB Pokal,2017,63,has_player_match_stats,true,40,33,0.825,partial,false
+81,DFB Pokal,2017,63,has_shot_stats,true,40,33,0.825,partial,false
+81,DFB Pokal,2017,63,has_xg,,40,0,0.0,absent,false
+81,DFB Pokal,2017,63,has_corners_data,true,40,33,0.825,partial,false
+81,DFB Pokal,2017,63,has_cards_data,true,40,33,0.825,partial,false
+81,DFB Pokal,2017,63,has_half_split_stats,,40,40,1.0,available,false
+81,DFB Pokal,2017,63,has_substitution_timestamps,true,40,40,1.0,available,false
+81,DFB Pokal,2017,63,has_referee_history,,40,33,0.825,partial,false
+81,DFB Pokal,2017,63,has_event_coordinates,,40,0,0.0,absent,false
+81,DFB Pokal,2017,63,has_physical_load_data,,40,0,0.0,absent,false
+81,DFB Pokal,2017,63,has_attendance_data,,40,0,0.0,absent,false
+81,DFB Pokal,2017,63,supports_lineup_strength_adjustment,,0,0,,unknown,false
+81,DFB Pokal,2017,63,supports_player_goal_props,,0,0,,unknown,false
+81,DFB Pokal,2017,63,supports_player_shot_props,,0,0,,unknown,false
+81,DFB Pokal,2017,63,supports_player_discipline_props,,0,0,,unknown,false
+137,Coppa Italia,2017,79,has_lineups,true,40,30,0.75,partial,false
+137,Coppa Italia,2017,79,has_player_match_stats,false,40,0,0.0,absent,false
+137,Coppa Italia,2017,79,has_shot_stats,true,40,4,0.1,partial,false
+137,Coppa Italia,2017,79,has_xg,,40,0,0.0,absent,false
+137,Coppa Italia,2017,79,has_corners_data,true,40,4,0.1,partial,false
+137,Coppa Italia,2017,79,has_cards_data,true,40,13,0.325,partial,false
+137,Coppa Italia,2017,79,has_half_split_stats,,40,40,1.0,available,false
+137,Coppa Italia,2017,79,has_substitution_timestamps,true,40,14,0.35,partial,false
+137,Coppa Italia,2017,79,has_referee_history,,40,4,0.1,partial,false
+137,Coppa Italia,2017,79,has_event_coordinates,,40,0,0.0,absent,false
+137,Coppa Italia,2017,79,has_physical_load_data,,40,0,0.0,absent,false
+137,Coppa Italia,2017,79,has_attendance_data,,40,0,0.0,absent,false
+137,Coppa Italia,2017,79,supports_lineup_strength_adjustment,,0,0,,unknown,false
+137,Coppa Italia,2017,79,supports_player_goal_props,,0,0,,unknown,false
+137,Coppa Italia,2017,79,supports_player_shot_props,,0,0,,unknown,false
+137,Coppa Italia,2017,79,supports_player_discipline_props,,0,0,,unknown,false
+143,Copa del Rey,2017,0,has_lineups,,0,0,,unknown,false
+143,Copa del Rey,2017,0,has_player_match_stats,,0,0,,unknown,false
+143,Copa del Rey,2017,0,has_shot_stats,,0,0,,unknown,false
+143,Copa del Rey,2017,0,has_xg,,0,0,,unknown,false
+143,Copa del Rey,2017,0,has_corners_data,,0,0,,unknown,false
+143,Copa del Rey,2017,0,has_cards_data,,0,0,,unknown,false
+143,Copa del Rey,2017,0,has_half_split_stats,,0,0,,unknown,false
+143,Copa del Rey,2017,0,has_substitution_timestamps,,0,0,,unknown,false
+143,Copa del Rey,2017,0,has_referee_history,,0,0,,unknown,false
+143,Copa del Rey,2017,0,has_event_coordinates,,0,0,,unknown,false
+143,Copa del Rey,2017,0,has_physical_load_data,,0,0,,unknown,false
+143,Copa del Rey,2017,0,has_attendance_data,,0,0,,unknown,false
+143,Copa del Rey,2017,0,supports_lineup_strength_adjustment,,0,0,,unknown,false
+143,Copa del Rey,2017,0,supports_player_goal_props,,0,0,,unknown,false
+143,Copa del Rey,2017,0,supports_player_shot_props,,0,0,,unknown,false
+143,Copa del Rey,2017,0,supports_player_discipline_props,,0,0,,unknown,false

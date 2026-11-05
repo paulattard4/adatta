@@ -1,0 +1,241 @@
+league_id,competition,season,n_finished,capability,declared,n_sampled,n_with,coverage_ratio,status,mismatch
+39,Premier League,2019,380,has_lineups,true,40,40,1.0,available,false
+39,Premier League,2019,380,has_player_match_stats,true,40,40,1.0,available,false
+39,Premier League,2019,380,has_shot_stats,true,40,40,1.0,available,false
+39,Premier League,2019,380,has_xg,,40,0,0.0,absent,false
+39,Premier League,2019,380,has_corners_data,true,40,40,1.0,available,false
+39,Premier League,2019,380,has_cards_data,true,40,40,1.0,available,false
+39,Premier League,2019,380,has_half_split_stats,,40,40,1.0,available,false
+39,Premier League,2019,380,has_substitution_timestamps,true,40,40,1.0,available,false
+39,Premier League,2019,380,has_referee_history,,40,40,1.0,available,false
+39,Premier League,2019,380,has_event_coordinates,,40,0,0.0,absent,false
+39,Premier League,2019,380,has_physical_load_data,,40,0,0.0,absent,false
+39,Premier League,2019,380,has_attendance_data,,40,0,0.0,absent,false
+39,Premier League,2019,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+39,Premier League,2019,380,supports_player_goal_props,,0,0,,unknown,false
+39,Premier League,2019,380,supports_player_shot_props,,0,0,,unknown,false
+39,Premier League,2019,380,supports_player_discipline_props,,0,0,,unknown,false
+61,Ligue 1,2019,279,has_lineups,true,40,40,1.0,available,false
+61,Ligue 1,2019,279,has_player_match_stats,true,40,40,1.0,available,false
+61,Ligue 1,2019,279,has_shot_stats,true,40,40,1.0,available,false
+61,Ligue 1,2019,279,has_xg,,40,0,0.0,absent,false
+61,Ligue 1,2019,279,has_corners_data,true,40,40,1.0,available,false
+61,Ligue 1,2019,279,has_cards_data,true,40,40,1.0,available,false
+61,Ligue 1,2019,279,has_half_split_stats,,40,40,1.0,available,false
+61,Ligue 1,2019,279,has_substitution_timestamps,true,40,40,1.0,available,false
+61,Ligue 1,2019,279,has_referee_history,,40,40,1.0,available,false
+61,Ligue 1,2019,279,has_event_coordinates,,40,0,0.0,absent,false
+61,Ligue 1,2019,279,has_physical_load_data,,40,0,0.0,absent,false
+61,Ligue 1,2019,279,has_attendance_data,,40,0,0.0,absent,false
+61,Ligue 1,2019,279,supports_lineup_strength_adjustment,,0,0,,unknown,false
+61,Ligue 1,2019,279,supports_player_goal_props,,0,0,,unknown,false
+61,Ligue 1,2019,279,supports_player_shot_props,,0,0,,unknown,false
+61,Ligue 1,2019,279,supports_player_discipline_props,,0,0,,unknown,false
+78,Bundesliga,2019,308,has_lineups,true,40,40,1.0,available,false
+78,Bundesliga,2019,308,has_player_match_stats,true,40,40,1.0,available,false
+78,Bundesliga,2019,308,has_shot_stats,true,40,40,1.0,available,false
+78,Bundesliga,2019,308,has_xg,,40,0,0.0,absent,false
+78,Bundesliga,2019,308,has_corners_data,true,40,40,1.0,available,false
+78,Bundesliga,2019,308,has_cards_data,true,40,40,1.0,available,false
+78,Bundesliga,2019,308,has_half_split_stats,,40,40,1.0,available,false
+78,Bundesliga,2019,308,has_substitution_timestamps,true,40,40,1.0,available,false
+78,Bundesliga,2019,308,has_referee_history,,40,40,1.0,available,false
+78,Bundesliga,2019,308,has_event_coordinates,,40,0,0.0,absent,false
+78,Bundesliga,2019,308,has_physical_load_data,,40,0,0.0,absent,false
+78,Bundesliga,2019,308,has_attendance_data,,40,0,0.0,absent,false
+78,Bundesliga,2019,308,supports_lineup_strength_adjustment,,0,0,,unknown,false
+78,Bundesliga,2019,308,supports_player_goal_props,,0,0,,unknown,false
+78,Bundesliga,2019,308,supports_player_shot_props,,0,0,,unknown,false
+78,Bundesliga,2019,308,supports_player_discipline_props,,0,0,,unknown,false
+135,Serie A,2019,380,has_lineups,true,40,40,1.0,available,false
+135,Serie A,2019,380,has_player_match_stats,true,40,40,1.0,available,false
+135,Serie A,2019,380,has_shot_stats,true,40,40,1.0,available,false
+135,Serie A,2019,380,has_xg,,40,0,0.0,absent,false
+135,Serie A,2019,380,has_corners_data,true,40,40,1.0,available,false
+135,Serie A,2019,380,has_cards_data,true,40,40,1.0,available,false
+135,Serie A,2019,380,has_half_split_stats,,40,40,1.0,available,false
+135,Serie A,2019,380,has_substitution_timestamps,true,40,40,1.0,available,false
+135,Serie A,2019,380,has_referee_history,,40,40,1.0,available,false
+135,Serie A,2019,380,has_event_coordinates,,40,0,0.0,absent,false
+135,Serie A,2019,380,has_physical_load_data,,40,0,0.0,absent,false
+135,Serie A,2019,380,has_attendance_data,,40,0,0.0,absent,false
+135,Serie A,2019,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+135,Serie A,2019,380,supports_player_goal_props,,0,0,,unknown,false
+135,Serie A,2019,380,supports_player_shot_props,,0,0,,unknown,false
+135,Serie A,2019,380,supports_player_discipline_props,,0,0,,unknown,false
+140,La Liga,2019,380,has_lineups,true,40,40,1.0,available,false
+140,La Liga,2019,380,has_player_match_stats,true,40,40,1.0,available,false
+140,La Liga,2019,380,has_shot_stats,true,40,40,1.0,available,false
+140,La Liga,2019,380,has_xg,,40,0,0.0,absent,false
+140,La Liga,2019,380,has_corners_data,true,40,40,1.0,available,false
+140,La Liga,2019,380,has_cards_data,true,40,40,1.0,available,false
+140,La Liga,2019,380,has_half_split_stats,,40,40,1.0,available,false
+140,La Liga,2019,380,has_substitution_timestamps,true,40,40,1.0,available,false
+140,La Liga,2019,380,has_referee_history,,40,40,1.0,available,false
+140,La Liga,2019,380,has_event_coordinates,,40,0,0.0,absent,false
+140,La Liga,2019,380,has_physical_load_data,,40,0,0.0,absent,false
+140,La Liga,2019,380,has_attendance_data,,40,0,0.0,absent,false
+140,La Liga,2019,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+140,La Liga,2019,380,supports_player_goal_props,,0,0,,unknown,false
+140,La Liga,2019,380,supports_player_shot_props,,0,0,,unknown,false
+140,La Liga,2019,380,supports_player_discipline_props,,0,0,,unknown,false
+40,Championship,2019,557,has_lineups,true,40,40,1.0,available,false
+40,Championship,2019,557,has_player_match_stats,true,40,40,1.0,available,false
+40,Championship,2019,557,has_shot_stats,true,40,40,1.0,available,false
+40,Championship,2019,557,has_xg,,40,0,0.0,absent,false
+40,Championship,2019,557,has_corners_data,true,40,40,1.0,available,false
+40,Championship,2019,557,has_cards_data,true,40,40,1.0,available,false
+40,Championship,2019,557,has_half_split_stats,,40,40,1.0,available,false
+40,Championship,2019,557,has_substitution_timestamps,true,40,40,1.0,available,false
+40,Championship,2019,557,has_referee_history,,40,40,1.0,available,false
+40,Championship,2019,557,has_event_coordinates,,40,0,0.0,absent,false
+40,Championship,2019,557,has_physical_load_data,,40,0,0.0,absent,false
+40,Championship,2019,557,has_attendance_data,,40,0,0.0,absent,false
+40,Championship,2019,557,supports_lineup_strength_adjustment,,0,0,,unknown,false
+40,Championship,2019,557,supports_player_goal_props,,0,0,,unknown,false
+40,Championship,2019,557,supports_player_shot_props,,0,0,,unknown,false
+40,Championship,2019,557,supports_player_discipline_props,,0,0,,unknown,false
+62,Ligue 2,2019,280,has_lineups,true,40,40,1.0,available,false
+62,Ligue 2,2019,280,has_player_match_stats,true,40,40,1.0,available,false
+62,Ligue 2,2019,280,has_shot_stats,true,40,40,1.0,available,false
+62,Ligue 2,2019,280,has_xg,,40,0,0.0,absent,false
+62,Ligue 2,2019,280,has_corners_data,true,40,40,1.0,available,false
+62,Ligue 2,2019,280,has_cards_data,true,40,40,1.0,available,false
+62,Ligue 2,2019,280,has_half_split_stats,,40,40,1.0,available,false
+62,Ligue 2,2019,280,has_substitution_timestamps,true,40,40,1.0,available,false
+62,Ligue 2,2019,280,has_referee_history,,40,40,1.0,available,false
+62,Ligue 2,2019,280,has_event_coordinates,,40,0,0.0,absent,false
+62,Ligue 2,2019,280,has_physical_load_data,,40,0,0.0,absent,false
+62,Ligue 2,2019,280,has_attendance_data,,40,0,0.0,absent,false
+62,Ligue 2,2019,280,supports_lineup_strength_adjustment,,0,0,,unknown,false
+62,Ligue 2,2019,280,supports_player_goal_props,,0,0,,unknown,false
+62,Ligue 2,2019,280,supports_player_shot_props,,0,0,,unknown,false
+62,Ligue 2,2019,280,supports_player_discipline_props,,0,0,,unknown,false
+79,2. Bundesliga,2019,308,has_lineups,true,40,40,1.0,available,false
+79,2. Bundesliga,2019,308,has_player_match_stats,true,40,39,0.975,available,false
+79,2. Bundesliga,2019,308,has_shot_stats,true,40,40,1.0,available,false
+79,2. Bundesliga,2019,308,has_xg,,40,0,0.0,absent,false
+79,2. Bundesliga,2019,308,has_corners_data,true,40,40,1.0,available,false
+79,2. Bundesliga,2019,308,has_cards_data,true,40,40,1.0,available,false
+79,2. Bundesliga,2019,308,has_half_split_stats,,40,40,1.0,available,false
+79,2. Bundesliga,2019,308,has_substitution_timestamps,true,40,40,1.0,available,false
+79,2. Bundesliga,2019,308,has_referee_history,,40,40,1.0,available,false
+79,2. Bundesliga,2019,308,has_event_coordinates,,40,0,0.0,absent,false
+79,2. Bundesliga,2019,308,has_physical_load_data,,40,0,0.0,absent,false
+79,2. Bundesliga,2019,308,has_attendance_data,,40,0,0.0,absent,false
+79,2. Bundesliga,2019,308,supports_lineup_strength_adjustment,,0,0,,unknown,false
+79,2. Bundesliga,2019,308,supports_player_goal_props,,0,0,,unknown,false
+79,2. Bundesliga,2019,308,supports_player_shot_props,,0,0,,unknown,false
+79,2. Bundesliga,2019,308,supports_player_discipline_props,,0,0,,unknown,false
+136,Serie B,2019,390,has_lineups,true,40,40,1.0,available,false
+136,Serie B,2019,390,has_player_match_stats,true,40,40,1.0,available,false
+136,Serie B,2019,390,has_shot_stats,true,40,40,1.0,available,false
+136,Serie B,2019,390,has_xg,,40,0,0.0,absent,false
+136,Serie B,2019,390,has_corners_data,true,40,40,1.0,available,false
+136,Serie B,2019,390,has_cards_data,true,40,40,1.0,available,false
+136,Serie B,2019,390,has_half_split_stats,,40,40,1.0,available,false
+136,Serie B,2019,390,has_substitution_timestamps,true,40,40,1.0,available,false
+136,Serie B,2019,390,has_referee_history,,40,40,1.0,available,false
+136,Serie B,2019,390,has_event_coordinates,,40,0,0.0,absent,false
+136,Serie B,2019,390,has_physical_load_data,,40,0,0.0,absent,false
+136,Serie B,2019,390,has_attendance_data,,40,0,0.0,absent,false
+136,Serie B,2019,390,supports_lineup_strength_adjustment,,0,0,,unknown,false
+136,Serie B,2019,390,supports_player_goal_props,,0,0,,unknown,false
+136,Serie B,2019,390,supports_player_shot_props,,0,0,,unknown,false
+136,Serie B,2019,390,supports_player_discipline_props,,0,0,,unknown,false
+141,Segunda Division,2019,468,has_lineups,true,40,40,1.0,available,false
+141,Segunda Division,2019,468,has_player_match_stats,true,40,40,1.0,available,false
+141,Segunda Division,2019,468,has_shot_stats,true,40,40,1.0,available,false
+141,Segunda Division,2019,468,has_xg,,40,0,0.0,absent,false
+141,Segunda Division,2019,468,has_corners_data,true,40,40,1.0,available,false
+141,Segunda Division,2019,468,has_cards_data,true,40,40,1.0,available,false
+141,Segunda Division,2019,468,has_half_split_stats,,40,40,1.0,available,false
+141,Segunda Division,2019,468,has_substitution_timestamps,true,40,40,1.0,available,false
+141,Segunda Division,2019,468,has_referee_history,,40,40,1.0,available,false
+141,Segunda Division,2019,468,has_event_coordinates,,40,0,0.0,absent,false
+141,Segunda Division,2019,468,has_physical_load_data,,40,0,0.0,absent,false
+141,Segunda Division,2019,468,has_attendance_data,,40,0,0.0,absent,false
+141,Segunda Division,2019,468,supports_lineup_strength_adjustment,,0,0,,unknown,false
+141,Segunda Division,2019,468,supports_player_goal_props,,0,0,,unknown,false
+141,Segunda Division,2019,468,supports_player_shot_props,,0,0,,unknown,false
+141,Segunda Division,2019,468,supports_player_discipline_props,,0,0,,unknown,false
+45,FA Cup,2019,886,has_lineups,true,40,5,0.125,partial,false
+45,FA Cup,2019,886,has_player_match_stats,true,40,1,0.025,partial,false
+45,FA Cup,2019,886,has_shot_stats,true,40,1,0.025,partial,false
+45,FA Cup,2019,886,has_xg,,40,0,0.0,absent,false
+45,FA Cup,2019,886,has_corners_data,true,40,1,0.025,partial,false
+45,FA Cup,2019,886,has_cards_data,true,40,3,0.075,partial,false
+45,FA Cup,2019,886,has_half_split_stats,,40,5,0.125,partial,false
+45,FA Cup,2019,886,has_substitution_timestamps,true,40,5,0.125,partial,false
+45,FA Cup,2019,886,has_referee_history,,40,5,0.125,partial,false
+45,FA Cup,2019,886,has_event_coordinates,,40,0,0.0,absent,false
+45,FA Cup,2019,886,has_physical_load_data,,40,0,0.0,absent,false
+45,FA Cup,2019,886,has_attendance_data,,40,0,0.0,absent,false
+45,FA Cup,2019,886,supports_lineup_strength_adjustment,,0,0,,unknown,false
+45,FA Cup,2019,886,supports_player_goal_props,,0,0,,unknown,false
+45,FA Cup,2019,886,supports_player_shot_props,,0,0,,unknown,false
+45,FA Cup,2019,886,supports_player_discipline_props,,0,0,,unknown,false
+66,Coupe de France,2019,195,has_lineups,true,40,40,1.0,available,false
+66,Coupe de France,2019,195,has_player_match_stats,true,40,6,0.15,partial,false
+66,Coupe de France,2019,195,has_shot_stats,true,40,6,0.15,partial,false
+66,Coupe de France,2019,195,has_xg,,40,0,0.0,absent,false
+66,Coupe de France,2019,195,has_corners_data,true,40,6,0.15,partial,false
+66,Coupe de France,2019,195,has_cards_data,true,40,16,0.4,partial,false
+66,Coupe de France,2019,195,has_half_split_stats,,40,40,1.0,available,false
+66,Coupe de France,2019,195,has_substitution_timestamps,true,40,37,0.925,partial,false
+66,Coupe de France,2019,195,has_referee_history,,40,40,1.0,available,false
+66,Coupe de France,2019,195,has_event_coordinates,,40,0,0.0,absent,false
+66,Coupe de France,2019,195,has_physical_load_data,,40,0,0.0,absent,false
+66,Coupe de France,2019,195,has_attendance_data,,40,0,0.0,absent,false
+66,Coupe de France,2019,195,supports_lineup_strength_adjustment,,0,0,,unknown,false
+66,Coupe de France,2019,195,supports_player_goal_props,,0,0,,unknown,false
+66,Coupe de France,2019,195,supports_player_shot_props,,0,0,,unknown,false
+66,Coupe de France,2019,195,supports_player_discipline_props,,0,0,,unknown,false
+81,DFB Pokal,2019,63,has_lineups,true,40,40,1.0,available,false
+81,DFB Pokal,2019,63,has_player_match_stats,true,40,40,1.0,available,false
+81,DFB Pokal,2019,63,has_shot_stats,true,40,40,1.0,available,false
+81,DFB Pokal,2019,63,has_xg,,40,0,0.0,absent,false
+81,DFB Pokal,2019,63,has_corners_data,true,40,40,1.0,available,false
+81,DFB Pokal,2019,63,has_cards_data,true,40,40,1.0,available,false
+81,DFB Pokal,2019,63,has_half_split_stats,,40,40,1.0,available,false
+81,DFB Pokal,2019,63,has_substitution_timestamps,true,40,40,1.0,available,false
+81,DFB Pokal,2019,63,has_referee_history,,40,40,1.0,available,false
+81,DFB Pokal,2019,63,has_event_coordinates,,40,0,0.0,absent,false
+81,DFB Pokal,2019,63,has_physical_load_data,,40,0,0.0,absent,false
+81,DFB Pokal,2019,63,has_attendance_data,,40,0,0.0,absent,false
+81,DFB Pokal,2019,63,supports_lineup_strength_adjustment,,0,0,,unknown,false
+81,DFB Pokal,2019,63,supports_player_goal_props,,0,0,,unknown,false
+81,DFB Pokal,2019,63,supports_player_shot_props,,0,0,,unknown,false
+81,DFB Pokal,2019,63,supports_player_discipline_props,,0,0,,unknown,false
+137,Coppa Italia,2019,79,has_lineups,true,40,40,1.0,available,false
+137,Coppa Italia,2019,79,has_player_match_stats,true,40,7,0.175,partial,false
+137,Coppa Italia,2019,79,has_shot_stats,true,40,13,0.325,partial,false
+137,Coppa Italia,2019,79,has_xg,,40,0,0.0,absent,false
+137,Coppa Italia,2019,79,has_corners_data,true,40,13,0.325,partial,false
+137,Coppa Italia,2019,79,has_cards_data,true,40,36,0.9,partial,false
+137,Coppa Italia,2019,79,has_half_split_stats,,40,40,1.0,available,false
+137,Coppa Italia,2019,79,has_substitution_timestamps,true,40,40,1.0,available,false
+137,Coppa Italia,2019,79,has_referee_history,,40,40,1.0,available,false
+137,Coppa Italia,2019,79,has_event_coordinates,,40,0,0.0,absent,false
+137,Coppa Italia,2019,79,has_physical_load_data,,40,0,0.0,absent,false
+137,Coppa Italia,2019,79,has_attendance_data,,40,0,0.0,absent,false
+137,Coppa Italia,2019,79,supports_lineup_strength_adjustment,,0,0,,unknown,false
+137,Coppa Italia,2019,79,supports_player_goal_props,,0,0,,unknown,false
+137,Coppa Italia,2019,79,supports_player_shot_props,,0,0,,unknown,false
+137,Coppa Italia,2019,79,supports_player_discipline_props,,0,0,,unknown,false
+143,Copa del Rey,2019,126,has_lineups,true,40,38,0.95,available,false
+143,Copa del Rey,2019,126,has_player_match_stats,true,40,21,0.525,partial,false
+143,Copa del Rey,2019,126,has_shot_stats,true,40,21,0.525,partial,false
+143,Copa del Rey,2019,126,has_xg,,40,0,0.0,absent,false
+143,Copa del Rey,2019,126,has_corners_data,true,40,21,0.525,partial,false
+143,Copa del Rey,2019,126,has_cards_data,true,40,38,0.95,available,false
+143,Copa del Rey,2019,126,has_half_split_stats,,40,38,0.95,available,false
+143,Copa del Rey,2019,126,has_substitution_timestamps,true,40,38,0.95,available,false
+143,Copa del Rey,2019,126,has_referee_history,,40,38,0.95,available,false
+143,Copa del Rey,2019,126,has_event_coordinates,,40,0,0.0,absent,false
+143,Copa del Rey,2019,126,has_physical_load_data,,40,0,0.0,absent,false
+143,Copa del Rey,2019,126,has_attendance_data,,40,0,0.0,absent,false
+143,Copa del Rey,2019,126,supports_lineup_strength_adjustment,,0,0,,unknown,false
+143,Copa del Rey,2019,126,supports_player_goal_props,,0,0,,unknown,false
+143,Copa del Rey,2019,126,supports_player_shot_props,,0,0,,unknown,false
+143,Copa del Rey,2019,126,supports_player_discipline_props,,0,0,,unknown,false

@@ -326,3 +326,152 @@ class MatchDetail(Base):
     storage_key: Mapped[str] = mapped_column(String(255))
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     flags: Mapped[dict[str, Any]] = mapped_column(JsonType)  # capability -> present
+
+
+# --------------------------------------------------------------------------- spec §3.5 Phase 0
+# Built now because retrofitting them is a redo (§19.2 step 2), even where nothing writes
+# them yet: bundles, registrations, overrides, and the run / projection manifest tables.
+
+
+class CompetitionBundle(Base):
+    """A group of competitions onboarded and maintained together (§3.1, §19.1), e.g. a top
+    flight and its feeder, fitted jointly so promoted teams carry their strength across."""
+
+    __tablename__ = "competition_bundle"
+    bundle_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True)
+
+
+class CompetitionBundleMember(Base):
+    __tablename__ = "competition_bundle_member"
+    bundle_id: Mapped[int] = mapped_column(
+        ForeignKey("competition_bundle.bundle_id"), primary_key=True
+    )
+    competition_id: Mapped[int] = mapped_column(
+        ForeignKey("competition.competition_id"), primary_key=True
+    )
+    position: Mapped[int] = mapped_column(Integer)  # 0 = reference league (top flight)
+
+
+class PlayerRegistration(Temporal, Base):
+    """Which team (and so which level) a player is registered with, over time (§3.2).
+    A player can hold several registrations in one season at different levels."""
+
+    __tablename__ = "player_registration"
+    registration_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    player_id: Mapped[int] = mapped_column(ForeignKey("player.player_id"))
+    team_id: Mapped[int] = mapped_column(ForeignKey("team.team_id"))
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    __table_args__ = (Index("ix_registration_player", "player_id", "valid_from"),)
+
+
+class OverrideParametric(Base):
+    """Parametric scale factor (§8.5): an extra log-space term applied at simulation time
+    only. Stored inference and source data are never modified; revoking sets revoked_at."""
+
+    __tablename__ = "override_parametric"
+    override_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    entity_type: Mapped[str] = mapped_column(String(16))  # team / player
+    entity_id: Mapped[int] = mapped_column(Integer)
+    attribute: Mapped[str] = mapped_column(String(64))  # e.g. attack, defence, minutes
+    mode: Mapped[str] = mapped_column(String(16))  # additive / multiplicative
+    value: Mapped[float] = mapped_column(Float)
+    applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    applied_by: Mapped[str] = mapped_column(String(64))
+    note: Mapped[str] = mapped_column(String(500), default="")
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    __table_args__ = (
+        CheckConstraint("entity_type IN ('team', 'player')", name="ck_override_param_entity"),
+        CheckConstraint("mode IN ('additive', 'multiplicative')", name="ck_override_param_mode"),
+        Index("ix_override_param_match", "match_id"),
+    )
+
+
+class OverrideStructural(Base):
+    """Structural override (§8.5): replaces a scraped or inferred field for an upcoming match
+    (availability, formation, lineup slot, referee, weather, venue, competition_eligible,
+    call-up status). Read at simulation time with precedence explicit override > inferred
+    value; the underlying data is never mutated."""
+
+    __tablename__ = "override_structural"
+    override_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    entity_type: Mapped[str] = mapped_column(String(32))  # player / team / referee / venue / ...
+    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    field: Mapped[str] = mapped_column(String(64))
+    value: Mapped[Any] = mapped_column(JsonType)
+    applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    applied_by: Mapped[str] = mapped_column(String(64))
+    why: Mapped[str] = mapped_column(String(500), default="")
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    __table_args__ = (Index("ix_override_struct_match", "match_id"),)
+
+
+class ModelRun(Base):
+    """One fit (or backtest) of one model component, with its reproducibility manifest
+    (§14.8). Experiment tracking starts as this Postgres table."""
+
+    __tablename__ = "model_run"
+    model_run_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    model_name: Mapped[str] = mapped_column(String(64))  # e.g. dixon_coles_static
+    component: Mapped[str] = mapped_column(String(32))  # phase1a / layer2 / layer5 ...
+    status: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    as_of: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    window: Mapped[str] = mapped_column(String(16), default="")  # dev / holdout / live / fit
+    git_commit: Mapped[str] = mapped_column(String(64))
+    config_hash: Mapped[str] = mapped_column(String(64))
+    lockfile_hash: Mapped[str] = mapped_column(String(64))
+    data_snapshot_hash: Mapped[str] = mapped_column(String(64))
+    seed: Mapped[int] = mapped_column(Integer)
+    trace_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    report_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    backtest_scores: Mapped[dict[str, Any]] = mapped_column(JsonType, default=dict)
+    manifest: Mapped[dict[str, Any]] = mapped_column(JsonType, default=dict)
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('running', 'ok', 'failed', 'champion', 'retired')",
+            name="ck_model_run_status",
+        ),
+    )
+
+
+class ProjectionRun(Base):
+    """One batch of published projections and everything needed to explain them later:
+    "why did this projection say 64%" must be answerable months on (§14.8)."""
+
+    __tablename__ = "projection_run"
+    projection_run_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    git_commit: Mapped[str] = mapped_column(String(64))
+    lockfile_hash: Mapped[str] = mapped_column(String(64))
+    config_hash: Mapped[str] = mapped_column(String(64))
+    component_versions: Mapped[dict[str, Any]] = mapped_column(JsonType)  # layer -> model_run
+    q_league_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    training_snapshot_hash: Mapped[str] = mapped_column(String(64))
+    source_snapshot_ids: Mapped[dict[str, Any]] = mapped_column(JsonType, default=dict)
+    override_set_hash: Mapped[str] = mapped_column(String(64))
+    seed: Mapped[int] = mapped_column(Integer)
+
+
+class MarketProjection(Base):
+    """A model probability for one match x market x selection at one milestone (§3.1, §15).
+    Odds live in odds_snapshot and are compared downstream; they never feed this table."""
+
+    __tablename__ = "market_projection"
+    projection_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    projection_run_id: Mapped[int] = mapped_column(ForeignKey("projection_run.projection_run_id"))
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    milestone: Mapped[str] = mapped_column(String(16))  # initial / T-7d / ... / close
+    market_type: Mapped[str] = mapped_column(String(16))  # 1X2 / OU / BTTS ...
+    line: Mapped[float | None] = mapped_column(Float, nullable=True)
+    selection: Mapped[str] = mapped_column(String(32))
+    probability: Mapped[float] = mapped_column(Float)
+    interval_lo: Mapped[float | None] = mapped_column(Float, nullable=True)
+    interval_hi: Mapped[float | None] = mapped_column(Float, nullable=True)
+    __table_args__ = (
+        CheckConstraint("probability >= 0 AND probability <= 1", name="ck_projection_prob"),
+        Index("ix_projection_match", "match_id", "milestone"),
+    )

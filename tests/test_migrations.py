@@ -31,7 +31,9 @@ def test_upgrade_and_downgrade(cfg: tuple[Config, str]) -> None:
     tables = set(insp.get_table_names())
     assert {"match", "match_result", "raw_payload", "competition_source_capability"} <= tables
     assert {"odds_capture", "fixture_snapshot", "player_status_snapshot", "lineup_snapshot",
-            "capture_log", "match_detail"} <= tables  # fmt: skip
+            "capture_log", "match_detail", "competition_bundle", "player_registration",
+            "override_parametric", "override_structural", "model_run", "projection_run",
+            "market_projection"} <= tables  # fmt: skip
     assert "capability" not in tables
     cols = {col["name"] for col in insp.get_columns("match_result")}
     assert {"home_goals_nt", "home_goals_et", "home_pens"} <= cols and "home_goals_ft" not in cols

@@ -1,0 +1,241 @@
+league_id,competition,season,n_finished,capability,declared,n_sampled,n_with,coverage_ratio,status,mismatch
+39,Premier League,2021,380,has_lineups,true,40,40,1.0,available,false
+39,Premier League,2021,380,has_player_match_stats,true,40,40,1.0,available,false
+39,Premier League,2021,380,has_shot_stats,true,40,40,1.0,available,false
+39,Premier League,2021,380,has_xg,,40,0,0.0,absent,false
+39,Premier League,2021,380,has_corners_data,true,40,40,1.0,available,false
+39,Premier League,2021,380,has_cards_data,true,40,40,1.0,available,false
+39,Premier League,2021,380,has_half_split_stats,,40,40,1.0,available,false
+39,Premier League,2021,380,has_substitution_timestamps,true,40,40,1.0,available,false
+39,Premier League,2021,380,has_referee_history,,40,40,1.0,available,false
+39,Premier League,2021,380,has_event_coordinates,,40,0,0.0,absent,false
+39,Premier League,2021,380,has_physical_load_data,,40,0,0.0,absent,false
+39,Premier League,2021,380,has_attendance_data,,40,0,0.0,absent,false
+39,Premier League,2021,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+39,Premier League,2021,380,supports_player_goal_props,,0,0,,unknown,false
+39,Premier League,2021,380,supports_player_shot_props,,0,0,,unknown,false
+39,Premier League,2021,380,supports_player_discipline_props,,0,0,,unknown,false
+61,Ligue 1,2021,382,has_lineups,true,40,40,1.0,available,false
+61,Ligue 1,2021,382,has_player_match_stats,true,40,40,1.0,available,false
+61,Ligue 1,2021,382,has_shot_stats,true,40,40,1.0,available,false
+61,Ligue 1,2021,382,has_xg,,40,0,0.0,absent,false
+61,Ligue 1,2021,382,has_corners_data,true,40,40,1.0,available,false
+61,Ligue 1,2021,382,has_cards_data,true,40,40,1.0,available,false
+61,Ligue 1,2021,382,has_half_split_stats,,40,40,1.0,available,false
+61,Ligue 1,2021,382,has_substitution_timestamps,true,40,40,1.0,available,false
+61,Ligue 1,2021,382,has_referee_history,,40,40,1.0,available,false
+61,Ligue 1,2021,382,has_event_coordinates,,40,0,0.0,absent,false
+61,Ligue 1,2021,382,has_physical_load_data,,40,0,0.0,absent,false
+61,Ligue 1,2021,382,has_attendance_data,,40,0,0.0,absent,false
+61,Ligue 1,2021,382,supports_lineup_strength_adjustment,,0,0,,unknown,false
+61,Ligue 1,2021,382,supports_player_goal_props,,0,0,,unknown,false
+61,Ligue 1,2021,382,supports_player_shot_props,,0,0,,unknown,false
+61,Ligue 1,2021,382,supports_player_discipline_props,,0,0,,unknown,false
+78,Bundesliga,2021,308,has_lineups,true,40,40,1.0,available,false
+78,Bundesliga,2021,308,has_player_match_stats,true,40,40,1.0,available,false
+78,Bundesliga,2021,308,has_shot_stats,true,40,40,1.0,available,false
+78,Bundesliga,2021,308,has_xg,,40,0,0.0,absent,false
+78,Bundesliga,2021,308,has_corners_data,true,40,40,1.0,available,false
+78,Bundesliga,2021,308,has_cards_data,true,40,40,1.0,available,false
+78,Bundesliga,2021,308,has_half_split_stats,,40,40,1.0,available,false
+78,Bundesliga,2021,308,has_substitution_timestamps,true,40,40,1.0,available,false
+78,Bundesliga,2021,308,has_referee_history,,40,40,1.0,available,false
+78,Bundesliga,2021,308,has_event_coordinates,,40,0,0.0,absent,false
+78,Bundesliga,2021,308,has_physical_load_data,,40,0,0.0,absent,false
+78,Bundesliga,2021,308,has_attendance_data,,40,0,0.0,absent,false
+78,Bundesliga,2021,308,supports_lineup_strength_adjustment,,0,0,,unknown,false
+78,Bundesliga,2021,308,supports_player_goal_props,,0,0,,unknown,false
+78,Bundesliga,2021,308,supports_player_shot_props,,0,0,,unknown,false
+78,Bundesliga,2021,308,supports_player_discipline_props,,0,0,,unknown,false
+135,Serie A,2021,380,has_lineups,true,40,40,1.0,available,false
+135,Serie A,2021,380,has_player_match_stats,true,40,40,1.0,available,false
+135,Serie A,2021,380,has_shot_stats,true,40,40,1.0,available,false
+135,Serie A,2021,380,has_xg,,40,0,0.0,absent,false
+135,Serie A,2021,380,has_corners_data,true,40,40,1.0,available,false
+135,Serie A,2021,380,has_cards_data,true,40,40,1.0,available,false
+135,Serie A,2021,380,has_half_split_stats,,40,40,1.0,available,false
+135,Serie A,2021,380,has_substitution_timestamps,true,40,40,1.0,available,false
+135,Serie A,2021,380,has_referee_history,,40,40,1.0,available,false
+135,Serie A,2021,380,has_event_coordinates,,40,0,0.0,absent,false
+135,Serie A,2021,380,has_physical_load_data,,40,0,0.0,absent,false
+135,Serie A,2021,380,has_attendance_data,,40,0,0.0,absent,false
+135,Serie A,2021,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+135,Serie A,2021,380,supports_player_goal_props,,0,0,,unknown,false
+135,Serie A,2021,380,supports_player_shot_props,,0,0,,unknown,false
+135,Serie A,2021,380,supports_player_discipline_props,,0,0,,unknown,false
+140,La Liga,2021,380,has_lineups,true,40,40,1.0,available,false
+140,La Liga,2021,380,has_player_match_stats,true,40,40,1.0,available,false
+140,La Liga,2021,380,has_shot_stats,true,40,40,1.0,available,false
+140,La Liga,2021,380,has_xg,,40,0,0.0,absent,false
+140,La Liga,2021,380,has_corners_data,true,40,40,1.0,available,false
+140,La Liga,2021,380,has_cards_data,true,40,40,1.0,available,false
+140,La Liga,2021,380,has_half_split_stats,,40,40,1.0,available,false
+140,La Liga,2021,380,has_substitution_timestamps,true,40,40,1.0,available,false
+140,La Liga,2021,380,has_referee_history,,40,40,1.0,available,false
+140,La Liga,2021,380,has_event_coordinates,,40,0,0.0,absent,false
+140,La Liga,2021,380,has_physical_load_data,,40,0,0.0,absent,false
+140,La Liga,2021,380,has_attendance_data,,40,0,0.0,absent,false
+140,La Liga,2021,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+140,La Liga,2021,380,supports_player_goal_props,,0,0,,unknown,false
+140,La Liga,2021,380,supports_player_shot_props,,0,0,,unknown,false
+140,La Liga,2021,380,supports_player_discipline_props,,0,0,,unknown,false
+40,Championship,2021,557,has_lineups,true,40,40,1.0,available,false
+40,Championship,2021,557,has_player_match_stats,true,40,40,1.0,available,false
+40,Championship,2021,557,has_shot_stats,true,40,40,1.0,available,false
+40,Championship,2021,557,has_xg,,40,0,0.0,absent,false
+40,Championship,2021,557,has_corners_data,true,40,40,1.0,available,false
+40,Championship,2021,557,has_cards_data,true,40,40,1.0,available,false
+40,Championship,2021,557,has_half_split_stats,,40,40,1.0,available,false
+40,Championship,2021,557,has_substitution_timestamps,true,40,40,1.0,available,false
+40,Championship,2021,557,has_referee_history,,40,40,1.0,available,false
+40,Championship,2021,557,has_event_coordinates,,40,0,0.0,absent,false
+40,Championship,2021,557,has_physical_load_data,,40,0,0.0,absent,false
+40,Championship,2021,557,has_attendance_data,,40,0,0.0,absent,false
+40,Championship,2021,557,supports_lineup_strength_adjustment,,0,0,,unknown,false
+40,Championship,2021,557,supports_player_goal_props,,0,0,,unknown,false
+40,Championship,2021,557,supports_player_shot_props,,0,0,,unknown,false
+40,Championship,2021,557,supports_player_discipline_props,,0,0,,unknown,false
+62,Ligue 2,2021,384,has_lineups,true,40,40,1.0,available,false
+62,Ligue 2,2021,384,has_player_match_stats,true,40,40,1.0,available,false
+62,Ligue 2,2021,384,has_shot_stats,true,40,40,1.0,available,false
+62,Ligue 2,2021,384,has_xg,,40,0,0.0,absent,false
+62,Ligue 2,2021,384,has_corners_data,true,40,40,1.0,available,false
+62,Ligue 2,2021,384,has_cards_data,true,40,40,1.0,available,false
+62,Ligue 2,2021,384,has_half_split_stats,,40,40,1.0,available,false
+62,Ligue 2,2021,384,has_substitution_timestamps,true,40,40,1.0,available,false
+62,Ligue 2,2021,384,has_referee_history,,40,40,1.0,available,false
+62,Ligue 2,2021,384,has_event_coordinates,,40,0,0.0,absent,false
+62,Ligue 2,2021,384,has_physical_load_data,,40,0,0.0,absent,false
+62,Ligue 2,2021,384,has_attendance_data,,40,0,0.0,absent,false
+62,Ligue 2,2021,384,supports_lineup_strength_adjustment,,0,0,,unknown,false
+62,Ligue 2,2021,384,supports_player_goal_props,,0,0,,unknown,false
+62,Ligue 2,2021,384,supports_player_shot_props,,0,0,,unknown,false
+62,Ligue 2,2021,384,supports_player_discipline_props,,0,0,,unknown,false
+79,2. Bundesliga,2021,308,has_lineups,true,40,40,1.0,available,false
+79,2. Bundesliga,2021,308,has_player_match_stats,true,40,40,1.0,available,false
+79,2. Bundesliga,2021,308,has_shot_stats,true,40,40,1.0,available,false
+79,2. Bundesliga,2021,308,has_xg,,40,0,0.0,absent,false
+79,2. Bundesliga,2021,308,has_corners_data,true,40,40,1.0,available,false
+79,2. Bundesliga,2021,308,has_cards_data,true,40,40,1.0,available,false
+79,2. Bundesliga,2021,308,has_half_split_stats,,40,40,1.0,available,false
+79,2. Bundesliga,2021,308,has_substitution_timestamps,true,40,40,1.0,available,false
+79,2. Bundesliga,2021,308,has_referee_history,,40,40,1.0,available,false
+79,2. Bundesliga,2021,308,has_event_coordinates,,40,0,0.0,absent,false
+79,2. Bundesliga,2021,308,has_physical_load_data,,40,0,0.0,absent,false
+79,2. Bundesliga,2021,308,has_attendance_data,,40,0,0.0,absent,false
+79,2. Bundesliga,2021,308,supports_lineup_strength_adjustment,,0,0,,unknown,false
+79,2. Bundesliga,2021,308,supports_player_goal_props,,0,0,,unknown,false
+79,2. Bundesliga,2021,308,supports_player_shot_props,,0,0,,unknown,false
+79,2. Bundesliga,2021,308,supports_player_discipline_props,,0,0,,unknown,false
+136,Serie B,2021,390,has_lineups,true,40,40,1.0,available,false
+136,Serie B,2021,390,has_player_match_stats,true,40,40,1.0,available,false
+136,Serie B,2021,390,has_shot_stats,true,40,40,1.0,available,false
+136,Serie B,2021,390,has_xg,,40,0,0.0,absent,false
+136,Serie B,2021,390,has_corners_data,true,40,40,1.0,available,false
+136,Serie B,2021,390,has_cards_data,true,40,40,1.0,available,false
+136,Serie B,2021,390,has_half_split_stats,,40,40,1.0,available,false
+136,Serie B,2021,390,has_substitution_timestamps,true,40,40,1.0,available,false
+136,Serie B,2021,390,has_referee_history,,40,40,1.0,available,false
+136,Serie B,2021,390,has_event_coordinates,,40,0,0.0,absent,false
+136,Serie B,2021,390,has_physical_load_data,,40,0,0.0,absent,false
+136,Serie B,2021,390,has_attendance_data,,40,0,0.0,absent,false
+136,Serie B,2021,390,supports_lineup_strength_adjustment,,0,0,,unknown,false
+136,Serie B,2021,390,supports_player_goal_props,,0,0,,unknown,false
+136,Serie B,2021,390,supports_player_shot_props,,0,0,,unknown,false
+136,Serie B,2021,390,supports_player_discipline_props,,0,0,,unknown,false
+141,Segunda Division,2021,468,has_lineups,true,40,40,1.0,available,false
+141,Segunda Division,2021,468,has_player_match_stats,true,40,40,1.0,available,false
+141,Segunda Division,2021,468,has_shot_stats,true,40,40,1.0,available,false
+141,Segunda Division,2021,468,has_xg,,40,0,0.0,absent,false
+141,Segunda Division,2021,468,has_corners_data,true,40,40,1.0,available,false
+141,Segunda Division,2021,468,has_cards_data,true,40,40,1.0,available,false
+141,Segunda Division,2021,468,has_half_split_stats,,40,40,1.0,available,false
+141,Segunda Division,2021,468,has_substitution_timestamps,true,40,40,1.0,available,false
+141,Segunda Division,2021,468,has_referee_history,,40,40,1.0,available,false
+141,Segunda Division,2021,468,has_event_coordinates,,40,0,0.0,absent,false
+141,Segunda Division,2021,468,has_physical_load_data,,40,0,0.0,absent,false
+141,Segunda Division,2021,468,has_attendance_data,,40,0,0.0,absent,false
+141,Segunda Division,2021,468,supports_lineup_strength_adjustment,,0,0,,unknown,false
+141,Segunda Division,2021,468,supports_player_goal_props,,0,0,,unknown,false
+141,Segunda Division,2021,468,supports_player_shot_props,,0,0,,unknown,false
+141,Segunda Division,2021,468,supports_player_discipline_props,,0,0,,unknown,false
+45,FA Cup,2021,866,has_lineups,true,40,8,0.2,partial,false
+45,FA Cup,2021,866,has_player_match_stats,true,40,1,0.025,partial,false
+45,FA Cup,2021,866,has_shot_stats,true,40,2,0.05,partial,false
+45,FA Cup,2021,866,has_xg,,40,0,0.0,absent,false
+45,FA Cup,2021,866,has_corners_data,true,40,2,0.05,partial,false
+45,FA Cup,2021,866,has_cards_data,true,40,3,0.075,partial,false
+45,FA Cup,2021,866,has_half_split_stats,,40,9,0.225,partial,false
+45,FA Cup,2021,866,has_substitution_timestamps,true,40,8,0.2,partial,false
+45,FA Cup,2021,866,has_referee_history,,40,8,0.2,partial,false
+45,FA Cup,2021,866,has_event_coordinates,,40,0,0.0,absent,false
+45,FA Cup,2021,866,has_physical_load_data,,40,0,0.0,absent,false
+45,FA Cup,2021,866,has_attendance_data,,40,0,0.0,absent,false
+45,FA Cup,2021,866,supports_lineup_strength_adjustment,,0,0,,unknown,false
+45,FA Cup,2021,866,supports_player_goal_props,,0,0,,unknown,false
+45,FA Cup,2021,866,supports_player_shot_props,,0,0,,unknown,false
+45,FA Cup,2021,866,supports_player_discipline_props,,0,0,,unknown,false
+66,Coupe de France,2021,192,has_lineups,true,40,37,0.925,partial,false
+66,Coupe de France,2021,192,has_player_match_stats,true,40,7,0.175,partial,false
+66,Coupe de France,2021,192,has_shot_stats,true,40,7,0.175,partial,false
+66,Coupe de France,2021,192,has_xg,,40,0,0.0,absent,false
+66,Coupe de France,2021,192,has_corners_data,true,40,7,0.175,partial,false
+66,Coupe de France,2021,192,has_cards_data,true,40,17,0.425,partial,false
+66,Coupe de France,2021,192,has_half_split_stats,,40,40,1.0,available,false
+66,Coupe de France,2021,192,has_substitution_timestamps,true,40,39,0.975,available,false
+66,Coupe de France,2021,192,has_referee_history,,40,40,1.0,available,false
+66,Coupe de France,2021,192,has_event_coordinates,,40,0,0.0,absent,false
+66,Coupe de France,2021,192,has_physical_load_data,,40,0,0.0,absent,false
+66,Coupe de France,2021,192,has_attendance_data,,40,0,0.0,absent,false
+66,Coupe de France,2021,192,supports_lineup_strength_adjustment,,0,0,,unknown,false
+66,Coupe de France,2021,192,supports_player_goal_props,,0,0,,unknown,false
+66,Coupe de France,2021,192,supports_player_shot_props,,0,0,,unknown,false
+66,Coupe de France,2021,192,supports_player_discipline_props,,0,0,,unknown,false
+81,DFB Pokal,2021,63,has_lineups,true,40,40,1.0,available,false
+81,DFB Pokal,2021,63,has_player_match_stats,true,40,40,1.0,available,false
+81,DFB Pokal,2021,63,has_shot_stats,true,40,40,1.0,available,false
+81,DFB Pokal,2021,63,has_xg,,40,0,0.0,absent,false
+81,DFB Pokal,2021,63,has_corners_data,true,40,40,1.0,available,false
+81,DFB Pokal,2021,63,has_cards_data,true,40,40,1.0,available,false
+81,DFB Pokal,2021,63,has_half_split_stats,,40,40,1.0,available,false
+81,DFB Pokal,2021,63,has_substitution_timestamps,true,40,40,1.0,available,false
+81,DFB Pokal,2021,63,has_referee_history,,40,40,1.0,available,false
+81,DFB Pokal,2021,63,has_event_coordinates,,40,0,0.0,absent,false
+81,DFB Pokal,2021,63,has_physical_load_data,,40,0,0.0,absent,false
+81,DFB Pokal,2021,63,has_attendance_data,,40,0,0.0,absent,false
+81,DFB Pokal,2021,63,supports_lineup_strength_adjustment,,0,0,,unknown,false
+81,DFB Pokal,2021,63,supports_player_goal_props,,0,0,,unknown,false
+81,DFB Pokal,2021,63,supports_player_shot_props,,0,0,,unknown,false
+81,DFB Pokal,2021,63,supports_player_discipline_props,,0,0,,unknown,false
+137,Coppa Italia,2021,45,has_lineups,true,40,40,1.0,available,false
+137,Coppa Italia,2021,45,has_player_match_stats,true,40,35,0.875,partial,false
+137,Coppa Italia,2021,45,has_shot_stats,true,40,35,0.875,partial,false
+137,Coppa Italia,2021,45,has_xg,,40,0,0.0,absent,false
+137,Coppa Italia,2021,45,has_corners_data,true,40,35,0.875,partial,false
+137,Coppa Italia,2021,45,has_cards_data,true,40,40,1.0,available,false
+137,Coppa Italia,2021,45,has_half_split_stats,,40,40,1.0,available,false
+137,Coppa Italia,2021,45,has_substitution_timestamps,true,40,40,1.0,available,false
+137,Coppa Italia,2021,45,has_referee_history,,40,40,1.0,available,false
+137,Coppa Italia,2021,45,has_event_coordinates,,40,0,0.0,absent,false
+137,Coppa Italia,2021,45,has_physical_load_data,,40,0,0.0,absent,false
+137,Coppa Italia,2021,45,has_attendance_data,,40,0,0.0,absent,false
+137,Coppa Italia,2021,45,supports_lineup_strength_adjustment,,0,0,,unknown,false
+137,Coppa Italia,2021,45,supports_player_goal_props,,0,0,,unknown,false
+137,Coppa Italia,2021,45,supports_player_shot_props,,0,0,,unknown,false
+137,Coppa Italia,2021,45,supports_player_discipline_props,,0,0,,unknown,false
+143,Copa del Rey,2021,127,has_lineups,true,40,38,0.95,available,false
+143,Copa del Rey,2021,127,has_player_match_stats,true,40,26,0.65,partial,false
+143,Copa del Rey,2021,127,has_shot_stats,true,40,26,0.65,partial,false
+143,Copa del Rey,2021,127,has_xg,,40,0,0.0,absent,false
+143,Copa del Rey,2021,127,has_corners_data,true,40,26,0.65,partial,false
+143,Copa del Rey,2021,127,has_cards_data,true,40,38,0.95,available,false
+143,Copa del Rey,2021,127,has_half_split_stats,,40,38,0.95,available,false
+143,Copa del Rey,2021,127,has_substitution_timestamps,true,40,38,0.95,available,false
+143,Copa del Rey,2021,127,has_referee_history,,40,38,0.95,available,false
+143,Copa del Rey,2021,127,has_event_coordinates,,40,0,0.0,absent,false
+143,Copa del Rey,2021,127,has_physical_load_data,,40,0,0.0,absent,false
+143,Copa del Rey,2021,127,has_attendance_data,,40,0,0.0,absent,false
+143,Copa del Rey,2021,127,supports_lineup_strength_adjustment,,0,0,,unknown,false
+143,Copa del Rey,2021,127,supports_player_goal_props,,0,0,,unknown,false
+143,Copa del Rey,2021,127,supports_player_shot_props,,0,0,,unknown,false
+143,Copa del Rey,2021,127,supports_player_discipline_props,,0,0,,unknown,false

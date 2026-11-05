@@ -13,8 +13,11 @@ from pathlib import Path
 from typing import Any
 
 import polars as pl
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from adatta.adapters.normalize import SOURCE_ID
+from adatta.db import models
 from adatta.eval import harness
 
 SEED = 0  # the fit is deterministic (L-BFGS from a fixed start); logged for the manifest
@@ -40,6 +43,68 @@ def _snapshot(frames: dict[str, pl.DataFrame]) -> dict[str, Any]:
         h.update(df.write_csv().encode())
         n += df.height
     return {"matches": n, "sha256": h.hexdigest()}
+
+
+def _file_hash(path: str) -> str:
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError:
+        return "unknown"
+
+
+def sync_bundles(session: Session, cfg: harness.EvalConfig) -> int:
+    """Mirror config bundles into competition_bundle(_member). Returns members added."""
+    C, B, BM = models.Competition, models.CompetitionBundle, models.CompetitionBundleMember
+    added = 0
+    for name, leagues in cfg.bundles.items():
+        bundle = session.scalar(select(B).where(B.name == name))
+        if bundle is None:
+            bundle = B(name=name)
+            session.add(bundle)
+            session.flush()
+        for pos, lid in enumerate(leagues):
+            comp = session.scalar(
+                select(C).where(C.source_id == SOURCE_ID, C.source_ref == str(lid))
+            )
+            if comp is None:
+                continue  # not ingested yet; synced on a later run
+            member = session.get(BM, (bundle.bundle_id, comp.competition_id))
+            if member is None:
+                session.add(BM(bundle_id=bundle.bundle_id, competition_id=comp.competition_id,
+                               position=pos))  # fmt: skip
+                added += 1
+            else:
+                member.position = pos
+    session.flush()
+    return added
+
+
+def record_run(
+    session: Session, manifest: dict[str, Any], report_path: str, scores: dict[str, Any]
+) -> models.ModelRun:
+    """Register a baseline run in model_run (experiment tracking, §14.8)."""
+    row = models.ModelRun(
+        model_name="dixon_coles_static", component="phase1a", status="ok",
+        created_at=datetime.strptime(manifest["created_at"], "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC),
+        window=manifest.get("window_scored", ""), git_commit=manifest["code_sha"],
+        config_hash=manifest.get("config_hash", "unknown"),
+        lockfile_hash=manifest.get("lockfile_hash", "unknown"),
+        data_snapshot_hash=manifest["data_snapshot"]["sha256"], seed=manifest["seed"],
+        report_path=report_path, backtest_scores=scores, manifest=manifest,
+    )  # fmt: skip
+    session.add(row)
+    session.flush()
+    return row
+
+
+def headline_scores(summary: pl.DataFrame) -> dict[str, Any]:
+    """Warm-match overall metrics per model, for model_run.backtest_scores."""
+    s = summary.filter(pl.col("segment_type") == "all")
+    out: dict[str, Any] = {}
+    for r in s.iter_rows(named=True):
+        out.setdefault(r["model"], {})[r["metric"]] = r["value"]
+        out[r["model"]]["n"] = r["n"]
+    return out
 
 
 def run(session: Session, cfg: harness.EvalConfig, out_root: Path) -> Path:
@@ -113,6 +178,8 @@ def run(session: Session, cfg: harness.EvalConfig, out_root: Path) -> Path:
         "created_at": stamp,
         "code_sha": code_sha,
         "seed": SEED,
+        "config_hash": _file_hash("config/evaluation.yml"),
+        "lockfile_hash": _file_hash("uv.lock"),
         "data_snapshot": _snapshot(data),
         "libraries": {lib: version(lib) for lib in ("numpy", "scipy", "polars", "sqlalchemy")},
         "config": cfg.model_dump(),
@@ -123,6 +190,10 @@ def run(session: Session, cfg: harness.EvalConfig, out_root: Path) -> Path:
         "runtime_seconds": round(time.time() - started, 1),
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str))
+    sync_bundles(session, cfg)
+    record_run(session, json.loads(json.dumps(manifest, default=str)), str(out),
+               headline_scores(summary))  # fmt: skip
+    session.commit()
     (out / "summary.md").write_text(
         _summary_md(cfg, summary, tune, best, best_sd, paired, flags, pred, bad)
     )

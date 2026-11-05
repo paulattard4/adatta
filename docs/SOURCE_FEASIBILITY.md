@@ -8,6 +8,14 @@ coverage comes **from real payloads, not declared flags**.
 - Capability audit `reports/capability_audit/20261105T115828Z.csv` (+ `.manifest.json`):
   15 competitions × 51 seasons, 40 finished fixtures per season (fixed seed 20261105),
   2,040 unique fixture-detail payloads. Rows live in `competition_source_capability` (Neon).
+- Extension to 2016/17–2021/22 (2026-11-05, same sample size and seed; 356 requests):
+  `reports/capability_audit/20261105T163915Z` … `20261105T164501Z` (one file per season).
+  **xG is absent in every competition for 2016–2021**, so it starts with the Top-5 in 2022/23
+  as recorded below. All 10 leagues have lineups, shot and card data at about 100% except
+  Segunda 2018 (90–92%, partial) and Ligue 2 2016 stats (68–92%); Serie B has no player match
+  stats for 2016–2018 (absent), and 2. Bundesliga 2016 is partial (65%). Cups are patchy and
+  stage-dependent as in later seasons; Copa del Rey 2016–2017 has no fixtures at all; FA Cup
+  2017 declares stats it doesn't carry (4 declared-vs-observed mismatches).
 - Field inventory mined from those payloads (raw copies in R2).
 - Live probes, 4 requests: `/injuries?league=39&season=2025`, `/sidelined?player=1125`,
   `/odds?fixture=868107` (a 2022/23 Premier League match), `/venues?id=556`.

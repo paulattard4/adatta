@@ -1,0 +1,33 @@
+# Local hooks only: they run the project's own pinned tools through uv, so nothing is
+# downloaded from hook repositories. Same gate as CI (CLAUDE.md: ruff + mypy + pytest).
+# Install once per clone:  uv run pre-commit install
+repos:
+  - repo: local
+    hooks:
+      - id: no-env-files
+        name: refuse to commit .env files (secrets)
+        language: fail
+        entry: ".env files must never be committed; use .env.example"
+        files: '(^|/)\.env$'
+      - id: ruff-check
+        name: ruff check
+        language: system
+        entry: uv run ruff check --fix
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        language: system
+        entry: uv run ruff format
+        types: [python]
+      - id: mypy
+        name: mypy
+        language: system
+        entry: uv run mypy adatta tests
+        pass_filenames: false
+        types: [python]
+      - id: pytest
+        name: pytest
+        language: system
+        entry: uv run pytest -q
+        pass_filenames: false
+        types_or: [python, yaml]

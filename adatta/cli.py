@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from datetime import UTC, datetime
@@ -187,3 +188,27 @@ def baseline(
     with get_session() as session:
         path = phase1a.run(session, load_config(), Path(out))
     typer.echo(f"report written to {path}")
+
+
+@app.command("register-run")
+def register_run(report: str = typer.Argument(..., help="baseline report folder")) -> None:
+    """Record an existing baseline report in model_run (and sync bundles). No API requests."""
+    from adatta.eval import baseline as phase1a
+    from adatta.eval.harness import load_config
+
+    folder = Path(report)
+    manifest = json.loads((folder / "manifest.json").read_text())
+    # Reports written before these fields existed: hash the files as of the run's commit.
+    commit = str(manifest["code_sha"]).removesuffix("-dirty")
+    for key, path in (("config_hash", "config/evaluation.yml"), ("lockfile_hash", "uv.lock")):
+        if key not in manifest:
+            blob = subprocess.run(["git", "show", f"{commit}:{path}"], capture_output=True)
+            manifest[key] = (
+                hashlib.sha256(blob.stdout).hexdigest() if blob.returncode == 0 else "unknown"
+            )
+    summary = pl.read_csv(folder / "metrics.csv")
+    with get_session() as session:
+        phase1a.sync_bundles(session, load_config())
+        row = phase1a.record_run(session, manifest, str(folder), phase1a.headline_scores(summary))
+        session.commit()
+        typer.echo(f"model_run {row.model_run_id} recorded for {folder}")

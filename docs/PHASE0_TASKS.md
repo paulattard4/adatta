@@ -13,7 +13,7 @@ Tick each item only when its acceptance check passes.
 - [x] Open-Meteo reachable (no key needed) (archive API returned 200 on 2026-11-05; no adapter yet)
 
 ## 2. Repo skeleton
-- [ ] `uv init`, ruff/mypy/pytest configured, pre-commit — done except pre-commit (not configured; CI enforces the gate)
+- [x] `uv init`, ruff/mypy/pytest configured, pre-commit (`.pre-commit-config.yaml`: local hooks for ruff, mypy, pytest and a .env guard; `uv run pre-commit install`)
 - [x] Layout per D3; `.env.example`, `.gitignore`
 - [x] CI runs lint + tests on push
 
@@ -22,10 +22,11 @@ Tick each item only when its acceptance check passes.
 - [x] match_result with temporal columns; raw_payload index table
 - [x] capability table: competition x season x source x capability, coverage_ratio (spec §3.4 shape, migration 0002)
 - [x] Migration applies cleanly on empty DB; rollback tested (`tests/test_migrations.py`)
+- [x] Rest of the spec §3.5 Phase 0 subset (migration 0005): competition_bundle (+ members, synced from `config/evaluation.yml`), player_registration, override_parametric / override_structural (§8.5), model_run, projection_run, market_projection (§14.8). The baseline run is model_run 1
 
 ## 4. API-Football adapter + data audit
 - [x] Quota planner + rate limiter + retry/backoff
-- [ ] Adapter: leagues, teams, fixtures, results, lineups, events, stats; raw payload saved, normalised rows with source_id — done except events and stats: kept in raw payloads, not yet normalised
+- [x] Adapter: leagues, teams, fixtures, results, lineups, events, stats; raw payload saved, normalised rows with source_id. Events and stats are fetched and kept raw (R2, indexed by `match_detail`); normalising them is deferred to Phase 1b by D8, since spec §3.5 doesn't list those tables for Phase 0
 - [x] Audit notebook/script: coverage by competition x season x capability; fill capability table (`adatta audit`; 2026-11-05: 51 seasons, `reports/capability_audit/`)
 - [x] Source-feasibility register: mark unavailable items (PPDA, directness, tracking data, event coordinates, injury return dates) (`docs/SOURCE_FEASIBILITY.md`; open items listed there)
 

@@ -29,6 +29,7 @@ dev = [
   "types-boto3",
   "respx>=0.21",
   "scipy-stubs>=1.18.1.1",
+  "pre-commit>=4.7.0",
 ]
 # Heavy inference deps are added when Phase 1a starts:  uv add pymc arviz numpyro
 
@@ -44,6 +45,7 @@ packages = ["adatta"]
 
 [tool.ruff]
 extend-exclude = ["migrations/versions"]
+force-exclude = true  # honour the exclude even when pre-commit passes file paths
 line-length = 100
 target-version = "py312"
 

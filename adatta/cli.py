@@ -85,7 +85,9 @@ def backfill_report(out: str = typer.Option("reports/backfill", help="report fol
 def _git_sha() -> str:
     try:
         out = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
-        dirty = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"], capture_output=True, text=True
+        )
         return out.stdout.strip() + ("-dirty" if dirty.stdout.strip() else "")
     except OSError:
         return "unknown"

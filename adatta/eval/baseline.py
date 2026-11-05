@@ -23,7 +23,9 @@ SEED = 0  # the fit is deterministic (L-BFGS from a fixed start); logged for the
 def _git_sha() -> str:
     try:
         sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
-        dirty = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"], capture_output=True, text=True
+        )
         return sha.stdout.strip() + ("-dirty" if dirty.stdout.strip() else "")
     except OSError:
         return "unknown"
@@ -42,6 +44,9 @@ def _snapshot(frames: dict[str, pl.DataFrame]) -> dict[str, Any]:
 
 def run(session: Session, cfg: harness.EvalConfig, out_root: Path) -> Path:
     started = time.time()
+    # Taken before any output exists; untracked files (e.g. earlier reports) don't count as
+    # dirty, only changes to tracked code and config do.
+    code_sha = _git_sha()
     data: dict[str, pl.DataFrame] = {}
     unscorable: list[pl.DataFrame] = []
     for bundle, leagues in cfg.bundles.items():
@@ -106,7 +111,7 @@ def run(session: Session, cfg: harness.EvalConfig, out_root: Path) -> Path:
     manifest = {
         "run": "phase1a_baseline",
         "created_at": stamp,
-        "code_sha": _git_sha(),
+        "code_sha": code_sha,
         "seed": SEED,
         "data_snapshot": _snapshot(data),
         "libraries": {lib: version(lib) for lib in ("numpy", "scipy", "polars", "sqlalchemy")},

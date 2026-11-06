@@ -13,6 +13,10 @@ on:
       structure:
         description: "team structure: strength_open (D15) or independent (spec §5.1)"
         default: strength_open
+      shifts:
+        description: "D16 promotion/relegation shift (strength_open only)"
+        type: boolean
+        default: false
       prior_scale:
         description: "prior scale (1 = production; 0.5 / 2 for the §14.5 sensitivity runs)"
         default: "1"
@@ -32,7 +36,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: backtest-${{ inputs.structure }}-${{ inputs.prior_scale }}
+  group: backtest-${{ inputs.structure }}-${{ inputs.shifts }}-${{ inputs.prior_scale }}
   cancel-in-progress: false
 env:
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -63,6 +67,7 @@ jobs:
           --bundle ${{ matrix.bundle }} --season ${{ matrix.season }}
           --structure ${{ inputs.structure }} --prior-scale ${{ inputs.prior_scale }}
           --every-days ${{ inputs.every_days }} --upload ${{ github.run_id }}
+          ${{ inputs.shifts && '--shifts' || '' }}
   assemble:
     needs: refit
     if: ${{ !cancelled() }}
@@ -78,13 +83,14 @@ jobs:
         env:
           STRUCTURE: ${{ inputs.structure }}
           PRIOR_SCALE: ${{ inputs.prior_scale }}
+          SHIFTS: ${{ inputs.shifts }}
           BUNDLES: ${{ inputs.bundles }}
           SEASONS: ${{ inputs.seasons }}
         run: |
           names=$(uv run python -c "
           import json, os
           from adatta.model.backtest import RunSpec
-          m = RunSpec(structure=os.environ['STRUCTURE'], prior_scale=float(os.environ['PRIOR_SCALE'])).model_name
+          m = RunSpec(structure=os.environ['STRUCTURE'], prior_scale=float(os.environ['PRIOR_SCALE']), shifts=os.environ['SHIFTS'] == 'true').model_name
           print(' '.join(f'${{ github.run_id }}/{m}_{b}_{s}.parquet' for b in json.loads(os.environ['BUNDLES']) for s in json.loads(os.environ['SEASONS'])))")
           uv run python -m adatta.model.backtest assemble --fetch $names --upload-report ${{ inputs.record && '--record' || '' }} \
             | tee -a "$GITHUB_STEP_SUMMARY"

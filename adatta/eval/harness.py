@@ -177,6 +177,35 @@ def as_of_times(first: datetime, last: datetime, every_days: int) -> list[dateti
     return out
 
 
+def mover_codes(df: pl.DataFrame, leagues: list[int]) -> tuple[NDArray[np.int64], ...]:
+    """D16 status of each match's home and away team: 1 = first season after promotion into
+    this league's tier, 2 = after relegation, 0 = otherwise (same tier, or new to the bundle).
+    Tier = position in the bundle's league list. Uses only the team's tier in the previous
+    season (complete before this season starts) and this fixture's own league, so it is
+    observable at any as-of time before kickoff."""
+    tier = {lid: i for i, lid in enumerate(leagues)}
+    seen = pl.concat([df.select(team="home", season="season", league_id="league_id"),
+                      df.select(team="away", season="season", league_id="league_id")])  # fmt: skip
+    # a team's tier in a season = its tier in most of that season's matches
+    prev = (seen.group_by("team", "season").agg(pl.col("league_id").mode().first())
+            .select("team", season=pl.col("season") + 1,
+                    prev_tier=pl.col("league_id").replace_strict(tier)))  # fmt: skip
+    cur = pl.col("league_id").replace_strict(tier)
+    out = []
+    for side in ("home", "away"):
+        j = (
+            df.select("season", "league_id", team=pl.col(side))
+            .with_row_index("row")
+            .join(prev, on=["team", "season"], how="left")
+            .sort("row")  # joins don't promise row order
+        )
+        code = (pl.when(pl.col("prev_tier").is_null()).then(0)
+                .when(cur < pl.col("prev_tier")).then(1)
+                .when(cur > pl.col("prev_tier")).then(2).otherwise(0))  # fmt: skip
+        out.append(j.select(code.alias("c"))["c"].to_numpy().astype(np.int64))
+    return out[0], out[1]
+
+
 def refit_plan(
     df: pl.DataFrame, cfg: EvalConfig, seasons: list[int], every_days: int
 ) -> list[tuple[datetime, NDArray[np.int64], NDArray[np.int64]]]:
@@ -210,6 +239,7 @@ def walk_forward(
     df: pl.DataFrame, leagues: list[int], cfg: EvalConfig, half_life: float | None,
     seasons: list[int], models_: tuple[str, ...] = MODELS, prior_sd: float | None = None,
     open_sd: float | None = None,
+    shift_sd: float | None = None,
 ) -> pl.DataFrame:  # fmt: skip
     """Predict and score every match of `seasons` in `df` (one bundle). Returns one row per
     match x model."""
@@ -221,6 +251,8 @@ def walk_forward(
     hg_all, ag_all = df["hg"].to_numpy(), df["ag"].to_numpy()
     season_all = df["season"].to_numpy()
     mid_all = df["match_id"].to_numpy()
+    mh_all, ma_all = mover_codes(df, leagues)
+    movers = shift_sd is not None  # D16 probe: Normal(0, shift_sd) prior on the two shifts
     if not plan:
         return pl.DataFrame()
     rows: list[dict[str, Any]] = []
@@ -246,6 +278,9 @@ def walk_forward(
                 weight=weights, n_teams=len(teams), n_leagues=len(leagues),
                 ridge=dc.ridge_for(prior_sd),
                 open_ridge=0.0 if open_sd is None else 1.0 / (2.0 * open_sd**2),
+                mover_home=mh_all[train] if movers else None,
+                mover_away=ma_all[train] if movers else None,
+                shift_ridge=1.0 / (2.0 * shift_sd**2) if shift_sd else 0.0,
             )  # fmt: skip
             fitted, warm = dc.fit(data, init)
             prev_teams = teams
@@ -269,6 +304,10 @@ def walk_forward(
                 "n_train": len(train), "n_prior_home": n_h, "n_prior_away": n_a,
                 "cold_start": min(n_h, n_a) < cfg.min_warmup_matches,
                 "exp_total": float("nan"),
+                "mover_home": int(mh_all[k]), "mover_away": int(ma_all[k]),
+                "home": h, "away": a,
+                "shift_up": float(fitted.shift[0]) if fitted is not None else 0.0,
+                "shift_down": float(fitted.shift[1]) if fitted is not None else 0.0,
             }  # fmt: skip
             for model in models_:
                 tail = 0.0
@@ -281,8 +320,9 @@ def walk_forward(
                     att = np.append(fitted.attack, league_att[lg])
                     dfn = np.append(fitted.defence, league_def[lg])
                     p = dc.Params(fitted.mu, fitted.mu_league, fitted.home_league, att, dfn,
-                                  fitted.rho)  # fmt: skip
-                    lam, mu_ = p.rates(ia[0], ia[1], np.array([lg]))
+                                  fitted.rho, fitted.shift)  # fmt: skip
+                    mv = (np.array([mh_all[k]]), np.array([ma_all[k]])) if movers else (None, None)
+                    lam, mu_ = p.rates(ia[0], ia[1], np.array([lg]), *mv)
                     base["exp_total"] = float(lam[0] + mu_[0])
                     m, tail = dc.score_matrix(float(lam[0]), float(mu_[0]), p.rho, cfg.max_goals)
                     mk = metrics.markets(m)

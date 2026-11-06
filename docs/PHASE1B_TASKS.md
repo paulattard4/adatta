@@ -100,6 +100,65 @@ Dev window only, 28-day refit grid (D14), every model on the same grid:
 - Failing either: revert to the spec model and record the misfit as known (affects totals
   markets, not 1X2).
 
+### D16 promotion/relegation shift: acceptance test (stated 2026-11-06, before building)
+
+Measured on dev only, on the D14 28-day refit grid, warm matches; "mover matches" are a
+promoted or relegated team's matches in its first season in the new tier.
+- **Bias:** expected-minus-actual points per team-match for promoted and for relegated
+  teams, in matches 1–10 and 11+, each within ±0.05 with a 95% interval that includes 0
+  (today: −0.16, −0.09, +0.06, +0.12). Established teams stay within ±0.03.
+- **Accuracy:** 1X2 log loss and RPS on mover matches improve (paired 95% interval
+  excludes 0); overall dev 1X2 log loss is not worse than 0.1% relative, and no league is
+  worse than 0.5% relative.
+- **Sense check:** delta_up < 0 and delta_down > 0 in every bundle, or the bundle's
+  posterior interval includes 0 (few movers); reported per bundle.
+- **No leakage:** mover status for a match at as-of t uses the team's tier in the previous
+  season's results and the target fixture's own league only (unit-tested).
+- **Order:** first a Phase 1a probe (static model, an optional learned shift; minutes), as
+  for D15. If it passes, add it to the 1b model and confirm with the dev backtest (task 4
+  workflow) against 1b without it; the §14.5 gate must still pass. The 1a benchmark itself
+  stays as tuned unless a later decision changes it.
+- **Phase 1a probe result (2026-11-06): partial pass, so it fails the test as stated.**
+  Static model, half-life 365, prior sd 0.5, 28-day grid, all 5 bundles, 18,601 warm dev
+  matches (4,872 involve a mover). At the pre-stated prior sd 0.2:
+  - Bias (actual − expected points per team-match): promoted 1–10 −0.165 -> **−0.103 ±
+    0.087 (fail)**; promoted 11+ −0.087 -> −0.048 ± 0.053 (pass); relegated 1–10 +0.044 ->
+    −0.002 ± 0.092 (pass); relegated 11+ +0.121 -> **+0.091 ± 0.056 (fail)**; established
+    teams −0.003 to −0.004 (pass).
+  - Accuracy: mover-match 1X2 log loss −0.18% [−0.34, −0.02] and RPS −0.28% [−0.54,
+    −0.02] (pass); overall 1X2 log loss +0.02% [−0.03, +0.07] (pass); worst league +0.11%
+    (2. Bundesliga) (pass).
+  - Signs: mean delta_up < 0 and delta_down > 0 in every bundle (pass): up −0.08 (Spain) to
+    −0.19 (Italy), down +0.004 (Italy) to +0.22 (Spain).
+  - Prior sd 0.1 removes less bias; sd 0.5 removes more but makes overall 1X2 log loss
+    worse (+0.08%, interval excludes 0) and still leaves relegated 11+ at +0.077.
+  - Reading: a fixed shift halves the bias and fixes the early-season relegated case, but
+    relegated teams' underrating grows through the season and promoted teams stay
+    overrated early. A single offset in a static model can't follow that drift.
+- **Exception (decided 2026-11-06):** despite the partial probe pass, D16 goes to the 1b
+  model, because the residual bias drifts through the season and 1b's weekly strength walk
+  may follow it where a static offset can't. The 1b criteria are unchanged from above (bias,
+  accuracy, signs, gate) and are judged on the dev backtest, 1b with vs without D16; 1a
+  stays as tuned. If 1b also misses, D16 is recorded as failed.
+- **1b gate result (2026-11-06, England as of 2023-08-07): fail, so D16 is recorded as
+  failed** under the exception's terms. 18/20 gating checks: mixing (R-hat <= 1.009, ESS >=
+  509), PPCs, identifiability of league levels, truncation and reproducibility pass; **prior
+  sensitivity fails** (delta moves 2.3 posterior sds at x0.5, 1.4 at x2). Posterior delta_up
+  −0.43 ± 0.10, delta_down +0.44 ± 0.10.
+  - Cause: the shifts are not identified. Within a bundle, the strength gap between tiers is
+    learnt only from teams that move (no cross-tier matches are modelled), so any
+    "promoted down, relegated up" shift is the same thing as a bigger tier gap. With D16 the
+    fitted gap (top-flight minus second-tier mean strength) falls from 0.58 ± 0.11 to
+    0.26 ± 0.11, corr(delta_up, gap) +0.40, corr(delta_down, gap) −0.37; the identified
+    part, (delta_up + delta_down) / 2, is 0.005 ± 0.056. The prior then decides how the
+    movers' jump is split between gap and shift, which the sensitivity check catches.
+  - Reading: the bias is evidence that movers' carry-over is miscalibrated, but it can only
+    be fixed with information that pins the tier gap independently: cross-tier matches
+    (domestic cups, already loaded) or Q_league (§10.1). The shift code stays in the model
+    and harness, off by default, for that later test.
+- Failing: keep the unchanged carry-over and record the bias as known until Q_league.
+- Reports gain promoted / relegated segments so this stays visible for every later model.
+
 ## Tasks
 
 ### 1. Data for Layer 2 (D8 follow-through)

@@ -119,6 +119,7 @@ def test_assemble_compares_on_the_same_grid(tmp_path: Path) -> None:
     assert "grid identical to 1a: **yes**" in summary
     assert "phase1b_strength_open vs Phase 1a" in summary
     assert "Dev predictive prior sensitivity" in summary
+    assert "Promoted / relegated teams" in summary
     assert (out / "compare_phase1b_strength_open.csv").exists()
 
 
@@ -142,3 +143,31 @@ def test_record_writes_one_model_run_per_challenger(tmp_path: Path) -> None:
         row = s.scalars(select(models.ModelRun)).one()
         assert row.model_name == "phase1b_strength_open" and row.window == "dev"
         assert "1X2:log_loss" in row.backtest_scores
+
+
+def test_prepare_records_moves_and_pending_shift_applies() -> None:
+    df = matches((2018, 2019))
+    # swap team 1000 (tier 1) and 1010 (tier 2) for 2019: one promoted, one relegated
+    swap = {1000: 1010, 1010: 1000}
+    df = df.with_columns(
+        [pl.when(pl.col("season") == 2019).then(pl.col(c).replace(swap)).otherwise(pl.col(c))
+         .alias(c) for c in ("home", "away")]
+    )  # fmt: skip
+    fd = ts.prepare(df, LEAGUES, datetime(2019, 10, 7, tzinfo=UTC), 1095)
+    assert fd.moved_up is not None and fd.moved_down is not None
+    up, down = list(fd.team_ids).index(1010), list(fd.team_ids).index(1000)
+    first_2019 = int((datetime(2019, 8, 7, tzinfo=UTC) - fd.start).days // 7)
+    assert fd.moved_up[first_2019 - 1, up] == 0 and fd.moved_up[first_2019, up] == 1
+    assert fd.moved_up[-1].sum() == 1 and fd.moved_down[-1, down] == 1
+    # before the new season, the move is pending and applied at prediction time
+    early = ts.prepare(df, LEAGUES, datetime(2019, 8, 5, tzinfo=UTC), 1095)
+    assert early.moved_up is not None and early.moved_up.sum() == 0
+    assert (1010, 2019) not in early.team_seasons
+    draws, _ = FakeFitter()(early, 1)
+    draws["delta"] = np.vstack([np.full(20, -0.4), np.full(20, 0.4)])
+    i = list(early.team_ids).index(1010)
+    args = (draws, early, np.array([i]), np.array([0]), np.array([0]))
+    base_h, base_a = ts.rates_from_draws(*args)
+    sh_h, sh_a = ts.rates_from_draws(*args, np.array([1]), np.array([0]))
+    assert np.allclose(sh_h / base_h, np.exp(-0.4 / np.sqrt(2)))
+    assert np.allclose(sh_a / base_a, np.exp(0.4 / np.sqrt(2)))

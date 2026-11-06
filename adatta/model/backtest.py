@@ -56,11 +56,12 @@ class RunSpec:
     seed: int = 20261105
     every_days: int = 28
     max_pred_draws: int = 400
+    shifts: bool = False  # D16 promotion / relegation shift
 
     @property
     def model_name(self) -> str:
         k = "" if self.prior_scale == 1.0 else f"_k{self.prior_scale:g}"
-        return f"phase1b_{self.structure}{k}"
+        return f"phase1b_{self.structure}{'_d16' if self.shifts else ''}{k}"
 
 
 def _mean(s: pl.Series) -> float:
@@ -108,7 +109,8 @@ def nuts_fitter(spec: RunSpec) -> Fitter:
         t0 = time.time()
         idata = ts.sample(fd, seed, prior_scale=spec.prior_scale, draws=spec.draws,
                           chains=spec.chains, target_accept=spec.target_accept,
-                          structure=spec.structure, tune=spec.tune)  # fmt: skip
+                          structure=spec.structure, tune=spec.tune,
+                          shifts=spec.shifts)  # fmt: skip
         conv = {c.name: c.value for c in dg.convergence(idata)}
         diag = {"rhat_max": conv["rhat"], "ess_bulk_min": conv["ess_bulk"],
                 "ess_tail_min": conv["ess_tail"], "divergences": conv["divergences"],
@@ -126,7 +128,16 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
     home = np.array([tix.get(int(t), -1) for t in targets["home"]], dtype=np.int64)
     away = np.array([tix.get(int(t), -1) for t in targets["away"]], dtype=np.int64)
     league = np.array([lix[int(x)] for x in targets["league_id"]], dtype=np.int64)
-    lam, mu_ = ts.rates_from_draws(draws, fd, home, away, league)
+    pending: list[NDArray[np.int64] | None] = [None, None]
+    if "mover_home" in targets.columns and "delta" in draws:
+        # a move whose season has no training match yet is applied at prediction (D16)
+        for j, side in enumerate(("home", "away")):
+            pending[j] = np.array([
+                int(c) if (int(t), int(s)) not in fd.team_seasons else 0
+                for t, s, c in zip(targets[side], targets["season"], targets[f"mover_{side}"],
+                                   strict=True)
+            ], dtype=np.int64)  # fmt: skip
+    lam, mu_ = ts.rates_from_draws(draws, fd, home, away, league, pending[0], pending[1])
     rho = draws["rho"]
     out = []
     for k, (hg, ag) in enumerate(zip(targets["hg"], targets["ag"], strict=True)):
@@ -156,6 +167,8 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
     h = config_hash(spec)
     log(f"{bundle} seasons {seasons}: {len(plan)} refits, model {spec.model_name}, config {h}")
     lag = cfg.result_available_after_hours
+    mh, ma = harness.mover_codes(df, leagues)  # leak-free: season s and s - 1 only
+    df = df.with_columns(mover_home=pl.Series(mh), mover_away=pl.Series(ma))
     rows: list[dict[str, Any]] = []
     for i, (as_of, tgt, train) in enumerate(plan):
         fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, lag)
@@ -178,6 +191,8 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
                 "match_id": int(r["match_id"]), "league_id": int(r["league_id"]),
                 "season": int(r["season"]), "kickoff": r["kickoff"], "as_of": as_of,
                 "hg": int(r["hg"]), "ag": int(r["ag"]), "n_train": len(train),
+                "home": int(r["home"]), "away": int(r["away"]),
+                "mover_home": int(r["mover_home"]), "mover_away": int(r["mover_away"]),
                 "n_prior_home": n_h, "n_prior_away": n_a,
                 "cold_start": min(n_h, n_a) < cfg.min_warmup_matches,
                 "model": spec.model_name, "bundle": bundle, "config_hash": h,
@@ -212,6 +227,10 @@ def compare(pred: pl.DataFrame, challenger: str, base: str = "dixon_coles") -> p
     for col in ("bundle", "league_id"):
         for (v,), g in warm.group_by([col]):
             segs.append((col, str(v), g))
+    if "mover_home" in warm.columns:  # D16 segments: a promoted / relegated team plays
+        for code, name in ((1, "promoted"), (2, "relegated")):
+            g = warm.filter((pl.col("mover_home") == code) | (pl.col("mover_away") == code))
+            segs.append(("mover", name, g))
     for seg_type, seg, g in segs:
         if g.filter(pl.col("model") == challenger).height == 0:
             continue
@@ -232,6 +251,32 @@ def compare(pred: pl.DataFrame, challenger: str, base: str = "dixon_coles") -> p
                 }
             )
     return pl.DataFrame(out).sort("segment_type", "seg", "metric")
+
+
+def mover_bias(pred: pl.DataFrame) -> pl.DataFrame:
+    """D16: actual minus expected points per team-match, by model, status (promoted /
+    relegated into this tier this season, or other) and phase (team's matches 1-10, 11+),
+    warm matches, with a 95% interval half-width."""
+    warm = pred.filter(~pl.col("cold_start"))
+    sides = []
+    for side, w in (("home", "p_home"), ("away", "p_away")):
+        won = (pl.col("hg") > pl.col("ag")) if side == "home" else (pl.col("ag") > pl.col("hg"))
+        sides.append(warm.select(
+            "model", "season", "kickoff", team=pl.col(side), code=pl.col(f"mover_{side}"),
+            gap=pl.when(won).then(3).when(pl.col("hg") == pl.col("ag")).then(1).otherwise(0)
+            - 3 * pl.col(w) - pl.col("p_draw"),
+        ))  # fmt: skip
+    tm = pl.concat(sides).with_columns(
+        n=pl.col("kickoff").rank("ordinal").over("model", "team", "season"),
+        status=pl.col("code").replace_strict({0: "other", 1: "promoted", 2: "relegated"},
+                                             return_dtype=pl.Utf8),
+    )  # fmt: skip
+    tm = tm.with_columns(phase=pl.when(pl.col("n") <= 10).then(pl.lit("1-10"))
+                         .otherwise(pl.lit("11+")))  # fmt: skip
+    return (tm.group_by("model", "status", "phase")
+            .agg(pl.len().alias("n"), pl.col("gap").mean().alias("gap"),
+                 (1.96 * pl.col("gap").std() / pl.len().sqrt()).alias("ci95"))
+            .sort("status", "phase", "model"))  # fmt: skip
 
 
 def predictive_sensitivity(pred: pl.DataFrame) -> list[dict[str, Any]]:
@@ -313,13 +358,28 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
         lines += ["", f"## {c} vs Phase 1a (relative change; negative = 1b better)", "",
                   "| segment | metric | n | 1a | 1b | rel | 95% interval |",
                   "|---|---|---|---|---|---|---|"]  # fmt: skip
-        for r in t.filter(pl.col("segment_type").is_in(["all", "bundle", "cold_start"])
+        for r in t.filter(pl.col("segment_type").is_in(["all", "bundle", "mover", "cold_start"])
                           ).iter_rows(named=True):  # fmt: skip
             lines.append(
                 f"| {r['segment_type']} {r['seg']} | {r['metric']} | {r['n']} | "
                 f"{r['base']:.4f} | {r['challenger']:.4f} | {100 * r['rel']:+.2f}% | "
                 f"[{100 * r['rel_lo']:+.2f}%, {100 * r['rel_hi']:+.2f}%] |"
             )
+    if "mover_home" in pred.columns and pred["mover_home"].null_count() == 0:
+        mb = mover_bias(pred)
+        mb.write_csv(out / "mover_bias.csv")
+        lines += [
+            "",
+            "## Promoted / relegated teams: actual − expected points per team-match",
+            "",
+            "| status | matches | model | n | gap | 95% ± |",
+            "|---|---|---|---|---|---|",
+        ]
+        lines += [
+            f"| {r['status']} | {r['phase']} | {r['model']} | {r['n']} | "
+            f"{r['gap']:+.3f} | {r['ci95']:.3f} |"
+            for r in mb.iter_rows(named=True)
+        ]
     if sens:
         lines += [
             "",
@@ -402,6 +462,7 @@ def main() -> None:
     r.add_argument("--season", type=int, action="append", required=True)
     r.add_argument("--structure", default="strength_open", choices=ts.STRUCTURES)
     r.add_argument("--prior-scale", type=float, default=1.0)
+    r.add_argument("--shifts", action="store_true", help="D16 promotion/relegation shift")
     r.add_argument("--every-days", type=int, default=None, help="default: D14 dev cadence")
     r.add_argument("--draws", type=int, default=1000)
     r.add_argument("--chains", type=int, default=4)
@@ -456,7 +517,7 @@ def main() -> None:
         return
     every = args.every_days or cfg.dev_iteration_refit_every_days
     spec = RunSpec(structure=args.structure, prior_scale=args.prior_scale, draws=args.draws,
-                   chains=args.chains, every_days=every)  # fmt: skip
+                   chains=args.chains, every_days=every, shifts=args.shifts)  # fmt: skip
     leagues = cfg.bundles[args.bundle]
     df = _load(leagues)
     t0 = time.time()

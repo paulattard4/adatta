@@ -114,3 +114,33 @@ def test_openness_penalty_gradient_and_shrinkage() -> None:
     free, _ = dc.fit(dc.MatchData(**{**d.__dict__, "open_ridge": 0.0}))
     shrunk, _ = dc.fit(d)
     assert np.std(shrunk.attack - shrunk.defence) < np.std(free.attack - free.defence)
+
+
+def test_mover_shift_gradient_and_recovery() -> None:
+    d, _ = simulate(rounds=4)
+    rng = np.random.default_rng(3)
+    mh = rng.choice([0, 0, 0, 1, 2], size=len(d.home)).astype(np.int64)
+    ma = rng.choice([0, 0, 0, 1, 2], size=len(d.home)).astype(np.int64)
+    dm = dc.MatchData(**{**d.__dict__, "mover_home": mh, "mover_away": ma})
+    x = rng.normal(0, 0.1, dc._layout(d.n_teams, d.n_leagues, True)["rho"].stop)
+
+    def f(v: dc.Arr) -> float:
+        return dc.neg_loglik(v, dm)[0]
+
+    num = approx_fprime(x, f, 1e-6)
+    assert np.allclose(dc.neg_loglik(x, dm)[1], num, rtol=1e-4, atol=1e-3)
+    # simulate goals with delta_up = -0.4, delta_down = +0.4, then recover the signs
+    p, _ = dc.fit(d)
+    p = dc.Params(p.mu, p.mu_league, p.home_league, p.attack, p.defence, p.rho,
+                  np.array([-0.4, 0.4]))  # fmt: skip
+    lam, mu_ = p.rates(d.home, d.away, d.league, mh, ma)
+    hg, ag = rng.poisson(lam).astype(np.int64), rng.poisson(mu_).astype(np.int64)
+    sim = dc.MatchData(**{**dm.__dict__, "hg": hg, "ag": ag, "shift_ridge": 1e-3})
+    got, _ = dc.fit(sim)
+    assert got.shift[0] < -0.15 and got.shift[1] > 0.15
+
+
+def test_no_movers_leaves_the_fit_unchanged() -> None:
+    d, _ = simulate(rounds=2)
+    p, _ = dc.fit(d)
+    assert np.all(p.shift == 0.0)

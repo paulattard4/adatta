@@ -89,3 +89,25 @@ def test_unseen_team_gets_its_league_average_not_the_bundle_average() -> None:
     assert new.select(pl.col("p_home", "p_draw", "p_away").is_nan().any()).row(0) == (
         False, False, False,
     )  # fmt: skip
+
+
+def test_mover_codes_flag_first_season_after_tier_change_only() -> None:
+    import polars as pl
+
+    from adatta.eval.harness import mover_codes
+
+    rows = []
+    # team 1: tier 2 in 2018, tier 1 in 2019 (promoted), tier 1 in 2020 (stayed)
+    # team 2: tier 1 in 2018, tier 2 in 2019 (relegated); team 3 new in 2019
+    for mid, (season, lg, h, a) in enumerate([
+        (2018, 40, 1, 9), (2018, 39, 2, 8), (2019, 39, 1, 8), (2019, 40, 2, 3),
+        (2020, 39, 8, 1),
+    ]):  # fmt: skip
+        rows.append({"match_id": mid, "season": season, "league_id": lg, "home": h, "away": a})
+    df = pl.DataFrame(rows)
+    mh, ma = mover_codes(df, [39, 40])
+    assert mh.tolist() == [0, 0, 1, 2, 0]
+    assert ma.tolist() == [0, 0, 0, 0, 0]
+    # status for a season never depends on later seasons (no leakage)
+    mh2, _ = mover_codes(df.filter(pl.col("season") <= 2019), [39, 40])
+    assert mh2.tolist() == mh[:4].tolist()

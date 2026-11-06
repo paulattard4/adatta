@@ -22,6 +22,12 @@ does not move within the window. A first version with an openness walk too learn
 of ~0.005 (vs 0.028 for strength) and mixed poorly at that near-zero scale (R-hat 1.015), so
 the walk was dropped. Kept only if it passes the D15 acceptance test.
 
+D16 (`shifts=True`, strength_open only): a team's strength moves by a learned delta_up when
+it is promoted and delta_down when relegated, from its first match in the new tier on (the
+walk carries the shift forward). Shifts are centred over teams at every step, so the league
+levels keep their meaning. A move whose new season has not started inside the training
+window is applied at prediction time instead. Prior Normal(0, 0.2).
+
 Only importable where the model dependency group is installed (Linux / Docker, D13).
 """
 
@@ -53,6 +59,11 @@ class FitData:
     leagues: list[int]
     start: datetime
     n_steps: int
+    # D16: cumulative count of a team's promotions / relegations up to each step (step, team)
+    moved_up: NDArray[np.float64] | None = None
+    moved_down: NDArray[np.float64] | None = None
+    # (team id, season) pairs with at least one training match (moves not yet applied)
+    team_seasons: frozenset[tuple[int, int]] = frozenset()
 
 
 def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days: int,
@@ -61,7 +72,13 @@ def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days
     indexed by team, league and weekly step."""
     lo = as_of - timedelta(days=lookback_days)
     hi = as_of - timedelta(hours=lag_hours)
-    d = df.filter((pl.col("kickoff") >= lo) & (pl.col("kickoff") <= hi)).sort("kickoff")
+    # D16 status from everything observable at as_of (the season before the window counts)
+    from adatta.eval.harness import mover_codes
+
+    hist = df.filter(pl.col("kickoff") <= hi)
+    mh, ma = mover_codes(hist, leagues)
+    hist = hist.with_columns(mh=pl.Series(mh), ma=pl.Series(ma))
+    d = hist.filter(pl.col("kickoff") >= lo).sort("kickoff")
     if d.height == 0:
         raise ValueError("no training rows in the window")
     start = lo - timedelta(days=lo.weekday())
@@ -81,22 +98,40 @@ def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days
             season_of_step[s] = season_of_step[s - 1]
     season_start = np.zeros(n_steps, dtype=bool)
     season_start[1:] = season_of_step[1:] > season_of_step[:-1]
+    # D16 moves inside the window: a team's first step in a season after a tier change
+    moved = {1: np.zeros((n_steps, len(teams))), 2: np.zeros((n_steps, len(teams)))}
+    first: dict[tuple[int, int], tuple[int, int]] = {}  # (team, season) -> (step, code)
+    for s, season, h, a, ch, ca in zip(step, d["season"], d["home"], d["away"], d["mh"],
+                                       d["ma"], strict=True):  # fmt: skip
+        for team, c in ((int(h), int(ch)), (int(a), int(ca))):
+            if c and (team, int(season)) not in first:
+                first[(team, int(season))] = (int(s), c)
+    for (team, _), (s0, c) in first.items():
+        moved[c][s0:, tix[team]] += 1.0
+    seasons_seen = frozenset(
+        (int(t), int(se)) for col in ("home", "away")
+        for t, se in zip(d[col], d["season"], strict=True)
+    )  # fmt: skip
     return FitData(
         home=np.array([tix[int(t)] for t in d["home"]], dtype=np.int64),
         away=np.array([tix[int(t)] for t in d["away"]], dtype=np.int64),
         league=np.array([lix[int(x)] for x in d["league_id"]], dtype=np.int64),
         step=step, hg=d["hg"].to_numpy().astype(np.int64), ag=d["ag"].to_numpy().astype(np.int64),
         season_start=season_start, team_ids=teams.astype(np.int64), leagues=leagues,
-        start=start, n_steps=n_steps,
+        start=start, n_steps=n_steps, moved_up=moved[1], moved_down=moved[2],
+        team_seasons=seasons_seen,
     )  # fmt: skip
 
 
-def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent") -> Any:
+def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
+          shifts: bool = False) -> Any:  # fmt: skip
     """`prior_scale` multiplies every prior scale (the §14.5 prior-sensitivity check uses 0.5
     and 2); 1.0 is the production model. `structure` is "independent" (spec §5.1) or
     "strength_open" (D15)."""
     if structure not in STRUCTURES:
         raise ValueError(f"structure must be one of {STRUCTURES}")
+    if shifts and structure != "strength_open":
+        raise ValueError("D16 shifts need structure='strength_open' (they move strength)")
     import pymc as pm
     import pytensor.tensor as pt
 
@@ -141,6 +176,11 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent")
             defence = walk("defence", sigma_b, sigma_walk)
         else:
             strength = walk("strength", sigma_a, sigma_walk, keep=False)
+            if shifts:
+                assert fd.moved_up is not None and fd.moved_down is not None
+                delta = pm.Normal("delta", 0.0, 0.2 * k, shape=2)  # (up, down)
+                off = fd.moved_up * delta[0] + fd.moved_down * delta[1]
+                strength = strength + off - off.mean(axis=1, keepdims=True)
             # static: one zero-sum value per team, the same at every step
             openness = (pm.ZeroSumNormal("open_z0", 1.0, dims="team") * sigma_b)[None, :]
             attack = (strength + openness) / np.sqrt(2.0)
@@ -167,12 +207,13 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent")
 
 def sample(fd: FitData, seed: int, *, prior_scale: float = 1.0, draws: int = 1000,
            chains: int = 4, target_accept: float = 0.95,
-           structure: str = "independent", tune: int | None = None) -> Any:  # fmt: skip
+           structure: str = "independent", tune: int | None = None,
+           shifts: bool = False) -> Any:  # fmt: skip
     """NUTS via NumPyro (D10), posterior predictive goals included. Returns InferenceData.
     `tune` defaults to `draws`; a longer warm-up improves adaptation without a larger trace."""
     import pymc as pm
 
-    with build(fd, prior_scale, structure):
+    with build(fd, prior_scale, structure, shifts):
         idata = pm.sample(
             draws=draws, tune=draws if tune is None else tune, chains=chains,
             nuts_sampler="numpyro", random_seed=seed, target_accept=target_accept,
@@ -201,15 +242,19 @@ def slim(idata: Any, max_draws: int = 400) -> dict[str, NDArray[np.float64]]:
     post = stacked(idata)
     n = post.sizes["sample"]
     take = np.linspace(0, n - 1, min(max_draws, n)).astype(int)
-    return {v: np.asarray(post[v].values[..., take], dtype=np.float64) for v in SLIM_VARS}
+    names = [v for v in (*SLIM_VARS, "delta") if v in post.data_vars]  # delta: D16 only
+    return {v: np.asarray(post[v].values[..., take], dtype=np.float64) for v in names}
 
 
 def rates_from_draws(d: dict[str, NDArray[np.float64]], fd: FitData, home: IntArr,
-                     away: IntArr, league: IntArr
+                     away: IntArr, league: IntArr, pending_home: IntArr | None = None,
+                     pending_away: IntArr | None = None,
                      ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:  # fmt: skip
     """Posterior draws of (lambda_home, lambda_away) for matches after the training window,
     from the final step's state. home/away index fd.team_ids; -1 = unseen team, which gets
     the average of its league's teams seen in the last 52 weeks (cold start, reported apart).
+    pending_home/away (D16): 1 / 2 = the team was promoted / relegated into this match's
+    tier and that season has no training match yet, so its shift is applied here.
     Pure numpy: works on the Mac and on cached draws."""
     att, dfn = d["attack_last"], d["defence_last"]  # (team, draw)
     mu_l, h_l = d["mu_league"], d["h_league"]  # (league, draw)
@@ -228,10 +273,19 @@ def rates_from_draws(d: dict[str, NDArray[np.float64]], fd: FitData, home: IntAr
         m = members[lg]
         return att[m].mean(0), dfn[m].mean(0), zeros
 
+    n = len(home)
+    ph = np.zeros(n, np.int64) if pending_home is None else pending_home
+    pa = np.zeros(n, np.int64) if pending_away is None else pending_away
+    if "delta" in d:  # a strength shift moves attack and defence by delta / sqrt 2 each
+        sh = np.vstack([zeros, d["delta"][0], d["delta"][1]]) / np.sqrt(2.0)
+    else:
+        sh = np.vstack([zeros, zeros, zeros])
     out_h, out_a = [], []
-    for hh, aa, lg in zip(home, away, league, strict=True):
+    for hh, aa, lg, ch, ca in zip(home, away, league, ph, pa, strict=True):
         a_h, d_h, ht = team(int(hh), int(lg))
         a_a, d_a, _ = team(int(aa), int(lg))
+        a_h, d_h = a_h + sh[ch], d_h + sh[ch]
+        a_a, d_a = a_a + sh[ca], d_a + sh[ca]
         out_h.append(np.exp(mu_l[lg] + h_l[lg] + ht + a_h - d_a))
         out_a.append(np.exp(mu_l[lg] + a_a - d_h))
     return np.array(out_h), np.array(out_a)

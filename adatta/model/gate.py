@@ -21,15 +21,13 @@ import numpy as np
 import polars as pl
 
 from adatta.db.session import get_session
-from adatta.eval import metrics
 from adatta.eval.baseline import _file_hash, _git_sha
 from adatta.eval.harness import load_config, load_matches
 from adatta.model import diagnostics as dg
-from adatta.model import dixon_coles as dc
 from adatta.model import team_strength as ts
 
 SEED = 20261105
-HEADLINE = ("mu_league", "h_league", "sigma_attack", "sigma_defence", "sigma_strength",
+HEADLINE = ("delta", "mu_league", "h_league", "sigma_attack", "sigma_defence", "sigma_strength",
             "sigma_open", "sigma_walk", "reset_weeks", "sigma_home",
             "rho")  # fmt: skip
 
@@ -51,23 +49,13 @@ def headline(idata: Any) -> dict[str, tuple[float, float]]:
 
 
 def predict(idata: Any, fd: ts.FitData, targets: pl.DataFrame, max_goals: int) -> tuple[float, Any]:
-    """Mean 1X2 log loss over target matches and each prediction's truncated tail mass."""
-    tix = {int(t): i for i, t in enumerate(fd.team_ids)}
-    lix = {lid: i for i, lid in enumerate(fd.leagues)}
-    home = np.array([tix.get(int(t), -1) for t in targets["home"]])
-    away = np.array([tix.get(int(t), -1) for t in targets["away"]])
-    league = np.array([lix[int(x)] for x in targets["league_id"]])
-    lam, mu_ = ts.rates(idata, fd, home, away, league)
-    rho = ts.stacked(idata)["rho"].values
-    rho = rho[np.linspace(0, len(rho) - 1, lam.shape[1]).astype(int)]
-    losses, tails = [], []
-    for k, (hg, ag) in enumerate(zip(targets["hg"], targets["ag"], strict=True)):
-        mats = [dc.score_matrix(float(lam[k, d]), float(mu_[k, d]), float(rho[d]), max_goals)
-                for d in range(lam.shape[1])]  # fmt: skip
-        m = np.mean([x[0] for x in mats], axis=0)
-        tails.append(float(np.mean([x[1] for x in mats])))  # tail of the averaged matrix
-        losses.append(metrics.score_all(m, int(hg), int(ag))["1X2:log_loss"])
-    return float(np.mean(losses)), np.array(tails)
+    """Mean 1X2 log loss over target matches and each prediction's truncated tail mass, scored
+    exactly as the backtest scores (posterior-mean score matrix; D16 pending shifts)."""
+    from adatta.model import backtest as bt
+
+    rows = bt.score_targets(ts.slim(idata), fd, targets, max_goals)
+    return (float(np.mean([r["1X2:log_loss"] for r in rows])),
+            np.array([r["tail_mass"] for r in rows]))  # fmt: skip
 
 
 def main() -> None:
@@ -78,6 +66,7 @@ def main() -> None:
     ap.add_argument("--chains", type=int, default=4)
     ap.add_argument("--tune", type=int, default=None, help="warm-up steps (default: draws)")
     ap.add_argument("--structure", default="independent", choices=ts.STRUCTURES)
+    ap.add_argument("--shifts", action="store_true", help="D16 promotion/relegation shift")
     ap.add_argument("--reuse", action="store_true", help="load saved fits if present (debug)")
     args = ap.parse_args()
 
@@ -90,7 +79,10 @@ def main() -> None:
         df, _ = load_matches(s, leagues)
         s.rollback()
     fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, cfg.result_available_after_hours)
-    targets = df.filter(
+    from adatta.eval.harness import mover_codes
+
+    mh, ma = mover_codes(df, leagues)  # leak-free: season s and s - 1 only
+    targets = df.with_columns(mover_home=pl.Series(mh), mover_away=pl.Series(ma)).filter(
         (pl.col("kickoff") >= as_of) & (pl.col("kickoff") < as_of + timedelta(days=28))
     )
     print(f"{args.bundle} as of {as_of:%Y-%m-%d}: {len(fd.hg)} matches, "
@@ -103,6 +95,7 @@ def main() -> None:
     traces = Path("data/traces")
     traces.mkdir(parents=True, exist_ok=True)
     tag = "" if args.structure == "independent" else f"_{args.structure}"
+    tag += "_d16" if args.shifts else ""
     tune = args.draws if args.tune is None else args.tune
     tag += "" if tune == args.draws else f"_t{tune}"
     trace_path = traces / f"{args.bundle}_{as_of:%Y%m%d}{tag}_k1_{args.chains}x{args.draws}.nc"
@@ -123,6 +116,7 @@ def main() -> None:
                 chains=args.chains,
                 structure=args.structure,
                 tune=tune,
+                shifts=args.shifts,
             )
             idata.to_netcdf(path)
         timings[f"fit_scale_{k:g}"] = round(time.time() - t0)
@@ -155,8 +149,8 @@ def main() -> None:
         checks.append(dg.predictive_sensitivity(ll[1.0], ll[k], f"x{k:g} (4-week proxy)",
                                                 blocking=False))  # fmt: skip
 
-    r1 = ts.sample(fd, SEED, draws=100, chains=2, structure=args.structure)
-    r2 = ts.sample(fd, SEED, draws=100, chains=2, structure=args.structure)
+    r1 = ts.sample(fd, SEED, draws=100, chains=2, structure=args.structure, shifts=args.shifts)
+    r2 = ts.sample(fd, SEED, draws=100, chains=2, structure=args.structure, shifts=args.shifts)
     checks.append(dg.reproducible(ts.stacked(r1)["sigma_walk"].values,
                                   ts.stacked(r2)["sigma_walk"].values))  # fmt: skip
 

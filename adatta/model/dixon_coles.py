@@ -16,11 +16,14 @@ promotion) from getting an unbounded rating; sd is tuned on the dev window. It i
 regulariser, not a learned hierarchy, so the model stays non-hierarchical.
 An optional extra penalty open_ridge * (attack - defence)^2 shrinks each team's openness
 (how high-scoring its games are) separately from its strength (D15 probe; 0 = off).
+D16 probe: in a team's first season after changing tier its strength moves by a learned
+shift, delta_up (promoted) or delta_down (relegated), split evenly between attack and
+defence; with no movers flagged the shifts stay at 0 and the fit is unchanged.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from numpy.typing import NDArray
@@ -48,6 +51,15 @@ class MatchData:
     n_leagues: int
     ridge: float = RIDGE
     open_ridge: float = 0.0  # L2 on openness = attack - defence (D15); 0 = off
+    # D16: per match, 0 = no tier change, 1 = team's first season after promotion,
+    # 2 = after relegation. None = off.
+    mover_home: IntArr | None = None
+    mover_away: IntArr | None = None
+    shift_ridge: float = 12.5  # Normal(0, 0.2) prior on delta_up / delta_down
+
+    @property
+    def shifts(self) -> bool:
+        return self.mover_home is not None and self.mover_away is not None
 
 
 def ridge_for(prior_sd: float | None) -> float:
@@ -63,15 +75,29 @@ class Params:
     attack: Arr  # [n_teams]
     defence: Arr  # [n_teams]
     rho: float
+    shift: Arr = field(default_factory=lambda: np.zeros(2))  # D16 (delta_up, delta_down)
 
-    def rates(self, home: IntArr, away: IntArr, league: IntArr) -> tuple[Arr, Arr]:
+    def offset(self, mover_home: IntArr | None, mover_away: IntArr | None) -> Arr | float:
+        """D16 log-rate offset for the home side (the away side gets its negative)."""
+        if mover_home is None or mover_away is None:
+            return 0.0
+        s = np.concatenate([[0.0], self.shift])
+        return np.asarray((s[mover_home] - s[mover_away]) / 2.0)
+
+    def rates(self, home: IntArr, away: IntArr, league: IntArr,
+              mover_home: IntArr | None = None, mover_away: IntArr | None = None
+              ) -> tuple[Arr, Arr]:  # fmt: skip
         base = self.mu + self.mu_league[league]
-        lam = np.exp(base + self.home_league[league] + self.attack[home] - self.defence[away])
-        mu_ = np.exp(base + self.attack[away] - self.defence[home])
+        off = self.offset(mover_home, mover_away)
+        lam = np.exp(base + self.home_league[league] + self.attack[home] - self.defence[away]
+                     + off)  # fmt: skip
+        mu_ = np.exp(base + self.attack[away] - self.defence[home] - off)
         return lam, mu_
 
 
-def _layout(n_teams: int, n_leagues: int) -> dict[str, slice]:
+def _layout(n_teams: int, n_leagues: int, shifts: bool = False) -> dict[str, slice]:
+    """Parameter vector layout; the two D16 shifts exist only when movers are flagged, so
+    the benchmark's optimisation (and its predictions) are exactly as before otherwise."""
     i = 0
     out = {}
     for name, size in (
@@ -80,6 +106,7 @@ def _layout(n_teams: int, n_leagues: int) -> dict[str, slice]:
         ("home_league", n_leagues),
         ("attack", n_teams),
         ("defence", n_teams),
+        ("shift", 2 if shifts else 0),
         ("rho", 1),
     ):
         out[name] = slice(i, i + size)
@@ -87,8 +114,8 @@ def _layout(n_teams: int, n_leagues: int) -> dict[str, slice]:
     return out
 
 
-def unpack(x: Arr, n_teams: int, n_leagues: int) -> Params:
-    s = _layout(n_teams, n_leagues)
+def unpack(x: Arr, n_teams: int, n_leagues: int, shifts: bool = False) -> Params:
+    s = _layout(n_teams, n_leagues, shifts)
     return Params(
         mu=float(x[s["mu"]][0]),
         mu_league=np.concatenate([[0.0], x[s["mu_league"]]]),
@@ -96,11 +123,12 @@ def unpack(x: Arr, n_teams: int, n_leagues: int) -> Params:
         attack=x[s["attack"]].copy(),
         defence=x[s["defence"]].copy(),
         rho=float(x[s["rho"]][0]),
+        shift=x[s["shift"]].copy() if shifts else np.zeros(2),
     )
 
 
 def _initial(d: MatchData) -> Arr:
-    s = _layout(d.n_teams, d.n_leagues)
+    s = _layout(d.n_teams, d.n_leagues, d.shifts)
     x = np.zeros(s["rho"].stop)
     w = d.weight / d.weight.sum()
     x[s["mu"]] = np.log(max(float((w * d.ag).sum()), 0.1))
@@ -132,8 +160,8 @@ def _tau_terms(hg: IntArr, ag: IntArr, lam: Arr, mu_: Arr, rho: float) -> tuple[
 
 def neg_loglik(x: Arr, d: MatchData) -> tuple[float, Arr]:
     """Weighted negative log-likelihood (+ penalties) and its analytic gradient."""
-    p = unpack(x, d.n_teams, d.n_leagues)
-    lam, mu_ = p.rates(d.home, d.away, d.league)
+    p = unpack(x, d.n_teams, d.n_leagues, d.shifts)
+    lam, mu_ = p.rates(d.home, d.away, d.league, d.mover_home, d.mover_away)
     log_tau, dl, dm, dr = _tau_terms(d.hg, d.ag, lam, mu_, p.rho)
     w = d.weight
     ll = w * (log_tau + d.hg * np.log(lam) - lam + d.ag * np.log(mu_) - mu_)
@@ -141,7 +169,7 @@ def neg_loglik(x: Arr, d: MatchData) -> tuple[float, Arr]:
     g_lam = w * (d.hg - lam + lam * dl)
     g_mu = w * (d.ag - mu_ + mu_ * dm)
 
-    s = _layout(d.n_teams, d.n_leagues)
+    s = _layout(d.n_teams, d.n_leagues, d.shifts)
     g = np.zeros_like(x)
     g[s["mu"]] = g_lam.sum() + g_mu.sum()
     by_league = np.bincount(d.league, g_lam + g_mu, d.n_leagues)
@@ -150,6 +178,12 @@ def neg_loglik(x: Arr, d: MatchData) -> tuple[float, Arr]:
     g[s["attack"]] = np.bincount(d.home, g_lam, d.n_teams) + np.bincount(d.away, g_mu, d.n_teams)
     g[s["defence"]] = -np.bincount(d.away, g_lam, d.n_teams) - np.bincount(d.home, g_mu, d.n_teams)
     g[s["rho"]] = (w * dr).sum()
+    if d.mover_home is not None and d.mover_away is not None:  # d.shifts, narrowed for mypy
+        g_off = (g_lam - g_mu) / 2.0  # d ll / d delta, via offset = (s_home - s_away) / 2
+        for k in (1, 2):
+            g[s["shift"].start + k - 1] = (
+                g_off[d.mover_home == k].sum() - g_off[d.mover_away == k].sum()
+            )
 
     total = float(ll.sum())
     a, dd = x[s["attack"]], x[s["defence"]]
@@ -159,6 +193,9 @@ def neg_loglik(x: Arr, d: MatchData) -> tuple[float, Arr]:
     g_pen = np.zeros_like(x)
     g_pen[s["attack"]] = 2 * SUM_PENALTY * a.sum() + 2 * d.ridge * a + 2 * d.open_ridge * o
     g_pen[s["defence"]] = 2 * SUM_PENALTY * dd.sum() + 2 * d.ridge * dd - 2 * d.open_ridge * o
+    sh = x[s["shift"]]
+    pen += d.shift_ridge * float((sh**2).sum())
+    g_pen[s["shift"]] = 2 * d.shift_ridge * sh
     return -total + pen, -g + g_pen
 
 
@@ -166,7 +203,7 @@ def fit(d: MatchData, init: Arr | None = None) -> tuple[Params, Arr]:
     """Maximum weighted likelihood. Returns params and the raw vector (to warm-start)."""
     x0 = (
         _initial(d)
-        if init is None or init.shape[0] != _layout(d.n_teams, d.n_leagues)["rho"].stop
+        if init is None or init.shape[0] != _layout(d.n_teams, d.n_leagues, d.shifts)["rho"].stop
         else init
     )
     bounds = [(None, None)] * (x0.shape[0] - 1) + [(-RHO_BOUND, RHO_BOUND)]
@@ -176,7 +213,7 @@ def fit(d: MatchData, init: Arr | None = None) -> tuple[Params, Arr]:
     )  # fmt: skip
     if not res.success and "ABNORMAL" not in str(res.message):
         raise RuntimeError(f"Dixon-Coles fit failed: {res.message}")
-    return unpack(res.x, d.n_teams, d.n_leagues), res.x
+    return unpack(res.x, d.n_teams, d.n_leagues, d.shifts), res.x
 
 
 def score_matrix(lam: float, mu_: float, rho: float, max_goals: int) -> tuple[Arr, float]:

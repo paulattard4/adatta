@@ -61,7 +61,10 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 20
+      # The account limit is 20 concurrent jobs and queued jobs wait for a slot, so 2 are left
+      # for capture (its windows can't be recovered) and ci. The limit is per run: dispatch one
+      # backtest at a time, or two runs together fill the account again.
+      max-parallel: 18
       matrix:
         bundle: ${{ fromJSON(inputs.bundles) }}
         season: ${{ fromJSON(inputs.seasons) }}

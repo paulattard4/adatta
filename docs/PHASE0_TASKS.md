@@ -31,7 +31,7 @@ Tick each item only when its acceptance check passes.
 - [x] Source-feasibility register: mark unavailable items (PPDA, directness, tracking data, event coordinates, injury return dates) (`docs/SOURCE_FEASIBILITY.md`; open items listed there)
 
 ## 5. Snapshot capture — start running from day one
-- [x] Scheduler (per D2) captures fixtures, lineups/status, and odds snapshots (initial, T-7d, T-24h, T-60m, close) (GitHub Actions, every 15 min; first scheduled-workflow run green 2026-11-05)
+- [x] Scheduler (per D2) captures fixtures, lineups/status, and odds snapshots (initial, T-7d, T-24h, T-60m, close) (GitHub Actions, every 15 min; first scheduled-workflow run green 2026-11-05); 2026-11-06: scheduler fired far below 15 min, reliable trigger open under D17
 - [x] Odds stored in separate tables; never joined into feature builds
 - [x] Alert if a scheduled capture is missed
 

@@ -2,8 +2,9 @@
 # idempotent, so overlapping or repeated runs are harmless.
 # Hosting: the repo is public, so Actions minutes are free (a 15-minute cron on a private repo
 # would need ~2,900 billed minutes/month against GitHub Free's 2,000).
-# Offset minutes avoid the top-of-hour rush, when GitHub delays or drops scheduled runs; any
-# window a delayed run misses is reported by the missed-capture alert. Secrets are not exposed
+# Offset minutes avoid the top-of-hour rush, but GitHub's schedule is best-effort and fired only
+# 5 of ~126 ticks on 2026-11-05/06, so it can't be relied on alone (D17). Any window a delayed
+# run misses is reported by the missed-capture alert. Secrets are not exposed
 # to fork pull requests, and only users with write access can trigger workflow_dispatch.
 name: capture
 on:
@@ -18,7 +19,9 @@ concurrency:
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Under the 15-minute tick, so at most one run is ever pending. run_capture stops starting
+    # daily jobs after 8 minutes, leaving this margin for the last competition and the odds.
+    timeout-minutes: 14
     env:
       API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}

@@ -1,17 +1,20 @@
 """Snapshot capture against a fake API-Football, driven through a simulated poll timeline."""
 
 import ast
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session
 
 from adatta.adapters.api_football import ApiFootballClient
 from adatta.adapters.quota import QuotaPlanner
 from adatta.adapters.storage import LocalStore
+from adatta.capture import alert
 from adatta.capture.jobs import run_capture
 from adatta.config import Competition, Settings
 from adatta.db import models
@@ -103,18 +106,19 @@ class Harness:
         self.api = FakeApi()
         self.now = T0
         self.tmp_path = tmp_path
+        self.daily_limit = 7500
 
-    def tick(self, now: datetime) -> Any:
+    def tick(self, now: datetime, **kwargs: Any) -> Any:
         self.now = now
         http = httpx.Client(
             base_url="https://example.test",
             transport=httpx.MockTransport(lambda r: self.api.handler(r, self.now)),
         )
         client = ApiFootballClient(
-            Settings(), LocalStore(self.tmp_path), QuotaPlanner(7500, 300), http=http
+            Settings(), LocalStore(self.tmp_path), QuotaPlanner(self.daily_limit, 300), http=http
         )
         with Session(self.engine) as s:
-            return run_capture(s, client, [COMP], now=now)
+            return run_capture(s, client, [COMP], now=now, **kwargs)
 
     def captures(self) -> dict[str, str]:
         with Session(self.engine) as s:
@@ -220,6 +224,46 @@ def test_daily_jobs_run_once_per_day(tmp_path: Path) -> None:
     assert h.count(models.FixtureSnapshot) == 1  # unchanged fixture: no new snapshot
     h.tick(T0 + timedelta(hours=21))
     assert sum(c.startswith("/leagues") for c in h.api.calls) == 2
+
+
+def test_time_critical_work_runs_before_daily_jobs(tmp_path: Path) -> None:
+    """2026-11-06: overdue daily jobs used a whole 10-minute run and odds were never reached."""
+    h = Harness(tmp_path)
+    h.tick(T0)
+    h.tick(K - timedelta(days=6, hours=12))
+    n = sum(c.startswith("/leagues") for c in h.api.calls)
+    r = h.tick(K - timedelta(hours=22), daily_budget_s=0)  # daily jobs overdue, no time left
+    assert h.captures()["T-24h"] == "captured"
+    assert r.actions["daily_deferred"] == 1 and r.ok
+    assert sum(c.startswith("/leagues") for c in h.api.calls) == n
+    h.tick(K - timedelta(hours=21, minutes=45))  # the next tick picks the daily jobs up
+    assert sum(c.startswith("/leagues") for c in h.api.calls) == n + 1
+
+
+def test_odds_already_fetched_survive_a_later_failure(tmp_path: Path) -> None:
+    h = Harness(tmp_path)
+    h.api.n_fixtures = 2
+    h.tick(T0)
+    h.daily_limit = 1  # the second fixture's odds request is refused
+    r = h.tick(K - timedelta(hours=22))
+    assert r.errors
+    with Session(h.engine) as s:
+        rows = s.scalars(select(models.OddsCapture)).all()
+    assert sum(r.snapshot_kind == "T-24h" for r in rows) == 1
+
+
+def test_alert_keeps_match_detail_out_of_public_logs(capsys: pytest.CaptureFixture[str]) -> None:
+    sent: list[bytes] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        sent.append(req.content)
+        return httpx.Response(200)
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    settings = Settings(alert_webhook_url="https://example.test/hook")
+    assert alert.send(settings, "adatta capture: 1 problem(s)\nmatch 123: close missed", http)
+    assert capsys.readouterr().err == "ALERT adatta capture: 1 problem(s)\n"
+    assert "match 123" in json.loads(sent[0])["text"]
 
 
 def _statements_per_tick(tmp_path: Path, n_fixtures: int) -> int:

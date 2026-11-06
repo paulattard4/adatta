@@ -1,16 +1,20 @@
 """Snapshot capture (Phase 0 task 5; spec §7.1, §12.2–12.3, §15.2, §19.2 step 4).
 
 `run_capture` is idempotent and safe to run on any schedule (designed for a ~15-minute
-poller). Each run does only what is due:
+poller). Each run does only what is due, time-critical work first, because a missed window
+can't be recovered and a daily job can simply run on the next tick:
 
-  daily per competition  detail    post-match detail + team stats for newly finished matches
-                         calendar  current-season fixtures -> match rows, results, and a
-                                    fixture_snapshot whenever kickoff/status/referee/venue
-                                    changes
-                         status    /injuries -> player_status_snapshot for unplayed fixtures
   every run              lineups   fixtures within LINEUP_POLL_FROM of kickoff with no lineup
                          odds      milestone kinds that are due (capture.snapshots)
                          missed    milestone windows that passed uncaptured -> alert
+  daily per competition  calendar  current-season fixtures -> match rows, results, and a
+                                    fixture_snapshot whenever kickoff/status/referee/venue
+                                    changes
+                         status    /injuries -> player_status_snapshot for unplayed fixtures
+                         detail    post-match detail + team stats for newly finished matches
+
+Daily jobs stop starting once a run has used DAILY_BUDGET_S, so a backlog spreads over several
+ticks and the run still finishes inside the workflow's timeout.
 
 Odds are written only to odds_capture / odds_snapshot. They are evaluation data and are
 never read by model, feature or simulation code (principle 1; enforced by a test).
@@ -18,8 +22,9 @@ never read by model, feature or simulation code (principle 1; enforced by a test
 
 from __future__ import annotations
 
+import time
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -37,6 +42,7 @@ from adatta.db import models
 
 DAILY = timedelta(hours=20)  # "daily" jobs re-run once this long has passed since the last ok
 MISSED_LOOKBACK = timedelta(days=2)
+DAILY_BUDGET_S = 480.0  # no new competition's daily jobs after this much of a run (timeout 14 min)
 
 
 @dataclass
@@ -308,14 +314,14 @@ def capture_lineups(session: Session, client: ApiFootballClient, now: datetime) 
 
 
 def _record_capture(
-    session: Session, match: models.Match, kinds: Iterable[str], odds: dict[str, Any] | None,
+    session: Session, match_id: int, kinds: Iterable[str], odds: dict[str, Any] | None,
     key: str | None, now: datetime,
 ) -> None:  # fmt: skip
     published = afc.odds_published_at(odds) if odds else None
     prices = afc.parse_odds(odds) if odds else []
     for kind in kinds:
         cap = models.OddsCapture(
-            match_id=match.match_id, source_id=SOURCE_ID, snapshot_kind=kind,
+            match_id=match_id, source_id=SOURCE_ID, snapshot_kind=kind,
             status="captured" if odds else "no_market", observed_at=now,
             published_at=published, storage_key=key, n_bookmakers=afc.n_bookmakers(odds),
         )  # fmt: skip
@@ -323,7 +329,7 @@ def _record_capture(
         session.flush()
         session.add_all(
             models.OddsSnapshot(
-                match_id=match.match_id, source_id=SOURCE_ID, capture_id=cap.capture_id,
+                match_id=match_id, source_id=SOURCE_ID, capture_id=cap.capture_id,
                 bookmaker=p.bookmaker, market=p.market, line=p.line, selection=p.selection,
                 decimal_odds=p.decimal_odds, snapshot_kind=kind, observed_at=now,
                 published_at=published,
@@ -336,31 +342,36 @@ def capture_odds(
     session: Session, client: ApiFootballClient, now: datetime, lineup_confirmed: set[int]
 ) -> Counter[str]:
     counts: Counter[str] = Counter()
-    upcoming = _upcoming(session, now, snapshots.INITIAL_HORIZON)
-    ids = [m.match_id for m in upcoming]
+    # Plain values: the per-match commit below expires ORM objects, and reloading them would
+    # cost a database round trip per fixture.
+    upcoming = [
+        (m.match_id, int(m.source_ref), m.status, _utc(m.kickoff_time))
+        for m in _upcoming(session, now, snapshots.INITIAL_HORIZON)
+    ]
+    ids = [match_id for match_id, *_ in upcoming]
     done_by = _done_by_match(session, ids)
     tried = _logged(session, "odds_initial", ids, since=now - DAILY)
-    for match in upcoming:
-        done = done_by[match.match_id]
-        kickoff = _utc(match.kickoff_time)
-        kinds = [] if match.status == "TBD" else snapshots.due_kinds(kickoff, now, done)
-        if match.match_id in lineup_confirmed and "lineup" not in done:
+    for match_id, fixture_ref, status, kickoff in upcoming:
+        done = done_by[match_id]
+        kinds = [] if status == "TBD" else snapshots.due_kinds(kickoff, now, done)
+        if match_id in lineup_confirmed and "lineup" not in done:
             kinds.append("lineup")
-        want_initial = "initial" not in done and match.match_id not in tried
+        want_initial = "initial" not in done and match_id not in tried
         if not kinds and not want_initial:
             continue
-        odds = client.odds(session, int(match.source_ref))
+        odds = client.odds(session, fixture_ref)
         has_market = afc.n_bookmakers(odds) > 0
         if "initial" not in done and has_market:
             kinds.insert(0, "initial")
         elif want_initial:
-            _log(session, "odds_initial", str(match.match_id), now, "ok", 1, "no market yet")
+            _log(session, "odds_initial", str(match_id), now, "ok", 1, "no market yet")
         if kinds:
             _record_capture(
-                session, match, kinds, odds if has_market else None, client.last_storage_key, now
+                session, match_id, kinds, odds if has_market else None, client.last_storage_key, now
             )
             for k in kinds:
                 counts[f"{k}:{'captured' if has_market else 'no_market'}"] += 1
+        session.commit()  # a later failure or a timeout must not lose this window
     session.flush()
     return counts
 
@@ -421,9 +432,11 @@ def detect_missed(session: Session, now: datetime) -> list[str]:
 
 def run_capture(
     session: Session, client: ApiFootballClient, comps: list[Competition],
-    now: datetime | None = None,
+    now: datetime | None = None, daily_budget_s: float = DAILY_BUDGET_S,
+    clock: Callable[[], float] = time.monotonic,
 ) -> CaptureReport:  # fmt: skip
     now = now or datetime.now(UTC)
+    started = clock()
     report = CaptureReport(started_at=now)
     start_requests = client.requests_made
 
@@ -446,8 +459,16 @@ def run_capture(
             return None
 
     try:
+        confirmed = step("lineups", "all", lambda: capture_lineups(session, client, now)) or []
+        odds = step("odds", "all", lambda: capture_odds(session, client, now, set(confirmed)))
+        report.actions.update(odds or {})
+        report.actions["lineups_confirmed"] += len(confirmed)
+        report.missed = step("missed", "all", lambda: detect_missed(session, now)) or []
         for comp in comps:
             scope = str(comp.league_id)
+            if clock() - started >= daily_budget_s:
+                report.actions["daily_deferred"] += 1  # picked up by the next tick
+                continue
             if not _ran_recently(session, "calendar", scope, now):
                 n = step(
                     "calendar", scope, lambda c=comp: capture_calendar(session, client, c, now)
@@ -457,11 +478,6 @@ def run_capture(
                 step("status", scope, lambda c=comp: capture_status(session, client, c, now))
             if not _ran_recently(session, "detail", scope, now):
                 step("detail", scope, lambda c=comp: capture_detail(session, client, c))
-        confirmed = step("lineups", "all", lambda: capture_lineups(session, client, now)) or []
-        odds = step("odds", "all", lambda: capture_odds(session, client, now, set(confirmed)))
-        report.actions.update(odds or {})
-        report.actions["lineups_confirmed"] += len(confirmed)
-        report.missed = step("missed", "all", lambda: detect_missed(session, now)) or []
     except QuotaExceeded:
         pass
     report.requests = client.requests_made - start_requests

@@ -334,6 +334,29 @@ Acceptance test, dev only, 28-day grid, against `phase1b_strength_open` at 2,000
 4. **Sense:** posterior phi and sigma_form reported per bundle; a gain should be largest at
    horizon week 1 and fade by week 4.
 - Failing: record it as failed and keep the code off by default, as for D16.
+
+Result (2026-11-07, run 42267331196, commit dd32735, report `backtest/reports/20261106T233957Z`
+in R2): **failed; the code stays off by default.** 255 of 266 refits and 17,795 of 18,591
+warm matches: `refit (spain, 2021)` failed after 255 minutes with no log kept, so its 796
+matches are missing and were not rerun. 10 of its 11 refits are cached, and adding them could
+not change the verdict, because item 2 fails on the refits already counted.
+- Item 1, gate: not run; it was only worth running after a gain.
+- Item 2, mixing: **fails.** R-hat over 1.01 in 19 of 255 refits against 2 of 266 (worst
+  1.018; Germany 8), ESS under 400 in 0, divergences in 1.
+- Item 3, accuracy: **fails.** 1X2 log loss -0.02% [-0.04%, +0.00%] (exactly -0.0175%
+  [-0.0361%, +0.0011%]), so the interval includes 0. RPS -0.03% [-0.06%, -0.00%]; OU2.5 +0.01%
+  and CRPS -0.00%, both inside 0.1%. No bundle is worse than 0.3%: England -0.05% [-0.09%,
+  -0.02%], France -0.03%, Germany -0.04%, Spain +0.00%, Italy +0.04% [+0.01%, +0.06%].
+- Item 4, sense: **no sign of form.** Horizon weeks 0 to 3 give -0.03%, -0.01%, -0.02%, -0.01%,
+  all intervals including 0, with no peak at week 1 and no fade. Posterior phi is close to its
+  prior: means 0.76 to 0.78 with 94% intervals of about [0.47, 0.94] against a prior of about
+  [0.49, 0.94], so the data barely inform it. sigma_form is not kept in the slim draws;
+  implied from sd(form_last) sqrt(1 - phi^2) it is 0.017 (Spain) to 0.045 (Germany), with
+  intervals reaching 0.001, which is the collapse named as a risk above. The spread of
+  teams' posterior mean form is worth 0.2% to 0.7% on a scoring rate.
+- Reading the report: with a challenger incomplete, the `base` column of `compare` still
+  averages every base match, so it does not match the paired n. `rel` and its interval use the
+  paired differences; only their denominator is that wider mean, which changes nothing here.
 - [ ] xG auxiliary likelihood where `has_xg` holds (joint goals + xG likelihood).
 - [ ] Manager-change widening of sigma_walk for a fixed post-change window (if D12 allows).
 

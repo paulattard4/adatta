@@ -1,0 +1,7 @@
+# Same settings as the Worker created in the Cloudflare dashboard (D17).
+name = "adatta-capture-trigger"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[triggers]
+crons = ["7,22,37,52 * * * *"]

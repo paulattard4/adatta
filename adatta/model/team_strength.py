@@ -167,14 +167,16 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent")
 
 def sample(fd: FitData, seed: int, *, prior_scale: float = 1.0, draws: int = 1000,
            chains: int = 4, target_accept: float = 0.95,
-           structure: str = "independent") -> Any:  # fmt: skip
-    """NUTS via NumPyro (D10), posterior predictive goals included. Returns InferenceData."""
+           structure: str = "independent", tune: int | None = None) -> Any:  # fmt: skip
+    """NUTS via NumPyro (D10), posterior predictive goals included. Returns InferenceData.
+    `tune` defaults to `draws`; a longer warm-up improves adaptation without a larger trace."""
     import pymc as pm
 
     with build(fd, prior_scale, structure):
         idata = pm.sample(
-            draws=draws, tune=draws, chains=chains, nuts_sampler="numpyro", random_seed=seed,
-            target_accept=target_accept, progressbar=False,
+            draws=draws, tune=draws if tune is None else tune, chains=chains,
+            nuts_sampler="numpyro", random_seed=seed, target_accept=target_accept,
+            progressbar=False,
         )  # fmt: skip
         pm.sample_posterior_predictive(idata, extend_inferencedata=True, random_seed=seed,
                                        progressbar=False)  # fmt: skip

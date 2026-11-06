@@ -22,7 +22,9 @@ dev_iteration_refit_every_days: 28
 result_available_after_hours: 3           # a result is usable as of kickoff + 3h
 min_warmup_matches: 10                    # fewer prior matches for either team = cold start
 report_cold_start_separately: true
-max_goals: 10                             # score-matrix truncation per team (tail reported)
+max_goals: 15                             # score-matrix truncation per team (tail reported).
+# Raised from 10 on 2026-11-06: at 10 only ~85% of 1b predictions had tail mass < 1e-4
+# (§14.5 needs 99.9%). Phase 1a is rescored at 15 for every comparison and the holdout.
 
 # Phase 1a scores regular-season league matches only: play-offs have neutral finals and no
 # neutral flag exists yet (SOURCE_FEASIBILITY.md open item), cups need knockout logic (§9).

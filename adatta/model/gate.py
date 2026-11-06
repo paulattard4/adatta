@@ -76,6 +76,7 @@ def main() -> None:
     ap.add_argument("--as-of", default="2023-08-07")
     ap.add_argument("--draws", type=int, default=1000)
     ap.add_argument("--chains", type=int, default=4)
+    ap.add_argument("--tune", type=int, default=None, help="warm-up steps (default: draws)")
     ap.add_argument("--structure", default="independent", choices=ts.STRUCTURES)
     ap.add_argument("--reuse", action="store_true", help="load saved fits if present (debug)")
     args = ap.parse_args()
@@ -102,6 +103,8 @@ def main() -> None:
     traces = Path("data/traces")
     traces.mkdir(parents=True, exist_ok=True)
     tag = "" if args.structure == "independent" else f"_{args.structure}"
+    tune = args.draws if args.tune is None else args.tune
+    tag += "" if tune == args.draws else f"_t{tune}"
     trace_path = traces / f"{args.bundle}_{as_of:%Y%m%d}{tag}_k1_{args.chains}x{args.draws}.nc"
     # One fit at a time: sample (or reload), save, extract what the checks need, release.
     for k in (1.0, 0.5, 2.0):
@@ -119,6 +122,7 @@ def main() -> None:
                 draws=args.draws,
                 chains=args.chains,
                 structure=args.structure,
+                tune=tune,
             )
             idata.to_netcdf(path)
         timings[f"fit_scale_{k:g}"] = round(time.time() - t0)
@@ -162,7 +166,7 @@ def main() -> None:
         "passed": passed,
         "code_sha": code_sha, "config_hash": _file_hash("config/evaluation.yml"),
         "lockfile_hash": _file_hash("uv.lock"), "seed": SEED, "draws": args.draws,
-        "chains": args.chains, "trace_path": str(trace_path), "timings_s": timings,
+        "chains": args.chains, "tune": tune, "trace_path": str(trace_path), "timings_s": timings,
         "runtime_s": round(time.time() - started), "n_matches": len(fd.hg),
         "n_targets": targets.height, "logloss_1x2_by_prior_scale": ll,
         "headline": {n: {"mean": v[0], "sd": v[1]} for n, v in hb.items()},
@@ -173,7 +177,7 @@ def main() -> None:
              f"({args.structure})", "",
              f"**{'PASS' if passed else 'FAIL'}** ({sum(c.passed for c in checks)}/"
              f"{len(checks)} checks). Code {code_sha}, seed {SEED}, "
-             f"{args.chains} x {args.draws} draws.", "",
+             f"{args.chains} x {args.draws} draws, {tune} tuning.", "",
              "| check | pass | value | detail |", "|---|---|---|---|"]  # fmt: skip
     lines += [f"| {c.name} | {'yes' if c.passed else '**no**'} | {c.value:.4g} | {c.detail} |"
               for c in checks]  # fmt: skip

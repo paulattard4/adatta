@@ -1,0 +1,207 @@
+{
+  "bundle": "england",
+  "structure": "strength_open",
+  "as_of": "2023-08-07T00:00:00+00:00",
+  "passed": false,
+  "code_sha": "7cac32f3be10aec42eeaa9261e4b455116c20b7c-dirty",
+  "config_hash": "753f9f0d94ad3b9d4c9b531b2fce392b0e99fac367415a9dc20ab2f063a23a1b",
+  "lockfile_hash": "3f056c3e23b972618ba6791dc426dd6d2370998ce090cdd44ab46c879e0c3394",
+  "seed": 20261105,
+  "draws": 1000,
+  "chains": 4,
+  "tune": 2000,
+  "trace_path": "data/traces/england_20230807_strength_open_t2000_k1_4x1000.nc",
+  "timings_s": {
+    "fit_scale_1": 3,
+    "fit_scale_0.5": 1,
+    "fit_scale_2": 1
+  },
+  "runtime_s": 1014,
+  "n_matches": 2808,
+  "n_targets": 87,
+  "logloss_1x2_by_prior_scale": {
+    "1.0": 1.0067722859039527,
+    "0.5": 1.007875765692196,
+    "2.0": 1.0077215918122155
+  },
+  "headline": {
+    "mu_league[0]": {
+      "mean": 0.1807967824758964,
+      "sd": 0.03259355319947912
+    },
+    "mu_league[1]": {
+      "mean": 0.05541147641251626,
+      "sd": 0.027050756887814737
+    },
+    "h_league[0]": {
+      "mean": 0.1509117130939676,
+      "sd": 0.03660642052101246
+    },
+    "h_league[1]": {
+      "mean": 0.20543552972525758,
+      "sd": 0.03266807680391356
+    },
+    "sigma_strength": {
+      "mean": 0.27802612727040993,
+      "sd": 0.08163200451666952
+    },
+    "sigma_open": {
+      "mean": 0.05701819006471881,
+      "sd": 0.026380720210693178
+    },
+    "sigma_walk": {
+      "mean": 0.028433401420894296,
+      "sd": 0.004395710285520563
+    },
+    "sigma_walk_open": {
+      "mean": 0.004863851140519578,
+      "sd": 0.0028021139309255985
+    },
+    "reset_weeks": {
+      "mean": 17.710215717665204,
+      "sd": 9.438262141121559
+    },
+    "sigma_home": {
+      "mean": 0.036244130436702236,
+      "sd": 0.026331365168682282
+    },
+    "rho": {
+      "mean": 0.0007909768893883824,
+      "sd": 0.02536093815570692
+    }
+  },
+  "checks": [
+    {
+      "name": "rhat",
+      "passed": false,
+      "value": 1.0153038262938698,
+      "detail": "worst sigma_walk_open; 3 of 16280 over 1.01"
+    },
+    {
+      "name": "ess_bulk",
+      "passed": false,
+      "value": 398.97222732612846,
+      "detail": "worst sigma_strength"
+    },
+    {
+      "name": "ess_tail",
+      "passed": false,
+      "value": 345.74206293176746,
+      "detail": ""
+    },
+    {
+      "name": "divergences",
+      "passed": true,
+      "value": 0.0,
+      "detail": ""
+    },
+    {
+      "name": "score-matrix truncation",
+      "passed": true,
+      "value": 1.0,
+      "detail": "share of predictions with tail mass < 0.0001"
+    },
+    {
+      "name": "ppc 39 total_mean",
+      "passed": true,
+      "value": 0.5045000000000001,
+      "detail": "observed 2.789, PPC median 2.788"
+    },
+    {
+      "name": "ppc 39 home_mean",
+      "passed": true,
+      "value": 0.489125,
+      "detail": "observed 1.500, PPC median 1.501"
+    },
+    {
+      "name": "ppc 39 away_mean",
+      "passed": true,
+      "value": 0.5245,
+      "detail": "observed 1.289, PPC median 1.286"
+    },
+    {
+      "name": "ppc 39 draw_rate",
+      "passed": true,
+      "value": 0.420625,
+      "detail": "observed 0.226, PPC median 0.229"
+    },
+    {
+      "name": "ppc 39 total_dispersion",
+      "passed": true,
+      "value": 0.72275,
+      "detail": "observed 1.067, PPC median 1.041"
+    },
+    {
+      "name": "identifiability 39",
+      "passed": true,
+      "value": -0.12634614577120007,
+      "detail": "posterior corr(league level, mean team effect)"
+    },
+    {
+      "name": "ppc 40 total_mean",
+      "passed": true,
+      "value": 0.487125,
+      "detail": "observed 2.421, PPC median 2.423"
+    },
+    {
+      "name": "ppc 40 home_mean",
+      "passed": true,
+      "value": 0.499,
+      "detail": "observed 1.335, PPC median 1.335"
+    },
+    {
+      "name": "ppc 40 away_mean",
+      "passed": true,
+      "value": 0.485875,
+      "detail": "observed 1.086, PPC median 1.088"
+    },
+    {
+      "name": "ppc 40 draw_rate",
+      "passed": true,
+      "value": 0.415125,
+      "detail": "observed 0.258, PPC median 0.260"
+    },
+    {
+      "name": "ppc 40 total_dispersion",
+      "passed": true,
+      "value": 0.084,
+      "detail": "observed 0.971, PPC median 1.020"
+    },
+    {
+      "name": "identifiability 40",
+      "passed": true,
+      "value": -0.07283569258061047,
+      "detail": "posterior corr(league level, mean team effect)"
+    },
+    {
+      "name": "prior sensitivity x0.5",
+      "passed": true,
+      "value": 0.2193145223707212,
+      "detail": "worst sigma_strength (in posterior sds)"
+    },
+    {
+      "name": "predictive sensitivity x0.5",
+      "passed": true,
+      "value": 0.001096056977027757,
+      "detail": "1X2 log loss 1.0068 -> 1.0079"
+    },
+    {
+      "name": "prior sensitivity x2",
+      "passed": true,
+      "value": 0.2157498306793729,
+      "detail": "worst reset_weeks (in posterior sds)"
+    },
+    {
+      "name": "predictive sensitivity x2",
+      "passed": true,
+      "value": 0.0009429201831975882,
+      "detail": "1X2 log loss 1.0068 -> 1.0077"
+    },
+    {
+      "name": "reproducible seed",
+      "passed": true,
+      "value": 1.0,
+      "detail": "identical draws from the same seed"
+    }
+  ]
+}

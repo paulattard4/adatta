@@ -77,6 +77,14 @@ Dev window only, 28-day refit grid (D14), every model on the same grid:
   (sigma_strength, just above 400). Still failing, as before: one innovation at R-hat 1.011
   (was 1.010) and truncation at max_goals 10 (85%). Fits 13–18 min. Remaining D15 test:
   the dev harness comparison once task 4 exists.
+- **Rerun (2026-11-06) with max_goals 15 and 2,000 tuning steps:** truncation passes (100%
+  of predictions under 1e-4), dispersion PPCs still pass (Championship 0.084, PL 0.72),
+  sensitivity and reproducibility pass. Longer tuning did not fix mixing: R-hat 1.015 on
+  sigma_walk_open (3 of 16,280 over 1.01), bulk ESS 399 on sigma_strength, tail ESS 346.
+  The slow parameters are now the hyperparameters; sigma_walk_open sits near zero
+  (posterior ~0.005), a funnel more tuning doesn't remove. 18–19 min per fit; the first
+  attempt exited silently after the third fit (likely out of memory in the container) and
+  the report was rebuilt from the saved fits with --reuse.
 - Failing either: revert to the spec model and record the misfit as known (affects totals
   markets, not 1X2).
 

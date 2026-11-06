@@ -111,7 +111,11 @@ def nuts_fitter(spec: RunSpec) -> Fitter:
                           chains=spec.chains, target_accept=spec.target_accept,
                           structure=spec.structure, tune=spec.tune,
                           shifts=spec.shifts)  # fmt: skip
-        conv = {c.name: c.value for c in dg.convergence(idata)}
+        checks = dg.convergence(idata)
+        conv = {c.name: c.value for c in checks}
+        # parameter names only (metrics, no data): which parameter is slowest to mix
+        print("    " + "; ".join(f"{c.name} {c.value:.3f} {c.detail}" for c in checks[:2]),
+              flush=True)  # fmt: skip
         diag = {"rhat_max": conv["rhat"], "ess_bulk_min": conv["ess_bulk"],
                 "ess_tail_min": conv["ess_tail"], "divergences": conv["divergences"],
                 "fit_s": round(time.time() - t0)}  # fmt: skip

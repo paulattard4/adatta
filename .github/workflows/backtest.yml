@@ -26,6 +26,9 @@ on:
       seasons:
         description: "JSON list of dev seasons"
         default: "[2019,2020,2021,2022,2023]"
+      draws:
+        description: "NUTS draws per chain (tuning steps match)"
+        default: "1000"
       every_days:
         description: "refit cadence in days (28 while iterating, D14; 7 for the final run)"
         default: "28"
@@ -66,7 +69,8 @@ jobs:
           uv run --frozen --group model python -m adatta.model.backtest run
           --bundle ${{ matrix.bundle }} --season ${{ matrix.season }}
           --structure ${{ inputs.structure }} --prior-scale ${{ inputs.prior_scale }}
-          --every-days ${{ inputs.every_days }} --upload ${{ github.run_id }}
+          --every-days ${{ inputs.every_days }} --draws ${{ inputs.draws }}
+          --upload ${{ github.run_id }}
           ${{ inputs.shifts && '--shifts' || '' }}
   assemble:
     needs: refit

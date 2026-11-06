@@ -30,7 +30,7 @@ from adatta.model import team_strength as ts
 
 SEED = 20261105
 HEADLINE = ("mu_league", "h_league", "sigma_attack", "sigma_defence", "sigma_strength",
-            "sigma_open", "sigma_walk", "sigma_walk_open", "reset_weeks", "sigma_home",
+            "sigma_open", "sigma_walk", "reset_weeks", "sigma_home",
             "rho")  # fmt: skip
 
 

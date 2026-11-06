@@ -15,11 +15,12 @@ non-centred, with zero-sum innovations over teams (identification). Steps are ca
 weeks (refits are weekly, D11). Teams are shared across the bundle's leagues, so promoted
 and relegated teams carry their state across (§10.3).
 
-D15 (`structure="strength_open"`): each team is instead a strength walk s and an openness
-walk o (how high-scoring its games are), with attack = (s + o) / sqrt 2 and defence =
-(s - o) / sqrt 2, each with its own scale and walk sd. This is a rotation of the spec model:
-with equal scales and walk sds it is exactly the independent-prior model, so the data decide
-how hard openness is shrunk. Kept only if it passes the D15 acceptance test.
+D15 (`structure="strength_open"`): each team is instead a strength walk s and a static
+openness o (how high-scoring its games are), with attack = (s + o) / sqrt 2 and defence =
+(s - o) / sqrt 2. Strength has its own scale and weekly walk; openness has its own scale and
+does not move within the window. A first version with an openness walk too learnt a walk sd
+of ~0.005 (vs 0.028 for strength) and mixed poorly at that near-zero scale (R-hat 1.015), so
+the walk was dropped. Kept only if it passes the D15 acceptance test.
 
 Only importable where the model dependency group is installed (Linux / Docker, D13).
 """
@@ -108,12 +109,10 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent")
             sigma_a = pm.HalfNormal("sigma_attack", 0.5 * k)
             sigma_b = pm.HalfNormal("sigma_defence", 0.5 * k)
             sigma_walk = pm.HalfNormal("sigma_walk", 0.15 * k)
-            walk_b = sigma_walk
         else:
             sigma_a = pm.HalfNormal("sigma_strength", 0.5 * k)
             sigma_b = pm.HalfNormal("sigma_open", 0.5 * k)
             sigma_walk = pm.HalfNormal("sigma_walk", 0.15 * k)
-            walk_b = pm.HalfNormal("sigma_walk_open", 0.15 * k)
         # Season reset as a multiple of the weekly step: with only 2–3 season boundaries in a
         # window, a free scale is nearly unidentified (R-hat 1.02, ESS ~270 in the first fits).
         # Prior: a reset worth ~16 weeks of drift (a transfer window), within about x2.7.
@@ -139,10 +138,11 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent")
 
         if structure == "independent":
             attack = walk("attack", sigma_a, sigma_walk)
-            defence = walk("defence", sigma_b, walk_b)
+            defence = walk("defence", sigma_b, sigma_walk)
         else:
             strength = walk("strength", sigma_a, sigma_walk, keep=False)
-            openness = walk("open", sigma_b, walk_b, keep=False)
+            # static: one zero-sum value per team, the same at every step
+            openness = (pm.ZeroSumNormal("open_z0", 1.0, dims="team") * sigma_b)[None, :]
             attack = (strength + openness) / np.sqrt(2.0)
             defence = (strength - openness) / np.sqrt(2.0)
             pm.Deterministic("attack_last", attack[-1], dims="team")

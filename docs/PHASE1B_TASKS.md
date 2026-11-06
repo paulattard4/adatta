@@ -85,6 +85,15 @@ Dev window only, 28-day refit grid (D14), every model on the same grid:
   (posterior ~0.005), a funnel more tuning doesn't remove. 18–19 min per fit; the first
   attempt exited silently after the third fit (likely out of memory in the container) and
   the report was rebuilt from the saved fits with --reuse.
+- **Static openness (2026-11-06, decided after the rerun above):** openness no longer
+  walks; strength still does. Gate 20/22: mixing now passes (R-hat <= 1.008, 0 of 8,221
+  over 1.01; bulk ESS >= 586, tail >= 624; 0 divergences), truncation, all PPCs (Championship
+  dispersion 0.095), identifiability, parameter sensitivity and reproducibility pass.
+  sigma_open 0.075 +/- 0.021 vs sigma_strength 0.285. Fits ~8 min (half the walk version).
+  **Failing: predictive sensitivity**, 1X2 log loss 1.0076 -> 1.0101 (x0.5, +0.25%) and
+  -> 1.0109 (x2, +0.33%) vs the 0.2% limit. The gate measures it on the 87 matches in the
+  4 weeks after the as-of date; the acceptance test says dev log loss, which needs the
+  harness (task 4). Open: how to measure this check.
 - Failing either: revert to the spec model and record the misfit as known (affects totals
   markets, not 1X2).
 

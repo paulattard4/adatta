@@ -194,3 +194,49 @@ def test_assemble_matches_per_season_plans(tmp_path: Path) -> None:
     assert joint != single  # the phases really differ, so the test is meaningful
     out = bt.assemble(parts, tmp_path / "out", cfg, lambda _: df)
     assert "grid identical to 1a: **yes**" in (out / "summary.md").read_text()
+
+
+def test_form_fades_with_horizon() -> None:
+    fd = ts.prepare(matches(), LEAGUES, datetime(2019, 9, 2, tzinfo=UTC), 1095)
+    draws, _ = FakeFitter()(fd, 1)
+    n = len(fd.team_ids)
+    draws["form_last"] = np.zeros((n, 20))
+    draws["form_last"][0] = 0.3
+    draws["phi"] = np.full(20, 0.5)
+    args = (draws, fd, np.array([0, 0]), np.array([1, 1]), np.array([0, 0]))
+    base = {k: v for k, v in draws.items() if k not in ("form_last", "phi")}
+    b_h, b_a = ts.rates_from_draws(base, *args[1:])
+    f_h, f_a = ts.rates_from_draws(*args, horizon=np.array([0, 2]))
+    for i, h in enumerate((0, 2)):
+        lift = 0.3 * 0.5**h / np.sqrt(2)
+        assert np.allclose(f_h[i] / b_h[i], np.exp(lift))  # home's form lifts its attack
+        assert np.allclose(f_a[i] / b_a[i], np.exp(-lift))  # and its defence
+    assert bt.RunSpec(form=True).model_name == "phase1b_strength_open_ar1"
+    assert bt.config_hash(bt.RunSpec()) != bt.config_hash(bt.RunSpec(form=True))
+
+
+def test_assemble_compares_with_a_reference_1b_model(tmp_path: Path) -> None:
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from adatta.db import models
+
+    df, cfg = matches(), config()
+    parts = tmp_path / "parts"
+    parts.mkdir()
+    for form in (False, True):
+        spec = bt.RunSpec(every_days=28, form=form)
+        p = bt.run(df, LEAGUES, "england", cfg, [2019], spec, LocalStore(tmp_path / "c"),
+                   FakeFitter(), log=lambda _: None)  # fmt: skip
+        p.with_columns(refit_every_days=pl.lit(28)).write_parquet(parts / f"{form}.parquet")
+    out = bt.assemble(parts, tmp_path / "out", cfg, lambda _: df, "phase1b_strength_open")
+    summary = (out / "summary.md").read_text()
+    assert "phase1b_strength_open_ar1 vs phase1b_strength_open" in summary
+    assert "| horizon 0 |" in summary and "| horizon 3 |" in summary
+    assert (out / "vs_phase1b_strength_open_ar1__phase1b_strength_open.csv").exists()
+    engine = create_engine("sqlite://")
+    models.Base.metadata.create_all(engine)
+    with Session(engine) as s:
+        assert bt.record(out, s) == 1  # the reference was recorded by its own run
+    with pytest.raises(SystemExit):
+        bt.assemble(parts, tmp_path / "out2", cfg, lambda _: df, "phase1b_nonexistent")

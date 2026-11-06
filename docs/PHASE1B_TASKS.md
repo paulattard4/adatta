@@ -304,6 +304,36 @@ grid identical to 1a. Report `reports/phase1b/backtest/20261106T161314Z` (R2), r
 
 ### 5. Components, each added only if it earns its place on dev
 - [ ] AR(1) short-term form, phi in (0, 1) (§5.2).
+
+#### AR(1) form: design and acceptance test (stated 2026-11-06, before building)
+
+Design (`form=True`, strength_open only; off by default, so the reference model is
+unchanged byte for byte):
+- Per team, a weekly zero-sum AR(1) on the strength axis, m_t = phi m_{t-1} + sigma_form
+  e_t, started at its stationary sd sigma_form / sqrt(1 - phi^2); added to strength, so
+  attack and defence each move by m / sqrt 2 (form is about results, not openness). No
+  season reset: the summer's ~13 empty weeks decay it by phi^13.
+- Priors (§5.2 only fixes phi in (0, 1)): logit(phi) ~ Normal(logit 0.8, 0.75 k), i.e. a
+  half-life of ~3 weeks with wide support; sigma_form ~ HalfNormal(0.1 k).
+- Prediction for a match h weeks after the last training step uses phi^h m_last, so form
+  fades over the 0–4 week horizon of a 28-day refit (reported by horizon week).
+- Known risk: a random walk plus an AR(1) on the same axis are only weakly separable (they
+  differ only in how fast shocks fade); sigma_form may collapse towards 0 or trade off
+  against sigma_walk.
+
+Acceptance test, dev only, 28-day grid, against `phase1b_strength_open` at 2,000 draws
+(run 42239760464, same grid):
+1. **Gate (§14.5)** on England as of 2023-08-07: every gating check passes, with phi and
+   sigma_form added to the prior-sensitivity headline (posterior means move < 1 sd at x0.5
+   and x2).
+2. **Mixing on dev:** no more refits over R-hat 1.01 / under ESS 400 / with divergences
+   than the reference (2 / 0 / 2 of 266), give or take 2.
+3. **Accuracy:** 1X2 log loss improves vs the reference, paired 95% interval excluding 0;
+   RPS not worse; OU2.5 log loss and total CRPS not worse than 0.1% relative; no bundle
+   worse than 0.3% on 1X2 log loss.
+4. **Sense:** posterior phi and sigma_form reported per bundle; a gain should be largest at
+   horizon week 1 and fade by week 4.
+- Failing: record it as failed and keep the code off by default, as for D16.
 - [ ] xG auxiliary likelihood where `has_xg` holds (joint goals + xG likelihood).
 - [ ] Manager-change widening of sigma_walk for a fixed post-change window (if D12 allows).
 

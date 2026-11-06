@@ -29,7 +29,7 @@ from adatta.model import team_strength as ts
 SEED = 20261105
 HEADLINE = ("delta", "mu_league", "h_league", "sigma_attack", "sigma_defence", "sigma_strength",
             "sigma_open", "sigma_walk", "reset_weeks", "sigma_home",
-            "rho")  # fmt: skip
+            "rho", "phi", "sigma_form")  # fmt: skip
 
 
 def _flat(idata: Any, name: str) -> dict[str, tuple[float, float]]:
@@ -67,6 +67,7 @@ def main() -> None:
     ap.add_argument("--tune", type=int, default=None, help="warm-up steps (default: draws)")
     ap.add_argument("--structure", default="independent", choices=ts.STRUCTURES)
     ap.add_argument("--shifts", action="store_true", help="D16 promotion/relegation shift")
+    ap.add_argument("--form", action="store_true", help="AR(1) short-term form (§5.2)")
     ap.add_argument("--reuse", action="store_true", help="load saved fits if present (debug)")
     args = ap.parse_args()
 
@@ -96,6 +97,7 @@ def main() -> None:
     traces.mkdir(parents=True, exist_ok=True)
     tag = "" if args.structure == "independent" else f"_{args.structure}"
     tag += "_d16" if args.shifts else ""
+    tag += "_ar1" if args.form else ""
     tune = args.draws if args.tune is None else args.tune
     tag += "" if tune == args.draws else f"_t{tune}"
     trace_path = traces / f"{args.bundle}_{as_of:%Y%m%d}{tag}_k1_{args.chains}x{args.draws}.nc"
@@ -117,6 +119,7 @@ def main() -> None:
                 structure=args.structure,
                 tune=tune,
                 shifts=args.shifts,
+                form=args.form,
             )
             idata.to_netcdf(path)
         timings[f"fit_scale_{k:g}"] = round(time.time() - t0)
@@ -149,8 +152,10 @@ def main() -> None:
         checks.append(dg.predictive_sensitivity(ll[1.0], ll[k], f"x{k:g} (4-week proxy)",
                                                 blocking=False))  # fmt: skip
 
-    r1 = ts.sample(fd, SEED, draws=100, chains=2, structure=args.structure, shifts=args.shifts)
-    r2 = ts.sample(fd, SEED, draws=100, chains=2, structure=args.structure, shifts=args.shifts)
+    r1 = ts.sample(fd, SEED, draws=100, chains=2, structure=args.structure, shifts=args.shifts,
+                   form=args.form)  # fmt: skip
+    r2 = ts.sample(fd, SEED, draws=100, chains=2, structure=args.structure, shifts=args.shifts,
+                   form=args.form)  # fmt: skip
     checks.append(dg.reproducible(ts.stacked(r1)["sigma_walk"].values,
                                   ts.stacked(r2)["sigma_walk"].values))  # fmt: skip
 

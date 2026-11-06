@@ -57,11 +57,13 @@ class RunSpec:
     every_days: int = 28
     max_pred_draws: int = 400
     shifts: bool = False  # D16 promotion / relegation shift
+    form: bool = False  # AR(1) short-term form (§5.2)
 
     @property
     def model_name(self) -> str:
         k = "" if self.prior_scale == 1.0 else f"_k{self.prior_scale:g}"
-        return f"phase1b_{self.structure}{'_d16' if self.shifts else ''}{k}"
+        tags = ("_d16" if self.shifts else "") + ("_ar1" if self.form else "")
+        return f"phase1b_{self.structure}{tags}{k}"
 
 
 def _mean(s: pl.Series) -> float:
@@ -110,7 +112,7 @@ def nuts_fitter(spec: RunSpec) -> Fitter:
         idata = ts.sample(fd, seed, prior_scale=spec.prior_scale, draws=spec.draws,
                           chains=spec.chains, target_accept=spec.target_accept,
                           structure=spec.structure, tune=spec.tune,
-                          shifts=spec.shifts)  # fmt: skip
+                          shifts=spec.shifts, form=spec.form)  # fmt: skip
         checks = dg.convergence(idata)
         conv = {c.name: c.value for c in checks}
         # parameter names only (metrics, no data): which parameter is slowest to mix
@@ -141,7 +143,11 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
                 for t, s, c in zip(targets[side], targets["season"], targets[f"mover_{side}"],
                                    strict=True)
             ], dtype=np.int64)  # fmt: skip
-    lam, mu_ = ts.rates_from_draws(draws, fd, home, away, league, pending[0], pending[1])
+    # weeks from the last training step to each match (AR(1) form fades as phi^h)
+    horizon = np.array([(k - fd.start).days // 7 - (fd.n_steps - 1) for k in targets["kickoff"]],
+                       dtype=np.int64)  # fmt: skip
+    lam, mu_ = ts.rates_from_draws(draws, fd, home, away, league, pending[0], pending[1],
+                                   horizon)  # fmt: skip
     rho = draws["rho"]
     out = []
     for k, (hg, ag) in enumerate(zip(targets["hg"], targets["ag"], strict=True)):
@@ -222,7 +228,8 @@ def phase1a_on_grid(df: pl.DataFrame, leagues: list[int], cfg: harness.EvalConfi
                                 sel.team_prior_sd)  # fmt: skip
 
 
-def compare(pred: pl.DataFrame, challenger: str, base: str = "dixon_coles") -> pl.DataFrame:
+def compare(pred: pl.DataFrame, challenger: str, base: str = "dixon_coles",
+            horizons: bool = False) -> pl.DataFrame:  # fmt: skip
     """Paired challenger vs base per metric, overall (warm) and per bundle and league, plus
     the cold-start segment. rel = relative change (negative = challenger better)."""
     out = []
@@ -231,6 +238,9 @@ def compare(pred: pl.DataFrame, challenger: str, base: str = "dixon_coles") -> p
     for col in ("bundle", "league_id"):
         for (v,), g in warm.group_by([col]):
             segs.append((col, str(v), g))
+    if horizons and "horizon_week" in warm.columns:  # weeks after the refit (AR(1) form)
+        for (v,), g in warm.group_by(["horizon_week"]):
+            segs.append(("horizon", str(v), g))
     if "mover_home" in warm.columns:  # D16 segments: a promoted / relegated team plays
         for code, name in ((1, "promoted"), (2, "relegated")):
             g = warm.filter((pl.col("mover_home") == code) | (pl.col("mover_away") == code))
@@ -302,8 +312,12 @@ def predictive_sensitivity(pred: pl.DataFrame) -> list[dict[str, Any]]:
 
 
 def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
-             load: Callable[[list[int]], pl.DataFrame]) -> Path:  # fmt: skip
-    """Combine 1b parts, score 1a on the same grid, write the comparison report."""
+             load: Callable[[list[int]], pl.DataFrame], reference: str | None = None
+             ) -> Path:  # fmt: skip
+    """Combine 1b parts, score 1a on the same grid, write the comparison report.
+    `reference`: a 1b model among the parts (e.g. from an earlier run) that every other 1b
+    model is also compared against, with segments by weeks after the refit; it is not
+    recorded again."""
     parts = sorted(parts_dir.glob("*.parquet"))
     if not parts:
         raise SystemExit(f"no parts in {parts_dir}")
@@ -335,7 +349,11 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
                 grid_ok = False
                 print(f"grid mismatch {bundle[0]} {name[0]}: {len(mine ^ theirs)} pairs differ")
         frames.append(a)
-    pred = pl.concat(frames, how="diagonal_relaxed")
+    pred = pl.concat(frames, how="diagonal_relaxed").with_columns(
+        horizon_week=(pl.col("kickoff") - pl.col("as_of")).dt.total_days() // 7
+    )
+    if reference is not None and reference not in set(pred["model"].unique()):
+        raise SystemExit(f"reference model {reference} is not among the parts")
     challengers = sorted(m for m in pred["model"].unique() if m != "dixon_coles")
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     out = out_root / stamp
@@ -344,6 +362,10 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
     comps = {c: compare(pred, c) for c in challengers}
     for c, t in comps.items():
         t.write_csv(out / f"compare_{c}.csv")
+    vs = {c: compare(pred, c, reference, horizons=True) for c in challengers
+          if reference is not None and c != reference}  # fmt: skip
+    for c, t in vs.items():
+        t.write_csv(out / f"vs_{c}__{reference}.csv")
     sens = predictive_sensitivity(pred)
     refits = (pred.filter(pl.col("model") != "dixon_coles")
               .unique(["model", "bundle", "as_of"]))  # fmt: skip
@@ -373,6 +395,17 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
                   "|---|---|---|---|---|---|---|"]  # fmt: skip
         for r in t.filter(pl.col("segment_type").is_in(["all", "bundle", "mover", "cold_start"])
                           ).iter_rows(named=True):  # fmt: skip
+            lines.append(
+                f"| {r['segment_type']} {r['seg']} | {r['metric']} | {r['n']} | "
+                f"{r['base']:.4f} | {r['challenger']:.4f} | {100 * r['rel']:+.2f}% | "
+                f"[{100 * r['rel_lo']:+.2f}%, {100 * r['rel_hi']:+.2f}%] |"
+            )
+    for c, t in vs.items():
+        lines += ["", f"## {c} vs {reference} (relative change; negative = {c} better)", "",
+                  "| segment | metric | n | reference | challenger | rel | 95% interval |",
+                  "|---|---|---|---|---|---|---|"]  # fmt: skip
+        shown = ["all", "bundle", "horizon", "mover", "cold_start"]
+        for r in t.filter(pl.col("segment_type").is_in(shown)).iter_rows(named=True):
             lines.append(
                 f"| {r['segment_type']} {r['seg']} | {r['metric']} | {r['n']} | "
                 f"{r['base']:.4f} | {r['challenger']:.4f} | {100 * r['rel']:+.2f}% | "
@@ -410,6 +443,7 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
         "evaluation_config_hash": _file_hash("config/evaluation.yml"),
         "lockfile_hash": _file_hash("uv.lock"), "refit_every_days": cadence,
         "grid_identical_to_1a": grid_ok, "predictive_sensitivity": sens,
+        "reference": reference,
     }  # fmt: skip
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str))
     print("\n".join(lines))
@@ -431,7 +465,10 @@ def record(out: Path, session: Any, seed: int = RunSpec.seed) -> int:
         hashes = hashlib.sha256(hashes.encode()).hexdigest()
     n = 0
     s = session
+    ref = manifest.get("reference")
     for f in sorted(out.glob("compare_*.csv")):
+        if ref is not None and f.stem == f"compare_{ref}":
+            continue  # recorded by its own run
         c = pl.read_csv(f).filter(pl.col("segment_type") == "all")
         keys = ("n", "base", "challenger", "rel", "rel_lo", "rel_hi")
         scores = {r["metric"]: {k: r[k] for k in keys} for r in c.iter_rows(named=True)}
@@ -476,6 +513,7 @@ def main() -> None:
     r.add_argument("--structure", default="strength_open", choices=ts.STRUCTURES)
     r.add_argument("--prior-scale", type=float, default=1.0)
     r.add_argument("--shifts", action="store_true", help="D16 promotion/relegation shift")
+    r.add_argument("--form", action="store_true", help="AR(1) short-term form (§5.2)")
     r.add_argument("--every-days", type=int, default=None, help="default: D14 dev cadence")
     r.add_argument("--draws", type=int, default=2000)
     r.add_argument("--chains", type=int, default=4)
@@ -499,6 +537,12 @@ def main() -> None:
     a.add_argument("--cache", default="data/cache")
     a.add_argument("--record", action="store_true", help="write model_run rows to the DB")
     a.add_argument(
+        "--vs",
+        default=None,
+        metavar="MODEL",
+        help="also compare every other 1b model with this one (fetched with it)",
+    )
+    a.add_argument(
         "--upload-report",
         action="store_true",
         help="put the report in the store under backtest/reports/",
@@ -516,7 +560,7 @@ def main() -> None:
                 print(f"missing part {ref} (skipped)")
                 continue
             (parts / ref.split("/")[-1]).write_bytes(data)
-        out = assemble(parts, Path(args.out), cfg, _load)
+        out = assemble(parts, Path(args.out), cfg, _load, args.vs)
         if args.record:
             from adatta.db.session import get_session
 
@@ -530,7 +574,8 @@ def main() -> None:
         return
     every = args.every_days or cfg.dev_iteration_refit_every_days
     spec = RunSpec(structure=args.structure, prior_scale=args.prior_scale, draws=args.draws,
-                   chains=args.chains, every_days=every, shifts=args.shifts)  # fmt: skip
+                   chains=args.chains, every_days=every, shifts=args.shifts,
+                   form=args.form)  # fmt: skip
     leagues = cfg.bundles[args.bundle]
     df = _load(leagues)
     t0 = time.time()

@@ -28,6 +28,12 @@ walk carries the shift forward). Shifts are centred over teams at every step, so
 levels keep their meaning. A move whose new season has not started inside the training
 window is applied at prediction time instead. Prior Normal(0, 0.2).
 
+AR(1) form (`form=True`, strength_open only, §5.2): a per-team weekly zero-sum AR(1),
+m_t = phi m_{t-1} + sigma_form e_t from its stationary sd, added to strength (form is about
+results, not openness). logit(phi) ~ Normal(logit 0.8, 0.75); sigma_form ~ HalfNormal(0.1).
+attack_last / defence_last exclude form; a match h weeks after the last step adds
+phi^h m_last / sqrt 2 to each. Kept only if it passes its acceptance test.
+
 Only importable where the model dependency group is installed (Linux / Docker, D13).
 """
 
@@ -124,7 +130,7 @@ def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days
 
 
 def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
-          shifts: bool = False) -> Any:  # fmt: skip
+          shifts: bool = False, form: bool = False) -> Any:  # fmt: skip
     """`prior_scale` multiplies every prior scale (the §14.5 prior-sensitivity check uses 0.5
     and 2); 1.0 is the production model. `structure` is "independent" (spec §5.1) or
     "strength_open" (D15)."""
@@ -132,6 +138,8 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
         raise ValueError(f"structure must be one of {STRUCTURES}")
     if shifts and structure != "strength_open":
         raise ValueError("D16 shifts need structure='strength_open' (they move strength)")
+    if form and structure != "strength_open":
+        raise ValueError("AR(1) form needs structure='strength_open' (it moves strength)")
     import pymc as pm
     import pytensor.tensor as pt
 
@@ -187,6 +195,11 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
             defence = (strength - openness) / np.sqrt(2.0)
             pm.Deterministic("attack_last", attack[-1], dims="team")
             pm.Deterministic("defence_last", defence[-1], dims="team")
+            if form:
+                m = ar1_form(fd.n_steps, k)
+                pm.Deterministic("form_last", m[-1], dims="team")
+                attack = attack + m / np.sqrt(2.0)
+                defence = defence + m / np.sqrt(2.0)
         home = h_league[fd.league] + sigma_home * h_team[fd.home]
         log_lam = (mu_league[fd.league] + home + attack[fd.step, fd.home]
                    - defence[fd.step, fd.away])  # fmt: skip
@@ -205,15 +218,35 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
     return model
 
 
+def ar1_form(n_steps: int, k: float = 1.0) -> Any:
+    """Zero-sum AR(1) form, (step, team), non-centred: m = P @ (sigma_form * e) with
+    P[t, j] = phi^(t - j) for j <= t, the first innovation scaled to the stationary sd.
+    Call inside a model with a "team" dimension."""
+    import pymc as pm
+    import pytensor.tensor as pt
+
+    logit_phi = pm.Normal("logit_phi", np.log(0.8 / 0.2), 0.75 * k)
+    phi = pm.Deterministic("phi", pm.math.sigmoid(logit_phi))
+    sigma_form = pm.HalfNormal("sigma_form", 0.1 * k)
+    e = pm.ZeroSumNormal("form_z", 1.0, dims=("step", "team"))
+    t = np.arange(n_steps)
+    lag = t[:, None] - t[None, :]
+    decay = pt.switch(pt.as_tensor(lag >= 0), phi ** np.maximum(lag, 0), 0.0)
+    first = np.zeros(n_steps)
+    first[0] = 1.0
+    scale = sigma_form * (1.0 + first * (1.0 / pt.sqrt(1.0 - phi**2) - 1.0))
+    return pt.dot(decay, e * scale[:, None])
+
+
 def sample(fd: FitData, seed: int, *, prior_scale: float = 1.0, draws: int = 1000,
            chains: int = 4, target_accept: float = 0.95,
            structure: str = "independent", tune: int | None = None,
-           shifts: bool = False) -> Any:  # fmt: skip
+           shifts: bool = False, form: bool = False) -> Any:  # fmt: skip
     """NUTS via NumPyro (D10), posterior predictive goals included. Returns InferenceData.
     `tune` defaults to `draws`; a longer warm-up improves adaptation without a larger trace."""
     import pymc as pm
 
-    with build(fd, prior_scale, structure, shifts):
+    with build(fd, prior_scale, structure, shifts, form):
         idata = pm.sample(
             draws=draws, tune=draws if tune is None else tune, chains=chains,
             nuts_sampler="numpyro", random_seed=seed, target_accept=target_accept,
@@ -242,19 +275,22 @@ def slim(idata: Any, max_draws: int = 400) -> dict[str, NDArray[np.float64]]:
     post = stacked(idata)
     n = post.sizes["sample"]
     take = np.linspace(0, n - 1, min(max_draws, n)).astype(int)
-    names = [v for v in (*SLIM_VARS, "delta") if v in post.data_vars]  # delta: D16 only
+    # optional: delta (D16), form_last and phi (AR(1) form)
+    names = [v for v in (*SLIM_VARS, "delta", "form_last", "phi") if v in post.data_vars]
     return {v: np.asarray(post[v].values[..., take], dtype=np.float64) for v in names}
 
 
 def rates_from_draws(d: dict[str, NDArray[np.float64]], fd: FitData, home: IntArr,
                      away: IntArr, league: IntArr, pending_home: IntArr | None = None,
-                     pending_away: IntArr | None = None,
+                     pending_away: IntArr | None = None, horizon: IntArr | None = None,
                      ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:  # fmt: skip
     """Posterior draws of (lambda_home, lambda_away) for matches after the training window,
     from the final step's state. home/away index fd.team_ids; -1 = unseen team, which gets
     the average of its league's teams seen in the last 52 weeks (cold start, reported apart).
     pending_home/away (D16): 1 / 2 = the team was promoted / relegated into this match's
     tier and that season has no training match yet, so its shift is applied here.
+    horizon (AR(1) form): weeks from the last training step to each match (default 0); form
+    adds phi^h m_last / sqrt 2 to attack and defence. Unseen teams have no form.
     Pure numpy: works on the Mac and on cached draws."""
     att, dfn = d["attack_last"], d["defence_last"]  # (team, draw)
     mu_l, h_l = d["mu_league"], d["h_league"]  # (league, draw)
@@ -280,12 +316,20 @@ def rates_from_draws(d: dict[str, NDArray[np.float64]], fd: FitData, home: IntAr
         sh = np.vstack([zeros, d["delta"][0], d["delta"][1]]) / np.sqrt(2.0)
     else:
         sh = np.vstack([zeros, zeros, zeros])
+    hz = np.zeros(n, np.int64) if horizon is None else np.maximum(horizon, 0)
+
+    def form(t: int, h: int) -> NDArray[np.float64]:
+        if "form_last" not in d or t < 0:
+            return zeros
+        return np.asarray(d["phi"] ** h * d["form_last"][t] / np.sqrt(2.0))
+
     out_h, out_a = [], []
-    for hh, aa, lg, ch, ca in zip(home, away, league, ph, pa, strict=True):
+    for hh, aa, lg, ch, ca, h in zip(home, away, league, ph, pa, hz, strict=True):
         a_h, d_h, ht = team(int(hh), int(lg))
         a_a, d_a, _ = team(int(aa), int(lg))
-        a_h, d_h = a_h + sh[ch], d_h + sh[ch]
-        a_a, d_a = a_a + sh[ca], d_a + sh[ca]
+        f_h, f_a = form(int(hh), int(h)), form(int(aa), int(h))
+        a_h, d_h = a_h + sh[ch] + f_h, d_h + sh[ch] + f_h
+        a_a, d_a = a_a + sh[ca] + f_a, d_a + sh[ca] + f_a
         out_h.append(np.exp(mu_l[lg] + h_l[lg] + ht + a_h - d_a))
         out_a.append(np.exp(mu_l[lg] + a_a - d_h))
     return np.array(out_h), np.array(out_a)

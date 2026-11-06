@@ -17,6 +17,13 @@ on:
         description: "D16 promotion/relegation shift (strength_open only)"
         type: boolean
         default: false
+      form:
+        description: "AR(1) short-term form (strength_open only)"
+        type: boolean
+        default: false
+      vs:
+        description: "optional reference, RUN_ID/MODEL (e.g. 42239760464/phase1b_strength_open): its parts are fetched and every model is also compared with it"
+        default: ""
       prior_scale:
         description: "prior scale (1 = production; 0.5 / 2 for the §14.5 sensitivity runs)"
         default: "1"
@@ -39,7 +46,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: backtest-${{ inputs.structure }}-${{ inputs.shifts }}-${{ inputs.prior_scale }}
+  group: backtest-${{ inputs.structure }}-${{ inputs.shifts }}-${{ inputs.form }}-${{ inputs.prior_scale }}
   cancel-in-progress: false
 env:
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -72,6 +79,7 @@ jobs:
           --every-days ${{ inputs.every_days }} --draws ${{ inputs.draws }}
           --upload ${{ github.run_id }}
           ${{ inputs.shifts && '--shifts' || '' }}
+          ${{ inputs.form && '--form' || '' }}
   assemble:
     needs: refit
     if: ${{ !cancelled() }}
@@ -88,15 +96,20 @@ jobs:
           STRUCTURE: ${{ inputs.structure }}
           PRIOR_SCALE: ${{ inputs.prior_scale }}
           SHIFTS: ${{ inputs.shifts }}
+          FORM: ${{ inputs.form }}
+          VS: ${{ inputs.vs }}
           BUNDLES: ${{ inputs.bundles }}
           SEASONS: ${{ inputs.seasons }}
         run: |
           names=$(uv run python -c "
           import json, os
           from adatta.model.backtest import RunSpec
-          m = RunSpec(structure=os.environ['STRUCTURE'], prior_scale=float(os.environ['PRIOR_SCALE']), shifts=os.environ['SHIFTS'] == 'true').model_name
-          print(' '.join(f'${{ github.run_id }}/{m}_{b}_{s}.parquet' for b in json.loads(os.environ['BUNDLES']) for s in json.loads(os.environ['SEASONS'])))")
-          uv run python -m adatta.model.backtest assemble --fetch $names --upload-report ${{ inputs.record && '--record' || '' }} \
+          m = RunSpec(structure=os.environ['STRUCTURE'], prior_scale=float(os.environ['PRIOR_SCALE']), shifts=os.environ['SHIFTS'] == 'true', form=os.environ['FORM'] == 'true').model_name
+          runs = [('${{ github.run_id }}', m)] + ([tuple(os.environ['VS'].split('/', 1))] if os.environ['VS'] else [])
+          print(' '.join(f'{r}/{n}_{b}_{s}.parquet' for r, n in runs for b in json.loads(os.environ['BUNDLES']) for s in json.loads(os.environ['SEASONS'])))")
+          vs=()
+          if [ -n "$VS" ]; then vs=(--vs "${VS#*/}"); fi
+          uv run python -m adatta.model.backtest assemble --fetch $names "${vs[@]}" --upload-report ${{ inputs.record && '--record' || '' }} \
             | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:

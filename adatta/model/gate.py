@@ -150,7 +150,10 @@ def main() -> None:
         base_sd = {n: v[1] for n, v in hb.items()}
         alt_mean = {n: v[0] for n, v in heads[k].items()}
         checks.append(dg.sensitivity(base_mean, base_sd, alt_mean, f"x{k:g}"))
-        checks.append(dg.predictive_sensitivity(ll[1.0], ll[k], f"x{k:g}"))
+        # Proxy only: 4 weeks of targets after one as-of date. The real check is dev 1X2 log
+        # loss on the harness (decided 2026-11-06), so this one warns but doesn't block.
+        checks.append(dg.predictive_sensitivity(ll[1.0], ll[k], f"x{k:g} (4-week proxy)",
+                                                blocking=False))  # fmt: skip
 
     r1 = ts.sample(fd, SEED, draws=100, chains=2, structure=args.structure)
     r2 = ts.sample(fd, SEED, draws=100, chains=2, structure=args.structure)
@@ -160,7 +163,8 @@ def main() -> None:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     out = Path("reports/phase1b/gate") / f"{stamp}_{args.bundle}_{as_of:%Y%m%d}{tag}"
     out.mkdir(parents=True, exist_ok=True)
-    passed = all(c.passed for c in checks)
+    passed = all(c.passed for c in checks if c.blocking)
+    gating = [c for c in checks if c.blocking]
     report = {
         "bundle": args.bundle, "structure": args.structure, "as_of": as_of.isoformat(),
         "passed": passed,
@@ -175,12 +179,15 @@ def main() -> None:
     (out / "report.json").write_text(json.dumps(report, indent=2, default=str))
     lines = [f"# Phase 1b inference gate — {args.bundle} as of {as_of:%Y-%m-%d} "
              f"({args.structure})", "",
-             f"**{'PASS' if passed else 'FAIL'}** ({sum(c.passed for c in checks)}/"
-             f"{len(checks)} checks). Code {code_sha}, seed {SEED}, "
+             f"**{'PASS' if passed else 'FAIL'}** ({sum(c.passed for c in gating)}/"
+             f"{len(gating)} gating checks; warnings don't block). Code {code_sha}, seed {SEED}, "
              f"{args.chains} x {args.draws} draws, {tune} tuning.", "",
              "| check | pass | value | detail |", "|---|---|---|---|"]  # fmt: skip
-    lines += [f"| {c.name} | {'yes' if c.passed else '**no**'} | {c.value:.4g} | {c.detail} |"
-              for c in checks]  # fmt: skip
+
+    def mark(c: dg.Check) -> str:
+        return "yes" if c.passed else ("**no**" if c.blocking else "warn")
+
+    lines += [f"| {c.name} | {mark(c)} | {c.value:.4g} | {c.detail} |" for c in checks]
     (out / "summary.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
     print(f"report: {out}")

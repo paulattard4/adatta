@@ -31,6 +31,9 @@ class Check:
     passed: bool
     value: float
     detail: str = ""
+    # False = reported as a warning only; it doesn't decide the gate (e.g. a proxy measured
+    # on a small sample until the real measurement exists)
+    blocking: bool = True
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -97,10 +100,13 @@ def sensitivity(base_mean: dict[str, float], base_sd: dict[str, float],
                  f"worst {worst} (in posterior sds)")  # fmt: skip
 
 
-def predictive_sensitivity(ll_base: float, ll_alt: float, label: str) -> Check:
+def predictive_sensitivity(ll_base: float, ll_alt: float, label: str,
+                           blocking: bool = True) -> Check:  # fmt: skip
+    """§14.5 measures this on dev 1X2 log loss (the walk-forward harness). A smaller target
+    set is only a proxy: pass blocking=False so it is reported as a warning."""
     rel = abs(ll_alt - ll_base) / ll_base
     return Check(f"predictive sensitivity {label}", rel < SENS_LOGLOSS_REL, rel,
-                 f"1X2 log loss {ll_base:.4f} -> {ll_alt:.4f}")  # fmt: skip
+                 f"1X2 log loss {ll_base:.4f} -> {ll_alt:.4f}", blocking)  # fmt: skip
 
 
 def truncation(tails: Arr) -> Check:

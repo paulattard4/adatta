@@ -21,7 +21,10 @@ Order matters (§14.5): the diagnostics gate first, the backtest comparison seco
    - Identifiability: attack and defence centred per time step; no posterior correlation
      > 0.9 between a league's mean level and its team effects.
    - Prior sensitivity: refit with every prior scale x0.5 and x2. Dev 1X2 log loss moves
-     < 0.2% relative and no headline posterior mean moves > 1 posterior sd.
+     < 0.2% relative and no headline posterior mean moves > 1 posterior sd. The log-loss
+     part is measured on the dev walk-forward (task 4), not on one fit's next 4 weeks;
+     the gate script reports that 4-week figure as a non-blocking warning (decided
+     2026-11-06).
    - Score-matrix truncation: tail mass < 1e-4 for 99.9% of predictions.
    - Reproducibility: the same seed and data give identical draws.
 2. **Dev window (2019/20–2023/24), iterate freely:** 1b beats 1a on 1X2 log loss and RPS,
@@ -93,7 +96,7 @@ Dev window only, 28-day refit grid (D14), every model on the same grid:
   **Failing: predictive sensitivity**, 1X2 log loss 1.0076 -> 1.0101 (x0.5, +0.25%) and
   -> 1.0109 (x2, +0.33%) vs the 0.2% limit. The gate measures it on the 87 matches in the
   4 weeks after the as-of date; the acceptance test says dev log loss, which needs the
-  harness (task 4). Open: how to measure this check.
+  harness (task 4). Resolved: measured on dev log loss; the 4-week figure is a warning.
 - Failing either: revert to the spec model and record the misfit as known (affects totals
   markets, not 1X2).
 

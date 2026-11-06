@@ -34,3 +34,8 @@ def test_sensitivity_and_truncation_and_reproducibility() -> None:
     assert not dg.truncation(np.r_[np.full(990, 1e-6), np.full(10, 1e-3)]).passed
     a = np.arange(6.0)
     assert dg.reproducible(a, a.copy()).passed and not dg.reproducible(a, a + 1e-12).passed
+
+
+def test_proxy_predictive_check_is_non_blocking() -> None:
+    c = dg.predictive_sensitivity(1.000, 1.01, "x2 (proxy)", blocking=False)
+    assert not c.passed and not c.blocking and not c.as_dict()["blocking"]

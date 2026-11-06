@@ -49,7 +49,7 @@ class RunSpec:
 
     structure: str = "strength_open"
     prior_scale: float = 1.0
-    draws: int = 1000
+    draws: int = 2000  # 1,000 left 160 of 266 dev refits over R-hat 1.01 (2026-11-06)
     chains: int = 4
     tune: int | None = None
     target_accept: float = 0.95
@@ -477,7 +477,7 @@ def main() -> None:
     r.add_argument("--prior-scale", type=float, default=1.0)
     r.add_argument("--shifts", action="store_true", help="D16 promotion/relegation shift")
     r.add_argument("--every-days", type=int, default=None, help="default: D14 dev cadence")
-    r.add_argument("--draws", type=int, default=1000)
+    r.add_argument("--draws", type=int, default=2000)
     r.add_argument("--chains", type=int, default=4)
     r.add_argument("--limit", type=int, default=None, help="first N refits only (smoke test)")
     r.add_argument("--out", default="reports/phase1b/backtest/parts")

@@ -260,6 +260,26 @@ Results, 18,591 warm matches, 1b vs 1a (negative = 1b better):
   1.025, Germany), 22 have ESS < 400 (13 Spain), 4 have divergences (3 Spain). The §14.5
   audit sample would fail on these as things stand.
 
+### Sampling fix: 2,000 draws (2026-11-06)
+
+Run 42220325734 refitted the two worst-mixing bundles (Spain, Germany; 108 refits) at
+2,000 draws and 2,000 tuning steps per chain, everything else unchanged:
+
+| | 1,000 draws | 2,000 draws |
+|---|---|---|
+| refits with R-hat > 1.01 | 70 of 108 | 1 (1.013, Germany) |
+| refits with bulk ESS < 400 | 20 (min 239) | 0 (min 604) |
+| refits with tail ESS < 400 | 0 | 0 (min 899) |
+| refits with divergences | 4 (24 in all) | 1 (2 in all, Spain) |
+| median fit time on a runner | 147 s / 231 s | 158 s / 346 s |
+
+The slowest parameter is `sigma_walk` (63 of 108 refits) or a single strength innovation.
+Both remaining misses are the 2022-12-26 refit, the first after the winter World Cup break
+(six weeks with no league matches mid-season). Production setting is now 2,000 draws
+(backtest default, workflow default); the full dev backtest should be rerun at 2,000 for
+all bundles before the audit sample, and the World Cup refit looked at (target_accept or a
+break-aware step) if it still misses.
+
 ### 5. Components, each added only if it earns its place on dev
 - [ ] AR(1) short-term form, phi in (0, 1) (§5.2).
 - [ ] xG auxiliary likelihood where `has_xg` holds (joint goals + xG likelihood).

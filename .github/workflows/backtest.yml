@@ -1,0 +1,94 @@
+# Phase 1b dev backtest (PHASE1B_TASKS task 4, D9). Manual dispatch only.
+# One matrix job per bundle x season refits the 1b model on the shared walk-forward plan
+# (python -m adatta.model.backtest run); each refit's prediction draws are cached in R2 under
+# its config hash, so a rerun or re-dispatch only fits what is missing. A final job scores
+# Phase 1a on the same plan and writes the comparison.
+# The repo is public: logs and artifacts carry metrics only. Match-level predictions (parts
+# and the full report) go to R2, never to workflow artifacts. Holdout seasons are refused by
+# the code (HoldoutLocked), whatever is typed here.
+name: backtest
+on:
+  workflow_dispatch:
+    inputs:
+      structure:
+        description: "team structure: strength_open (D15) or independent (spec §5.1)"
+        default: strength_open
+      prior_scale:
+        description: "prior scale (1 = production; 0.5 / 2 for the §14.5 sensitivity runs)"
+        default: "1"
+      bundles:
+        description: "JSON list of bundles"
+        default: '["england","spain","italy","germany","france"]'
+      seasons:
+        description: "JSON list of dev seasons"
+        default: "[2019,2020,2021,2022,2023]"
+      every_days:
+        description: "refit cadence in days (28 while iterating, D14; 7 for the final run)"
+        default: "28"
+      record:
+        description: "write model_run rows to Neon"
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: backtest-${{ inputs.structure }}-${{ inputs.prior_scale }}
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  refit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        bundle: ${{ fromJSON(inputs.bundles) }}
+        season: ${{ fromJSON(inputs.seasons) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: refit and score
+        run: >-
+          uv run --frozen --group model python -m adatta.model.backtest run
+          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }}
+          --structure ${{ inputs.structure }} --prior-scale ${{ inputs.prior_scale }}
+          --every-days ${{ inputs.every_days }} --upload ${{ github.run_id }}
+  assemble:
+    needs: refit
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: assemble and compare with Phase 1a
+        env:
+          STRUCTURE: ${{ inputs.structure }}
+          PRIOR_SCALE: ${{ inputs.prior_scale }}
+          BUNDLES: ${{ inputs.bundles }}
+          SEASONS: ${{ inputs.seasons }}
+        run: |
+          names=$(uv run python -c "
+          import json, os
+          from adatta.model.backtest import RunSpec
+          m = RunSpec(structure=os.environ['STRUCTURE'], prior_scale=float(os.environ['PRIOR_SCALE'])).model_name
+          print(' '.join(f'${{ github.run_id }}/{m}_{b}_{s}.parquet' for b in json.loads(os.environ['BUNDLES']) for s in json.loads(os.environ['SEASONS'])))")
+          uv run python -m adatta.model.backtest assemble --fetch $names --upload-report ${{ inputs.record && '--record' || '' }} \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backtest-summary
+          path: reports/phase1b/backtest/*/summary.md

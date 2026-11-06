@@ -62,3 +62,16 @@ def encode_payload(payload: dict[str, Any]) -> tuple[bytes, str]:
 
 def storage_key(source_id: str, endpoint: str, date: str, content_hash: str) -> str:
     return f"{source_id}/{endpoint.strip('/').replace('/', '_')}/{date}/{content_hash[:16]}.json.gz"
+
+
+def try_get(store: RawStore, key: str) -> bytes | None:
+    """The object at `key`, or None if there is none (local or R2)."""
+    try:
+        return store.get(key)
+    except FileNotFoundError:
+        return None
+    except Exception as e:  # botocore ClientError; imported lazily, so matched by its fields
+        code = getattr(e, "response", {}).get("Error", {}).get("Code")
+        if code in ("NoSuchKey", "404"):
+            return None
+        raise

@@ -145,11 +145,38 @@ sensitivity check must report.
       half markets are needed.
 
 ### 4. Walk-forward at production cadence
-- [ ] Harness runs the 1b model as one more model on the same as-of grid. Each refit's draws
+
+Acceptance test (stated 2026-11-06, before building):
+- **Same grid:** for a bundle, seasons and cadence, the 1b runner's (match_id, as_of) pairs
+  are exactly the 1a harness's pairs on the same cadence (one shared refit plan).
+- **No leakage:** every 1b refit trains only on matches with kickoff + 3h <= as_of
+  (asserted per refit and unit-tested); holdout seasons raise `HoldoutLocked`.
+- **Resumable:** each refit's prediction draws are cached under (config hash, bundle,
+  as_of); a rerun with a warm cache does zero fits (unit-tested with a fake sampler). The
+  config hash covers the model code, sampler settings, prior scale, structure and
+  `config/evaluation.yml`, so any change refits.
+- **Scored like 1a:** the same metrics per match (1X2, OU2.5, BTTS, total CRPS) from the
+  posterior-mean score matrix at max_goals 15, plus each refit's R-hat / ESS / divergences.
+- **Report:** paired 1b vs 1a comparison per bundle and overall (relative change, 95%
+  interval), cold-start matches reported apart, and the dev predictive prior sensitivity
+  (x0.5 / x2 vs x1) when those runs exist. Logs print metrics only (public CI).
+- **Smoke:** two consecutive England refits run locally end to end in Docker, and a rerun
+  hits the cache.
+- [x] Harness runs the 1b model as one more model on the same as-of grid. Each refit's draws
       are cached by (bundle, as_of, config hash), so reruns are resumable.
-- [ ] `backtest.yml` workflow (D9): manual dispatch, matrix of bundle x season, each job
+      `adatta/model/backtest.py` (2026-11-06): `harness.refit_plan` is the one grid both
+      models use (1a predictions reproduced exactly after the refactor); the cache holds
+      the prediction draws only (400 thinned draws of the final-step state, ~0.45 MB per
+      refit as .npz; full traces stay a gate/debug artefact). Smoke: two England 2019
+      refits, 532 s and 539 s, 0 divergences, ESS >= 926, R-hat 1.011 / 1.012 (recorded per
+      refit; the gate threshold is 1.01); the rerun hit the cache (12 s, identical
+      predictions). Assembly scores 1a on the same plan, flags any grid mismatch, writes
+      paired comparisons, refit diagnostics and the dev predictive prior sensitivity, and
+      can record `model_run` rows.
+- [x] `backtest.yml` workflow (D9): manual dispatch, matrix of bundle x season, each job
       resumable from cached draws in R2, results written to Neon; a final job assembles the
-      report.
+      report. Built 2026-11-06, not yet dispatched. Parts and full reports go to R2; the
+      only artifact is the metrics summary (public repo).
 
 ### 5. Components, each added only if it earns its place on dev
 - [ ] AR(1) short-term form, phi in (0, 1) (§5.2).

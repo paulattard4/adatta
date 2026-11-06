@@ -35,6 +35,11 @@ bundles:                                  # top flight + feeder, fitted jointly 
   germany: [78, 79]
   france: [61, 62]
 headline_bundle: england
+# Phase 1a settings chosen on dev (reports/baseline/20261105T162900Z, 1X2 log loss); every
+# 1b comparison scores this benchmark on the same refit plan.
+phase1a_selected:
+  half_life_days: 365
+  team_prior_sd: 0.5
 
 # Pre-registered Phase 1b promotion gate (§14.3, CLAUDE.md), recorded before any holdout use.
 phase1b_gate:

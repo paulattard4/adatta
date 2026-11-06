@@ -1,0 +1,483 @@
+"""Phase 1b walk-forward backtest (PHASE1B_TASKS task 4; spec §5.3, §14.1–14.4).
+
+The 1b model is refitted on the same refit plan as the Phase 1a harness
+(`harness.refit_plan`), so both models predict exactly the same (match, as_of) pairs. Each
+refit's prediction draws are cached under (config hash, bundle, as_of) in the store (R2 on
+CI, data/cache locally), so a rerun or a resumed CI job only fits what is missing.
+
+    # one bundle x season (a CI matrix job); fitting needs the model group (Docker, D13)
+    scripts/model.sh uv run --frozen --group model python -m adatta.model.backtest run \\
+        --bundle england --season 2019 --out reports/phase1b/backtest/parts
+    # combine parts, score 1a on the same grid, compare (no model group needed)
+    uv run python -m adatta.model.backtest assemble --parts reports/phase1b/backtest/parts
+
+Output is metrics only (CI logs are public).
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import io
+import json
+import time
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import polars as pl
+from numpy.typing import NDArray
+
+from adatta.adapters.storage import LocalStore, RawStore, make_store, try_get
+from adatta.eval import harness, metrics
+from adatta.model import dixon_coles as dc
+from adatta.model import team_strength as ts
+
+Draws = dict[str, NDArray[np.float64]]
+Diag = dict[str, float]
+Fitter = Callable[[ts.FitData, int], tuple[Draws, Diag]]
+CACHE_PREFIX = "backtest"
+HASHED_FILES = ("adatta/model/team_strength.py", "config/evaluation.yml", "uv.lock")
+
+
+@dataclass(frozen=True)
+class RunSpec:
+    """Everything that determines a refit's draws (plus the cadence of the grid)."""
+
+    structure: str = "strength_open"
+    prior_scale: float = 1.0
+    draws: int = 1000
+    chains: int = 4
+    tune: int | None = None
+    target_accept: float = 0.95
+    seed: int = 20261105
+    every_days: int = 28
+    max_pred_draws: int = 400
+
+    @property
+    def model_name(self) -> str:
+        k = "" if self.prior_scale == 1.0 else f"_k{self.prior_scale:g}"
+        return f"phase1b_{self.structure}{k}"
+
+
+def _mean(s: pl.Series) -> float:
+    return float(s.cast(pl.Float64).to_numpy().mean()) if len(s) else float("nan")
+
+
+def _file_hash(path: str) -> str:
+    p = Path(path)
+    return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else "missing"
+
+
+def config_hash(spec: RunSpec) -> str:
+    """Changes whenever the model code, sampler settings, evaluation config or locked
+    libraries change, so stale cached draws are never reused."""
+    blob = json.dumps({"spec": asdict(spec), "files": {f: _file_hash(f) for f in HASHED_FILES}},
+                      sort_keys=True)  # fmt: skip
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+
+def cache_key(h: str, bundle: str, as_of: datetime) -> str:
+    return f"{CACHE_PREFIX}/{h}/{bundle}/{as_of:%Y%m%d}.npz"
+
+
+def encode(draws: Draws, diag: Diag) -> bytes:
+    buf = io.BytesIO()
+    arrays = {f"draw__{k}": v for k, v in draws.items()}
+    arrays |= {f"diag__{k}": np.array(v, dtype=np.float64) for k, v in diag.items()}
+    np.savez_compressed(buf, **arrays)  # type: ignore[arg-type]
+    return buf.getvalue()
+
+
+def decode(data: bytes) -> tuple[Draws, Diag]:
+    with np.load(io.BytesIO(data)) as z:
+        draws = {k[6:]: z[k] for k in z.files if k.startswith("draw__")}
+        diag = {k[6:]: float(z[k]) for k in z.files if k.startswith("diag__")}
+    return draws, diag
+
+
+def nuts_fitter(spec: RunSpec) -> Fitter:
+    """The production fitter: NUTS via NumPyro, then the §14.5 convergence numbers."""
+
+    def fit(fd: ts.FitData, seed: int) -> tuple[Draws, Diag]:
+        from adatta.model import diagnostics as dg
+
+        t0 = time.time()
+        idata = ts.sample(fd, seed, prior_scale=spec.prior_scale, draws=spec.draws,
+                          chains=spec.chains, target_accept=spec.target_accept,
+                          structure=spec.structure, tune=spec.tune)  # fmt: skip
+        conv = {c.name: c.value for c in dg.convergence(idata)}
+        diag = {"rhat_max": conv["rhat"], "ess_bulk_min": conv["ess_bulk"],
+                "ess_tail_min": conv["ess_tail"], "divergences": conv["divergences"],
+                "fit_s": round(time.time() - t0)}  # fmt: skip
+        return ts.slim(idata, spec.max_pred_draws), diag
+
+    return fit
+
+
+def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals: int
+                  ) -> list[dict[str, Any]]:  # fmt: skip
+    """Per target: markets from the posterior-mean score matrix, their scores, tail mass."""
+    tix = {int(t): i for i, t in enumerate(fd.team_ids)}
+    lix = {lid: i for i, lid in enumerate(fd.leagues)}
+    home = np.array([tix.get(int(t), -1) for t in targets["home"]], dtype=np.int64)
+    away = np.array([tix.get(int(t), -1) for t in targets["away"]], dtype=np.int64)
+    league = np.array([lix[int(x)] for x in targets["league_id"]], dtype=np.int64)
+    lam, mu_ = ts.rates_from_draws(draws, fd, home, away, league)
+    rho = draws["rho"]
+    out = []
+    for k, (hg, ag) in enumerate(zip(targets["hg"], targets["ag"], strict=True)):
+        mats = [dc.score_matrix(float(lam[k, d]), float(mu_[k, d]), float(rho[d]), max_goals)
+                for d in range(lam.shape[1])]  # fmt: skip
+        m = np.mean([x[0] for x in mats], axis=0)
+        mk = metrics.markets(m)
+        out.append({
+            "tail_mass": float(np.mean([x[1] for x in mats])),
+            "exp_total": float(np.mean(lam[k] + mu_[k])),
+            "p_home": mk["1X2"][0], "p_draw": mk["1X2"][1], "p_away": mk["1X2"][2],
+            "p_over25": mk["OU2.5"][0], "p_btts": mk["BTTS"][0],
+            **metrics.score_markets(mk, int(hg), int(ag)),
+        })  # fmt: skip
+    return out
+
+
+def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConfig,
+        seasons: list[int], spec: RunSpec, store: RawStore, fitter: Fitter | None = None,
+        log: Callable[[str], None] = print, limit: int | None = None
+        ) -> pl.DataFrame:  # fmt: skip
+    """Score `seasons` of one bundle on the shared refit plan. Holdout seasons raise
+    HoldoutLocked (inside refit_plan). Returns one row per target match. `limit` keeps only
+    the first N refits (smoke tests)."""
+    fitter = fitter or nuts_fitter(spec)
+    plan = harness.refit_plan(df, cfg, seasons, spec.every_days)[:limit]
+    h = config_hash(spec)
+    log(f"{bundle} seasons {seasons}: {len(plan)} refits, model {spec.model_name}, config {h}")
+    lag = cfg.result_available_after_hours
+    rows: list[dict[str, Any]] = []
+    for i, (as_of, tgt, train) in enumerate(plan):
+        fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, lag)
+        # the 1b window is the plan's training set: same rows, all observable at as_of
+        assert len(fd.hg) == len(train), "1b training window differs from the refit plan"
+        key = cache_key(h, bundle, as_of)
+        cached = try_get(store, key)
+        if cached is not None:
+            draws, diag = decode(cached)
+        else:
+            draws, diag = fitter(fd, spec.seed)
+            store.put(key, encode(draws, diag))
+        targets = df[tgt]
+        counts = np.bincount(np.concatenate([fd.home, fd.away]), minlength=len(fd.team_ids))
+        n_of = {int(t): int(counts[j]) for j, t in enumerate(fd.team_ids)}
+        for r, s in zip(targets.iter_rows(named=True),
+                        score_targets(draws, fd, targets, cfg.max_goals), strict=True):  # fmt: skip
+            n_h, n_a = n_of.get(int(r["home"]), 0), n_of.get(int(r["away"]), 0)
+            rows.append({
+                "match_id": int(r["match_id"]), "league_id": int(r["league_id"]),
+                "season": int(r["season"]), "kickoff": r["kickoff"], "as_of": as_of,
+                "hg": int(r["hg"]), "ag": int(r["ag"]), "n_train": len(train),
+                "n_prior_home": n_h, "n_prior_away": n_a,
+                "cold_start": min(n_h, n_a) < cfg.min_warmup_matches,
+                "model": spec.model_name, "bundle": bundle, "config_hash": h,
+                "cached": cached is not None, **{f"refit_{k}": v for k, v in diag.items()}, **s,
+            })  # fmt: skip
+        log(f"  refit {i + 1}/{len(plan)} as of {as_of:%Y-%m-%d}: {len(tgt)} targets, "
+            f"{'cached' if cached is not None else f'fitted in {diag.get("fit_s", 0):.0f} s'}, "
+            f"R-hat {diag.get('rhat_max', float('nan')):.3f}, "
+            f"ESS {diag.get('ess_bulk_min', float('nan')):.0f}, "
+            f"div {diag.get('divergences', float('nan')):.0f}")  # fmt: skip
+    return pl.DataFrame(rows)
+
+
+# --------------------------------------------------------------------------- assembly
+
+
+def phase1a_on_grid(df: pl.DataFrame, leagues: list[int], cfg: harness.EvalConfig,
+                    seasons: list[int], every_days: int) -> pl.DataFrame:  # fmt: skip
+    """The Phase 1a benchmark (dev-tuned half-life and prior sd) on the same refit plan."""
+    sel = cfg.phase1a_selected
+    c = cfg.model_copy(update={"refit_every_days": every_days})
+    return harness.walk_forward(df, leagues, c, sel.half_life_days, seasons, ("dixon_coles",),
+                                sel.team_prior_sd)  # fmt: skip
+
+
+def compare(pred: pl.DataFrame, challenger: str, base: str = "dixon_coles") -> pl.DataFrame:
+    """Paired challenger vs base per metric, overall (warm) and per bundle and league, plus
+    the cold-start segment. rel = relative change (negative = challenger better)."""
+    out = []
+    warm, cold = pred.filter(~pl.col("cold_start")), pred.filter(pl.col("cold_start"))
+    segs: list[tuple[str, str, pl.DataFrame]] = [("all", "all", warm), ("cold_start", "all", cold)]
+    for col in ("bundle", "league_id"):
+        for (v,), g in warm.group_by([col]):
+            segs.append((col, str(v), g))
+    for seg_type, seg, g in segs:
+        if g.filter(pl.col("model") == challenger).height == 0:
+            continue
+        for m in harness.METRICS:
+            p = harness.paired(g, m, challenger, base)
+            b = _mean(g.filter(pl.col("model") == base)[m])
+            out.append(
+                {
+                    "segment_type": seg_type,
+                    "seg": seg,
+                    "metric": m,
+                    "n": int(p["n"]),
+                    "base": b,
+                    "challenger": b + p["mean_diff"],
+                    "rel": p["mean_diff"] / b,
+                    "rel_lo": p["lo"] / b,
+                    "rel_hi": p["hi"] / b,
+                }
+            )
+    return pl.DataFrame(out).sort("segment_type", "seg", "metric")
+
+
+def predictive_sensitivity(pred: pl.DataFrame) -> list[dict[str, Any]]:
+    """Dev 1X2 log-loss change of each x0.5 / x2 prior-scale run vs its x1 run (§14.5:
+    < 0.2% relative), on the matches both scored."""
+    out = []
+    names = set(pred["model"].unique())
+    for n in sorted(names):
+        for k in ("0.5", "2"):
+            if n.endswith(f"_k{k}") and n[: -len(f"_k{k}")] in names:
+                base = n[: -len(f"_k{k}")]
+                p = harness.paired(pred.filter(~pl.col("cold_start")), "1X2:log_loss", n, base)
+                b = _mean(pred.filter((pl.col("model") == base) & ~pl.col("cold_start"))
+                          ["1X2:log_loss"])  # fmt: skip
+                rel = abs(p["mean_diff"]) / b
+                out.append({"model": base, "scale": k, "n": int(p["n"]), "rel": rel,
+                            "passed": rel < 0.002})  # fmt: skip
+    return out
+
+
+def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
+             load: Callable[[list[int]], pl.DataFrame]) -> Path:  # fmt: skip
+    """Combine 1b parts, score 1a on the same grid, write the comparison report."""
+    parts = sorted(parts_dir.glob("*.parquet"))
+    if not parts:
+        raise SystemExit(f"no parts in {parts_dir}")
+    b1 = pl.concat([pl.read_parquet(p) for p in parts], how="diagonal_relaxed")
+    every = {int(x) for x in b1["refit_every_days"].unique()} if "refit_every_days" in b1.columns \
+        else set()  # fmt: skip
+    if len(every) > 1:
+        raise SystemExit(f"parts mix refit cadences {sorted(every)}")
+    cadence = every.pop() if every else 28
+    frames, grid_ok = [b1], True
+    for bundle, g in b1.group_by("bundle"):
+        leagues = cfg.bundles[str(bundle[0])]
+        seasons = sorted(int(s) for s in g["season"].unique())
+        a = phase1a_on_grid(load(leagues), leagues, cfg, seasons, cadence)
+        a = a.with_columns(bundle=pl.lit(str(bundle[0])))
+        for name, gm in g.group_by("model"):
+            mine = set(zip(gm["match_id"], gm["as_of"], strict=True))
+            theirs = set(zip(a["match_id"], a["as_of"], strict=True))
+            if mine != theirs:
+                grid_ok = False
+                print(f"grid mismatch {bundle[0]} {name[0]}: {len(mine ^ theirs)} pairs differ")
+        frames.append(a)
+    pred = pl.concat(frames, how="diagonal_relaxed")
+    challengers = sorted(m for m in pred["model"].unique() if m != "dixon_coles")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    out = out_root / stamp
+    out.mkdir(parents=True, exist_ok=True)
+    pred.write_parquet(out / "predictions.parquet")
+    comps = {c: compare(pred, c) for c in challengers}
+    for c, t in comps.items():
+        t.write_csv(out / f"compare_{c}.csv")
+    sens = predictive_sensitivity(pred)
+    refits = (pred.filter(pl.col("model") != "dixon_coles")
+              .unique(["model", "bundle", "as_of"]))  # fmt: skip
+    diag = (
+        refits.group_by("model")
+        .agg(
+            pl.len().alias("refits"),
+            (pl.col("refit_rhat_max") > 1.01).sum().alias("rhat_over"),
+            (pl.col("refit_ess_bulk_min") < 400).sum().alias("ess_under"),
+            (pl.col("refit_divergences") > 0).sum().alias("with_divergences"),
+            pl.col("refit_rhat_max").max().alias("worst_rhat"),
+        )
+        .sort("model")
+    )
+    lines = [f"# Phase 1b dev backtest — {stamp}", "",
+             f"Refit every {cadence} days on the shared plan; grid identical to 1a: "
+             f"**{'yes' if grid_ok else 'NO'}**. Matches with either team < "
+             f"{cfg.min_warmup_matches} prior matches are cold start, reported apart.", "",
+             "## Refit diagnostics", "", "| model | refits | R-hat > 1.01 | ESS < 400 | "
+             "with divergences | worst R-hat |", "|---|---|---|---|---|---|"]  # fmt: skip
+    lines += [f"| {r['model']} | {r['refits']} | {r['rhat_over']} | {r['ess_under']} | "
+              f"{r['with_divergences']} | {r['worst_rhat']:.3f} |"
+              for r in diag.iter_rows(named=True)]  # fmt: skip
+    for c, t in comps.items():
+        lines += ["", f"## {c} vs Phase 1a (relative change; negative = 1b better)", "",
+                  "| segment | metric | n | 1a | 1b | rel | 95% interval |",
+                  "|---|---|---|---|---|---|---|"]  # fmt: skip
+        for r in t.filter(pl.col("segment_type").is_in(["all", "bundle", "cold_start"])
+                          ).iter_rows(named=True):  # fmt: skip
+            lines.append(
+                f"| {r['segment_type']} {r['seg']} | {r['metric']} | {r['n']} | "
+                f"{r['base']:.4f} | {r['challenger']:.4f} | {100 * r['rel']:+.2f}% | "
+                f"[{100 * r['rel_lo']:+.2f}%, {100 * r['rel_hi']:+.2f}%] |"
+            )
+    if sens:
+        lines += [
+            "",
+            "## Dev predictive prior sensitivity (§14.5: < 0.2%)",
+            "",
+            "| model | scale | n | 1X2 log-loss change | pass |",
+            "|---|---|---|---|---|",
+        ]
+        lines += [f"| {s['model']} | x{s['scale']} | {s['n']} | {100 * s['rel']:.3f}% | "
+                  f"{'yes' if s['passed'] else '**no**'} |" for s in sens]  # fmt: skip
+    (out / "summary.md").write_text("\n".join(lines) + "\n")
+    manifest = {
+        "run": "phase1b_dev_backtest", "created_at": stamp, "parts": [p.name for p in parts],
+        "config_hashes": sorted(b1["config_hash"].unique().to_list()),
+        "evaluation_config_hash": _file_hash("config/evaluation.yml"),
+        "lockfile_hash": _file_hash("uv.lock"), "refit_every_days": cadence,
+        "grid_identical_to_1a": grid_ok, "predictive_sensitivity": sens,
+    }  # fmt: skip
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str))
+    print("\n".join(lines))
+    return out
+
+
+def record(out: Path, session: Any, seed: int = RunSpec.seed) -> int:
+    """One model_run row (§14.8) per 1b model in an assembled report; status "ok" (a dev
+    backtest is evidence, not a promotion)."""
+    from adatta.db import models
+    from adatta.eval.baseline import _git_sha
+
+    manifest = json.loads((out / "manifest.json").read_text())
+    pred = pl.read_parquet(out / "predictions.parquet")
+    snap = pred.select("match_id", "hg", "ag").unique().sort("match_id")
+    snap_hash = hashlib.sha256(snap.write_csv().encode()).hexdigest()
+    hashes = ",".join(manifest["config_hashes"])
+    if len(hashes) > 64:
+        hashes = hashlib.sha256(hashes.encode()).hexdigest()
+    n = 0
+    s = session
+    for f in sorted(out.glob("compare_*.csv")):
+        c = pl.read_csv(f).filter(pl.col("segment_type") == "all")
+        keys = ("n", "base", "challenger", "rel", "rel_lo", "rel_hi")
+        scores = {r["metric"]: {k: r[k] for k in keys} for r in c.iter_rows(named=True)}
+        created = datetime.strptime(manifest["created_at"], "%Y%m%dT%H%M%SZ")
+        s.add(models.ModelRun(
+            model_name=f.stem.removeprefix("compare_"), component="phase1b", status="ok",
+            created_at=created.replace(tzinfo=UTC), window="dev", git_commit=_git_sha(),
+            config_hash=hashes, lockfile_hash=manifest["lockfile_hash"],
+            data_snapshot_hash=snap_hash, seed=seed, report_path=str(out),
+            backtest_scores=scores, manifest=manifest,
+        ))  # fmt: skip
+        n += 1
+    s.flush()
+    return n
+
+
+# --------------------------------------------------------------------------- CLI
+
+
+def _store(local_root: str) -> RawStore:
+    from adatta.config import Settings
+
+    s = Settings()
+    return make_store(s) if s.storage_backend == "r2" else LocalStore(local_root)
+
+
+def _load(leagues: list[int]) -> pl.DataFrame:
+    from adatta.db.session import get_session
+
+    with get_session() as s:
+        df, _ = harness.load_matches(s, leagues)
+        s.rollback()
+    return df
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    r = sub.add_parser("run")
+    r.add_argument("--bundle", required=True)
+    r.add_argument("--season", type=int, action="append", required=True)
+    r.add_argument("--structure", default="strength_open", choices=ts.STRUCTURES)
+    r.add_argument("--prior-scale", type=float, default=1.0)
+    r.add_argument("--every-days", type=int, default=None, help="default: D14 dev cadence")
+    r.add_argument("--draws", type=int, default=1000)
+    r.add_argument("--chains", type=int, default=4)
+    r.add_argument("--limit", type=int, default=None, help="first N refits only (smoke test)")
+    r.add_argument("--out", default="reports/phase1b/backtest/parts")
+    r.add_argument("--cache", default="data/cache", help="local cache root (if not R2)")
+    r.add_argument("--upload", default=None, metavar="RUN_ID",
+                   help="also put the part in the store under backtest/parts/RUN_ID/ (CI: "
+                        "match-level data stays out of public artifacts)")  # fmt: skip
+    a = sub.add_parser("assemble")
+    a.add_argument("--parts", default="reports/phase1b/backtest/parts")
+    a.add_argument("--out", default="reports/phase1b/backtest")
+    a.add_argument(
+        "--fetch",
+        nargs="*",
+        default=[],
+        metavar="RUN_ID/NAME",
+        help="first fetch these parts from the store's backtest/parts/ (several runs may be "
+        "combined, e.g. x1 with x0.5 and x2, or strength_open with independent)",
+    )
+    a.add_argument("--cache", default="data/cache")
+    a.add_argument("--record", action="store_true", help="write model_run rows to the DB")
+    a.add_argument(
+        "--upload-report",
+        action="store_true",
+        help="put the report in the store under backtest/reports/",
+    )
+    args = ap.parse_args()
+
+    cfg = harness.load_config()
+    if args.cmd == "assemble":
+        parts = Path(args.parts)
+        store = _store(args.cache)
+        parts.mkdir(parents=True, exist_ok=True)
+        for ref in args.fetch:
+            data = try_get(store, f"{CACHE_PREFIX}/parts/{ref}")
+            if data is None:  # its refit job failed: report what exists, say what is missing
+                print(f"missing part {ref} (skipped)")
+                continue
+            (parts / ref.split("/")[-1]).write_bytes(data)
+        out = assemble(parts, Path(args.out), cfg, _load)
+        if args.record:
+            from adatta.db.session import get_session
+
+            with get_session() as s:
+                n = record(out, s)
+                s.commit()
+            print(f"recorded {n} model_run rows")
+        if args.upload_report:
+            for f in out.iterdir():
+                store.put(f"{CACHE_PREFIX}/reports/{out.name}/{f.name}", f.read_bytes())
+        return
+    every = args.every_days or cfg.dev_iteration_refit_every_days
+    spec = RunSpec(structure=args.structure, prior_scale=args.prior_scale, draws=args.draws,
+                   chains=args.chains, every_days=every)  # fmt: skip
+    leagues = cfg.bundles[args.bundle]
+    df = _load(leagues)
+    t0 = time.time()
+    pred = run(df, leagues, args.bundle, cfg, args.season, spec, _store(args.cache),
+               limit=args.limit)  # fmt: skip
+    pred = pred.with_columns(refit_every_days=pl.lit(every))
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    seasons = "-".join(str(s) for s in args.season)
+    path = out / f"{spec.model_name}_{args.bundle}_{seasons}.parquet"
+    pred.write_parquet(path)
+    if args.upload:
+        _store(args.cache).put(f"{CACHE_PREFIX}/parts/{args.upload}/{path.name}",
+                               path.read_bytes())  # fmt: skip
+    warm = pred.filter(~pl.col("cold_start"))
+    print(
+        f"{len(pred)} predictions ({warm.height} warm) in {time.time() - t0:.0f} s; "
+        f"warm 1X2 log loss {_mean(warm['1X2:log_loss']):.4f}, "
+        f"OU2.5 log loss {_mean(warm['OU2.5:log_loss']):.4f} -> {path}"
+    )
+
+
+if __name__ == "__main__":
+    main()

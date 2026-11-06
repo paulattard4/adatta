@@ -9,3 +9,4 @@ __pycache__/
 data/
 *.sqlite
 dist/
+reports/phase1b/backtest/parts/

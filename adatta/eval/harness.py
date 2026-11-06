@@ -41,6 +41,11 @@ class HoldoutLocked(RuntimeError):
     pass
 
 
+class Phase1aSelected(BaseModel):
+    half_life_days: float | None
+    team_prior_sd: float | None
+
+
 class EvalConfig(BaseModel):
     backfill_start: int
     warmup_seasons: list[int]
@@ -59,6 +64,7 @@ class EvalConfig(BaseModel):
     bundles: dict[str, list[int]]
     headline_bundle: str
     phase1b_gate: dict[str, float]
+    phase1a_selected: Phase1aSelected
 
 
 def load_config(path: Path | str = "config/evaluation.yml") -> EvalConfig:
@@ -171,6 +177,35 @@ def as_of_times(first: datetime, last: datetime, every_days: int) -> list[dateti
     return out
 
 
+def refit_plan(
+    df: pl.DataFrame, cfg: EvalConfig, seasons: list[int], every_days: int
+) -> list[tuple[datetime, NDArray[np.int64], NDArray[np.int64]]]:
+    """The shared walk-forward grid: (as_of, target row indices, training row indices) for
+    every refit with at least one target and one observable training match. Every model
+    (1a, 1b) is scored on this plan, so their (match, as_of) pairs are identical."""
+    if set(seasons) & set(cfg.holdout_seasons):
+        raise HoldoutLocked(
+            f"seasons {sorted(set(seasons) & set(cfg.holdout_seasons))} are the locked holdout"
+        )
+    kick = np.array([t.timestamp() for t in df["kickoff"].to_list()]) / DAY
+    targets_mask = np.isin(df["season"].to_numpy(), seasons)
+    if not targets_mask.any():
+        return []
+    lag = cfg.result_available_after_hours / 24
+    t_first = datetime.fromtimestamp(kick[targets_mask].min() * DAY, UTC)
+    t_last = datetime.fromtimestamp(kick[targets_mask].max() * DAY, UTC)
+    plan = []
+    for asof_dt in as_of_times(t_first, t_last, every_days):
+        asof = asof_dt.timestamp() / DAY
+        tgt = np.flatnonzero(targets_mask & (kick >= asof) & (kick < asof + every_days))
+        train = np.flatnonzero((kick + lag <= asof) & (kick >= asof - cfg.lookback_days))
+        if len(tgt) and len(train):
+            # leakage guard: nothing in training was unobservable at the as-of time
+            assert (kick[train] + lag <= asof).all(), "training row not observable at as-of"
+            plan.append((asof_dt, tgt, train))
+    return plan
+
+
 def walk_forward(
     df: pl.DataFrame, leagues: list[int], cfg: EvalConfig, half_life: float | None,
     seasons: list[int], models_: tuple[str, ...] = MODELS, prior_sd: float | None = None,
@@ -178,10 +213,7 @@ def walk_forward(
 ) -> pl.DataFrame:  # fmt: skip
     """Predict and score every match of `seasons` in `df` (one bundle). Returns one row per
     match x model."""
-    if set(seasons) & set(cfg.holdout_seasons):
-        raise HoldoutLocked(
-            f"seasons {sorted(set(seasons) & set(cfg.holdout_seasons))} are the locked holdout"
-        )
+    plan = refit_plan(df, cfg, seasons, cfg.refit_every_days)
     league_idx = {lid: i for i, lid in enumerate(leagues)}
     kick = np.array([t.timestamp() for t in df["kickoff"].to_list()]) / DAY
     home_all, away_all = df["home"].to_numpy(), df["away"].to_numpy()
@@ -189,25 +221,13 @@ def walk_forward(
     hg_all, ag_all = df["hg"].to_numpy(), df["ag"].to_numpy()
     season_all = df["season"].to_numpy()
     mid_all = df["match_id"].to_numpy()
-    targets_mask = np.isin(season_all, seasons)
-    if not targets_mask.any():
+    if not plan:
         return pl.DataFrame()
-    lag = cfg.result_available_after_hours / 24
-    t_first = datetime.fromtimestamp(kick[targets_mask].min() * DAY, UTC)
-    t_last = datetime.fromtimestamp(kick[targets_mask].max() * DAY, UTC)
     rows: list[dict[str, Any]] = []
     warm: Arr | None = None
     prev_teams: NDArray[np.int64] | None = None
-    for asof_dt in as_of_times(t_first, t_last, cfg.refit_every_days):
+    for asof_dt, tgt, train in plan:
         asof = asof_dt.timestamp() / DAY
-        tgt = np.flatnonzero(targets_mask & (kick >= asof) & (kick < asof + cfg.refit_every_days))
-        if len(tgt) == 0:
-            continue
-        train = np.flatnonzero((kick + lag <= asof) & (kick >= asof - cfg.lookback_days))
-        if len(train) == 0:
-            continue
-        # leakage guard: nothing in training was unobservable at the as-of time
-        assert (kick[train] + lag <= asof).all(), "training row not observable at as-of"
         teams = np.unique(np.concatenate([home_all[train], away_all[train]]))
         tix = {int(t): i for i, t in enumerate(teams)}
         win = Window(

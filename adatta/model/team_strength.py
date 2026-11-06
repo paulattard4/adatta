@@ -191,26 +191,36 @@ def stacked(idata: Any, group: str = "posterior") -> Any:
     return ds.stack(sample=("chain", "draw"))
 
 
-def rates(idata: Any, fd: FitData, home: IntArr, away: IntArr, league: IntArr,
-          max_draws: int = 400) -> tuple[NDArray[np.float64], NDArray[np.float64]]:  # fmt: skip
-    """Posterior draws of (lambda_home, lambda_away) for matches after the training window,
-    from the final step's state. home/away index fd.team_ids; -1 = unseen team, which gets
-    the average of its league's teams at that step (cold start, reported apart)."""
+SLIM_VARS = ("attack_last", "defence_last", "mu_league", "h_league", "h_team", "sigma_home",
+             "rho")  # fmt: skip
+
+
+def slim(idata: Any, max_draws: int = 400) -> dict[str, NDArray[np.float64]]:
+    """The posterior draws prediction needs, thinned to at most `max_draws` (sample axis last).
+    A few MB per fit instead of the ~0.7 GB full trace; used for the backtest cache."""
     post = stacked(idata)
     n = post.sizes["sample"]
     take = np.linspace(0, n - 1, min(max_draws, n)).astype(int)
-    att = post["attack_last"].values[:, take]  # (team, draw)
-    dfn = post["defence_last"].values[:, take]
-    mu_l = post["mu_league"].values[:, take]
-    h_l = post["h_league"].values[:, take]
-    h_t = post["h_team"].values[:, take] * post["sigma_home"].values[take]
-    recent = fd.step > fd.step.max() - 52  # teams seen in each league over the last year
+    return {v: np.asarray(post[v].values[..., take], dtype=np.float64) for v in SLIM_VARS}
+
+
+def rates_from_draws(d: dict[str, NDArray[np.float64]], fd: FitData, home: IntArr,
+                     away: IntArr, league: IntArr
+                     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:  # fmt: skip
+    """Posterior draws of (lambda_home, lambda_away) for matches after the training window,
+    from the final step's state. home/away index fd.team_ids; -1 = unseen team, which gets
+    the average of its league's teams seen in the last 52 weeks (cold start, reported apart).
+    Pure numpy: works on the Mac and on cached draws."""
+    att, dfn = d["attack_last"], d["defence_last"]  # (team, draw)
+    mu_l, h_l = d["mu_league"], d["h_league"]  # (league, draw)
+    h_t = d["h_team"] * d["sigma_home"]
+    recent = fd.step > fd.step.max() - 52
     members = {
         lg: np.unique(np.concatenate([fd.home[recent & (fd.league == lg)],
                                       fd.away[recent & (fd.league == lg)]]))
         for lg in np.unique(league)
     }  # fmt: skip
-    zeros = np.zeros(len(take))
+    zeros = np.zeros(att.shape[1])
 
     def team(t: int, lg: int) -> tuple[NDArray[np.float64], ...]:
         if t >= 0:
@@ -225,3 +235,9 @@ def rates(idata: Any, fd: FitData, home: IntArr, away: IntArr, league: IntArr,
         out_h.append(np.exp(mu_l[lg] + h_l[lg] + ht + a_h - d_a))
         out_a.append(np.exp(mu_l[lg] + a_a - d_h))
     return np.array(out_h), np.array(out_a)
+
+
+def rates(idata: Any, fd: FitData, home: IntArr, away: IntArr, league: IntArr,
+          max_draws: int = 400) -> tuple[NDArray[np.float64], NDArray[np.float64]]:  # fmt: skip
+    """`rates_from_draws` on a full trace, thinned to `max_draws`."""
+    return rates_from_draws(slim(idata, max_draws), fd, home, away, league)

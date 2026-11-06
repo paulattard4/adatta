@@ -97,3 +97,20 @@ def test_team_prior_bounds_a_team_with_one_goalless_result() -> None:
     shrunk, _ = dc.fit(dc.MatchData(**{**d2.__dict__, "ridge": dc.ridge_for(0.35)}))
     assert abs(loose.attack[-1]) > 2  # unbounded without a prior: near-certain 0 goals
     assert abs(shrunk.attack[-1]) < 0.5
+
+
+def test_openness_penalty_gradient_and_shrinkage() -> None:
+    d, _ = simulate(rounds=2)
+    d = dc.MatchData(**{**d.__dict__, "open_ridge": 5.0})
+    rng = np.random.default_rng(1)
+    x = rng.normal(0, 0.1, dc._layout(d.n_teams, d.n_leagues)["rho"].stop)
+    _, g = dc.neg_loglik(x, d)
+
+    def f(v: dc.Arr) -> float:
+        return dc.neg_loglik(v, d)[0]
+
+    num = approx_fprime(x, f, 1e-6)
+    assert np.allclose(g, num, rtol=1e-4, atol=1e-3)
+    free, _ = dc.fit(dc.MatchData(**{**d.__dict__, "open_ridge": 0.0}))
+    shrunk, _ = dc.fit(d)
+    assert np.std(shrunk.attack - shrunk.defence) < np.std(free.attack - free.defence)

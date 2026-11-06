@@ -15,6 +15,12 @@ non-centred, with zero-sum innovations over teams (identification). Steps are ca
 weeks (refits are weekly, D11). Teams are shared across the bundle's leagues, so promoted
 and relegated teams carry their state across (§10.3).
 
+D15 (`structure="strength_open"`): each team is instead a strength walk s and an openness
+walk o (how high-scoring its games are), with attack = (s + o) / sqrt 2 and defence =
+(s - o) / sqrt 2, each with its own scale and walk sd. This is a rotation of the spec model:
+with equal scales and walk sds it is exactly the independent-prior model, so the data decide
+how hard openness is shrunk. Kept only if it passes the D15 acceptance test.
+
 Only importable where the model dependency group is installed (Linux / Docker, D13).
 """
 
@@ -29,6 +35,7 @@ import polars as pl
 from numpy.typing import NDArray
 
 IntArr = NDArray[np.int64]
+STRUCTURES = ("independent", "strength_open")
 LOG_BASE_RATE = float(np.log(1.35))
 
 
@@ -83,43 +90,63 @@ def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days
     )  # fmt: skip
 
 
-def build(fd: FitData) -> Any:
+def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent") -> Any:
+    """`prior_scale` multiplies every prior scale (the §14.5 prior-sensitivity check uses 0.5
+    and 2); 1.0 is the production model. `structure` is "independent" (spec §5.1) or
+    "strength_open" (D15)."""
+    if structure not in STRUCTURES:
+        raise ValueError(f"structure must be one of {STRUCTURES}")
     import pymc as pm
     import pytensor.tensor as pt
 
     coords = {"team": fd.team_ids.tolist(), "step": list(range(fd.n_steps)),
               "league": fd.leagues}  # fmt: skip
+    k = prior_scale
     with pm.Model(coords=coords) as model:
-        mu_league = pm.Normal("mu_league", LOG_BASE_RATE, 0.3, dims="league")
-        sigma_attack = pm.HalfNormal("sigma_attack", 0.5)
-        sigma_defence = pm.HalfNormal("sigma_defence", 0.5)
-        sigma_walk = pm.HalfNormal("sigma_walk", 0.15)
+        mu_league = pm.Normal("mu_league", LOG_BASE_RATE, 0.3 * k, dims="league")
+        if structure == "independent":
+            sigma_a = pm.HalfNormal("sigma_attack", 0.5 * k)
+            sigma_b = pm.HalfNormal("sigma_defence", 0.5 * k)
+            sigma_walk = pm.HalfNormal("sigma_walk", 0.15 * k)
+            walk_b = sigma_walk
+        else:
+            sigma_a = pm.HalfNormal("sigma_strength", 0.5 * k)
+            sigma_b = pm.HalfNormal("sigma_open", 0.5 * k)
+            sigma_walk = pm.HalfNormal("sigma_walk", 0.15 * k)
+            walk_b = pm.HalfNormal("sigma_walk_open", 0.15 * k)
         # Season reset as a multiple of the weekly step: with only 2–3 season boundaries in a
         # window, a free scale is nearly unidentified (R-hat 1.02, ESS ~270 in the first fits).
         # Prior: a reset worth ~16 weeks of drift (a transfer window), within about x2.7.
-        reset_weeks = pm.LogNormal("reset_weeks", np.log(16.0), 0.5)
-        sigma_home = pm.HalfNormal("sigma_home", 0.3)
-        h_league = pm.Normal("h_league", 0.25, 0.2, dims="league")
+        reset_weeks = pm.LogNormal("reset_weeks", np.log(16.0), 0.5 * k)
+        sigma_home = pm.HalfNormal("sigma_home", 0.3 * k)
+        h_league = pm.Normal("h_league", 0.25, 0.2 * k, dims="league")
         h_team = pm.Normal("h_team", 0.0, 1.0, dims="team")
         rho = pm.Uniform("rho", -0.2, 0.2)
 
-        sd = pt.where(
-            pt.as_tensor(fd.season_start), sigma_walk * pt.sqrt(1.0 + reset_weeks), sigma_walk
-        )
+        reset = pt.where(pt.as_tensor(fd.season_start), pt.sqrt(1.0 + reset_weeks), 1.0)
 
-        def walk(name: str, sigma0: Any) -> Any:
+        def walk(name: str, sigma0: Any, step_sd: Any, keep: bool = True) -> Any:
             # Zero-sum over teams at every step: identifies the level (it lives in mu_league)
             # without the redundant directions that re-centring after the fact leaves behind.
             z0 = pm.ZeroSumNormal(f"{name}_z0", 1.0, dims="team")
             z = pm.ZeroSumNormal(f"{name}_z", 1.0, dims=("step", "team"))
-            return pm.Deterministic(
-                name,
-                z0[None, :] * sigma0 + pt.cumsum(z * sd[:, None], axis=0),
-                dims=("step", "team"),
-            )
+            path = z0[None, :] * sigma0 + pt.cumsum(z * (step_sd * reset)[:, None], axis=0)
+            # Only the final step is stored (all prediction needs): the full path for every
+            # draw is ~0.5 GB per fit and can be rebuilt from the innovations if needed.
+            if keep:
+                pm.Deterministic(f"{name}_last", path[-1], dims="team")
+            return path
 
-        attack = walk("attack", sigma_attack)
-        defence = walk("defence", sigma_defence)
+        if structure == "independent":
+            attack = walk("attack", sigma_a, sigma_walk)
+            defence = walk("defence", sigma_b, walk_b)
+        else:
+            strength = walk("strength", sigma_a, sigma_walk, keep=False)
+            openness = walk("open", sigma_b, walk_b, keep=False)
+            attack = (strength + openness) / np.sqrt(2.0)
+            defence = (strength - openness) / np.sqrt(2.0)
+            pm.Deterministic("attack_last", attack[-1], dims="team")
+            pm.Deterministic("defence_last", defence[-1], dims="team")
         home = h_league[fd.league] + sigma_home * h_team[fd.home]
         log_lam = (mu_league[fd.league] + home + attack[fd.step, fd.home]
                    - defence[fd.step, fd.away])  # fmt: skip
@@ -136,3 +163,63 @@ def build(fd: FitData) -> Any:
         )  # fmt: skip
         pm.Potential("dixon_coles", pt.sum(pt.log(pt.maximum(tau, 1e-10))))
     return model
+
+
+def sample(fd: FitData, seed: int, *, prior_scale: float = 1.0, draws: int = 1000,
+           chains: int = 4, target_accept: float = 0.95,
+           structure: str = "independent") -> Any:  # fmt: skip
+    """NUTS via NumPyro (D10), posterior predictive goals included. Returns InferenceData."""
+    import pymc as pm
+
+    with build(fd, prior_scale, structure):
+        idata = pm.sample(
+            draws=draws, tune=draws, chains=chains, nuts_sampler="numpyro", random_seed=seed,
+            target_accept=target_accept, progressbar=False,
+        )  # fmt: skip
+        pm.sample_posterior_predictive(idata, extend_inferencedata=True, random_seed=seed,
+                                       progressbar=False)  # fmt: skip
+    return idata
+
+
+def stacked(idata: Any, group: str = "posterior") -> Any:
+    """A group of the inference data as an xarray Dataset with (chain, draw) stacked into
+    `sample` (ArviZ 1.x returns DataTree nodes, which don't stack)."""
+    node = idata[group]
+    ds = node.to_dataset() if hasattr(node, "to_dataset") else node
+    return ds.stack(sample=("chain", "draw"))
+
+
+def rates(idata: Any, fd: FitData, home: IntArr, away: IntArr, league: IntArr,
+          max_draws: int = 400) -> tuple[NDArray[np.float64], NDArray[np.float64]]:  # fmt: skip
+    """Posterior draws of (lambda_home, lambda_away) for matches after the training window,
+    from the final step's state. home/away index fd.team_ids; -1 = unseen team, which gets
+    the average of its league's teams at that step (cold start, reported apart)."""
+    post = stacked(idata)
+    n = post.sizes["sample"]
+    take = np.linspace(0, n - 1, min(max_draws, n)).astype(int)
+    att = post["attack_last"].values[:, take]  # (team, draw)
+    dfn = post["defence_last"].values[:, take]
+    mu_l = post["mu_league"].values[:, take]
+    h_l = post["h_league"].values[:, take]
+    h_t = post["h_team"].values[:, take] * post["sigma_home"].values[take]
+    recent = fd.step > fd.step.max() - 52  # teams seen in each league over the last year
+    members = {
+        lg: np.unique(np.concatenate([fd.home[recent & (fd.league == lg)],
+                                      fd.away[recent & (fd.league == lg)]]))
+        for lg in np.unique(league)
+    }  # fmt: skip
+    zeros = np.zeros(len(take))
+
+    def team(t: int, lg: int) -> tuple[NDArray[np.float64], ...]:
+        if t >= 0:
+            return att[t], dfn[t], h_t[t]
+        m = members[lg]
+        return att[m].mean(0), dfn[m].mean(0), zeros
+
+    out_h, out_a = [], []
+    for hh, aa, lg in zip(home, away, league, strict=True):
+        a_h, d_h, ht = team(int(hh), int(lg))
+        a_a, d_a, _ = team(int(aa), int(lg))
+        out_h.append(np.exp(mu_l[lg] + h_l[lg] + ht + a_h - d_a))
+        out_a.append(np.exp(mu_l[lg] + a_a - d_h))
+    return np.array(out_h), np.array(out_a)

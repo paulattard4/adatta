@@ -174,6 +174,7 @@ def as_of_times(first: datetime, last: datetime, every_days: int) -> list[dateti
 def walk_forward(
     df: pl.DataFrame, leagues: list[int], cfg: EvalConfig, half_life: float | None,
     seasons: list[int], models_: tuple[str, ...] = MODELS, prior_sd: float | None = None,
+    open_sd: float | None = None,
 ) -> pl.DataFrame:  # fmt: skip
     """Predict and score every match of `seasons` in `df` (one bundle). Returns one row per
     match x model."""
@@ -224,6 +225,7 @@ def walk_forward(
                 home=win.home, away=win.away, league=win.league, hg=win.hg, ag=win.ag,
                 weight=weights, n_teams=len(teams), n_leagues=len(leagues),
                 ridge=dc.ridge_for(prior_sd),
+                open_ridge=0.0 if open_sd is None else 1.0 / (2.0 * open_sd**2),
             )  # fmt: skip
             fitted, warm = dc.fit(data, init)
             prev_teams = teams
@@ -246,6 +248,7 @@ def walk_forward(
                 "as_of": asof_dt, "hg": int(hg_all[k]), "ag": int(ag_all[k]),
                 "n_train": len(train), "n_prior_home": n_h, "n_prior_away": n_a,
                 "cold_start": min(n_h, n_a) < cfg.min_warmup_matches,
+                "exp_total": float("nan"),
             }  # fmt: skip
             for model in models_:
                 tail = 0.0
@@ -260,6 +263,7 @@ def walk_forward(
                     p = dc.Params(fitted.mu, fitted.mu_league, fitted.home_league, att, dfn,
                                   fitted.rho)  # fmt: skip
                     lam, mu_ = p.rates(ia[0], ia[1], np.array([lg]))
+                    base["exp_total"] = float(lam[0] + mu_[0])
                     m, tail = dc.score_matrix(float(lam[0]), float(mu_[0]), p.rho, cfg.max_goals)
                     mk = metrics.markets(m)
                 elif model == "league_poisson":

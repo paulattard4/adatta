@@ -35,6 +35,8 @@ dev = [
 # so it runs in the Docker image (docker/model.Dockerfile) and on GitHub runners.
 model = [
     "arviz>=1.3.0",
+    "h5netcdf>=1.8.2",
+    "h5py>=3.16.0",
     "jax>=0.12.0.1",
     "numpyro>=0.22.0",
     "pymc>=6.4.0",

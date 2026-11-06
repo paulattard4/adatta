@@ -52,6 +52,34 @@ Order matters (§14.5): the diagnostics gate first, the backtest comparison seco
 - **D14 Dev iteration cadence — resolved:** refit every 4 weeks while iterating (all models
   on the same grid); weekly for the final dev run and the holdout.
 
+### D15 strength + openness: acceptance test (stated 2026-11-06, before building)
+
+Dev window only, 28-day refit grid (D14), every model on the same grid:
+- **Phase 1a probe** (static, minutes): adding an openness prior to the static model raises
+  the actual-on-predicted total-goals slope towards 1 and improves OU2.5 log loss and total
+  CRPS, with 1X2 log loss not worse than 0.1% relative. This tests the mechanism only; the
+  1a benchmark itself stays as tuned (D7) unless a later decision changes it.
+- **Phase 1b model:** the §14.5 total-goals dispersion PPC passes for both England leagues at
+  2023-08-07 and every other gate check still passes or is no worse; then, once the harness
+  runs 1b (task 4), dev OU2.5 log loss and total CRPS improve and 1X2 log loss is not worse
+  than 0.5% relative vs the independent-prior 1b model.
+- **Phase 1a probe result (2026-11-06): pass.** Static model, half-life 365, prior sd 0.5,
+  18,601 warm dev matches, openness sd grid {none, 0.4, 0.25, 0.15, 0.1, 0.05}. Best
+  0.15: slope 0.53 -> 1.04 (second tiers 0.24 -> 0.47); OU2.5 log loss -0.51% (paired 95%
+  interval excludes 0), total CRPS -0.60% (excludes 0), BTTS -0.34%, 1X2 log loss -0.04%
+  (interval includes 0, so no worse). Second tiers remain overspread: open item.
+- **Phase 1b gate result (2026-11-06, England as of 2023-08-07, 4 x 1,000 draws): the
+  dispersion PPC now passes in both leagues** (Championship quantile 0.006 -> 0.088, PPC
+  median 1.057 -> 1.018 vs observed 0.971; PL 0.73). The data shrink openness hard:
+  sigma_open 0.058 vs sigma_strength 0.28, openness walk sd 0.005 vs 0.028. Other checks
+  unchanged or still passing: 0 divergences, prior and predictive sensitivity pass, seed
+  reproducible, identifiability |corr| <= 0.13. Bulk ESS minimum fell 718 -> 407
+  (sigma_strength, just above 400). Still failing, as before: one innovation at R-hat 1.011
+  (was 1.010) and truncation at max_goals 10 (85%). Fits 13–18 min. Remaining D15 test:
+  the dev harness comparison once task 4 exists.
+- Failing either: revert to the spec model and record the misfit as known (affects totals
+  markets, not 1X2).
+
 ## Tasks
 
 ### 1. Data for Layer 2 (D8 follow-through)

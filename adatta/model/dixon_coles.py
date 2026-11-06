@@ -14,6 +14,8 @@ location. An L2 penalty ridge * (attack^2 + defence^2), i.e. a fixed Normal(0, s
 ridge = 1 / (2 sd^2), stops a team with one or two results (e.g. two 0-0 draws after
 promotion) from getting an unbounded rating; sd is tuned on the dev window. It is a fixed
 regulariser, not a learned hierarchy, so the model stays non-hierarchical.
+An optional extra penalty open_ridge * (attack - defence)^2 shrinks each team's openness
+(how high-scoring its games are) separately from its strength (D15 probe; 0 = off).
 """
 
 from __future__ import annotations
@@ -45,6 +47,7 @@ class MatchData:
     n_teams: int
     n_leagues: int
     ridge: float = RIDGE
+    open_ridge: float = 0.0  # L2 on openness = attack - defence (D15); 0 = off
 
 
 def ridge_for(prior_sd: float | None) -> float:
@@ -150,10 +153,12 @@ def neg_loglik(x: Arr, d: MatchData) -> tuple[float, Arr]:
 
     total = float(ll.sum())
     a, dd = x[s["attack"]], x[s["defence"]]
-    pen = SUM_PENALTY * (a.sum() ** 2 + dd.sum() ** 2) + d.ridge * ((a**2).sum() + (dd**2).sum())
+    o = a - dd
+    pen = (SUM_PENALTY * (a.sum() ** 2 + dd.sum() ** 2) + d.ridge * ((a**2).sum() + (dd**2).sum())
+           + d.open_ridge * (o**2).sum())  # fmt: skip
     g_pen = np.zeros_like(x)
-    g_pen[s["attack"]] = 2 * SUM_PENALTY * a.sum() + 2 * d.ridge * a
-    g_pen[s["defence"]] = 2 * SUM_PENALTY * dd.sum() + 2 * d.ridge * dd
+    g_pen[s["attack"]] = 2 * SUM_PENALTY * a.sum() + 2 * d.ridge * a + 2 * d.open_ridge * o
+    g_pen[s["defence"]] = 2 * SUM_PENALTY * dd.sum() + 2 * d.ridge * dd - 2 * d.open_ridge * o
     return -total + pen, -g + g_pen
 
 

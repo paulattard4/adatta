@@ -245,7 +245,8 @@ The CI assembly compared 1a on a joint 5-season grid while each 1b part was plan
 season, so up to 4 weeks separated the two models' fits for the same match (grid check
 said NO). Fixed (assembly now plans 1a exactly as each part was planned) and re-assembled
 locally from the R2 parts: `reports/phase1b/backtest/20261106T124229Z` (grid identical).
-The `model_run` row written by the CI run holds the uncorrected comparison.
+The `model_run` row written by the CI run held the uncorrected comparison; it was deleted
+on 2026-11-06, with that run's R2 parts and report (the 1,000-draw fits stay cached in R2).
 
 Results, 18,591 warm matches, 1b vs 1a (negative = 1b better):
 - **1X2: no gain.** Log loss +0.03% [−0.05, +0.11], RPS +0.06% [−0.06, +0.17]. Acceptance
@@ -279,6 +280,27 @@ Both remaining misses are the 2022-12-26 refit, the first after the winter World
 (backtest default, workflow default); the full dev backtest should be rerun at 2,000 for
 all bundles before the audit sample, and the World Cup refit looked at (target_accept or a
 break-aware step) if it still misses.
+
+### Full dev backtest at 2,000 draws (2026-11-06)
+
+Run 42239760464 (commit 4bb5218), all 5 bundles x 2019–2023, 266 refits, 26/26 jobs green,
+grid identical to 1a. Report `reports/phase1b/backtest/20261106T161314Z` (R2), recorded as
+`model_run` 3.
+
+- **Sampling: clean.** R-hat > 1.01 in 2 of 266 refits (Germany 2022-12-26 1.013, Italy
+  2019-12-09 1.011), bulk ESS < 400 in 0, divergences in 2 (Spain 2022-12-26: 2, Italy
+  2019-08-19: 1). Was 160 / 22 / 4 at 1,000 draws. The World Cup refit (2022-12-26) is
+  marginal but no longer systematic; not worth a special case.
+- **Scores: unchanged from 1,000 draws** (all within 0.02 points), so the earlier
+  conclusions stand, now on clean sampling:
+  1X2 log loss +0.03% [−0.05, +0.11], RPS +0.06% [−0.05, +0.18] (no gain; acceptance
+  item 2 still fails); OU2.5 log loss −0.35% [−0.56, −0.13], total CRPS −0.41%
+  [−0.61, −0.22]; cold start 1X2 log loss −1.18% [−1.84, −0.52]; La Liga/Spain +0.12%
+  [−0.04, +0.28]; promoted/relegated bias unchanged.
+- **Reading:** a weekly random walk on strength adds nothing over a static fit with a
+  365-day half-life on 1X2 at a 28-day refit cadence. The gains are in totals (D15
+  openness) and cold start (hierarchical shrinkage). Task 5 components (AR(1) form, xG
+  auxiliary likelihood) are where a 1X2 gain would have to come from.
 
 ### 5. Components, each added only if it earns its place on dev
 - [ ] AR(1) short-term form, phi in (0, 1) (§5.2).

@@ -237,6 +237,29 @@ Acceptance test (stated 2026-11-06, before building):
       report. Built 2026-11-06, not yet dispatched. Parts and full reports go to R2; the
       only artifact is the metrics summary (public repo).
 
+### First dev backtest (2026-11-06)
+
+GitHub Actions run 42210383573: phase1b_strength_open, prior scale 1, all 5 bundles x dev
+seasons 2019–2023, 28-day grid, 266 refits (~140 s each on the runners), 26/26 jobs green.
+The CI assembly compared 1a on a joint 5-season grid while each 1b part was planned per
+season, so up to 4 weeks separated the two models' fits for the same match (grid check
+said NO). Fixed (assembly now plans 1a exactly as each part was planned) and re-assembled
+locally from the R2 parts: `reports/phase1b/backtest/20261106T124229Z` (grid identical).
+The `model_run` row written by the CI run holds the uncorrected comparison.
+
+Results, 18,591 warm matches, 1b vs 1a (negative = 1b better):
+- **1X2: no gain.** Log loss +0.03% [−0.05, +0.11], RPS +0.06% [−0.06, +0.17]. Acceptance
+  item 2 (1b beats 1a, interval excluding 0) **fails**; the holdout gate needs >= 1.0%.
+  Per bundle: Italy −0.14% (RPS −0.34%, excludes 0), England −0.02%, Germany +0.04%,
+  France +0.11%, Spain +0.16% (La Liga +0.32%, interval excludes 0).
+- **Totals: better (D15).** OU2.5 log loss −0.34% [−0.55, −0.12], total CRPS −0.41%
+  [−0.60, −0.21]; BTTS −0.14% (includes 0).
+- **Cold start: better.** 663 matches, 1X2 log loss −1.06% [−1.73, −0.39].
+- **Promoted / relegated bias: unchanged** (promoted 1–10 −0.161, relegated 11+ +0.118).
+- **Sampling, per refit:** 160 of 266 refits have R-hat > 1.01 (most 1.010–1.014; worst
+  1.025, Germany), 22 have ESS < 400 (13 Spain), 4 have divergences (3 Spain). The §14.5
+  audit sample would fail on these as things stand.
+
 ### 5. Components, each added only if it earns its place on dev
 - [ ] AR(1) short-term form, phi in (0, 1) (§5.2).
 - [ ] xG auxiliary likelihood where `has_xg` holds (joint goals + xG likelihood).

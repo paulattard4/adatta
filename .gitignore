@@ -10,3 +10,4 @@ data/
 *.sqlite
 dist/
 reports/phase1b/backtest/parts/
+reports/phase1b/backtest/*/predictions.parquet

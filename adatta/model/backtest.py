@@ -312,9 +312,18 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
     frames, grid_ok = [b1], True
     for bundle, g in b1.group_by("bundle"):
         leagues = cfg.bundles[str(bundle[0])]
-        seasons = sorted(int(s) for s in g["season"].unique())
-        a = phase1a_on_grid(load(leagues), leagues, cfg, seasons, cadence)
-        a = a.with_columns(bundle=pl.lit(str(bundle[0])))
+        # 1a must use the same refit plans as the parts: a plan's 28-day grid starts at its
+        # first target, so a part planned for one season has a different phase from a plan
+        # over several. Each part records its plan's seasons (older parts: one per season).
+        if "plan_seasons" in g.columns:
+            plans = sorted(set(g["plan_seasons"].to_list()))
+        else:
+            plans = [str(int(s)) for s in sorted(g["season"].unique())]
+        df_b = load(leagues)
+        a = pl.concat([
+            phase1a_on_grid(df_b, leagues, cfg, [int(x) for x in plan.split("-")], cadence)
+            for plan in plans
+        ], how="diagonal_relaxed").with_columns(bundle=pl.lit(str(bundle[0])))  # fmt: skip
         for name, gm in g.group_by("model"):
             mine = set(zip(gm["match_id"], gm["as_of"], strict=True))
             theirs = set(zip(a["match_id"], a["as_of"], strict=True))
@@ -523,7 +532,10 @@ def main() -> None:
     t0 = time.time()
     pred = run(df, leagues, args.bundle, cfg, args.season, spec, _store(args.cache),
                limit=args.limit)  # fmt: skip
-    pred = pred.with_columns(refit_every_days=pl.lit(every))
+    pred = pred.with_columns(
+        refit_every_days=pl.lit(every),
+        plan_seasons=pl.lit("-".join(str(s) for s in sorted(args.season))),
+    )
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     seasons = "-".join(str(s) for s in args.season)

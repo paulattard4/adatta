@@ -171,3 +171,26 @@ def test_prepare_records_moves_and_pending_shift_applies() -> None:
     sh_h, sh_a = ts.rates_from_draws(*args, np.array([1]), np.array([0]))
     assert np.allclose(sh_h / base_h, np.exp(-0.4 / np.sqrt(2)))
     assert np.allclose(sh_a / base_a, np.exp(0.4 / np.sqrt(2)))
+
+
+def test_assemble_matches_per_season_plans(tmp_path: Path) -> None:
+    """Parts planned one season at a time must be compared with 1a planned the same way."""
+    df, cfg = matches((2017, 2018, 2019, 2020)), config()
+    # start 2020 two weeks later, so a joint 28-day grid is out of phase with its own
+    df = df.with_columns(
+        kickoff=pl.when(pl.col("season") == 2020)
+        .then(pl.col("kickoff") + timedelta(days=14))
+        .otherwise(pl.col("kickoff"))
+    )
+    parts = tmp_path / "parts"
+    parts.mkdir()
+    for season in (2019, 2020):
+        p = bt.run(df, LEAGUES, "england", cfg, [season], bt.RunSpec(every_days=28),
+                   LocalStore(tmp_path / "c"), FakeFitter(), log=lambda _: None)  # fmt: skip
+        p.with_columns(refit_every_days=pl.lit(28), plan_seasons=pl.lit(str(season))
+                       ).write_parquet(parts / f"{season}.parquet")  # fmt: skip
+    joint = {a for a, _, _ in harness.refit_plan(df, cfg, [2019, 2020], 28)}
+    single = {a for s in (2019, 2020) for a, _, _ in harness.refit_plan(df, cfg, [s], 28)}
+    assert joint != single  # the phases really differ, so the test is meaningful
+    out = bt.assemble(parts, tmp_path / "out", cfg, lambda _: df)
+    assert "grid identical to 1a: **yes**" in (out / "summary.md").read_text()

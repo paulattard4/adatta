@@ -1,0 +1,39 @@
+{
+  "run": "phase1b_dev_backtest",
+  "created_at": "20261106T124229Z",
+  "parts": [
+    "phase1b_strength_open_england_2019.parquet",
+    "phase1b_strength_open_england_2020.parquet",
+    "phase1b_strength_open_england_2021.parquet",
+    "phase1b_strength_open_england_2022.parquet",
+    "phase1b_strength_open_england_2023.parquet",
+    "phase1b_strength_open_france_2019.parquet",
+    "phase1b_strength_open_france_2020.parquet",
+    "phase1b_strength_open_france_2021.parquet",
+    "phase1b_strength_open_france_2022.parquet",
+    "phase1b_strength_open_france_2023.parquet",
+    "phase1b_strength_open_germany_2019.parquet",
+    "phase1b_strength_open_germany_2020.parquet",
+    "phase1b_strength_open_germany_2021.parquet",
+    "phase1b_strength_open_germany_2022.parquet",
+    "phase1b_strength_open_germany_2023.parquet",
+    "phase1b_strength_open_italy_2019.parquet",
+    "phase1b_strength_open_italy_2020.parquet",
+    "phase1b_strength_open_italy_2021.parquet",
+    "phase1b_strength_open_italy_2022.parquet",
+    "phase1b_strength_open_italy_2023.parquet",
+    "phase1b_strength_open_spain_2019.parquet",
+    "phase1b_strength_open_spain_2020.parquet",
+    "phase1b_strength_open_spain_2021.parquet",
+    "phase1b_strength_open_spain_2022.parquet",
+    "phase1b_strength_open_spain_2023.parquet"
+  ],
+  "config_hashes": [
+    "14e56614d255a135"
+  ],
+  "evaluation_config_hash": "3cd31e1b55fcb52b6bc39bb7e687fb2067ab8c8ddbf87a896ff8e70c76c204fc",
+  "lockfile_hash": "3f056c3e23b972618ba6791dc426dd6d2370998ce090cdd44ab46c879e0c3394",
+  "refit_every_days": 28,
+  "grid_identical_to_1a": true,
+  "predictive_sensitivity": []
+}

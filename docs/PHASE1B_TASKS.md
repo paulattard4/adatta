@@ -249,7 +249,7 @@ on 2026-11-06, with that run's R2 parts and report (the 1,000-draw fits stay cac
 
 Results, 18,591 warm matches, 1b vs 1a (negative = 1b better):
 - **1X2: no gain.** Log loss +0.03% [−0.05, +0.11], RPS +0.06% [−0.06, +0.17]. Acceptance
-  item 2 (1b beats 1a, interval excluding 0) **fails**; the holdout gate needs >= 1.0%.
+  item 2 (1b beats 1a, interval excluding 0) **fails**; the holdout gate needs >= 1.0% (before D18).
   Per bundle: Italy −0.14% (RPS −0.34%, excludes 0), England −0.02%, Germany +0.04%,
   France +0.11%, Spain +0.16% (La Liga +0.32%, interval excludes 0).
 - **Totals: better (D15).** OU2.5 log loss −0.34% [−0.55, −0.12], total CRPS −0.41%

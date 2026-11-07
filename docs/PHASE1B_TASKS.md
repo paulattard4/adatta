@@ -167,10 +167,21 @@ promoted or relegated team's matches in its first season in the new tier.
       versioned, not overwritten. Loaded 2026-11-05 by `adatta stats-load`: 82,336 rows for
       41,168 matches (the other 8,308 finished matches, mostly cups, have no statistics
       block). New matches get detail and stats from the daily `detail` capture job.
-- [ ] xG gating by the capability table per league-season (available from 2022/23 only for
-      the Top-5, 2023 for the Championship; other second tiers mostly absent).
-- [ ] Probe `/coachs` coverage (D12); if adequate, a `manager_tenure` table and a
-      `manager_change` flag per team-matchweek.
+- [x] xG gating by the capability table per league-season (available from 2022/23 only for
+      the Top-5, 2023 for the Championship; other second tiers mostly absent): `harness.load_xg`.
+- [x] Manager data (D12), measured 2026-11-07 from the stored detail payloads, 0 API requests,
+      so the `/coachs` probe was not needed. Before looking, adequate meant: a coach id on at
+      least 98% of team-matches in the 10 bundle leagues, about 0.5 to 1.5 changes per
+      team-season, and few spurious flips. Result: **adequate.** 79,002 of 79,306 regular-season
+      team-matches 2016–2026 (99.6%) have `lineups.coach.id`; the lowest league-season is
+      Segunda 2018 at 94.6%, and the gaps are whole matches without lineups. 2,214 coach
+      changes, 0.7 to 1.2 per team-season (740 at a team's first match of a season, the rest
+      in-season); median spell 19 matches; 276 spells of 1–2 matches (caretakers); 23 A-B-A
+      interruptions of 3 matches or fewer. A change is known from the new coach's first
+      lineup (about an hour before kickoff), so in training it is observable; a change after a
+      refit's as-of is unknown for its targets. `/coachs` stays a fallback for appointment
+      dates. Next: a `manager_change` flag per team-step from these lineups (no new table
+      needed until a coach table is wanted), then the widening component.
 - [x] Migration: allow `model_run.status` values `challenger` and `rejected` (§14.6), in 0006.
 
 ### 2. Model v1: Layers 1–2 on goals (PyMC)

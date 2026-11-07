@@ -140,7 +140,7 @@ everywhere · `unavailable` = verified absent from the source · `unverified` = 
    start date (first fixture with the field, refined by a denser sample around it).
 3. **Venue coordinates.** This conflicts with App. C ("Weather, altitude: available"). It needs a
    geocoding step and a venue table before Phase 2.
-4. **Not yet probed:** `/players/squads`, `/transfers`, `/coachs`, Open-Meteo, odds retention
+4. **Not yet probed:** `/players/squads`, `/transfers`, `/coachs` (not needed for 1b: coach per match from stored lineups covers 99.6% of bundle team-matches, measured 2026-11-07), Open-Meteo, odds retention
    window, and injury coverage outside PL 2025.
 5. **Update cadence and licensing** columns stay open until snapshot capture runs and the
    API-Football / Open-Meteo / Transfermarkt terms are reviewed.

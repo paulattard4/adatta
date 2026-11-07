@@ -471,6 +471,27 @@ weeks before the as-of); "other" is the rest:
    (a median under 1 week would mean no widening is wanted).
 - Failing: record it as failed and keep the code off by default, as for D16.
 
+Result (2026-11-07, run 42367775370, commit 57eff38, report `backtest/reports/20261107T131824Z`
+in R2): **failed; the code stays off by default.** All 266 refits and 18,591 warm matches,
+paired with the reference run 42359964241.
+- Item 1, gate: not run; item 3 fails.
+- Item 2, mixing: **passes.** R-hat over 1.01 in 1 refit against 3 for the reference (worst
+  1.013 for both), ESS under 400 in 0 against 0, divergences in 1 against 2.
+- Item 3, accuracy: **fails on its main condition.** On the 3,264 recent-change targets, 1X2
+  log loss is -0.00% [-0.07%, +0.06%] and RPS -0.02% [-0.12%, +0.08%], so there is no gain. The
+  other conditions hold: on all warm targets 1X2 log loss is -0.01% [-0.03%, +0.02%], RPS -0.02%,
+  OU2.5 +0.01% and CRPS +0.02% [+0.00%, +0.03%]. On 1X2 log loss every bundle is within 0.3%
+  (England -0.04%, France -0.02%, Germany +0.03%, Italy -0.03%, Spain +0.03%).
+- Item 4, other targets: passes. 1X2 log loss on the 15,327 other targets is -0.01%
+  [-0.03%, +0.02%].
+- Item 5, sense: **the data do not inform change_weeks.** In every bundle the posterior stays
+  on its prior: the median of refit medians is 7.3 to 9.7 weeks against a prior median of 8,
+  and the posterior sd of log change_weeks is 0.92 to 0.98 of the prior's. With about one
+  change per team-season and a window of a few matches, the results carry too little
+  information to fit it, so any widening is set by the prior.
+- Against Phase 1a the combined model is unchanged from the reference: 1X2 -0.06%
+  [-0.17%, +0.04%].
+
 ### 6. Promotion
 - [ ] Inference gate passes (acceptance item 1).
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and

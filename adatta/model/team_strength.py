@@ -37,8 +37,9 @@ phi^h m_last / sqrt 2 to each. Kept only if it passes its acceptance test.
 xG auxiliary signal (`xg=True`, §5.2): where a training match has xG for both sides (the
 has_xg gate, `harness.load_xg`), each side adds xG ~ Gamma(mean = lambda exp(xg_bias[league]),
 shape = xg_shape), on the same rate as its goals. xg_shape ~ LogNormal(log 4, 0.5); xg_bias ~
-Normal(0, 0.1). Prediction is unchanged, and a window with no xG is the goals model. Kept
-only if it passes its acceptance test.
+Normal(0, 0.1). Prediction is unchanged, and a window with no xG is the goals model. Passed
+its acceptance test on 2026-11-07 and is on in the production RunSpec; `build` and `sample`
+keep it off unless asked.
 
 Only importable where the model dependency group is installed (Linux / Docker, D13).
 """

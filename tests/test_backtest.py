@@ -102,7 +102,8 @@ def test_cache_encoding_and_config_hash() -> None:
     d2, g2 = bt.decode(bt.encode(draws, diag))
     assert g2 == diag and all(np.array_equal(draws[k], d2[k]) for k in draws)
     assert bt.config_hash(bt.RunSpec()) != bt.config_hash(bt.RunSpec(prior_scale=2.0))
-    assert bt.RunSpec(prior_scale=0.5).model_name == "phase1b_strength_open_k0.5"
+    assert bt.RunSpec(prior_scale=0.5).model_name == "phase1b_strength_open_xg_k0.5"
+    assert bt.RunSpec(xg=False).model_name == "phase1b_strength_open"
 
 
 def test_assemble_compares_on_the_same_grid(tmp_path: Path) -> None:
@@ -117,10 +118,10 @@ def test_assemble_compares_on_the_same_grid(tmp_path: Path) -> None:
     out = bt.assemble(parts, tmp_path / "out", cfg, lambda _: df)
     summary = (out / "summary.md").read_text()
     assert "grid identical to 1a: **yes**" in summary
-    assert "phase1b_strength_open vs Phase 1a" in summary
+    assert "phase1b_strength_open_xg vs Phase 1a" in summary
     assert "Dev predictive prior sensitivity" in summary
     assert "Promoted / relegated teams" in summary
-    assert (out / "compare_phase1b_strength_open.csv").exists()
+    assert (out / "compare_phase1b_strength_open_xg.csv").exists()
 
 
 def test_record_writes_one_model_run_per_challenger(tmp_path: Path) -> None:
@@ -141,7 +142,7 @@ def test_record_writes_one_model_run_per_challenger(tmp_path: Path) -> None:
     with Session(engine) as s:
         assert bt.record(out, s) == 1
         row = s.scalars(select(models.ModelRun)).one()
-        assert row.model_name == "phase1b_strength_open" and row.window == "dev"
+        assert row.model_name == "phase1b_strength_open_xg" and row.window == "dev"
         assert "1X2:log_loss" in row.backtest_scores
 
 
@@ -211,7 +212,7 @@ def test_form_fades_with_horizon() -> None:
         lift = 0.3 * 0.5**h / np.sqrt(2)
         assert np.allclose(f_h[i] / b_h[i], np.exp(lift))  # home's form lifts its attack
         assert np.allclose(f_a[i] / b_a[i], np.exp(-lift))  # and its defence
-    assert bt.RunSpec(form=True).model_name == "phase1b_strength_open_ar1"
+    assert bt.RunSpec(form=True, xg=False).model_name == "phase1b_strength_open_ar1"
     assert bt.config_hash(bt.RunSpec()) != bt.config_hash(bt.RunSpec(form=True))
 
 
@@ -225,7 +226,7 @@ def test_assemble_compares_with_a_reference_1b_model(tmp_path: Path) -> None:
     parts = tmp_path / "parts"
     parts.mkdir()
     for form in (False, True):
-        spec = bt.RunSpec(every_days=28, form=form)
+        spec = bt.RunSpec(every_days=28, form=form, xg=False)
         p = bt.run(df, LEAGUES, "england", cfg, [2019], spec, LocalStore(tmp_path / "c"),
                    FakeFitter(), log=lambda _: None)  # fmt: skip
         p.with_columns(refit_every_days=pl.lit(28)).write_parquet(parts / f"{form}.parquet")

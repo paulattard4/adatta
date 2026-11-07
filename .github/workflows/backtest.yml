@@ -22,9 +22,9 @@ on:
         type: boolean
         default: false
       xg:
-        description: "xG auxiliary likelihood (strength_open only)"
+        description: "xG auxiliary likelihood (production; set false for independent or a no-xG comparison)"
         type: boolean
-        default: false
+        default: true
       vs:
         description: "optional reference, RUN_ID/MODEL (e.g. 42239760464/phase1b_strength_open): its parts are fetched and every model is also compared with it"
         default: ""
@@ -87,7 +87,7 @@ jobs:
           --upload ${{ github.run_id }}
           ${{ inputs.shifts && '--shifts' || '' }}
           ${{ inputs.form && '--form' || '' }}
-          ${{ inputs.xg && '--xg' || '' }}
+          ${{ inputs.xg && '--xg' || '--no-xg' }}
   assemble:
     needs: refit
     if: ${{ !cancelled() }}

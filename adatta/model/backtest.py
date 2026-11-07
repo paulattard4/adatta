@@ -59,7 +59,7 @@ class RunSpec:
     max_pred_draws: int = 400
     shifts: bool = False  # D16 promotion / relegation shift
     form: bool = False  # AR(1) short-term form (§5.2)
-    xg: bool = False  # xG auxiliary likelihood (§5.2)
+    xg: bool = True  # xG auxiliary likelihood (§5.2); production since 2026-11-07
 
     @property
     def model_name(self) -> str:
@@ -528,7 +528,12 @@ def main() -> None:
     r.add_argument("--prior-scale", type=float, default=1.0)
     r.add_argument("--shifts", action="store_true", help="D16 promotion/relegation shift")
     r.add_argument("--form", action="store_true", help="AR(1) short-term form (§5.2)")
-    r.add_argument("--xg", action="store_true", help="xG auxiliary likelihood (§5.2)")
+    r.add_argument(
+        "--xg",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="xG auxiliary likelihood (§5.2); default on for strength_open",
+    )
     r.add_argument("--every-days", type=int, default=None, help="default: D14 dev cadence")
     r.add_argument("--draws", type=int, default=2000)
     r.add_argument("--chains", type=int, default=4)
@@ -590,9 +595,11 @@ def main() -> None:
     every = args.every_days or cfg.dev_iteration_refit_every_days
     spec = RunSpec(structure=args.structure, prior_scale=args.prior_scale, draws=args.draws,
                    chains=args.chains, every_days=every, shifts=args.shifts,
-                   form=args.form, xg=args.xg)  # fmt: skip
+                   form=args.form,
+                   xg=args.structure == "strength_open" if args.xg is None else args.xg,
+                   )  # fmt: skip
     leagues = cfg.bundles[args.bundle]
-    df = _load(leagues, args.xg)
+    df = _load(leagues, spec.xg)
     t0 = time.time()
     pred = run(df, leagues, args.bundle, cfg, args.season, spec, _store(args.cache),
                limit=args.limit)  # fmt: skip

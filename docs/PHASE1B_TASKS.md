@@ -356,7 +356,7 @@ not change the verdict, because item 2 fails on the refits already counted.
 - Reading the report: with a challenger incomplete, the `base` column of `compare` still
   averages every base match, so it does not match the paired n. `rel` and its interval use the
   paired differences; only their denominator is that wider mean, which changes nothing here.
-- [ ] xG auxiliary likelihood where `has_xg` holds (joint goals + xG likelihood).
+- [x] xG auxiliary likelihood where `has_xg` holds (joint goals + xG likelihood).
 
 #### xG auxiliary likelihood: design and acceptance test (stated 2026-11-07, before building)
 
@@ -425,6 +425,9 @@ jobs succeeded, 110 refits each for xG and the reference, none from the cache.
 - Limits: most of the gain is in 2023/24 (-0.74% [-1.22%, -0.27%]); the 638 informed matches
   of 2022/23 show -0.10% [-0.80%, +0.59%]. On all 2022–23 dev matches, 1b with xG vs Phase 1a
   is -0.17% [-0.37%, +0.04%], so it does not yet beat 1a with an interval excluding 0.
+- Turned on in the production configuration (2026-11-07): `RunSpec.xg` defaults to true, so
+  the 1b model is `phase1b_strength_open_xg`; the backtest's `xg` input defaults to true, and
+  `--no-xg` gives the goals-only model for comparisons.
 - [ ] Manager-change widening of sigma_walk for a fixed post-change window (if D12 allows).
 
 ### 6. Promotion

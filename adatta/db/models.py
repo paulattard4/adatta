@@ -478,6 +478,23 @@ class MarketProjection(Base):
     )
 
 
+class MatchCoach(Temporal, Base):
+    """The coach named in a team's lineup for one match (Phase 1b, D12), parsed from the
+    stored detail payload. Known from the lineup release, about an hour before kickoff; the
+    model reads it only for training matches (kickoff + result lag). A re-fetch naming a
+    different coach supersedes the row instead of overwriting it."""
+
+    __tablename__ = "match_coach"
+    coach_row_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    team_id: Mapped[int] = mapped_column(ForeignKey("team.team_id"))
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    storage_key: Mapped[str] = mapped_column(String(255))
+    coach_ref: Mapped[str] = mapped_column(String(64))
+    coach_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    __table_args__ = (Index("ix_match_coach", "match_id", "team_id", "superseded_at"),)
+
+
 class TeamMatchStat(Temporal, Base):
     """Post-match team statistics for one match x team (Phase 1b, D8), parsed from the stored
     detail payload. Usable for a prediction as of kickoff + result lag, like the result.

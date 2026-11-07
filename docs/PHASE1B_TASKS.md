@@ -441,6 +441,36 @@ jobs succeeded, 110 refits each for xG and the reference, none from the cache.
   `--no-xg` gives the goals-only model for comparisons.
 - [ ] Manager-change widening of sigma_walk for a fixed post-change window (if D12 allows).
 
+#### Manager-change widening: design and acceptance test (stated 2026-11-07, before building)
+
+Design (`manager=True`, strength_open; off by default; §5.2 "regime changes"):
+- Data: the coach in each team's lineup (`match_coach`, from the stored detail payloads, D12).
+  A change is a team's match whose coach differs from its previous known coach, using only
+  matches observable at the as-of (training matches, kickoff + 3h); a coach missing from a
+  lineup carries the previous one. A team's first known coach is not a change.
+- Model: for the 6 weekly steps from a change (the window, fixed here), the team's strength
+  innovation sd is multiplied by sqrt(1 + change_weeks / 6), so a change adds change_weeks
+  weeks' worth of drift spread over 6 weeks. Innovations are re-centred over teams so the
+  walk stays zero-sum. Prior change_weeks ~ LogNormal(log 8, 0.75 k). Openness is unchanged,
+  and so is prediction (it reads the last state). Caretaker spells count as changes.
+- No coach data for a window means the model is unchanged (principle 8).
+
+Acceptance test, dev only, 28-day grid, all five dev seasons, against the production model
+`phase1b_strength_open_xg` on the same grid (run 42359964241). "Recent change" means a warm
+target where either team's last training step is inside a change window (a change in the 6
+weeks before the as-of); "other" is the rest:
+1. **Gate (§14.5)** on England as of 2023-08-07, with change_weeks in the prior-sensitivity
+   headline; run only if item 3 passes.
+2. **Mixing:** no more refits over R-hat 1.01 / under ESS 400 / with divergences than the
+   reference on the same refits, give or take 2.
+3. **Accuracy:** on recent-change targets, 1X2 log loss improves with the paired 95% interval
+   excluding 0. On all warm targets: 1X2 log loss and RPS not worse; OU2.5 log loss and total
+   CRPS not worse than 0.1%; no bundle worse than 0.3% on 1X2 log loss.
+4. **Other targets:** 1X2 log loss within 0.1% of the reference.
+5. **Sense:** change_weeks reported per bundle; its posterior should move away from the prior
+   (a median under 1 week would mean no widening is wanted).
+- Failing: record it as failed and keep the code off by default, as for D16.
+
 ### 6. Promotion
 - [ ] Inference gate passes (acceptance item 1).
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and

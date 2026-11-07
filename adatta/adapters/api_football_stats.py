@@ -41,3 +41,16 @@ def team_stats(fx: dict[str, Any]) -> list[dict[str, Any]]:
         row["possession"] = _float(raw.get("Ball Possession"))
         out.append(row)
     return out
+
+
+def match_coaches(fx: dict[str, Any]) -> list[dict[str, Any]]:
+    """One dict per team whose lineup names a coach: team_ref, coach_ref, coach_name (D12).
+    A lineup without a coach id gives no row (absent, never imputed)."""
+    out = []
+    for lu in fx.get("lineups") or []:
+        coach = lu.get("coach") or {}
+        if coach.get("id") is None or not (lu.get("team") or {}).get("id"):
+            continue
+        out.append({"team_ref": str(lu["team"]["id"]), "coach_ref": str(coach["id"]),
+                    "coach_name": coach.get("name")})  # fmt: skip
+    return out

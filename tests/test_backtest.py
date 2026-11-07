@@ -270,3 +270,43 @@ def test_assemble_splits_xg_informed_from_control(tmp_path: Path) -> None:
     out = bt.assemble(parts, tmp_path / "out", cfg, lambda _: df, "phase1b_strength_open")
     summary = (out / "summary.md").read_text()
     assert "| xg informed |" in summary and "| xg control |" in summary
+
+
+def with_coaches(df: pl.DataFrame, team: int, change_at: datetime) -> pl.DataFrame:
+    """Every team keeps coach "c<team>", except `team`, which gets "new" from `change_at`."""
+
+    def coach(side: str) -> pl.Expr:
+        new = (pl.col(side) == team) & (pl.col("kickoff") >= change_at)
+        return pl.when(new).then(pl.lit("new")).otherwise(pl.lit("c") + pl.col(side).cast(pl.Utf8))
+
+    return df.with_columns(coach_home=coach("home"), coach_away=coach("away"))
+
+
+def test_coach_change_widens_only_its_window_and_never_sees_targets() -> None:
+    base = matches()
+    as_of = base["kickoff"][800]
+    df = with_coaches(base, 1003, as_of - timedelta(days=20))
+    fd = ts.prepare(df, LEAGUES, as_of, 3650)
+    assert fd.mgr is not None
+    j = int(np.flatnonzero(fd.team_ids == 1003)[0])
+    assert fd.mgr[:, j].sum() == min(ts.MGR_WINDOW_WEEKS, fd.mgr[:, j].nonzero()[0].size)
+    assert fd.mgr[-1, j] == 1.0 and fd.mgr[:, np.arange(len(fd.team_ids)) != j].sum() == 0
+    # a change after as_of (a target's lineup) is not visible
+    late = ts.prepare(with_coaches(base, 1003, as_of + timedelta(days=3)), LEAGUES, as_of, 3650)
+    assert late.mgr is not None and late.mgr.sum() == 0
+    assert ts.prepare(base, LEAGUES, as_of, 3650).mgr is None  # not loaded: no widening
+
+
+def test_assemble_splits_recent_manager_changes(tmp_path: Path) -> None:
+    base, cfg = matches(), config()
+    df = with_coaches(base, 1003, datetime(2019, 10, 1, tzinfo=UTC))
+    parts = tmp_path / "parts"
+    parts.mkdir()
+    for flag in (False, True):
+        spec = bt.RunSpec(every_days=28, xg=False, manager=flag)
+        p = bt.run(df, LEAGUES, "england", cfg, [2019], spec, LocalStore(tmp_path / "c"),
+                   FakeFitter(), log=lambda _: None)  # fmt: skip
+        p.with_columns(refit_every_days=pl.lit(28)).write_parquet(parts / f"{flag}.parquet")
+    out = bt.assemble(parts, tmp_path / "out", cfg, lambda _: base, "phase1b_strength_open")
+    summary = (out / "summary.md").read_text()
+    assert "| manager recent |" in summary and "| manager other |" in summary

@@ -60,12 +60,14 @@ class RunSpec:
     shifts: bool = False  # D16 promotion / relegation shift
     form: bool = False  # AR(1) short-term form (§5.2)
     xg: bool = True  # xG auxiliary likelihood (§5.2); production since 2026-11-07
+    manager: bool = False  # manager-change widening (§5.2, D12)
 
     @property
     def model_name(self) -> str:
         k = "" if self.prior_scale == 1.0 else f"_k{self.prior_scale:g}"
         tags = ("_d16" if self.shifts else "") + ("_ar1" if self.form else "")
         tags += "_xg" if self.xg else ""
+        tags += "_mgr" if self.manager else ""
         return f"phase1b_{self.structure}{tags}{k}"
 
 
@@ -115,7 +117,8 @@ def nuts_fitter(spec: RunSpec) -> Fitter:
         idata = ts.sample(fd, seed, prior_scale=spec.prior_scale, draws=spec.draws,
                           chains=spec.chains, target_accept=spec.target_accept,
                           structure=spec.structure, tune=spec.tune,
-                          shifts=spec.shifts, form=spec.form, xg=spec.xg)  # fmt: skip
+                          shifts=spec.shifts, form=spec.form, xg=spec.xg,
+                          manager=spec.manager)  # fmt: skip
         checks = dg.convergence(idata)
         conv = {c.name: c.value for c in checks}
         # parameter names only (metrics, no data): which parameter is slowest to mix
@@ -199,6 +202,11 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
         n_of = {int(t): int(counts[j]) for j, t in enumerate(fd.team_ids)}
         n_xg = np.bincount(fd.league[fd.xg_rows], minlength=len(fd.leagues))
         lix = {lid: j for j, lid in enumerate(fd.leagues)}
+        # teams with a coach change in the last window before as_of (manager segment)
+        recent = set() if fd.mgr is None else {
+            int(t) for j, t in enumerate(fd.team_ids) if fd.mgr[-1, j] > 0
+        }  # fmt: skip
+
         for r, s in zip(targets.iter_rows(named=True),
                         score_targets(draws, fd, targets, cfg.max_goals), strict=True):  # fmt: skip
             n_h, n_a = n_of.get(int(r["home"]), 0), n_of.get(int(r["away"]), 0)
@@ -210,6 +218,8 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
                 "mover_home": int(r["mover_home"]), "mover_away": int(r["mover_away"]),
                 "n_prior_home": n_h, "n_prior_away": n_a,
                 "n_xg_league": int(n_xg[lix[int(r["league_id"])]]),
+                **({"mgr_recent": int(r["home"]) in recent or int(r["away"]) in recent}
+                   if fd.mgr is not None else {}),
                 "cold_start": min(n_h, n_a) < cfg.min_warmup_matches,
                 "model": spec.model_name, "bundle": bundle, "config_hash": h,
                 "cached": cached is not None, **{f"refit_{k}": v for k, v in diag.items()}, **s,
@@ -250,6 +260,9 @@ def compare(pred: pl.DataFrame, challenger: str, base: str = "dixon_coles",
     if horizons and "xg_informed" in warm.columns:
         segs.append(("xg", "informed", warm.filter(pl.col("xg_informed"))))
         segs.append(("xg", "control", warm.filter(~pl.col("xg_informed"))))
+    if horizons and "mgr_recent" in warm.columns:
+        segs.append(("manager", "recent", warm.filter(pl.col("mgr_recent"))))
+        segs.append(("manager", "other", warm.filter(~pl.col("mgr_recent"))))
     if "mover_home" in warm.columns:  # D16 segments: a promoted / relegated team plays
         for code, name in ((1, "promoted"), (2, "relegated")):
             g = warm.filter((pl.col("mover_home") == code) | (pl.col("mover_away") == code))
@@ -364,6 +377,9 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
     if "n_xg_league" in pred.columns:  # per match, so the reference gets the same segments
         informed = pred.filter(pl.col("n_xg_league") >= XG_MIN_MATCHES)["match_id"].unique()
         pred = pred.with_columns(xg_informed=pl.col("match_id").is_in(informed.to_list()))
+    if "mgr_recent" in pred.columns:  # per match, so the reference gets the same segments
+        recent = pred.filter(pl.col("mgr_recent").fill_null(False))["match_id"].unique()
+        pred = pred.with_columns(mgr_recent=pl.col("match_id").is_in(recent.to_list()))
     if reference is not None and reference not in set(pred["model"].unique()):
         raise SystemExit(f"reference model {reference} is not among the parts")
     challengers = sorted(m for m in pred["model"].unique() if m != "dixon_coles")
@@ -416,7 +432,7 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
         lines += ["", f"## {c} vs {reference} (relative change; negative = {c} better)", "",
                   "| segment | metric | n | reference | challenger | rel | 95% interval |",
                   "|---|---|---|---|---|---|---|"]  # fmt: skip
-        shown = ["all", "bundle", "xg", "horizon", "mover", "cold_start"]
+        shown = ["all", "bundle", "xg", "manager", "horizon", "mover", "cold_start"]
         for r in t.filter(pl.col("segment_type").is_in(shown)).iter_rows(named=True):
             lines.append(
                 f"| {r['segment_type']} {r['seg']} | {r['metric']} | {r['n']} | "
@@ -507,13 +523,15 @@ def _store(local_root: str) -> RawStore:
     return make_store(s) if s.storage_backend == "r2" else LocalStore(local_root)
 
 
-def _load(leagues: list[int], xg: bool = False) -> pl.DataFrame:
+def _load(leagues: list[int], xg: bool = False, manager: bool = False) -> pl.DataFrame:
     from adatta.db.session import get_session
 
     with get_session() as s:
         df, _ = harness.load_matches(s, leagues)
         if xg:
             df = df.join(harness.load_xg(s, leagues), on="match_id", how="left")
+        if manager:
+            df = df.join(harness.load_coaches(s, leagues), on="match_id", how="left")
         s.rollback()
     return df
 
@@ -534,6 +552,7 @@ def main() -> None:
         default=None,
         help="xG auxiliary likelihood (§5.2); default on for strength_open",
     )
+    r.add_argument("--manager", action="store_true", help="manager-change widening (§5.2)")
     r.add_argument("--every-days", type=int, default=None, help="default: D14 dev cadence")
     r.add_argument("--draws", type=int, default=2000)
     r.add_argument("--chains", type=int, default=4)
@@ -597,9 +616,9 @@ def main() -> None:
                    chains=args.chains, every_days=every, shifts=args.shifts,
                    form=args.form,
                    xg=args.structure == "strength_open" if args.xg is None else args.xg,
-                   )  # fmt: skip
+                   manager=args.manager)  # fmt: skip
     leagues = cfg.bundles[args.bundle]
-    df = _load(leagues, spec.xg)
+    df = _load(leagues, spec.xg, spec.manager)
     t0 = time.time()
     pred = run(df, leagues, args.bundle, cfg, args.season, spec, _store(args.cache),
                limit=args.limit)  # fmt: skip

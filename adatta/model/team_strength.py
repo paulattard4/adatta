@@ -41,6 +41,13 @@ Normal(0, 0.1). Prediction is unchanged, and a window with no xG is the goals mo
 its acceptance test on 2026-11-07 and is on in the production RunSpec; `build` and `sample`
 keep it off unless asked.
 
+Manager-change widening (`manager=True`, strength_open, §5.2 regime changes, D12): for the
+MGR_WINDOW_WEEKS steps from a coach change (from lineups, training matches only), the team's
+strength innovation sd is multiplied by sqrt(1 + change_weeks / MGR_WINDOW_WEEKS);
+innovations are re-centred over teams so the walk stays zero-sum. change_weeks ~
+LogNormal(log 8, 0.75). Prediction reads the last state, so it is unchanged. Kept only if it
+passes its acceptance test.
+
 Only importable where the model dependency group is installed (Linux / Docker, D13).
 """
 
@@ -58,6 +65,7 @@ IntArr = NDArray[np.int64]
 STRUCTURES = ("independent", "strength_open")
 LOG_BASE_RATE = float(np.log(1.35))
 XG_FLOOR = 0.01  # a Gamma has no mass at 0
+MGR_WINDOW_WEEKS = 6  # steps a coach change widens the walk for (fixed before testing)
 
 
 @dataclass(frozen=True)
@@ -81,6 +89,8 @@ class FitData:
     # xG per training match, NaN where absent (None: not loaded)
     xg_home: NDArray[np.float64] | None = None
     xg_away: NDArray[np.float64] | None = None
+    # (step, team): 1 inside a coach-change window, else 0 (None: coaches not loaded)
+    mgr: NDArray[np.float64] | None = None
 
     @property
     def xg_rows(self) -> IntArr:
@@ -138,6 +148,16 @@ def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days
     )  # fmt: skip
     xg = {c: d[c].cast(pl.Float64).fill_null(np.nan).to_numpy() if c in d.columns else None
           for c in ("xg_home", "xg_away")}  # fmt: skip
+    mgr = None
+    if "coach_home" in hist.columns:  # D12: changes from every observable lineup up to as_of
+        mgr = np.zeros((n_steps, len(teams)))
+        for team, kick in coach_changes(hist):
+            if team not in tix:
+                continue
+            s0 = (kick - start).days // 7
+            lo_s, hi_s = max(s0, 0), min(s0 + MGR_WINDOW_WEEKS, n_steps)
+            if lo_s < hi_s:
+                mgr[lo_s:hi_s, tix[team]] = 1.0
     return FitData(
         home=np.array([tix[int(t)] for t in d["home"]], dtype=np.int64),
         away=np.array([tix[int(t)] for t in d["away"]], dtype=np.int64),
@@ -145,12 +165,26 @@ def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days
         step=step, hg=d["hg"].to_numpy().astype(np.int64), ag=d["ag"].to_numpy().astype(np.int64),
         season_start=season_start, team_ids=teams.astype(np.int64), leagues=leagues,
         start=start, n_steps=n_steps, moved_up=moved[1], moved_down=moved[2],
-        team_seasons=seasons_seen, xg_home=xg["xg_home"], xg_away=xg["xg_away"],
+        team_seasons=seasons_seen, xg_home=xg["xg_home"], xg_away=xg["xg_away"], mgr=mgr,
     )  # fmt: skip
 
 
+def coach_changes(hist: pl.DataFrame) -> list[tuple[int, datetime]]:
+    """(team id, kickoff) of every match whose lineup coach differs from the team's previous
+    known coach, in kickoff order. A missing coach carries the previous one; a team's first
+    known coach is not a change. `hist` must hold only matches observable at the as-of."""
+    sides = pl.concat([
+        hist.select("kickoff", team=pl.col(t), coach=pl.col(c))
+        for t, c in (("home", "coach_home"), ("away", "coach_away"))
+    ]).drop_nulls("coach").sort("team", "kickoff")  # fmt: skip
+    sides = sides.with_columns(prev=pl.col("coach").shift(1).over("team"))
+    ch = sides.filter(pl.col("prev").is_not_null() & (pl.col("coach") != pl.col("prev")))
+    return [(int(t), k) for t, k in zip(ch["team"], ch["kickoff"], strict=True)]
+
+
 def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
-          shifts: bool = False, form: bool = False, xg: bool = False) -> Any:  # fmt: skip
+          shifts: bool = False, form: bool = False, xg: bool = False,
+          manager: bool = False) -> Any:  # fmt: skip
     """`prior_scale` multiplies every prior scale (the §14.5 prior-sensitivity check uses 0.5
     and 2); 1.0 is the production model. `structure` is "independent" (spec §5.1) or
     "strength_open" (D15)."""
@@ -162,6 +196,8 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
         raise ValueError("AR(1) form needs structure='strength_open' (it moves strength)")
     if xg and structure != "strength_open":
         raise ValueError("the xG signal needs structure='strength_open'")
+    if manager and structure != "strength_open":
+        raise ValueError("manager-change widening needs structure='strength_open'")
     import pymc as pm
     import pytensor.tensor as pt
 
@@ -189,12 +225,17 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
 
         reset = pt.where(pt.as_tensor(fd.season_start), pt.sqrt(1.0 + reset_weeks), 1.0)
 
-        def walk(name: str, sigma0: Any, step_sd: Any, keep: bool = True) -> Any:
+        def walk(name: str, sigma0: Any, step_sd: Any, keep: bool = True,
+                 team_scale: Any = None) -> Any:  # fmt: skip
             # Zero-sum over teams at every step: identifies the level (it lives in mu_league)
             # without the redundant directions that re-centring after the fact leaves behind.
             z0 = pm.ZeroSumNormal(f"{name}_z0", 1.0, dims="team")
             z = pm.ZeroSumNormal(f"{name}_z", 1.0, dims=("step", "team"))
-            path = z0[None, :] * sigma0 + pt.cumsum(z * (step_sd * reset)[:, None], axis=0)
+            innov = z * (step_sd * reset)[:, None]
+            if team_scale is not None:  # per-team widening, re-centred to stay zero-sum
+                innov = innov * team_scale
+                innov = innov - innov.mean(axis=1, keepdims=True)
+            path = z0[None, :] * sigma0 + pt.cumsum(innov, axis=0)
             # Only the final step is stored (all prediction needs): the full path for every
             # draw is ~0.5 GB per fit and can be rebuilt from the innovations if needed.
             if keep:
@@ -205,7 +246,11 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
             attack = walk("attack", sigma_a, sigma_walk)
             defence = walk("defence", sigma_b, sigma_walk)
         else:
-            strength = walk("strength", sigma_a, sigma_walk, keep=False)
+            team_scale = None
+            if manager and fd.mgr is not None and fd.mgr.any():
+                change_weeks = pm.LogNormal("change_weeks", np.log(8.0), 0.75 * k)
+                team_scale = pt.sqrt(1.0 + change_weeks * fd.mgr / MGR_WINDOW_WEEKS)
+            strength = walk("strength", sigma_a, sigma_walk, keep=False, team_scale=team_scale)
             if shifts:
                 assert fd.moved_up is not None and fd.moved_down is not None
                 delta = pm.Normal("delta", 0.0, 0.2 * k, shape=2)  # (up, down)
@@ -283,12 +328,13 @@ def ar1_form(n_steps: int, k: float = 1.0) -> Any:
 def sample(fd: FitData, seed: int, *, prior_scale: float = 1.0, draws: int = 1000,
            chains: int = 4, target_accept: float = 0.95,
            structure: str = "independent", tune: int | None = None,
-           shifts: bool = False, form: bool = False, xg: bool = False) -> Any:  # fmt: skip
+           shifts: bool = False, form: bool = False, xg: bool = False,
+           manager: bool = False) -> Any:  # fmt: skip
     """NUTS via NumPyro (D10), posterior predictive goals included. Returns InferenceData.
     `tune` defaults to `draws`; a longer warm-up improves adaptation without a larger trace."""
     import pymc as pm
 
-    with build(fd, prior_scale, structure, shifts, form, xg):
+    with build(fd, prior_scale, structure, shifts, form, xg, manager):
         idata = pm.sample(
             draws=draws, tune=draws if tune is None else tune, chains=chains,
             nuts_sampler="numpyro", random_seed=seed, target_accept=target_accept,
@@ -318,7 +364,7 @@ def slim(idata: Any, max_draws: int = 400) -> dict[str, NDArray[np.float64]]:
     n = post.sizes["sample"]
     take = np.linspace(0, n - 1, min(max_draws, n)).astype(int)
     # optional: delta (D16), form_last and phi (AR(1) form), xg_shape and xg_bias (xG)
-    extra = ("delta", "form_last", "phi", "xg_shape", "xg_bias")
+    extra = ("delta", "form_last", "phi", "xg_shape", "xg_bias", "change_weeks")
     names = [v for v in (*SLIM_VARS, *extra) if v in post.data_vars]
     return {v: np.asarray(post[v].values[..., take], dtype=np.float64) for v in names}
 

@@ -76,3 +76,46 @@ def load_team_stats(session: Session, store: RawStore, workers: int = 8) -> dict
                 counts["files"] += 1
             session.commit()
     return counts
+
+
+def load_match_coaches(session: Session, store: RawStore, workers: int = 8) -> dict[str, int]:
+    """Parse match_coach rows from stored payloads for every returned detail lacking them
+    (D12). Resumable like load_team_stats; matches without a coach in either lineup are
+    re-read on the next run, which costs reads only."""
+    D, M, C = models.MatchDetail, models.Match, models.MatchCoach
+    rows = session.execute(
+        select(D.storage_key, D.match_id, M.source_ref, D.observed_at)
+        .join(M, M.match_id == D.match_id)
+        .where(D.flags["returned"].as_boolean(),
+               D.match_id.not_in(select(C.match_id).distinct()))
+    ).all()  # fmt: skip
+    pending: dict[str, list[tuple[int, str, Any]]] = defaultdict(list)
+    for key, mid, ref, seen in rows:
+        pending[key].append((mid, ref, seen))
+    keys = sorted(pending)
+    counts = {"files": 0, "matches": 0, "rows": 0, "no_coach": 0}
+
+    def fetch(key: str) -> tuple[str, dict[str, Any]]:
+        return key, json.loads(gzip.decompress(store.get(key)))
+
+    with ThreadPoolExecutor(workers) as pool:
+        for i in range(0, len(keys), BATCH_KEYS):
+            for key, payload in pool.map(fetch, keys[i : i + BATCH_KEYS]):
+                by_ref = {str(fx["fixture"]["id"]): fx for fx in payload.get("response", [])}
+                parsed = {ref: stats_adapter.match_coaches(by_ref[ref])
+                          for _, ref, _ in pending[key] if ref in by_ref}  # fmt: skip
+                teams = normalize.teams_by_ref(
+                    session, {r["team_ref"]: r["team_ref"] for rs in parsed.values() for r in rs}
+                )
+                for mid, ref, seen in pending[key]:
+                    found = parsed.get(ref) or []
+                    if not found:
+                        counts["no_coach"] += 1
+                        continue
+                    counts["rows"] += normalize.ingest_match_coaches(
+                        session, mid, found, key, seen, new_match=True, teams=teams
+                    )
+                    counts["matches"] += 1
+                counts["files"] += 1
+            session.commit()
+    return counts

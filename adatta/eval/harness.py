@@ -145,6 +145,33 @@ def load_xg(session: Session, league_ids: list[int]) -> pl.DataFrame:
     )
 
 
+def load_coaches(session: Session, league_ids: list[int]) -> pl.DataFrame:
+    """The coach in each side's lineup per match (D12), as coach_home / coach_away refs; a
+    side with no coach row is null (carried forward by the model, never imputed)."""
+    M, S, C, K = models.Match, models.Season, models.Competition, models.MatchCoach
+    rows = session.execute(
+        select(M.match_id, M.home_team_id, M.away_team_id, K.team_id, K.coach_ref)
+        .join(S, S.season_id == M.season_id)
+        .join(C, C.competition_id == S.competition_id)
+        .join(K, K.match_id == M.match_id)
+        .where(
+            C.source_id == SOURCE_ID,
+            C.source_ref.in_([str(i) for i in league_ids]),
+            K.superseded_at.is_(None),
+        )
+    ).all()  # fmt: skip
+    sides: dict[int, dict[str, str]] = {}
+    for match_id, home, away, team, coach in rows:
+        side = "coach_home" if team == home else "coach_away" if team == away else None
+        if side is not None:
+            sides.setdefault(match_id, {})[side] = str(coach)
+    return pl.DataFrame(
+        [{"match_id": m, "coach_home": v.get("coach_home"), "coach_away": v.get("coach_away")}
+         for m, v in sides.items()],
+        schema={"match_id": pl.Int64, "coach_home": pl.Utf8, "coach_away": pl.Utf8},
+    )  # fmt: skip
+
+
 # --------------------------------------------------------------------------- models
 
 

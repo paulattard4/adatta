@@ -25,6 +25,10 @@ on:
         description: "xG auxiliary likelihood (production; set false for independent or a no-xG comparison)"
         type: boolean
         default: true
+      manager:
+        description: "manager-change widening (strength_open only)"
+        type: boolean
+        default: false
       vs:
         description: "optional reference, RUN_ID/MODEL (e.g. 42239760464/phase1b_strength_open): its parts are fetched and every model is also compared with it"
         default: ""
@@ -50,7 +54,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: backtest-${{ inputs.structure }}-${{ inputs.shifts }}-${{ inputs.form }}-${{ inputs.xg }}-${{ inputs.prior_scale }}
+  group: backtest-${{ inputs.structure }}-${{ inputs.shifts }}-${{ inputs.form }}-${{ inputs.xg }}-${{ inputs.manager }}-${{ inputs.prior_scale }}
   cancel-in-progress: false
 env:
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -88,6 +92,7 @@ jobs:
           ${{ inputs.shifts && '--shifts' || '' }}
           ${{ inputs.form && '--form' || '' }}
           ${{ inputs.xg && '--xg' || '--no-xg' }}
+          ${{ inputs.manager && '--manager' || '' }}
   assemble:
     needs: refit
     if: ${{ !cancelled() }}
@@ -106,6 +111,7 @@ jobs:
           SHIFTS: ${{ inputs.shifts }}
           FORM: ${{ inputs.form }}
           XG: ${{ inputs.xg }}
+          MANAGER: ${{ inputs.manager }}
           VS: ${{ inputs.vs }}
           BUNDLES: ${{ inputs.bundles }}
           SEASONS: ${{ inputs.seasons }}
@@ -113,7 +119,7 @@ jobs:
           names=$(uv run python -c "
           import json, os
           from adatta.model.backtest import RunSpec
-          m = RunSpec(structure=os.environ['STRUCTURE'], prior_scale=float(os.environ['PRIOR_SCALE']), shifts=os.environ['SHIFTS'] == 'true', form=os.environ['FORM'] == 'true', xg=os.environ['XG'] == 'true').model_name
+          m = RunSpec(structure=os.environ['STRUCTURE'], prior_scale=float(os.environ['PRIOR_SCALE']), shifts=os.environ['SHIFTS'] == 'true', form=os.environ['FORM'] == 'true', xg=os.environ['XG'] == 'true', manager=os.environ['MANAGER'] == 'true').model_name
           runs = [('${{ github.run_id }}', m)] + ([tuple(os.environ['VS'].split('/', 1))] if os.environ['VS'] else [])
           print(' '.join(f'{r}/{n}_{b}_{s}.parquet' for r, n in runs for b in json.loads(os.environ['BUNDLES']) for s in json.loads(os.environ['SEASONS'])))")
           vs=()

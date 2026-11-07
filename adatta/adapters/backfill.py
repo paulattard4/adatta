@@ -120,6 +120,10 @@ def fetch_detail(
                     session, by_ref[ref].match_id, stats_adapter.team_stats(fx),
                     client.last_storage_key or "", now,
                 )  # fmt: skip
+                normalize.ingest_match_coaches(
+                    session, by_ref[ref].match_id, stats_adapter.match_coaches(fx),
+                    client.last_storage_key or "", now,
+                )  # fmt: skip
         on_commit()
         session.commit()
         done += len(batch)

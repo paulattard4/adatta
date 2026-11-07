@@ -214,6 +214,16 @@ def register_run(report: str = typer.Argument(..., help="baseline report folder"
         typer.echo(f"model_run {row.model_run_id} recorded for {folder}")
 
 
+@app.command("coach-load")
+def coach_load(workers: int = typer.Option(8, help="parallel raw-store reads")) -> None:
+    """Build match_coach from stored detail payloads (no API requests, D12). Resumable."""
+    from adatta.adapters.detail_store import load_match_coaches
+
+    with get_session() as session:
+        counts = load_match_coaches(session, make_store(get_settings()), workers)
+    typer.echo(counts)
+
+
 @app.command("stats-load")
 def stats_load(workers: int = typer.Option(8, help="parallel raw-store reads")) -> None:
     """Build team_match_stat from stored detail payloads (no API requests). Resumable."""

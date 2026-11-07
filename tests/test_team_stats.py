@@ -84,3 +84,43 @@ def test_rebuild_from_raw_store_is_resumable(tmp_path: Path) -> None:
         "no_stats": 0,
     }
     assert load_team_stats(s, store, workers=2)["files"] == 0  # nothing left to do
+
+
+def lineups(fid: int, coach_home: int | None = 7, coach_away: int | None = 8) -> dict[str, Any]:
+    def lu(team: int, coach: int | None) -> dict[str, Any]:
+        return {"team": {"id": team}, "coach": {"id": coach, "name": f"C{coach}"}}
+
+    return {"fixture": {"id": fid}, "lineups": [lu(10, coach_home), lu(20, coach_away)]}
+
+
+def test_coach_parsing_skips_missing_ids() -> None:
+    rows = st.match_coaches(lineups(1, coach_away=None))
+    assert rows == [{"team_ref": "10", "coach_ref": "7", "coach_name": "C7"}]
+    assert st.match_coaches({"fixture": {"id": 1}}) == []
+
+
+def test_coach_ingest_versions_a_changed_coach() -> None:
+    s, mid = setup()
+    t0, t1 = datetime(2023, 9, 2, tzinfo=UTC), datetime(2023, 9, 3, tzinfo=UTC)
+    assert normalize.ingest_match_coaches(s, mid, st.match_coaches(lineups(1)), "k", t0) == 2
+    assert normalize.ingest_match_coaches(s, mid, st.match_coaches(lineups(1)), "k", t1) == 0
+    assert normalize.ingest_match_coaches(s, mid, st.match_coaches(lineups(1, 9)), "k2", t1) == 1
+    live = s.scalars(select(models.MatchCoach).where(models.MatchCoach.superseded_at.is_(None)))
+    assert sorted(c.coach_ref for c in live) == ["8", "9"]
+
+
+def test_coaches_rebuild_from_raw_store(tmp_path: Path) -> None:
+    from adatta.adapters.detail_store import load_match_coaches
+
+    s, mid = setup()
+    store = LocalStore(tmp_path)
+    blob, _ = encode_payload({"response": [lineups(1)]})
+    store.put("api_football/fixtures/c.json.gz", blob)
+    s.add(models.MatchDetail(match_id=mid, source_id="api_football",
+                             storage_key="api_football/fixtures/c.json.gz",
+                             observed_at=datetime(2023, 9, 2, tzinfo=UTC),
+                             flags={"returned": True}))  # fmt: skip
+    s.commit()
+    assert load_match_coaches(s, store, workers=2) == {"files": 1, "matches": 1, "rows": 2,
+                                                       "no_coach": 0}  # fmt: skip
+    assert load_match_coaches(s, store, workers=2)["files"] == 0  # resumable

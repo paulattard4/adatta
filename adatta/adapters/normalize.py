@@ -329,3 +329,38 @@ def ingest_team_stats(
         )  # fmt: skip
         added += 1
     return added
+
+
+def ingest_match_coaches(
+    session: Session, match_id: int, rows: list[dict[str, Any]], storage_key: str,
+    observed_at: datetime, new_match: bool = False,
+    teams: dict[str, models.Team] | None = None,
+) -> int:  # fmt: skip
+    """Insert match_coach rows for one match; supersede a current row naming a different
+    coach, skip identical ones. Returns rows added (same contract as ingest_team_stats)."""
+    if not rows:
+        return 0
+    C = models.MatchCoach
+    if teams is None or any(r["team_ref"] not in teams for r in rows):
+        teams = teams_by_ref(session, {r["team_ref"]: r["team_ref"] for r in rows})
+    current: dict[int, models.MatchCoach] = {} if new_match else {
+        c.team_id: c
+        for c in session.scalars(select(C).where(C.match_id == match_id,
+                                                 C.superseded_at.is_(None)))
+    }  # fmt: skip
+    added = 0
+    for r in rows:
+        team_id = teams[r["team_ref"]].team_id
+        cur = current.get(team_id)
+        if cur is not None:
+            if cur.coach_ref == r["coach_ref"]:
+                continue
+            cur.superseded_at = observed_at
+            cur.valid_to = observed_at
+        session.add(
+            C(match_id=match_id, team_id=team_id, source_id=SOURCE_ID, storage_key=storage_key,
+              coach_ref=r["coach_ref"], coach_name=r["coach_name"], observed_at=observed_at,
+              valid_from=observed_at)
+        )  # fmt: skip
+        added += 1
+    return added

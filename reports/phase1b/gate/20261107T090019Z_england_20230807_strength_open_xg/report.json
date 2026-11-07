@@ -1,0 +1,237 @@
+{
+  "bundle": "england",
+  "structure": "strength_open",
+  "as_of": "2023-08-07T00:00:00+00:00",
+  "passed": true,
+  "code_sha": "7a574d56c9ecc5c79d011030f5db282d702d1cd0",
+  "config_hash": "85343a139fed7a59f4e33a2338ff3a4cd4b548f7d0f20cf746aab38f668f8fd7",
+  "lockfile_hash": "3f056c3e23b972618ba6791dc426dd6d2370998ce090cdd44ab46c879e0c3394",
+  "seed": 20261105,
+  "draws": 2000,
+  "chains": 4,
+  "tune": 2000,
+  "trace_path": "data/traces/england_20230807_strength_open_xg_k1_4x2000.nc",
+  "timings_s": {
+    "fit_scale_1": 4,
+    "fit_scale_0.5": 1,
+    "fit_scale_2": 858
+  },
+  "runtime_s": 1767,
+  "n_matches": 2808,
+  "n_targets": 87,
+  "logloss_1x2_by_prior_scale": {
+    "1.0": 1.0229003299923185,
+    "0.5": 1.0254772945956971,
+    "2.0": 1.0243736961997485
+  },
+  "headline": {
+    "mu_league[0]": {
+      "mean": 0.1660523313935541,
+      "sd": 0.029884178508374642
+    },
+    "mu_league[1]": {
+      "mean": 0.06305502030531959,
+      "sd": 0.026229847290822866
+    },
+    "h_league[0]": {
+      "mean": 0.18504457045956615,
+      "sd": 0.031392220402269966
+    },
+    "h_league[1]": {
+      "mean": 0.20510319906258037,
+      "sd": 0.03239103000380297
+    },
+    "sigma_strength": {
+      "mean": 0.2767421268483123,
+      "sd": 0.07789038096516789
+    },
+    "sigma_open": {
+      "mean": 0.08028330784515313,
+      "sd": 0.017764876486064195
+    },
+    "sigma_walk": {
+      "mean": 0.027717643709743476,
+      "sd": 0.004260993832487597
+    },
+    "reset_weeks": {
+      "mean": 18.44196132950239,
+      "sd": 9.55062131641409
+    },
+    "sigma_home": {
+      "mean": 0.035437520391228515,
+      "sd": 0.025554575312371774
+    },
+    "rho": {
+      "mean": -4.1445498703226644e-05,
+      "sd": 0.024488409469895472
+    },
+    "xg_shape": {
+      "mean": 3.3357419048104093,
+      "sd": 0.23130766178875292
+    },
+    "xg_bias[0]": {
+      "mean": 0.0938317682693138,
+      "sd": 0.0319014965695062
+    },
+    "xg_bias[1]": {
+      "mean": 0.054315806463920126,
+      "sd": 0.07475025619390496
+    }
+  },
+  "checks": [
+    {
+      "name": "rhat",
+      "passed": true,
+      "value": 1.0041871240344118,
+      "detail": "worst strength_z[29, 139]; 0 of 8224 over 1.01",
+      "blocking": true
+    },
+    {
+      "name": "ess_bulk",
+      "passed": true,
+      "value": 961.1387264117268,
+      "detail": "worst sigma_strength",
+      "blocking": true
+    },
+    {
+      "name": "ess_tail",
+      "passed": true,
+      "value": 868.3286446240514,
+      "detail": "",
+      "blocking": true
+    },
+    {
+      "name": "divergences",
+      "passed": true,
+      "value": 0.0,
+      "detail": "",
+      "blocking": true
+    },
+    {
+      "name": "score-matrix truncation",
+      "passed": true,
+      "value": 1.0,
+      "detail": "share of predictions with tail mass < 0.0001",
+      "blocking": true
+    },
+    {
+      "name": "ppc 39 total_mean",
+      "passed": true,
+      "value": 0.45737500000000003,
+      "detail": "observed 2.789, PPC median 2.796",
+      "blocking": true
+    },
+    {
+      "name": "ppc 39 home_mean",
+      "passed": true,
+      "value": 0.273375,
+      "detail": "observed 1.500, PPC median 1.529",
+      "blocking": true
+    },
+    {
+      "name": "ppc 39 away_mean",
+      "passed": true,
+      "value": 0.6916875,
+      "detail": "observed 1.289, PPC median 1.266",
+      "blocking": true
+    },
+    {
+      "name": "ppc 39 draw_rate",
+      "passed": true,
+      "value": 0.4176875,
+      "detail": "observed 0.226, PPC median 0.229",
+      "blocking": true
+    },
+    {
+      "name": "ppc 39 total_dispersion",
+      "passed": true,
+      "value": 0.759625,
+      "detail": "observed 1.067, PPC median 1.036",
+      "blocking": true
+    },
+    {
+      "name": "identifiability 39",
+      "passed": true,
+      "value": -0.14754957087974044,
+      "detail": "posterior corr(league level, mean team effect)",
+      "blocking": true
+    },
+    {
+      "name": "ppc 40 total_mean",
+      "passed": true,
+      "value": 0.4568125,
+      "detail": "observed 2.421, PPC median 2.427",
+      "blocking": true
+    },
+    {
+      "name": "ppc 40 home_mean",
+      "passed": true,
+      "value": 0.46806250000000005,
+      "detail": "observed 1.335, PPC median 1.338",
+      "blocking": true
+    },
+    {
+      "name": "ppc 40 away_mean",
+      "passed": true,
+      "value": 0.47250000000000003,
+      "detail": "observed 1.086, PPC median 1.089",
+      "blocking": true
+    },
+    {
+      "name": "ppc 40 draw_rate",
+      "passed": true,
+      "value": 0.4203125,
+      "detail": "observed 0.258, PPC median 0.260",
+      "blocking": true
+    },
+    {
+      "name": "ppc 40 total_dispersion",
+      "passed": true,
+      "value": 0.098875,
+      "detail": "observed 0.971, PPC median 1.018",
+      "blocking": true
+    },
+    {
+      "name": "identifiability 40",
+      "passed": true,
+      "value": -0.06704456148362749,
+      "detail": "posterior corr(league level, mean team effect)",
+      "blocking": true
+    },
+    {
+      "name": "prior sensitivity x0.5",
+      "passed": true,
+      "value": 0.7227982347179503,
+      "detail": "worst xg_bias[0] (in posterior sds)",
+      "blocking": true
+    },
+    {
+      "name": "predictive sensitivity x0.5 (4-week proxy)",
+      "passed": false,
+      "value": 0.002519272433315171,
+      "detail": "1X2 log loss 1.0229 -> 1.0255",
+      "blocking": false
+    },
+    {
+      "name": "prior sensitivity x2",
+      "passed": true,
+      "value": 0.542455286842247,
+      "detail": "worst xg_bias[1] (in posterior sds)",
+      "blocking": true
+    },
+    {
+      "name": "predictive sensitivity x2 (4-week proxy)",
+      "passed": true,
+      "value": 0.0014403810070537937,
+      "detail": "1X2 log loss 1.0229 -> 1.0244",
+      "blocking": false
+    },
+    {
+      "name": "reproducible seed",
+      "passed": true,
+      "value": 1.0,
+      "detail": "identical draws from the same seed",
+      "blocking": true
+    }
+  ]
+}

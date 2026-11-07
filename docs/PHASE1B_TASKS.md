@@ -397,7 +397,34 @@ training window; everything else in those seasons is "control":
    0.1); the gain should be larger early in a season than late, as §5.2 predicts.
 - Failing: record it as failed and keep the code off by default, as for D16.
 - A pass means xG earns its place where it exists. It does not by itself reach the Phase 1b
-  gate on 1X2 against Phase 1a; that gate is judged on all its segments, unchanged.
+  gate on 1X2 against Phase 1a; that gate (D18) is judged on all its segments.
+
+Result (2026-11-07, run 42348756027, commit b778c00, report `backtest/reports/20261107T075827Z`
+in R2, `model_run` 5): **passed on every item; xG earns its place where it exists.** All 10
+jobs succeeded, 110 refits each for xG and the reference, none from the cache.
+- Item 1, gate: **passes**, 20 of 20 gating checks, England as of 2023-08-07 at 4 x 2,000
+  draws (`reports/phase1b/gate/20261107T090019Z_england_20230807_strength_open_xg`): R-hat
+  1.004, ESS bulk 961, 0 divergences, every PPC and identifiability check. Prior sensitivity
+  moves no posterior mean by 1 sd; the worst is xg_bias, 0.72 sd at x0.5 and 0.54 at x2. The
+  4-week predictive proxy warns at x0.5 (+0.25%, non-blocking, as for D15). The x2 fit was
+  rerun with `--reuse` after the first attempt ran out of container memory; the x1 and x0.5
+  fits are from that attempt, on commit b778c00, which has the same model code.
+- Item 2, mixing: **passes.** R-hat over 1.01 / ESS under 400 / with divergences in 1 / 0 / 1
+  of 110 refits, the same as the reference on the same refits.
+- Item 3, accuracy on 2,840 informed matches: **passes.** 1X2 log loss -0.60% [-1.00%,
+  -0.20%]; RPS -1.02% [-1.68%, -0.37%]; OU2.5 -0.04%; CRPS -0.15%. No bundle is worse than
+  0.3%: Germany -1.50% [-2.67%, -0.32%], Italy -0.63% [-1.22%, -0.03%], England -0.63% (Premier
+  League -0.21%, Championship -1.06%), Spain -0.42%, France +0.13% [-1.06%, +1.32%].
+- Item 4, control (4,664 matches): **passes**, +0.03% [-0.04%, +0.10%]. Refits with no xG in
+  the window give the reference's predictions to machine precision (2,012 matches, largest
+  difference 1e-16), so the comparison isolates xG.
+- Item 5, sense: **passes, except one weak point.** xg_shape is 3.3 to 3.8 per bundle (prior
+  centre 4), and xg_bias is within 0.1 everywhere: Premier League +0.08, Serie A -0.09, the
+  rest under 0.06. The gain early in a season is only slightly larger than late (2023/24:
+  -0.82% in weeks 0 to 12, -0.71% after), and the two can't be told apart.
+- Limits: most of the gain is in 2023/24 (-0.74% [-1.22%, -0.27%]); the 638 informed matches
+  of 2022/23 show -0.10% [-0.80%, +0.59%]. On all 2022–23 dev matches, 1b with xG vs Phase 1a
+  is -0.17% [-0.37%, +0.04%], so it does not yet beat 1a with an interval excluding 0.
 - [ ] Manager-change widening of sigma_walk for a fixed post-change window (if D12 allows).
 
 ### 6. Promotion

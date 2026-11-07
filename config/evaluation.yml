@@ -41,9 +41,10 @@ phase1a_selected:
   half_life_days: 365
   team_prior_sd: 0.5
 
-# Pre-registered Phase 1b promotion gate (§14.3, CLAUDE.md), recorded before any holdout use.
+# Pre-registered Phase 1b promotion gate (§14.3, D18, CLAUDE.md), recorded before any holdout
+# use. D18: no minimum size of gain, any real improvement counts; the interval still decides.
 phase1b_gate:
-  min_rel_logloss_gain_1x2: 0.010
-  min_rel_rps_gain: 0.005
+  min_rel_logloss_gain_1x2: 0.0
+  min_rel_rps_gain: 0.0
   paired_interval: 0.95                   # per-match score difference interval must exclude 0
   max_segment_rel_worse: 0.010            # no league x market segment worse than this

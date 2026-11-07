@@ -32,9 +32,8 @@ Order matters (§14.5): the diagnostics gate first, the backtest comparison seco
    component (AR(1) form, xG auxiliary, manager-change widening) is kept only if it improves
    dev log loss on the segments where it applies. Ablations are recorded in `model_run`.
 3. **Locked holdout (2024/25–2025/26), opened once,** with the gate pre-registered in
-   `config/evaluation.yml` (`phase1b_gate`): >= 1.0% relative 1X2 log-loss gain and >= 0.5%
-   RPS gain vs 1a, paired 95% interval excluding zero, and no league x market segment worse
-   than 1.0% relative. 1a is scored on the holdout in the same run. The outcome is recorded
+   `config/evaluation.yml` (`phase1b_gate`, D18): any gain on 1X2 log loss and RPS vs 1a,
+   paired 95% interval excluding zero, and no league x market segment worse than 1.0% relative. 1a is scored on the holdout in the same run. The outcome is recorded
    as `champion` or `rejected` in `model_run`, with reasons (§14.6).
 4. **Calibration:** reliability per 1X2 outcome reported for dev and holdout. Recalibration,
    if ever wanted, is a separate challenger (§14.7).

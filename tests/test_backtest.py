@@ -240,3 +240,32 @@ def test_assemble_compares_with_a_reference_1b_model(tmp_path: Path) -> None:
         assert bt.record(out, s) == 1  # the reference was recorded by its own run
     with pytest.raises(SystemExit):
         bt.assemble(parts, tmp_path / "out2", cfg, lambda _: df, "phase1b_nonexistent")
+
+
+def test_xg_is_marked_on_training_rows_only_where_observed() -> None:
+    df = matches().with_row_index("i").with_columns(
+        xg_home=pl.when(pl.col("i") % 2 == 0).then(1.2).otherwise(None).cast(pl.Float64),
+        xg_away=pl.lit(0.8),
+    ).drop("i")  # fmt: skip
+    as_of = df["kickoff"][40]
+    fd = ts.prepare(df, LEAGUES, as_of, 3650)
+    assert 0 < len(fd.xg_rows) < len(fd.hg)
+    assert fd.xg_home is not None and np.isfinite(fd.xg_home[fd.xg_rows]).all()
+    assert len(ts.prepare(matches(), LEAGUES, as_of, 3650).xg_rows) == 0  # not loaded: goals only
+
+
+def test_assemble_splits_xg_informed_from_control(tmp_path: Path) -> None:
+    df, cfg = matches(), config()
+    parts = tmp_path / "parts"
+    parts.mkdir()
+    for flag in (False, True):
+        spec = bt.RunSpec(every_days=28, xg=flag)
+        p = bt.run(df, LEAGUES, "england", cfg, [2019], spec, LocalStore(tmp_path / "c"),
+                   FakeFitter(), log=lambda _: None)  # fmt: skip
+        n_xg = pl.when(pl.col("kickoff") > pl.col("kickoff").median()).then(60).otherwise(0)
+        p = p.with_columns(refit_every_days=pl.lit(28))
+        p = p.with_columns(n_xg_league=n_xg if flag else pl.lit(0))
+        p.write_parquet(parts / f"{flag}.parquet")
+    out = bt.assemble(parts, tmp_path / "out", cfg, lambda _: df, "phase1b_strength_open")
+    summary = (out / "summary.md").read_text()
+    assert "| xg informed |" in summary and "| xg control |" in summary

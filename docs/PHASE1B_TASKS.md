@@ -358,6 +358,47 @@ not change the verdict, because item 2 fails on the refits already counted.
   averages every base match, so it does not match the paired n. `rel` and its interval use the
   paired differences; only their denominator is that wider mean, which changes nothing here.
 - [ ] xG auxiliary likelihood where `has_xg` holds (joint goals + xG likelihood).
+
+#### xG auxiliary likelihood: design and acceptance test (stated 2026-11-07, before building)
+
+Design (`xg=True`, strength_open; off by default; §5.2 allows a joint likelihood or a two-stage
+prior, and the joint one is taken because it needs no second model):
+- Each team-match with xG adds xG ~ Gamma(mean = lambda * exp(xg_bias[league]), shape =
+  xg_shape), on the same lambda as the goals, so it informs strength and openness directly.
+  xG never enters prediction: `attack_last` and `defence_last` are read as before.
+- Priors: xg_shape ~ LogNormal(log 4, 0.5 k), i.e. a per-match CV of ~0.5; xg_bias ~ Normal(0,
+  0.1 k). Values under 0.01 are floored at 0.01 (a Gamma has no mass at 0).
+- Gate: a match counts only if its league-season has `has_xg` available or partial and both
+  teams have xG; otherwise goals alone, and a window with no xG is exactly the goals model
+  (principle 8). xG is usable from kickoff + 3h, like the result.
+- Known risks: goals and xG are treated as independent given lambda though they come from the
+  same chances, so the posterior may be overconfident (xg_shape absorbs only part of this).
+  xG was fetched in 2026, so a later provider revision cannot be ruled out; it is a value of
+  the same match, not a future result.
+
+Coverage on dev (audited 2026-11-07): only the five top flights from about mid-January 2023,
+plus all of 2023/24 for them and the Championship. No second tier other than the Championship
+has any, and nothing before 2022/23. So xG can only affect about 1 in 6 dev matches, and the
+all-dev figures would dilute any effect.
+
+Acceptance test, dev only, 28-day grid, seasons 2022 and 2023 only (earlier seasons cannot
+change), against `phase1b_strength_open` at 2,000 draws (run 42239760464, same grid).
+"Informed" means warm matches in a league with at least 50 xG matches in that refit's
+training window; everything else in those seasons is "control":
+1. **Gate (§14.5)** on England as of 2023-08-07: every gating check passes, with xg_shape and
+   xg_bias added to the prior-sensitivity headline; run only if item 3 passes.
+2. **Mixing:** no more refits over R-hat 1.01 / under ESS 400 / with divergences than the
+   reference has on the same refits, give or take 2.
+3. **Accuracy, informed matches:** 1X2 log loss improves, paired 95% interval excluding 0; RPS
+   not worse; OU2.5 log loss and total CRPS not worse than 0.1% relative; no bundle worse than
+   0.3% on 1X2 log loss.
+4. **Control:** 1X2 log loss on control matches within 0.1% of the reference, since only
+   indirect effects should reach them.
+5. **Sense:** posterior xg_shape and xg_bias reported per bundle; xg_bias near 0 (|mean| under
+   0.1); the gain should be larger early in a season than late, as §5.2 predicts.
+- Failing: record it as failed and keep the code off by default, as for D16.
+- A pass means xG earns its place where it exists. It does not by itself reach the Phase 1b
+  gate on 1X2 against Phase 1a; that gate is judged on all its segments, unchanged.
 - [ ] Manager-change widening of sigma_walk for a fixed post-change window (if D12 allows).
 
 ### 6. Promotion

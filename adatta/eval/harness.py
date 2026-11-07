@@ -113,6 +113,38 @@ def load_matches(session: Session, league_ids: list[int]) -> tuple[pl.DataFrame,
     return df.filter(known).sort("kickoff", "match_id"), unscorable
 
 
+def load_xg(session: Session, league_ids: list[int]) -> pl.DataFrame:
+    """Match xG per side, only where the league-season has `has_xg` available or partial and
+    both teams have a value (the capability table's gate; absent, never imputed)."""
+    M, S, C = models.Match, models.Season, models.Competition
+    T, K = models.TeamMatchStat, models.CompetitionSourceCapability
+    rows = session.execute(
+        select(M.match_id, M.home_team_id, M.away_team_id, T.team_id, T.xg)
+        .join(S, S.season_id == M.season_id)
+        .join(C, C.competition_id == S.competition_id)
+        .join(K, (K.competition_id == C.competition_id) & (K.season_id == S.season_id))
+        .join(T, T.match_id == M.match_id)
+        .where(
+            C.source_id == SOURCE_ID,
+            C.source_ref.in_([str(i) for i in league_ids]),
+            K.capability == "has_xg",
+            K.valid_to.is_(None),
+            K.status.in_(("available", "partial")),
+            T.superseded_at.is_(None),
+            T.xg.is_not(None),
+        )
+    ).all()  # fmt: skip
+    sides: dict[int, dict[str, float]] = {}
+    for match_id, home, away, team, xg in rows:
+        side = "xg_home" if team == home else "xg_away" if team == away else None
+        if side is not None and xg is not None:
+            sides.setdefault(match_id, {})[side] = float(xg)
+    return pl.DataFrame(
+        [{"match_id": m, **v} for m, v in sides.items() if len(v) == 2],
+        schema={"match_id": pl.Int64, "xg_home": pl.Float64, "xg_away": pl.Float64},
+    )
+
+
 # --------------------------------------------------------------------------- models
 
 

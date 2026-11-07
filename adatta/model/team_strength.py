@@ -34,6 +34,12 @@ results, not openness). logit(phi) ~ Normal(logit 0.8, 0.75); sigma_form ~ HalfN
 attack_last / defence_last exclude form; a match h weeks after the last step adds
 phi^h m_last / sqrt 2 to each. Kept only if it passes its acceptance test.
 
+xG auxiliary signal (`xg=True`, §5.2): where a training match has xG for both sides (the
+has_xg gate, `harness.load_xg`), each side adds xG ~ Gamma(mean = lambda exp(xg_bias[league]),
+shape = xg_shape), on the same rate as its goals. xg_shape ~ LogNormal(log 4, 0.5); xg_bias ~
+Normal(0, 0.1). Prediction is unchanged, and a window with no xG is the goals model. Kept
+only if it passes its acceptance test.
+
 Only importable where the model dependency group is installed (Linux / Docker, D13).
 """
 
@@ -50,6 +56,7 @@ from numpy.typing import NDArray
 IntArr = NDArray[np.int64]
 STRUCTURES = ("independent", "strength_open")
 LOG_BASE_RATE = float(np.log(1.35))
+XG_FLOOR = 0.01  # a Gamma has no mass at 0
 
 
 @dataclass(frozen=True)
@@ -70,6 +77,16 @@ class FitData:
     moved_down: NDArray[np.float64] | None = None
     # (team id, season) pairs with at least one training match (moves not yet applied)
     team_seasons: frozenset[tuple[int, int]] = frozenset()
+    # xG per training match, NaN where absent (None: not loaded)
+    xg_home: NDArray[np.float64] | None = None
+    xg_away: NDArray[np.float64] | None = None
+
+    @property
+    def xg_rows(self) -> IntArr:
+        """Training matches with xG for both sides."""
+        if self.xg_home is None or self.xg_away is None:
+            return np.zeros(0, dtype=np.int64)
+        return np.flatnonzero(np.isfinite(self.xg_home) & np.isfinite(self.xg_away))
 
 
 def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days: int,
@@ -118,6 +135,8 @@ def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days
         (int(t), int(se)) for col in ("home", "away")
         for t, se in zip(d[col], d["season"], strict=True)
     )  # fmt: skip
+    xg = {c: d[c].cast(pl.Float64).fill_null(np.nan).to_numpy() if c in d.columns else None
+          for c in ("xg_home", "xg_away")}  # fmt: skip
     return FitData(
         home=np.array([tix[int(t)] for t in d["home"]], dtype=np.int64),
         away=np.array([tix[int(t)] for t in d["away"]], dtype=np.int64),
@@ -125,12 +144,12 @@ def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days
         step=step, hg=d["hg"].to_numpy().astype(np.int64), ag=d["ag"].to_numpy().astype(np.int64),
         season_start=season_start, team_ids=teams.astype(np.int64), leagues=leagues,
         start=start, n_steps=n_steps, moved_up=moved[1], moved_down=moved[2],
-        team_seasons=seasons_seen,
+        team_seasons=seasons_seen, xg_home=xg["xg_home"], xg_away=xg["xg_away"],
     )  # fmt: skip
 
 
 def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
-          shifts: bool = False, form: bool = False) -> Any:  # fmt: skip
+          shifts: bool = False, form: bool = False, xg: bool = False) -> Any:  # fmt: skip
     """`prior_scale` multiplies every prior scale (the §14.5 prior-sensitivity check uses 0.5
     and 2); 1.0 is the production model. `structure` is "independent" (spec §5.1) or
     "strength_open" (D15)."""
@@ -140,6 +159,8 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
         raise ValueError("D16 shifts need structure='strength_open' (they move strength)")
     if form and structure != "strength_open":
         raise ValueError("AR(1) form needs structure='strength_open' (it moves strength)")
+    if xg and structure != "strength_open":
+        raise ValueError("the xG signal needs structure='strength_open'")
     import pymc as pm
     import pytensor.tensor as pt
 
@@ -207,6 +228,8 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
         lam, mu_ = pt.exp(log_lam), pt.exp(log_mu)
         pm.Poisson("home_goals", lam, observed=fd.hg)
         pm.Poisson("away_goals", mu_, observed=fd.ag)
+        if xg:
+            xg_likelihood(fd, lam, mu_, k)
         hg, ag = fd.hg, fd.ag
         tau = pt.switch(
             (hg == 0) & (ag == 0), 1 - lam * mu_ * rho,
@@ -216,6 +239,24 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
         )  # fmt: skip
         pm.Potential("dixon_coles", pt.sum(pt.log(pt.maximum(tau, 1e-10))))
     return model
+
+
+def xg_likelihood(fd: FitData, lam: Any, mu_: Any, k: float = 1.0) -> None:
+    """Gamma xG on the goal rates, for the matches with xG; adds nothing if there are none.
+    Call inside a model with a "league" dimension."""
+    import pymc as pm
+    import pytensor.tensor as pt
+
+    rows = fd.xg_rows
+    if len(rows) == 0:
+        return
+    assert fd.xg_home is not None and fd.xg_away is not None
+    shape = pm.LogNormal("xg_shape", np.log(4.0), 0.5 * k)
+    bias = pt.exp(pm.Normal("xg_bias", 0.0, 0.1 * k, dims="league")[fd.league[rows]])
+    pm.Gamma("home_xg", alpha=shape, beta=shape / (lam[rows] * bias),
+             observed=np.maximum(fd.xg_home[rows], XG_FLOOR))  # fmt: skip
+    pm.Gamma("away_xg", alpha=shape, beta=shape / (mu_[rows] * bias),
+             observed=np.maximum(fd.xg_away[rows], XG_FLOOR))  # fmt: skip
 
 
 def ar1_form(n_steps: int, k: float = 1.0) -> Any:
@@ -241,12 +282,12 @@ def ar1_form(n_steps: int, k: float = 1.0) -> Any:
 def sample(fd: FitData, seed: int, *, prior_scale: float = 1.0, draws: int = 1000,
            chains: int = 4, target_accept: float = 0.95,
            structure: str = "independent", tune: int | None = None,
-           shifts: bool = False, form: bool = False) -> Any:  # fmt: skip
+           shifts: bool = False, form: bool = False, xg: bool = False) -> Any:  # fmt: skip
     """NUTS via NumPyro (D10), posterior predictive goals included. Returns InferenceData.
     `tune` defaults to `draws`; a longer warm-up improves adaptation without a larger trace."""
     import pymc as pm
 
-    with build(fd, prior_scale, structure, shifts, form):
+    with build(fd, prior_scale, structure, shifts, form, xg):
         idata = pm.sample(
             draws=draws, tune=draws if tune is None else tune, chains=chains,
             nuts_sampler="numpyro", random_seed=seed, target_accept=target_accept,
@@ -275,8 +316,9 @@ def slim(idata: Any, max_draws: int = 400) -> dict[str, NDArray[np.float64]]:
     post = stacked(idata)
     n = post.sizes["sample"]
     take = np.linspace(0, n - 1, min(max_draws, n)).astype(int)
-    # optional: delta (D16), form_last and phi (AR(1) form)
-    names = [v for v in (*SLIM_VARS, "delta", "form_last", "phi") if v in post.data_vars]
+    # optional: delta (D16), form_last and phi (AR(1) form), xg_shape and xg_bias (xG)
+    extra = ("delta", "form_last", "phi", "xg_shape", "xg_bias")
+    names = [v for v in (*SLIM_VARS, *extra) if v in post.data_vars]
     return {v: np.asarray(post[v].values[..., take], dtype=np.float64) for v in names}
 
 

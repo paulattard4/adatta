@@ -22,14 +22,14 @@ import polars as pl
 
 from adatta.db.session import get_session
 from adatta.eval.baseline import _file_hash, _git_sha
-from adatta.eval.harness import load_config, load_matches
+from adatta.eval.harness import load_config, load_matches, load_xg
 from adatta.model import diagnostics as dg
 from adatta.model import team_strength as ts
 
 SEED = 20261105
 HEADLINE = ("delta", "mu_league", "h_league", "sigma_attack", "sigma_defence", "sigma_strength",
             "sigma_open", "sigma_walk", "reset_weeks", "sigma_home",
-            "rho", "phi", "sigma_form")  # fmt: skip
+            "rho", "phi", "sigma_form", "xg_shape", "xg_bias")  # fmt: skip
 
 
 def _flat(idata: Any, name: str) -> dict[str, tuple[float, float]]:
@@ -68,6 +68,7 @@ def main() -> None:
     ap.add_argument("--structure", default="independent", choices=ts.STRUCTURES)
     ap.add_argument("--shifts", action="store_true", help="D16 promotion/relegation shift")
     ap.add_argument("--form", action="store_true", help="AR(1) short-term form (§5.2)")
+    ap.add_argument("--xg", action="store_true", help="xG auxiliary likelihood (§5.2)")
     ap.add_argument("--reuse", action="store_true", help="load saved fits if present (debug)")
     args = ap.parse_args()
 
@@ -78,6 +79,8 @@ def main() -> None:
     as_of = datetime.fromisoformat(args.as_of).replace(tzinfo=UTC)
     with get_session() as s:
         df, _ = load_matches(s, leagues)
+        if args.xg:
+            df = df.join(load_xg(s, leagues), on="match_id", how="left")
         s.rollback()
     fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, cfg.result_available_after_hours)
     from adatta.eval.harness import mover_codes
@@ -98,6 +101,7 @@ def main() -> None:
     tag = "" if args.structure == "independent" else f"_{args.structure}"
     tag += "_d16" if args.shifts else ""
     tag += "_ar1" if args.form else ""
+    tag += "_xg" if args.xg else ""
     tune = args.draws if args.tune is None else args.tune
     tag += "" if tune == args.draws else f"_t{tune}"
     trace_path = traces / f"{args.bundle}_{as_of:%Y%m%d}{tag}_k1_{args.chains}x{args.draws}.nc"
@@ -120,6 +124,7 @@ def main() -> None:
                 tune=tune,
                 shifts=args.shifts,
                 form=args.form,
+                xg=args.xg,
             )
             idata.to_netcdf(path)
         timings[f"fit_scale_{k:g}"] = round(time.time() - t0)
@@ -153,9 +158,9 @@ def main() -> None:
                                                 blocking=False))  # fmt: skip
 
     r1 = ts.sample(fd, SEED, draws=100, chains=2, structure=args.structure, shifts=args.shifts,
-                   form=args.form)  # fmt: skip
+                   form=args.form, xg=args.xg)  # fmt: skip
     r2 = ts.sample(fd, SEED, draws=100, chains=2, structure=args.structure, shifts=args.shifts,
-                   form=args.form)  # fmt: skip
+                   form=args.form, xg=args.xg)  # fmt: skip
     checks.append(dg.reproducible(ts.stacked(r1)["sigma_walk"].values,
                                   ts.stacked(r2)["sigma_walk"].values))  # fmt: skip
 

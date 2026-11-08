@@ -23,7 +23,9 @@ defence; with no movers flagged the shifts stay at 0 and the fit is unchanged.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -216,8 +218,26 @@ def fit(d: MatchData, init: Arr | None = None) -> tuple[Params, Arr]:
     return unpack(res.x, d.n_teams, d.n_leagues, d.shifts), res.x
 
 
-def score_matrix(lam: float, mu_: float, rho: float, max_goals: int) -> tuple[Arr, float]:
-    """P(home = i, away = j) for i, j <= max_goals, renormalised; returns (matrix, tail mass)."""
+DRAW_MAX_GOALS = 15  # draw mass is summed over 0-0 .. 15-15 (the rest is < 1e-12)
+_LOG_FACT = np.array([math.lgamma(n + 1.0) for n in range(DRAW_MAX_GOALS + 1)])
+
+
+def draw_mass(lam: Any, mu_: Any, rho: Any, xp: Any = np) -> Any:
+    """P(home = away) under Poisson(lam) x Poisson(mu_) with the Dixon-Coles tau, elementwise
+    over 1-D inputs. `xp` is numpy or pytensor.tensor, so the fitted likelihood (D22) and its
+    tests share one formula. The tau moves only 0-0 (by -lam mu rho) and 1-1 (by -rho), worth
+    -2 lam mu rho exp(-lam - mu) together."""
+    n = np.arange(DRAW_MAX_GOALS + 1, dtype=np.float64)
+    log_pair = xp.log(lam * mu_)[:, None] * n - 2.0 * _LOG_FACT
+    base = xp.exp(log_pair).sum(axis=-1) * xp.exp(-lam - mu_)
+    return base - 2.0 * lam * mu_ * rho * xp.exp(-lam - mu_)
+
+
+def score_matrix(lam: float, mu_: float, rho: float, max_goals: int,
+                 kappa: float = 0.0) -> tuple[Arr, float]:  # fmt: skip
+    """P(home = i, away = j) for i, j <= max_goals, renormalised; returns (matrix, tail mass).
+    `kappa` (D22, Phase 1b) multiplies every draw cell by exp(kappa) before renormalising;
+    0 is plain Dixon-Coles. The tail mass is that of the Dixon-Coles grid, before inflation."""
     k = np.arange(max_goals + 1)
     m = np.outer(poisson.pmf(k, lam), poisson.pmf(k, mu_))
     m[0, 0] *= 1 - lam * mu_ * rho
@@ -226,6 +246,8 @@ def score_matrix(lam: float, mu_: float, rho: float, max_goals: int) -> tuple[Ar
     m[1, 1] *= 1 - rho
     m = np.maximum(m, 0.0)
     tail = float(1.0 - m.sum())
+    if kappa:
+        m[np.diag_indices_from(m)] *= np.exp(kappa)
     return m / m.sum(), tail
 
 

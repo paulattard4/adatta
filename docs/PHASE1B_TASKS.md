@@ -600,6 +600,44 @@ GitHub 504 downloading uv and were rerun unchanged.
   -0.77% [-2.27%, +0.73%] (n 910), in the right direction as D19 requires. By bundle in
   2023/24: Germany -1.40% [-2.29%, -0.50%], Spain -0.27%, France -0.13%, Italy +0.20%
   [-0.32%, +0.72%] (log loss; Italy's RPS is -0.19%).
+
+Audit attempt 3 (2026-11-08, run 42503977432, commit 2e2b80f, D20/D21 model): **20 of 25
+pass.** Sampling is clean in all 25 (worst R-hat 1.008, min bulk ESS 693, 0 divergences);
+identifiability, truncation, reproducibility and parameter prior sensitivity pass everywhere
+(worst move 0.63 posterior sd, England 2024; reset_weeks no longer sampled). Total dispersion
+is outside the band in 20 checks, warning only under D20.
+- **The only blocking failure: second-tier draw rate, 5 fits**, all on the high side:
+  Championship 2021 (observed 0.280 against a PPC median of 0.257, quantile 0.958),
+  2. Bundesliga 2020 and 2021 (0.296 / 0.260, q 0.973; 0.294 / 0.263, q 0.955), Serie B 2020
+  and 2023 (0.329 / 0.297, q 0.979; 0.313 / 0.284, q 0.952). Top-flight draw rates pass in all
+  25 (quantiles 0.13 to 0.91).
+- It is systematic, not chance: 24 of the 25 second-tier draw quantiles are above 0.4, median
+  about 0.84. Rho per league helped (Serie B 2021 went from q 0.952 to 0.88) but does not
+  close it, and no league's rho sits at the -0.2 bound (lowest -0.154). Dixon-Coles tau only
+  moves 0-0, 1-1, 1-0 and 0-1, so it cannot add 2-2s and higher draws.
+- Out of sample it is small. Mean predicted p_draw against observed draw rate over the 7-day
+  dev backtest (warm matches): Serie B 0.289 against 0.316 (z +2.5), the only league outside
+  2 se; Ligue 2 +0.017, Segunda +0.016, Serie A +0.017 (z 1.6 to 1.8); 2. Bundesliga +0.008,
+  Championship +0.005. Phase 1a has the same Serie B gap (0.291 against 0.316, z +2.3); 1b's
+  p_draw runs about 0.005 below 1a's in most leagues.
+- Decided (2026-11-08): D22, a per-league draw-inflation term. Acceptance test, stated before
+  building (the gates of item 1 and item 2 are unchanged; these are the extra conditions):
+  1. Audit sample (the same 25 fits, same rule and seed): every blocking check passes,
+     draw rate included; kappa is a headline parameter, so its x0.5 / x2 prior sensitivity
+     must move it < 1 posterior sd; no posterior correlation between a league's rho and
+     kappa beyond 0.9 (identifiability), reported per fit.
+  2. 7-day dev backtest: item 2 under D19 still passes (2023/24 1X2 log loss and RPS
+     intervals exclude 0; England in the right direction), and out-of-sample draw
+     calibration improves: no league's mean p_draw more than 2 se from its observed draw
+     rate (Serie B is z +2.5 now).
+  3. Then the x0.5 / x2 sensitivity backtests, then the holdout, as before.
+  Order: smoke, the 7-day dev backtest, audit attempt 4, the sensitivity backtests.
+  The gate now also reports corr(rho, kappa) per league as a blocking identifiability check.
+  Smoke (Italy as of 2022-03-07, not an audit date; 2 x 300 draws, container, 0 divergences):
+  kappa Serie A 0.053 +/- 0.086, Serie B 0.274 +/- 0.098; rho Serie A -0.085, Serie B 0.000
+  (was about -0.1 to -0.15 without kappa); corr(rho, kappa) 0.63 and 0.73. Draw-rate PPC:
+  Serie B observed 0.312 against 0.307 (quantile 0.59), Serie A 0.248 against 0.247 (0.52).
+  Mean p_draw over the next 4 weeks: Serie A 0.241, Serie B 0.301. Container model tests pass.
 - [ ] Inference gate passes (acceptance item 1).
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and
       summarised in `reports/phase1b/`.

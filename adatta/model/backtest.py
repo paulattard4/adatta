@@ -172,9 +172,11 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
                                    horizon)  # fmt: skip
     rho = np.asarray(draws["rho"])
     rho = rho[league] if rho.ndim == 2 else np.broadcast_to(rho, lam.shape)  # per league (D21)
+    kappa = np.asarray(draws["kappa"])[league] if "kappa" in draws else np.zeros_like(lam)  # D22
     out = []
     for k, (hg, ag) in enumerate(zip(targets["hg"], targets["ag"], strict=True)):
-        mats = [dc.score_matrix(float(lam[k, d]), float(mu_[k, d]), float(rho[k, d]), max_goals)
+        mats = [dc.score_matrix(float(lam[k, d]), float(mu_[k, d]), float(rho[k, d]), max_goals,
+                                float(kappa[k, d]))
                 for d in range(lam.shape[1])]  # fmt: skip
         m = np.mean([x[0] for x in mats], axis=0)
         mk = metrics.markets(m)

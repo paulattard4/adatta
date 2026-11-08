@@ -144,3 +144,23 @@ def test_no_movers_leaves_the_fit_unchanged() -> None:
     d, _ = simulate(rounds=2)
     p, _ = dc.fit(d)
     assert np.all(p.shift == 0.0)
+
+
+def test_draw_mass_matches_the_score_matrix_diagonal() -> None:
+    lam = np.array([0.6, 1.4, 2.8])
+    mu_ = np.array([0.5, 1.1, 2.2])
+    for rho in (0.0, -0.13, 0.1):
+        got = dc.draw_mass(lam, mu_, np.full(3, rho))
+        for i in range(3):
+            m, tail = dc.score_matrix(float(lam[i]), float(mu_[i]), rho, 15)
+            assert abs(got[i] - np.trace(m) * (1.0 - tail)) < 1e-10
+
+
+def test_draw_inflation_scales_draws_and_renormalises() -> None:
+    base, tail0 = dc.score_matrix(1.5, 1.2, -0.1, 12)
+    m, tail = dc.score_matrix(1.5, 1.2, -0.1, 12, kappa=0.2)
+    assert tail == tail0 and abs(m.sum() - 1.0) < 1e-12
+    z = 1.0 + (np.exp(0.2) - 1.0) * np.trace(base)
+    assert np.allclose(np.diag(m), np.diag(base) * np.exp(0.2) / z)
+    assert abs(m[1, 0] - base[1, 0] / z) < 1e-12
+    assert np.array_equal(dc.score_matrix(1.5, 1.2, -0.1, 12, kappa=0.0)[0], base)

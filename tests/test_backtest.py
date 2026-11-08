@@ -50,6 +50,7 @@ class FakeFitter:
             "attack_last": rng.normal(0, 0.1, (n, d)), "defence_last": rng.normal(0, 0.1, (n, d)),
             "mu_league": np.full((2, d), 0.2), "h_league": np.full((2, d), 0.25),
             "h_team": np.zeros((n, d)), "sigma_home": np.full(d, 0.05), "rho": np.zeros((2, d)),
+            "kappa": np.zeros((2, d)),
         }  # fmt: skip
         return draws, {"rhat_max": 1.001, "ess_bulk_min": 900.0, "divergences": 0.0}
 

@@ -8,6 +8,7 @@
                     + attack[s, home] - defence[s, away]
     log lam_away  = mu_league[l] + attack[s, away] - defence[s, home]
     + Dixon-Coles tau(rho[l]) on the four low scores, one rho per league (D21)
+    x exp(kappa[l]) on every draw, renormalised exactly, one kappa per league (D22)
 
 Priors are §5.1–5.2: mu_league ~ Normal(log 1.35, 0.3); sigma_attack, sigma_defence ~
 HalfNormal(0.5); sigma_walk ~ HalfNormal(0.15); sigma_home ~ HalfNormal(0.3). The walk is
@@ -60,6 +61,8 @@ from typing import Any
 import numpy as np
 import polars as pl
 from numpy.typing import NDArray
+
+from adatta.model import dixon_coles as dc
 
 IntArr = NDArray[np.int64]
 STRUCTURES = ("independent", "strength_open")
@@ -225,6 +228,9 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
         h_team = pm.Normal("h_team", 0.0, 1.0, dims="team")
         # one rho per league (D21): second tiers draw more than top flights
         rho = pm.Uniform("rho", -0.2, 0.2, dims="league")
+        # draw inflation per league (D22): tau only moves 0-0 and 1-1, and second tiers still
+        # drew 2-3 points more often than the fitted model simulated (audit attempt 3)
+        kappa = pm.Normal("kappa", 0.0, 0.25 * k, dims="league")
 
         reset = pt.where(pt.as_tensor(fd.season_start), pt.sqrt(1.0 + reset_weeks), 1.0)
 
@@ -288,6 +294,11 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
                                 pt.switch((hg == 1) & (ag == 1), 1 - rho, 1.0))),
         )  # fmt: skip
         pm.Potential("dixon_coles", pt.sum(pt.log(pt.maximum(tau, 1e-10))))
+        # P(score) * exp(kappa * draw) / (1 + (exp(kappa) - 1) * P(draw)), P = Dixon-Coles
+        kap = kappa[fd.league]
+        p_draw = dc.draw_mass(lam, mu_, rho, pt)
+        log_w = kap * (hg == ag) - pt.log1p(pt.expm1(kap) * p_draw)
+        pm.Potential("draw_inflation", pt.sum(log_w))
     return model
 
 
@@ -358,7 +369,7 @@ def stacked(idata: Any, group: str = "posterior") -> Any:
 
 
 SLIM_VARS = ("attack_last", "defence_last", "mu_league", "h_league", "h_team", "sigma_home",
-             "rho")  # fmt: skip
+             "rho", "kappa")  # fmt: skip
 
 
 def slim(idata: Any, max_draws: int = 400) -> dict[str, NDArray[np.float64]]:

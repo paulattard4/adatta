@@ -69,3 +69,15 @@ def test_total_dispersion_is_reported_but_not_gating() -> None:
     assert not checks["ppc 39 total_dispersion"].passed
     assert not checks["ppc 39 total_dispersion"].blocking
     assert checks["ppc 39 draw_rate"].blocking
+
+
+def test_dixon_coles_sample_with_draw_inflation_matches_the_score_matrix() -> None:
+    from adatta.model import dixon_coles as dc
+
+    lam, mu, rho, kappa, n = 1.3, 1.0, -0.1, 0.25, 400_000
+    h, a = dg.dixon_coles_sample(np.full((1, n), lam), np.full((1, n), mu), np.array([rho]),
+                                 np.random.default_rng(2), np.array([kappa]))  # fmt: skip
+    m, _ = dc.score_matrix(lam, mu, rho, 15, kappa)
+    for i, j in ((0, 0), (1, 1), (2, 2), (1, 0), (2, 1)):
+        assert abs(((h == i) & (a == j)).mean() - m[i, j]) < 0.003
+    assert abs((h == a).mean() - np.trace(m)) < 0.003

@@ -36,7 +36,7 @@ from adatta.model import team_strength as ts
 SEED = 20261105
 HEADLINE = ("delta", "mu_league", "h_league", "sigma_attack", "sigma_defence", "sigma_strength",
             "sigma_open", "sigma_walk", "sigma_home",
-            "rho", "phi", "sigma_form", "xg_shape", "xg_bias", "change_weeks")  # fmt: skip
+            "rho", "kappa", "phi", "sigma_form", "xg_shape", "xg_bias", "change_weeks")  # fmt: skip
 
 
 def _flat(idata: Any, name: str) -> dict[str, tuple[float, float]]:
@@ -67,10 +67,10 @@ def predict(idata: Any, fd: ts.FitData, targets: pl.DataFrame, max_goals: int) -
 
 def ppc_scores(idata: Any, fd: ts.FitData, args: argparse.Namespace,
                n_draws: int = 1000) -> tuple[Any, Any]:  # fmt: skip
-    """Posterior-predictive scores of the fitted model, Dixon-Coles tau included, as
-    (draws, matches). PyMC's posterior predictive drops the tau Potential (independent
-    Poisson), so each match's rates are recomputed from thinned posterior draws and the
-    scores drawn with `dg.dixon_coles_sample`."""
+    """Posterior-predictive scores of the fitted model, Dixon-Coles tau and draw inflation
+    (D22) included, as (draws, matches). PyMC's posterior predictive drops Potentials
+    (independent Poisson), so each match's rates are recomputed from thinned posterior draws
+    and the scores drawn with `dg.dixon_coles_sample`."""
     import pymc as pm
 
     model = ts.build(fd, 1.0, args.structure, args.shifts, args.form, args.xg, args.manager)
@@ -89,7 +89,8 @@ def ppc_scores(idata: Any, fd: ts.FitData, args: argparse.Namespace,
 
     rng = np.random.default_rng(SEED)
     return dg.dixon_coles_sample(flat(rates["ppc_lam"]), flat(rates["ppc_mu"]),
-                                 flat(thin["rho"])[:, fd.league], rng)  # fmt: skip
+                                 flat(thin["rho"])[:, fd.league], rng,
+                                 flat(thin["kappa"])[:, fd.league])  # fmt: skip
 
 
 def audit_date(df: pl.DataFrame, cfg: EvalConfig, season: int) -> datetime:
@@ -201,6 +202,9 @@ def main() -> None:
                 recent = sel & (fd.step > fd.step.max() - 52)
                 members = np.unique(np.concatenate([fd.home[recent], fd.away[recent]]))
                 checks.append(dg.identifiability(mu_l[li], att[members].mean(0), str(lid)))
+                if "kappa" in post:  # D22: draw inflation against the Dixon-Coles rho
+                    rk = post["rho"].values[li], post["kappa"].values[li]
+                    checks.append(dg.identifiability(*rk, f"{lid} rho-kappa", "rho, kappa"))
             del post, sim_h, sim_a
         del idata
 

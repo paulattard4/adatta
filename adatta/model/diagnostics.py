@@ -65,25 +65,32 @@ def convergence(idata: Any) -> list[Check]:
     ]  # fmt: skip
 
 
-def dixon_coles_sample(lam: Arr, mu: Arr, rho: Arr, rng: np.random.Generator
-                       ) -> tuple[Counts, Counts]:  # fmt: skip
+def dixon_coles_sample(lam: Arr, mu: Arr, rho: Arr, rng: np.random.Generator,
+                       kappa: Arr | None = None) -> tuple[Counts, Counts]:  # fmt: skip
     """Scores from the fitted model: independent Poisson(lam), Poisson(mu) reweighted by the
-    Dixon-Coles tau(rho) on 0-0, 0-1, 1-0, 1-1, by rejection. lam and mu are (draws, matches),
-    rho is (draws,) or (draws, matches). PyMC's posterior predictive ignores the tau
-    Potential, so the PPC must simulate this way to check the model that was fitted."""
+    Dixon-Coles tau(rho) on 0-0, 0-1, 1-0, 1-1 and by exp(kappa) on every draw (D22), by
+    rejection. lam and mu are (draws, matches); rho and kappa are (draws,) or (draws,
+    matches). PyMC's posterior predictive ignores Potentials, so the PPC must simulate this
+    way to check the model that was fitted."""
     lam, mu = np.asarray(lam, float), np.asarray(mu, float)
-    rho = np.asarray(rho, float)
-    r = np.broadcast_to(rho if rho.ndim == 2 else rho[:, None], lam.shape)
+
+    def per_match(x: Arr) -> Arr:
+        x = np.asarray(x, float)
+        return np.broadcast_to(x if x.ndim == 2 else x[:, None], lam.shape)
+
+    r = per_match(rho)
+    inflate = np.exp(per_match(kappa)) if kappa is not None else np.ones_like(lam)
 
     def tau(h: Counts, a: Counts) -> Arr:
         t = np.ones_like(lam)
         t = np.where((h == 0) & (a == 0), 1 - lam * mu * r, t)
         t = np.where((h == 0) & (a == 1), 1 + lam * r, t)
         t = np.where((h == 1) & (a == 0), 1 + mu * r, t)
-        return np.where((h == 1) & (a == 1), 1 - r, t)
+        t = np.where((h == 1) & (a == 1), 1 - r, t)
+        return np.where(h == a, t * inflate, t)
 
     tmax = np.maximum.reduce([np.ones_like(lam), 1 - lam * mu * r, 1 + lam * r, 1 + mu * r,
-                              1 - r])  # fmt: skip
+                              1 - r]) * np.maximum(inflate, 1.0)  # fmt: skip
     h, a = rng.poisson(lam), rng.poisson(mu)
     todo = rng.random(lam.shape) * tmax >= np.maximum(tau(h, a), 0.0)
     while todo.any():
@@ -118,10 +125,10 @@ def ppc(obs_hg: Counts, obs_ag: Counts, sim_hg: Counts, sim_ag: Counts, label: s
     return out
 
 
-def identifiability(level: Arr, team_mean: Arr, label: str) -> Check:
+def identifiability(level: Arr, team_mean: Arr, label: str,
+                    what: str = "league level, mean team effect") -> Check:  # fmt: skip
     c = float(np.corrcoef(level, team_mean)[0, 1])
-    return Check(f"identifiability {label}", abs(c) <= CORR_MAX, c,
-                 "posterior corr(league level, mean team effect)")  # fmt: skip
+    return Check(f"identifiability {label}", abs(c) <= CORR_MAX, c, f"posterior corr({what})")
 
 
 def sensitivity(base_mean: dict[str, float], base_sd: dict[str, float],

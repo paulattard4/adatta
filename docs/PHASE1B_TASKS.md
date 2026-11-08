@@ -582,6 +582,24 @@ fails now is the model:
   0.885, was 0.952 with one rho); Serie A 0.252 against 0.247. Scoring uses each league's
   rho (mean p_draw over the next 4 weeks: Serie A 0.243, Serie B 0.291). Container model
   tests pass.
+
+Final dev run, D20/D21 model (2026-11-08, run 42461215335, commit 2e2b80f, 7-day cadence,
+report `backtest/reports/20261108T162632Z` in R2): 928 refits, all fresh (the model change
+invalidated the cache); R-hat over 1.01 in 14, ESS under 400 in 0, divergences in 2 (worst
+R-hat 1.014; the old model's run had 6 / 0 / 5, same worst). No job hit a runner shutdown,
+so the memory release works. Two jobs (Germany 2022, France 2019) failed at setup on a
+GitHub 504 downloading uv and were rerun unchanged.
+- All 18,682 warm dev matches: 1X2 log loss -0.06% [-0.17%, +0.04%], RPS -0.12% [-0.27%,
+  +0.03%]; OU2.5 -0.36% and CRPS -0.46%, both excluding 0. Essentially the old model's
+  figures.
+- By season, 1X2 log loss +0.11%, +0.10%, -0.12%, -0.00% for 2019 to 2022 (all include 0).
+  xG-informed -0.63% [-1.08%, -0.18%], RPS -1.14% [-1.85%, -0.42%] (n 2,935); not
+  informed +0.04% [-0.05%, +0.13%].
+- **Item 2 under D19 still passes.** 2023/24: 1X2 log loss -0.39% [-0.72%, -0.06%], RPS
+  -0.71% [-1.24%, -0.18%] (n 3,734). England 2023/24 -0.54% [-1.48%, +0.40%] and RPS
+  -0.77% [-2.27%, +0.73%] (n 910), in the right direction as D19 requires. By bundle in
+  2023/24: Germany -1.40% [-2.29%, -0.50%], Spain -0.27%, France -0.13%, Italy +0.20%
+  [-0.32%, +0.72%] (log loss; Italy's RPS is -0.19%).
 - [ ] Inference gate passes (acceptance item 1).
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and
       summarised in `reports/phase1b/`.

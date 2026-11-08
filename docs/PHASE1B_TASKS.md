@@ -515,6 +515,22 @@ from the R2 cache.
   2023/24 is 1X2 -0.55% [-1.51%, +0.40%] and RPS -0.79% [-2.30%, +0.73%] (n 910), so the
   England intervals include 0. The project owner ruled that a gain in the right direction
   is enough for England (D19). **Item 2 passes under D19.**
+
+Audit sample for acceptance item 1 (fixed 2026-11-08, before any audit gate ran):
+- One fit per bundle per dev season, 25 in all, each on the first weekly refit of the shared
+  plan on or after 1 January of the season (`gate.py --season`; mid-season, one rule, no
+  choosing). Dates: 2020-01-06, 2021-01-04, 2022-01-03, 2023-01-02, 2024-01-01 for every
+  bundle except Germany 2020-01-13 / 2023-01-16 / 2024-01-08 and France 2024-01-08 (winter
+  breaks: no targets that week).
+- Production configuration: strength_open + xG, 4 chains x 2,000 draws, 2,000 tuning, seed
+  20261105, run by `.github/workflows/gate.yml` (one job each). Every gating check of
+  item 1 must pass in all 25: R-hat, bulk and tail ESS, 0 divergences, PPC per league,
+  identifiability, parameter prior sensitivity x0.5 / x2, truncation, reproducibility.
+- Predictive prior sensitivity on the dev walk-forward: backtests at prior scale 0.5 and 2
+  (28-day grid, all five seasons) paired with the scale-1 reference run 42359964241; dev
+  1X2 log loss must move < 0.2% relative for each.
+- A failure is reported as it stands, not tuned away on this sample; any fix (for example a
+  higher target_accept) is recorded and the whole sample rerun.
 - [ ] Inference gate passes (acceptance item 1).
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and
       summarised in `reports/phase1b/`.

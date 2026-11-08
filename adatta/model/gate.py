@@ -22,7 +22,14 @@ import polars as pl
 
 from adatta.db.session import get_session
 from adatta.eval.baseline import _file_hash, _git_sha
-from adatta.eval.harness import load_coaches, load_config, load_matches, load_xg
+from adatta.eval.harness import (
+    EvalConfig,
+    load_coaches,
+    load_config,
+    load_matches,
+    load_xg,
+    refit_plan,
+)
 from adatta.model import diagnostics as dg
 from adatta.model import team_strength as ts
 
@@ -58,10 +65,26 @@ def predict(idata: Any, fd: ts.FitData, targets: pl.DataFrame, max_goals: int) -
             np.array([r["tail_mass"] for r in rows]))  # fmt: skip
 
 
+def audit_date(df: pl.DataFrame, cfg: EvalConfig, season: int) -> datetime:
+    """The fixed audit-sample date for a dev season (acceptance item 1): the first weekly
+    refit of the shared walk-forward plan on or after 1 January of the season."""
+    mid = datetime(season + 1, 1, 1, tzinfo=UTC)
+    dates = [a for a, _, _ in refit_plan(df, cfg, [season], 7) if a >= mid]
+    if not dates:
+        raise ValueError(f"no refit on or after {mid:%Y-%m-%d} for season {season}")
+    return dates[0]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bundle", default="england")
     ap.add_argument("--as-of", default="2023-08-07")
+    ap.add_argument(
+        "--season",
+        type=int,
+        default=None,
+        help="audit sample: use this dev season's audit date instead of --as-of",
+    )
     ap.add_argument("--draws", type=int, default=1000)
     ap.add_argument("--chains", type=int, default=4)
     ap.add_argument("--tune", type=int, default=None, help="warm-up steps (default: draws)")
@@ -77,7 +100,6 @@ def main() -> None:
     code_sha = _git_sha()
     cfg = load_config()
     leagues = cfg.bundles[args.bundle]
-    as_of = datetime.fromisoformat(args.as_of).replace(tzinfo=UTC)
     with get_session() as s:
         df, _ = load_matches(s, leagues)
         if args.xg:
@@ -85,6 +107,10 @@ def main() -> None:
         if args.manager:
             df = df.join(load_coaches(s, leagues), on="match_id", how="left")
         s.rollback()
+    if args.season is None:
+        as_of = datetime.fromisoformat(args.as_of).replace(tzinfo=UTC)
+    else:
+        as_of = audit_date(df, cfg, args.season)
     fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, cfg.result_available_after_hours)
     from adatta.eval.harness import mover_codes
 

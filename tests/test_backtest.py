@@ -310,3 +310,15 @@ def test_assemble_splits_recent_manager_changes(tmp_path: Path) -> None:
     out = bt.assemble(parts, tmp_path / "out", cfg, lambda _: base, "phase1b_strength_open")
     summary = (out / "summary.md").read_text()
     assert "| manager recent |" in summary and "| manager other |" in summary
+
+
+def test_gate_audit_date_is_the_first_weekly_refit_from_january() -> None:
+    from adatta.model.gate import audit_date
+
+    df, cfg = matches(), config()
+    d = audit_date(df, cfg, 2018)
+    plan = [a for a, _, _ in harness.refit_plan(df, cfg, [2018], 7)]
+    assert d in plan and d >= datetime(2019, 1, 1, tzinfo=UTC) and d.weekday() == 0
+    assert all(a < datetime(2019, 1, 1, tzinfo=UTC) for a in plan if a < d)
+    with pytest.raises(harness.HoldoutLocked):
+        audit_date(matches((2023, 2024)), cfg, 2024)

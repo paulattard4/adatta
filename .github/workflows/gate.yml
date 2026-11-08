@@ -1,0 +1,59 @@
+# Phase 1b inference gate audit sample (PHASE1B_TASKS acceptance item 1, §14.5). Manual
+# dispatch only. One matrix job per bundle x dev season runs `python -m adatta.model.gate` on
+# that season's fixed audit date (first weekly refit on or after 1 January) with the
+# production configuration. The repo is public: the artifact holds each gate's summary and
+# report (metrics only); traces stay on the runner.
+name: gate
+on:
+  workflow_dispatch:
+    inputs:
+      bundles:
+        description: "JSON list of bundles"
+        default: '["england","spain","italy","germany","france"]'
+      seasons:
+        description: "JSON list of dev seasons"
+        default: "[2019,2020,2021,2022,2023]"
+      draws:
+        description: "NUTS draws per chain (tuning steps match)"
+        default: "2000"
+permissions:
+  contents: read
+concurrency:
+  group: gate
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      # Same budget as backtest.yml: 18 of the account's 20 concurrent jobs, so capture and
+      # ci keep a slot. Don't run a backtest at the same time.
+      max-parallel: 18
+      matrix:
+        bundle: ${{ fromJSON(inputs.bundles) }}
+        season: ${{ fromJSON(inputs.seasons) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      # the checkout carries earlier committed gate reports; the artifact is this job's only
+      - run: rm -rf reports/phase1b/gate
+      - name: inference gate
+        run: >-
+          uv run --frozen --group model python -m adatta.model.gate
+          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }}
+          --structure strength_open --xg --chains 4
+          --draws ${{ inputs.draws }} --tune ${{ inputs.draws }}
+          | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: gate-${{ matrix.bundle }}-${{ matrix.season }}
+          path: |
+            reports/phase1b/gate/*/summary.md
+            reports/phase1b/gate/*/report.json

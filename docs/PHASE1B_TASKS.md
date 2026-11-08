@@ -557,6 +557,31 @@ The failures:
   rate observed 0.245, old PPC 0.214, new 0.244; 2. Bundesliga 0.294, old 0.236, new 0.268,
   so a second-tier gap remains. Total dispersion is unchanged by the fix (Bundesliga
   observed 0.926 against 1.040 old, 1.054 new), so that failure is the model's.
+
+Audit attempt 2 (2026-11-08, run 42456268735, commit defd112, PPC with tau): **5 of 25 pass**
+(England 2022, 2023, 2024; France 2024; Spain 2021). Sampling unchanged and clean. What
+fails now is the model:
+- **Total dispersion, 22 checks in 18 fits**, all but two on the low side: observed goal
+  totals vary less than Poisson (dispersion 0.926 to 0.985 in top flights and some second
+  tiers) while the model's PPC median is 1.02 to 1.08 (quantiles 0.003 to 0.048). Any
+  Poisson-family model, Dixon-Coles included, puts this at 1 or above, because varying rates
+  only add variance; the spec's own likelihood (§8.1) cannot pass this check where goals are
+  under-dispersed. Ligue 2 (2021, 2022) fails on the high side (1.11 against 1.02).
+- **Draw rate, 6 checks**, second tiers only (Serie B 4, 2. Bundesliga 1, Ligue 2 1):
+  observed 0.296 to 0.329 against PPC 0.268 to 0.285. One rho per bundle is set mostly by
+  the top flight; second tiers draw more.
+- **Prior sensitivity x2, 5 fits** (France 2020, 2021, 2023; Germany 2020, 2024):
+  `reset_weeks` moves 1.01 to 1.51 posterior sds; it is not identified by the data.
+- Decided (2026-11-08): D20, total dispersion becomes a warning; D21, one rho per league and
+  reset_weeks fixed at 16. Backtest refits now free memory after each fit (gc and JAX caches)
+  so 7-day jobs survive. Because the model changed, the order from here is: the final dev
+  backtest at the 7-day cadence (item 2 under D19, rechecked), the audit sample (attempt 3),
+  then the x0.5 / x2 sensitivity backtests, then the holdout.
+  Smoke (Italy as of 2021-01-04, 2 x 300 draws, container): rho Serie A -0.087 +/- 0.036,
+  Serie B -0.132 +/- 0.034; Serie B draw rate observed 0.309 against PPC 0.289 (quantile
+  0.885, was 0.952 with one rho); Serie A 0.252 against 0.247. Scoring uses each league's
+  rho (mean p_draw over the next 4 weeks: Serie A 0.243, Serie B 0.291). Container model
+  tests pass.
 - [ ] Inference gate passes (acceptance item 1).
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and
       summarised in `reports/phase1b/`.

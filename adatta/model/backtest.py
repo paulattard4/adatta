@@ -127,9 +127,25 @@ def nuts_fitter(spec: RunSpec) -> Fitter:
         diag = {"rhat_max": conv["rhat"], "ess_bulk_min": conv["ess_bulk"],
                 "ess_tail_min": conv["ess_tail"], "divergences": conv["divergences"],
                 "fit_s": round(time.time() - t0)}  # fmt: skip
-        return ts.slim(idata, spec.max_pred_draws), diag
+        out = ts.slim(idata, spec.max_pred_draws), diag
+        # A 7-day job runs ~36 refits in one process; without this, memory grows until the
+        # runner is shut down (run 42385535603 lost every job two-thirds through).
+        del idata
+        _release_memory()
+        return out
 
     return fit
+
+
+def _release_memory() -> None:
+    """Free the last fit: Python garbage, then JAX's compiled-function caches (each refit has
+    new shapes, so cached compilations are never reused)."""
+    import gc
+    import sys
+
+    gc.collect()
+    if "jax" in sys.modules:
+        sys.modules["jax"].clear_caches()
 
 
 def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals: int
@@ -154,10 +170,11 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
                        dtype=np.int64)  # fmt: skip
     lam, mu_ = ts.rates_from_draws(draws, fd, home, away, league, pending[0], pending[1],
                                    horizon)  # fmt: skip
-    rho = draws["rho"]
+    rho = np.asarray(draws["rho"])
+    rho = rho[league] if rho.ndim == 2 else np.broadcast_to(rho, lam.shape)  # per league (D21)
     out = []
     for k, (hg, ag) in enumerate(zip(targets["hg"], targets["ag"], strict=True)):
-        mats = [dc.score_matrix(float(lam[k, d]), float(mu_[k, d]), float(rho[d]), max_goals)
+        mats = [dc.score_matrix(float(lam[k, d]), float(mu_[k, d]), float(rho[k, d]), max_goals)
                 for d in range(lam.shape[1])]  # fmt: skip
         m = np.mean([x[0] for x in mats], axis=0)
         mk = metrics.markets(m)

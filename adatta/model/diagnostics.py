@@ -19,6 +19,9 @@ RHAT_MAX = 1.01
 ESS_MIN = 400
 DIVERGENCES_MAX = 0
 PPC_BAND = (0.05, 0.95)  # observed statistic must sit in the central 90% of the PPC
+# Reported, not gating (D20): goal totals are often under-dispersed (variance / mean < 1),
+# which no Poisson-family likelihood (the spec's Dixon-Coles, §8.1) can reproduce.
+PPC_WARN_ONLY = frozenset({"total_dispersion"})
 CORR_MAX = 0.9  # |posterior corr| between a league level and its teams' mean effect
 SENS_SHIFT_SD = 1.0  # headline posterior mean may move < 1 posterior sd under x0.5 / x2
 SENS_LOGLOSS_REL = 0.002  # predictive 1X2 log loss may move < 0.2% relative
@@ -66,10 +69,11 @@ def dixon_coles_sample(lam: Arr, mu: Arr, rho: Arr, rng: np.random.Generator
                        ) -> tuple[Counts, Counts]:  # fmt: skip
     """Scores from the fitted model: independent Poisson(lam), Poisson(mu) reweighted by the
     Dixon-Coles tau(rho) on 0-0, 0-1, 1-0, 1-1, by rejection. lam and mu are (draws, matches),
-    rho is (draws,). PyMC's posterior predictive ignores the tau Potential, so the PPC must
-    simulate this way to check the model that was fitted."""
+    rho is (draws,) or (draws, matches). PyMC's posterior predictive ignores the tau
+    Potential, so the PPC must simulate this way to check the model that was fitted."""
     lam, mu = np.asarray(lam, float), np.asarray(mu, float)
-    r = np.broadcast_to(np.asarray(rho, float)[:, None], lam.shape)
+    rho = np.asarray(rho, float)
+    r = np.broadcast_to(rho if rho.ndim == 2 else rho[:, None], lam.shape)
 
     def tau(h: Counts, a: Counts) -> Arr:
         t = np.ones_like(lam)
@@ -109,7 +113,8 @@ def ppc(obs_hg: Counts, obs_ag: Counts, sim_hg: Counts, sim_ag: Counts, label: s
     for k in obs:
         q = float((sim[k] < obs[k][0]).mean() + 0.5 * (sim[k] == obs[k][0]).mean())
         detail = f"observed {obs[k][0]:.3f}, PPC median {np.median(sim[k]):.3f}"
-        out.append(Check(f"ppc {label} {k}", PPC_BAND[0] <= q <= PPC_BAND[1], q, detail))
+        out.append(Check(f"ppc {label} {k}", PPC_BAND[0] <= q <= PPC_BAND[1], q, detail,
+                         blocking=k not in PPC_WARN_ONLY))  # fmt: skip
     return out
 
 

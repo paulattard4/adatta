@@ -59,3 +59,13 @@ def test_dixon_coles_sample_matches_the_exact_score_distribution() -> None:
     exact_draw = sum(pois(lam, k) * pois(mu, k) * tau.get((k, k), 1.0) for k in range(20))
     assert abs((h == a).mean() - exact_draw) < 0.003
     assert exact_draw > sum(pois(lam, k) * pois(mu, k) for k in range(20)) + 0.02
+
+
+def test_total_dispersion_is_reported_but_not_gating() -> None:
+    rng = np.random.default_rng(0)
+    obs_h, obs_a = np.ones(400, int), np.ones(400, int)  # dispersion 0
+    sim_h, sim_a = rng.poisson(1.0, (200, 400)), rng.poisson(1.0, (200, 400))
+    checks = {c.name: c for c in dg.ppc(obs_h, obs_a, sim_h, sim_a, "39")}
+    assert not checks["ppc 39 total_dispersion"].passed
+    assert not checks["ppc 39 total_dispersion"].blocking
+    assert checks["ppc 39 draw_rate"].blocking

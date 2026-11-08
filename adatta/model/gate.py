@@ -35,7 +35,7 @@ from adatta.model import team_strength as ts
 
 SEED = 20261105
 HEADLINE = ("delta", "mu_league", "h_league", "sigma_attack", "sigma_defence", "sigma_strength",
-            "sigma_open", "sigma_walk", "reset_weeks", "sigma_home",
+            "sigma_open", "sigma_walk", "sigma_home",
             "rho", "phi", "sigma_form", "xg_shape", "xg_bias", "change_weeks")  # fmt: skip
 
 
@@ -89,7 +89,7 @@ def ppc_scores(idata: Any, fd: ts.FitData, args: argparse.Namespace,
 
     rng = np.random.default_rng(SEED)
     return dg.dixon_coles_sample(flat(rates["ppc_lam"]), flat(rates["ppc_mu"]),
-                                 flat(thin["rho"]), rng)  # fmt: skip
+                                 flat(thin["rho"])[:, fd.league], rng)  # fmt: skip
 
 
 def audit_date(df: pl.DataFrame, cfg: EvalConfig, season: int) -> datetime:

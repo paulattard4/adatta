@@ -2,12 +2,12 @@
 
     attack[s, t]  = attack0[t] + cumsum_s(sd_s * z_attack[s, t]), centred over teams per step
     defence[s, t] likewise
-    sd_s          = sigma_walk, or sigma_walk * sqrt(1 + reset_weeks) at a season's first step
+    sd_s          = sigma_walk, or sigma_walk * sqrt(1 + 16) at a season's first step (D21)
                     (the soft reset of §5.3: the prior season's state carries over, inflated)
     log lam_home  = mu_league[l] + h_league[l] + sigma_home * h_team[home]
                     + attack[s, home] - defence[s, away]
     log lam_away  = mu_league[l] + attack[s, away] - defence[s, home]
-    + Dixon-Coles tau(rho) on the four low scores
+    + Dixon-Coles tau(rho[l]) on the four low scores, one rho per league (D21)
 
 Priors are §5.1–5.2: mu_league ~ Normal(log 1.35, 0.3); sigma_attack, sigma_defence ~
 HalfNormal(0.5); sigma_walk ~ HalfNormal(0.15); sigma_home ~ HalfNormal(0.3). The walk is
@@ -66,6 +66,7 @@ STRUCTURES = ("independent", "strength_open")
 LOG_BASE_RATE = float(np.log(1.35))
 XG_FLOOR = 0.01  # a Gamma has no mass at 0
 MGR_WINDOW_WEEKS = 6  # steps a coach change widens the walk for (fixed before testing)
+RESET_WEEKS = 16.0  # season-start drift, in weeks of walk (fixed, D21)
 
 
 @dataclass(frozen=True)
@@ -214,14 +215,16 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
             sigma_a = pm.HalfNormal("sigma_strength", 0.5 * k)
             sigma_b = pm.HalfNormal("sigma_open", 0.5 * k)
             sigma_walk = pm.HalfNormal("sigma_walk", 0.15 * k)
-        # Season reset as a multiple of the weekly step: with only 2–3 season boundaries in a
-        # window, a free scale is nearly unidentified (R-hat 1.02, ESS ~270 in the first fits).
-        # Prior: a reset worth ~16 weeks of drift (a transfer window), within about x2.7.
-        reset_weeks = pm.LogNormal("reset_weeks", np.log(16.0), 0.5 * k)
+        # Season reset as a multiple of the weekly step, fixed (D21): with 2–3 season
+        # boundaries in a window the data do not identify it (a LogNormal(log 16, 0.5) stayed on
+        # its prior and failed the §14.5 prior-sensitivity check), so it is an assumption: a
+        # reset worth 16 weeks of drift (a transfer window).
+        reset_weeks = RESET_WEEKS
         sigma_home = pm.HalfNormal("sigma_home", 0.3 * k)
         h_league = pm.Normal("h_league", 0.25, 0.2 * k, dims="league")
         h_team = pm.Normal("h_team", 0.0, 1.0, dims="team")
-        rho = pm.Uniform("rho", -0.2, 0.2)
+        # one rho per league (D21): second tiers draw more than top flights
+        rho = pm.Uniform("rho", -0.2, 0.2, dims="league")
 
         reset = pt.where(pt.as_tensor(fd.season_start), pt.sqrt(1.0 + reset_weeks), 1.0)
 
@@ -277,6 +280,7 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
         if xg:
             xg_likelihood(fd, lam, mu_, k)
         hg, ag = fd.hg, fd.ag
+        rho = rho[fd.league]
         tau = pt.switch(
             (hg == 0) & (ag == 0), 1 - lam * mu_ * rho,
             pt.switch((hg == 0) & (ag == 1), 1 + lam * rho,

@@ -50,7 +50,9 @@ def main() -> None:
     bfmi = (np.diff(energy, axis=1) ** 2).mean(axis=1) / energy.var(axis=1)
     print("bfmi per chain:", [round(float(b), 2) for b in bfmi])
     post, divs = idata.posterior, idata.sample_stats["diverging"]
-    for v in ("sigma_walk", "reset_weeks", "sigma_home", "sigma_attack", "sigma_defence"):
+    for v in ("sigma_walk", "sigma_home", "sigma_attack", "sigma_defence"):
+        if v not in post:
+            continue
         x = post[v].values.ravel()
         d = divs.values.ravel()
         if d.any():

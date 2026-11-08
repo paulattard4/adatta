@@ -493,6 +493,28 @@ paired with the reference run 42359964241.
   [-0.17%, +0.04%].
 
 ### 6. Promotion
+
+Final dev run (2026-11-08, run 42385535603 attempt 2, commit 57eff38, 7-day cadence per D14,
+report `backtest/reports/20261107T233754Z` in R2), production model `phase1b_strength_open_xg`:
+928 refits; R-hat over 1.01 in 6, ESS under 400 in 0, divergences in 5 (worst R-hat 1.014).
+Attempt 1 lost every refit job to runner shutdowns about two-thirds of the way through (about
+36 refits per job, likely memory, since nothing is freed between refits); the rerun resumed
+from the R2 cache.
+- **Acceptance item 2 as written fails.** Over all 18,682 warm dev matches, 1X2 log loss is
+  -0.07% [-0.18%, +0.03%] and RPS -0.12% [-0.28%, +0.03%]; England -0.18% [-0.44%, +0.08%]
+  and -0.25% [-0.64%, +0.15%]. OU2.5 is -0.37% and CRPS -0.47%, both excluding 0.
+- The gain is all in xG coverage. xG-informed matches show 1X2 -0.67% [-1.11%, -0.22%] and
+  RPS -1.15% [-1.87%, -0.43%] (n 2,935). The rest show +0.03% [-0.06%, +0.13%] (n 15,747).
+  By season, 1X2 log loss is +0.10%, +0.09%, -0.12%, -0.01% for 2019 to 2022 (all intervals
+  include 0) and -0.42% [-0.75%, -0.09%] for 2023, with RPS -0.75% [-1.28%, -0.22%].
+- `has_xg` coverage (capability table, metadata only): available for the five top flights and
+  the Championship from 2023 onwards, including both holdout seasons; second tiers and
+  cups are absent or partial. So 2023/24 is the only dev season whose xG coverage matches
+  the holdout's, and 2019 to 2022 measure the goals-only model.
+- D19 (2026-11-08): item 2 is judged on 2023/24. Overall it passes (above). England alone in
+  2023/24 is 1X2 -0.55% [-1.51%, +0.40%] and RPS -0.79% [-2.30%, +0.73%] (n 910), so the
+  England intervals include 0. The project owner ruled that a gain in the right direction
+  is enough for England (D19). **Item 2 passes under D19.**
 - [ ] Inference gate passes (acceptance item 1).
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and
       summarised in `reports/phase1b/`.

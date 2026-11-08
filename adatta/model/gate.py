@@ -65,6 +65,33 @@ def predict(idata: Any, fd: ts.FitData, targets: pl.DataFrame, max_goals: int) -
             np.array([r["tail_mass"] for r in rows]))  # fmt: skip
 
 
+def ppc_scores(idata: Any, fd: ts.FitData, args: argparse.Namespace,
+               n_draws: int = 1000) -> tuple[Any, Any]:  # fmt: skip
+    """Posterior-predictive scores of the fitted model, Dixon-Coles tau included, as
+    (draws, matches). PyMC's posterior predictive drops the tau Potential (independent
+    Poisson), so each match's rates are recomputed from thinned posterior draws and the
+    scores drawn with `dg.dixon_coles_sample`."""
+    import pymc as pm
+
+    model = ts.build(fd, 1.0, args.structure, args.shifts, args.form, args.xg, args.manager)
+    with model:
+        for obs, name in (("home_goals", "ppc_lam"), ("away_goals", "ppc_mu")):
+            node = model[obs].owner
+            pm.Deterministic(name, node.op.dist_params(node)[0])
+    post = idata.posterior
+    step = max(1, post.sizes["chain"] * post.sizes["draw"] // n_draws)
+    thin = post.isel(draw=slice(None, None, step))
+    rates = pm.compute_deterministics(thin, var_names=["ppc_lam", "ppc_mu"], model=model,
+                                      progressbar=False)  # fmt: skip
+
+    def flat(x: Any) -> Any:
+        return x.stack(s=("chain", "draw")).transpose("s", ...).values
+
+    rng = np.random.default_rng(SEED)
+    return dg.dixon_coles_sample(flat(rates["ppc_lam"]), flat(rates["ppc_mu"]),
+                                 flat(thin["rho"]), rng)  # fmt: skip
+
+
 def audit_date(df: pl.DataFrame, cfg: EvalConfig, season: int) -> datetime:
     """The fixed audit-sample date for a dev season (acceptance item 1): the first weekly
     refit of the shared walk-forward plan on or after 1 January of the season."""
@@ -165,8 +192,8 @@ def main() -> None:
         if k == 1.0:
             checks += dg.convergence(idata)
             checks.append(dg.truncation(tails))
-            pp, post = ts.stacked(idata, "posterior_predictive"), ts.stacked(idata)
-            sim_h, sim_a = pp["home_goals"].values.T, pp["away_goals"].values.T
+            post = ts.stacked(idata)
+            sim_h, sim_a = ppc_scores(idata, fd, args)
             att, mu_l = post["attack_last"].values, post["mu_league"].values
             for li, lid in enumerate(leagues):
                 sel = fd.league == li
@@ -174,7 +201,7 @@ def main() -> None:
                 recent = sel & (fd.step > fd.step.max() - 52)
                 members = np.unique(np.concatenate([fd.home[recent], fd.away[recent]]))
                 checks.append(dg.identifiability(mu_l[li], att[members].mean(0), str(lid)))
-            del pp, post, sim_h, sim_a
+            del post, sim_h, sim_a
         del idata
 
     hb = heads[1.0]

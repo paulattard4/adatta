@@ -39,3 +39,23 @@ def test_sensitivity_and_truncation_and_reproducibility() -> None:
 def test_proxy_predictive_check_is_non_blocking() -> None:
     c = dg.predictive_sensitivity(1.000, 1.01, "x2 (proxy)", blocking=False)
     assert not c.passed and not c.blocking and not c.as_dict()["blocking"]
+
+
+def test_dixon_coles_sample_matches_the_exact_score_distribution() -> None:
+    from math import exp, factorial
+
+    lam, mu, rho, n = 1.4, 1.1, -0.12, 400_000
+    h, a = dg.dixon_coles_sample(np.full((1, n), lam), np.full((1, n), mu), np.array([rho]),
+                                 np.random.default_rng(1))  # fmt: skip
+
+    def pois(x: float, k: int) -> float:
+        return exp(-x) * x**k / factorial(k)
+
+    tau = {(0, 0): 1 - lam * mu * rho, (0, 1): 1 + lam * rho, (1, 0): 1 + mu * rho,
+           (1, 1): 1 - rho}  # fmt: skip
+    for (i, j), t in tau.items():
+        exact = pois(lam, i) * pois(mu, j) * t
+        assert abs(((h == i) & (a == j)).mean() - exact) < 0.003
+    exact_draw = sum(pois(lam, k) * pois(mu, k) * tau.get((k, k), 1.0) for k in range(20))
+    assert abs((h == a).mean() - exact_draw) < 0.003
+    assert exact_draw > sum(pois(lam, k) * pois(mu, k) for k in range(20)) + 0.02

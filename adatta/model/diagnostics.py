@@ -62,6 +62,33 @@ def convergence(idata: Any) -> list[Check]:
     ]  # fmt: skip
 
 
+def dixon_coles_sample(lam: Arr, mu: Arr, rho: Arr, rng: np.random.Generator
+                       ) -> tuple[Counts, Counts]:  # fmt: skip
+    """Scores from the fitted model: independent Poisson(lam), Poisson(mu) reweighted by the
+    Dixon-Coles tau(rho) on 0-0, 0-1, 1-0, 1-1, by rejection. lam and mu are (draws, matches),
+    rho is (draws,). PyMC's posterior predictive ignores the tau Potential, so the PPC must
+    simulate this way to check the model that was fitted."""
+    lam, mu = np.asarray(lam, float), np.asarray(mu, float)
+    r = np.broadcast_to(np.asarray(rho, float)[:, None], lam.shape)
+
+    def tau(h: Counts, a: Counts) -> Arr:
+        t = np.ones_like(lam)
+        t = np.where((h == 0) & (a == 0), 1 - lam * mu * r, t)
+        t = np.where((h == 0) & (a == 1), 1 + lam * r, t)
+        t = np.where((h == 1) & (a == 0), 1 + mu * r, t)
+        return np.where((h == 1) & (a == 1), 1 - r, t)
+
+    tmax = np.maximum.reduce([np.ones_like(lam), 1 - lam * mu * r, 1 + lam * r, 1 + mu * r,
+                              1 - r])  # fmt: skip
+    h, a = rng.poisson(lam), rng.poisson(mu)
+    todo = rng.random(lam.shape) * tmax >= np.maximum(tau(h, a), 0.0)
+    while todo.any():
+        h = np.where(todo, rng.poisson(lam), h)
+        a = np.where(todo, rng.poisson(mu), a)
+        todo &= rng.random(lam.shape) * tmax >= np.maximum(tau(h, a), 0.0)
+    return h, a
+
+
 def goal_stats(hg: Counts, ag: Counts) -> dict[str, Arr]:
     """Per-draw statistics; hg/ag have shape (draws, matches) (or (matches,) for observed)."""
     hg, ag = np.atleast_2d(hg).astype(float), np.atleast_2d(ag).astype(float)

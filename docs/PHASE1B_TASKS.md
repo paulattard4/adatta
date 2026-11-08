@@ -531,6 +531,32 @@ Audit sample for acceptance item 1 (fixed 2026-11-08, before any audit gate ran)
   1X2 log loss must move < 0.2% relative for each.
 - A failure is reported as it stands, not tuned away on this sample; any fix (for example a
   higher target_accept) is recorded and the whole sample rerun.
+
+Audit attempt 1 (2026-11-08, run 42452857162, commit 67b0681): **3 of 25 pass** (England
+2022, 2023, 2024). Sampling is clean everywhere: worst R-hat 1.007, min bulk ESS 696, min
+tail ESS 1015, 0 divergences, identifiability and truncation pass in all 25, reproducible.
+The failures:
+- **PPC draw rate**, in 21 fits, always with more observed draws than the PPC (quantiles
+  0.96 to 1.00): for example Bundesliga 0.240 to 0.245 against 0.211 to 0.215, Serie B 0.31
+  against 0.26. Cause, at least in part, a defect in the check: the fitted likelihood adds
+  the Dixon-Coles tau as a `pm.Potential`, and PyMC's posterior predictive ignores
+  Potentials (it warns so), so the PPC simulated independent Poisson scores, not the fitted
+  model. Rho is negative in every fit (down to -0.14, Germany), which raises 0-0 and 1-1;
+  at rho -0.13 that is worth about +0.03 on the draw rate, the size of the Bundesliga gap.
+- **PPC total dispersion**, in 11 fits, observed under-dispersed (0.93 to 0.96 against a PPC
+  median of 1.02 to 1.08; quantiles 0.005 to 0.04), mostly top flights; plus Ligue 2 over
+  (1.11, quantile 0.97). The tau omission touches this too.
+- **Prior sensitivity x2**, in 5 fits (France 2020, 2021, 2023; Germany 2020, 2024):
+  `reset_weeks` moves 1.01 to 1.51 posterior sds. It is prior-dominated (posterior 13 to 20
+  weeks with sd 6 to 11 against a prior median of 16), as flagged when it was introduced.
+- Fix to the check (not the model): the gate's PPC now recomputes each match's rates from
+  1,000 thinned posterior draws and draws scores with the Dixon-Coles tau
+  (`diagnostics.dixon_coles_sample`, unit-tested against the exact score probabilities).
+  The whole sample is rerun with it; `team_strength.py` is unchanged, so backtest caches
+  stay valid. Smoke (Germany as of 2021-01-04, 2 x 300 draws, rho -0.14): Bundesliga draw
+  rate observed 0.245, old PPC 0.214, new 0.244; 2. Bundesliga 0.294, old 0.236, new 0.268,
+  so a second-tier gap remains. Total dispersion is unchanged by the fix (Bundesliga
+  observed 0.926 against 1.040 old, 1.054 new), so that failure is the model's.
 - [ ] Inference gate passes (acceptance item 1).
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and
       summarised in `reports/phase1b/`.

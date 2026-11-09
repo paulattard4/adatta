@@ -165,3 +165,23 @@ def test_a_broken_season_fails_alone_and_is_retried(tmp_path: Path) -> None:
     assert cup["job_status"] == "failed" and "KeyError" in cup["flags"]
     h.api.broken_league = None
     assert h.run([LEAGUE, CUP])["done"] == 1
+
+
+def test_calendar_only_competition_skips_detail(tmp_path: Path) -> None:
+    h = Harness(tmp_path)
+    calendar = CUP.model_copy(update={"detail": False})
+    result = h.run([calendar])
+    assert result == {"attempted": 1, "done": 1, "requests": 1}  # the fixture list only
+    assert h.count(models.Match) == 4 and h.count(models.MatchDetail) == 0
+    assert h.api.id_requests == []
+    row = h.report([calendar])[0]
+    assert row["job_status"] == "done" and row["flags"] == ""  # no "detail missing"
+
+
+def test_calendar_competitions_file_is_valid() -> None:
+    from adatta.config import load_competitions
+
+    comps = load_competitions("config/calendar_competitions.yml")
+    assert comps and all(not c.detail and c.tier == "cup" for c in comps)
+    main = {c.league_id for c in load_competitions()}
+    assert main.isdisjoint(c.league_id for c in comps)  # never a modelled competition

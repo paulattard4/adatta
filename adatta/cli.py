@@ -21,6 +21,10 @@ from adatta.config import get_settings, load_competitions
 from adatta.db.session import get_session
 
 app = typer.Typer(help="adatta command line")
+COMPETITIONS_OPTION = typer.Option(
+    "config/competitions.yml",
+    help="competition file; config/calendar_competitions.yml loads fixture calendars only",
+)
 
 
 def _client() -> ApiFootballClient:
@@ -38,19 +42,21 @@ def status() -> None:
 
 
 @app.command("backfill-enqueue")
-def backfill_enqueue() -> None:
+def backfill_enqueue(config: str = COMPETITIONS_OPTION) -> None:
     """Queue all (competition, season) jobs from config/competitions.yml."""
     with get_session() as session:
-        n = backfill.enqueue(session, load_competitions())
+        n = backfill.enqueue(session, load_competitions(config))
         session.commit()
     typer.echo(f"queued {n} new jobs")
 
 
 @app.command("backfill-run")
-def backfill_run(limit: int = typer.Option(None, help="max jobs this run")) -> None:
+def backfill_run(
+    limit: int = typer.Option(None, help="max jobs this run"), config: str = COMPETITIONS_OPTION
+) -> None:
     """Queue any new (competition, season) jobs, then run unfinished ones within the backfill
     quota budget. Safe to stop and re-run."""
-    comps = load_competitions()
+    comps = load_competitions(config)
     client = _client()
     with get_session() as session:
         queued = backfill.enqueue(session, comps)
@@ -62,10 +68,13 @@ def backfill_run(limit: int = typer.Option(None, help="max jobs this run")) -> N
 
 
 @app.command("backfill-report")
-def backfill_report(out: str = typer.Option("reports/backfill", help="report folder")) -> None:
+def backfill_report(
+    out: str = typer.Option("reports/backfill", help="report folder"),
+    config: str = COMPETITIONS_OPTION,
+) -> None:
     """Completeness report per competition x season (no API requests)."""
     with get_session() as session:
-        rows = backfill.completeness(session, load_competitions())
+        rows = backfill.completeness(session, load_competitions(config))
     df = pl.DataFrame(rows, infer_schema_length=None)
     folder = Path(out)
     folder.mkdir(parents=True, exist_ok=True)

@@ -1,6 +1,7 @@
 """Resumable, idempotent historical backfill (Phase 0 task 6; spec §4.2, §19.2 step 5).
 
-One job per (competition, season) in config/competitions.yml:
+One job per (competition, season) in config/competitions.yml (or another competition file,
+such as config/calendar_competitions.yml, whose competitions skip the detail stage):
 
   pending  -> /fixtures?league&season: matches and results ingested         -> "fixtures"
   fixtures -> /fixtures?ids (20 per call) for finished matches that have no
@@ -164,7 +165,8 @@ def run(
                 job.n_fixtures, job.status, job.error = len(fixtures), "fixtures", None
                 spent()
                 session.commit()
-            counts["detail"] += fetch_detail(session, client, season, spent)
+            if comp.detail:
+                counts["detail"] += fetch_detail(session, client, season, spent)
             job.status = "done"
             spent()
             session.commit()
@@ -263,12 +265,14 @@ def completeness(session: Session, comps: list[Competition]) -> list[dict[str, A
                 "detail_returned": len(returned),
                 **{f: sum(1 for d in returned if d.flags.get(f)) for f in DETAIL_FLAGS},
             }
-            row["flags"] = ";".join(_flags(row, job, is_league))
+            row["flags"] = ";".join(_flags(row, job, is_league, comp.detail))
             rows.append(row)
     return rows
 
 
-def _flags(row: dict[str, Any], job: models.BackfillJob | None, is_league: bool) -> list[str]:
+def _flags(
+    row: dict[str, Any], job: models.BackfillJob | None, is_league: bool, detail: bool = True
+) -> list[str]:
     out = []
     if job is None or job.status != "done":
         out.append(f"job {row['job_status']}" + (f": {job.error}" if job and job.error else ""))
@@ -281,6 +285,6 @@ def _flags(row: dict[str, Any], job: models.BackfillJob | None, is_league: bool)
             out.append(f"regular season {row['regular_listed']}/{row['regular_expected']}")
     if row["finished_with_nt_score"] < row["finished"]:
         out.append(f"nt score missing {row['finished'] - row['finished_with_nt_score']}")
-    if row["detail_returned"] < row["finished"]:
+    if detail and row["detail_returned"] < row["finished"]:
         out.append(f"detail missing {row['finished'] - row['detail_returned']}")
     return out

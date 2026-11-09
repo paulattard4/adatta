@@ -41,6 +41,9 @@ class Competition(BaseModel):
     tier: int | str
     priority: int
     seasons: list[int]
+    # False: fixture calendar only (no post-match detail), for competitions loaded as context,
+    # e.g. European and League Cup games for congestion (§6.2). Never modelled.
+    detail: bool = True
 
 
 def load_competitions(path: Path | str = "config/competitions.yml") -> list[Competition]:

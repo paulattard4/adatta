@@ -9,7 +9,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from adatta.adapters import api_football_stats as stats_adapter
@@ -119,3 +119,44 @@ def load_match_coaches(session: Session, store: RawStore, workers: int = 8) -> d
                 counts["files"] += 1
             session.commit()
     return counts
+
+
+def load_venues(
+    session: Session, store: RawStore, league_country: dict[int, str], seasons: set[int] | None
+) -> dict[str, int]:
+    """Link matches to venues from the newest stored /fixtures?league&season list of each
+    competition-season (only venue rows and match.venue_id are written; no API requests)."""
+    R = models.RawPayload
+    rows = session.execute(
+        select(R.params, R.storage_key, R.fetched_at)
+        .where(R.source_id == normalize.SOURCE_ID, R.endpoint == "/fixtures")
+        .order_by(R.fetched_at)
+    ).all()
+    newest: dict[tuple[int, int], str] = {}
+    for params, key, _ in rows:  # ascending, so the newest list per season wins
+        if "league" in params and "season" in params:
+            lg, yr = int(params["league"]), int(params["season"])
+            if lg in league_country and (seasons is None or yr in seasons):
+                newest[(lg, yr)] = key
+    counts: dict[str, int] = defaultdict(int)
+    for (lg, _), key in sorted(newest.items()):
+        fixtures: list[dict[str, Any]] = json.loads(gzip.decompress(store.get(key)))["response"]
+        keys = {str(fx["fixture"]["id"]): normalize.venue_key(fx) for fx in fixtures}
+        venues = normalize.venues_by_key(
+            session, {(k[0], k[1]): k[2] for k in keys.values() if k is not None},
+            league_country[lg],
+        )  # fmt: skip
+        matches = normalize.matches_by_ref(session, keys)
+        for ref, k in keys.items():
+            m: models.Match | None = matches.get(ref)
+            if k is None or m is None:
+                counts["no_venue" if k is None else "unknown_match"] += 1
+                continue
+            vid = venues[(k[0], k[1])].venue_id
+            if m.venue_id != vid:
+                m.venue_id = vid
+                counts["linked"] += 1
+        counts["seasons"] += 1
+        session.commit()
+    counts["venues"] = int(session.scalar(select(func.count()).select_from(models.Venue)) or 0)
+    return dict(counts)

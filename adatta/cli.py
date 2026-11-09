@@ -9,9 +9,11 @@ from pathlib import Path
 
 import polars as pl
 import typer
+from sqlalchemy import func
 
 from adatta.adapters import backfill
 from adatta.adapters.api_football import ApiFootballClient
+from adatta.adapters.open_meteo import OpenMeteoClient
 from adatta.adapters.quota import QuotaPlanner
 from adatta.adapters.storage import make_store
 from adatta.audit import capability as cap_audit
@@ -170,7 +172,8 @@ def capture() -> None:
     settings = get_settings()
     client = _client()
     with get_session() as session:
-        report = run_capture(session, client, load_competitions())
+        weather = OpenMeteoClient(make_store(settings))
+        report = run_capture(session, client, load_competitions(), weather=weather)
     summary = ", ".join(f"{k}={v}" for k, v in sorted(report.actions.items())) or "nothing due"
     typer.echo(
         f"capture {report.started_at:%Y-%m-%dT%H:%MZ}: {summary}; {report.requests} requests"
@@ -179,6 +182,44 @@ def capture() -> None:
     if problems:
         alert.send(settings, f"adatta capture: {len(problems)} problem(s)\n" + "\n".join(problems))
         raise typer.Exit(code=1)
+
+
+@app.command("venues-load")
+def venues_load(
+    season: int | None = typer.Option(None, help="only this season start year"),
+) -> None:
+    """Link matches to venues from stored fixture lists of every configured competition
+    (both competition files; no API requests). Idempotent."""
+    from adatta.adapters.detail_store import load_venues
+
+    files = ("config/competitions.yml", "config/calendar_competitions.yml")
+    countries = {c.league_id: c.country for path in files for c in load_competitions(path)}
+    with get_session() as session:
+        counts = load_venues(
+            session, make_store(get_settings()), countries, None if season is None else {season}
+        )
+    typer.echo(counts)
+
+
+@app.command("venues-review")
+def venues_review() -> None:
+    """Venues whose geocoding needs a manual decision (no requests). Add the reviewed
+    coordinates to config/venue_overrides.yml; the next capture tick applies them."""
+    from sqlalchemy import select
+
+    from adatta.db import models
+
+    V = models.Venue
+    with get_session() as session:
+        rows = session.scalars(
+            select(V).where(V.geocode_status.in_(["ambiguous", "unresolved"])).order_by(V.city)
+        ).all()
+        counts = session.execute(
+            select(V.geocode_status, func.count()).group_by(V.geocode_status)
+        ).all()
+    typer.echo(", ".join(f"{s}={n}" for s, n in counts) or "no venues")
+    for v in rows:
+        typer.echo(f"{v.geocode_status:10} {v.name} | {v.city} | {v.country}: {v.geocode_match}")
 
 
 if __name__ == "__main__":

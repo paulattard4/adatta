@@ -81,13 +81,13 @@ timing (the entry says which) · `absent` = verified missing from every source w
 | 2.12 | Weather at kickoff as forecast before the match: temperature, wind, precipitation | Open-Meteo: forecast API (16 days ahead, live); **previous-runs API** (forecasts as issued 1–7 days earlier); historical-forecast API (stitched short-lead runs) | Live forecast: verified (384 hourly values, 16 days). As-issued history: **from about Feb 2024 only** (previous-runs empty on 2023-12-15, present on 2024-02-15). Historical-forecast: differs from reanalysis on 2023-03-15, but on 2019-10-20 it returns exactly the reanalysis values, so before about 2022 it is not a forecast. **Every value needs 2.9's coordinates** | Open-Meteo probes | Forecast: pre-match, must be captured live or read from previous-runs (2024+) with the lead time stated. **Realised weather (archive or reanalysis) is not observable before kickoff** and must not be a training feature for a pre-match prediction | **partial** | Climatology (2.13) for training before 2024 and for matches more than 16 days out (§6.2); forecast terms only where an as-issued forecast exists |
 | 2.13 | Weather climatology for venue and date | Open-Meteo archive API (ERA5 reanalysis, back to 1940) | Hourly values returned for 2019-10-20 at Old Trafford; full window covered | Open-Meteo probe | Reconstructable as of any date, if the climatology for a season uses only years before it | **partial** (needs 2.9; the data itself is verified) | Term absent until the venue table exists |
 | 2.14 | Travel burden: great-circle distance and timezone shift from home venue | Derived: team home venue = modal venue of its home fixtures in a season (2.8) + coordinates (2.9) | Home venue: 1,349 team-seasons; 31 play under 90% of home games at their modal venue and 8 under 60% (ground-shares, rebuilds), so `home_venue` needs `valid_from/to`. Timezone shift: only the Canary Islands (Las Palmas, Tenerife: UTC+0 against UTC+1 for the rest of Spain) | R2 fixture lists; geocoding | Static plus the fixture list | **partial** (needs 2.9) | Term absent until the venue table exists |
-| 2.15 | Consecutive away trips flag | Derived from the fixture calendar | As 2.16: needs every competition a team plays in | R2 fixture lists | Fixture dates are pre-match, published | **partial** (needs 2.16) | Flag off |
+| 2.15 | Consecutive away trips flag | Derived from the fixture calendar (home and away sides of every fixture) | As 2.16 | Neon `match` | Fixture dates are pre-match, published | **verified** (the flag; distance-weighted variants need 2.9) | n/a |
 
 ## 3. Phase 2: referee, congestion, importance, regime facts (Layer 3c–e, §6.2)
 
 | # | Covariate | Source, endpoint, field | Coverage, bundles 2019–2025 | Verified by | Temporal availability | Status | Degrades to |
 |---|---|---|---|---|---|---|---|
-| 2.16 | Congestion, backward: days since the last match | Fixture calendar across **all** a team's competitions, API-Football `/fixtures?league&season` | League and domestic-cup fixtures: in the DB for every season. **European competitions are not loaded** (UCL 2, UEL 3, UECL 848 are not in `config/competitions.yml`), nor are the EFL Cup and the super cups, so midweek European and League Cup games are invisible and days-since-last-match is wrong for exactly the congested teams. The API has them: UCL 2019 210/210, UEL 2023 175/175, UECL 2023 417/417 finished fixtures, each with referee and venue | Neon `match`; 3 probes | Past match dates are facts; reconstructable | **partial** | Backfill the missing competitions' fixture lists first (about 3–5 competitions × 7 seasons, 20–35 requests); without them the term must not run for any team-season with European or League Cup fixtures |
+| 2.16 | Congestion, backward: days since the last match | Fixture calendar across **all** a team's competitions, API-Football `/fixtures?league&season` | League and domestic-cup fixtures: every season. **Added 2026-11-09** (`config/calendar_competitions.yml`, fixture lists only): UCL, UEL, UECL (from 2021), UEFA Super Cup, Club World Cup, EFL Cup, Community Shield, the Spanish, Italian, German and French super cups, Coupe de la Ligue (2019): 75 seasons, 75 requests, 6,457 finished matches, 2,678 involving a bundle team (911 UCL, 776 UEL, 554 EFL Cup). Not loaded: friendlies (excluded by §4.5) and international duty (a player-level effect) | Neon `match`; `reports/backfill/20261109T141402Z.csv` | Past match dates are facts; reconstructable | **verified** | n/a |
 | 2.17 | Congestion, forward: days to the next significant match | Fixture calendar as known at the as-of time | History holds only final kickoff times. Live capture shows schedules move: 130 of 4,384 captured matches had their kickoff changed in 4 days (2026-11-05 to 11-09). Also needs 2.16's competitions and 2.20's importance | `fixture_snapshot` | Pre-match, published, and revised: as-of reconstructable only from `fixture_snapshot` (from 2026-11-05) | **partial** | Dev and holdout use final dates (a small, stated look-ahead for postponements) or the term is tested on the live period only; decide before building |
 | 2.18 | Referee identity and strictness history | API-Football `/fixtures` `fixture.referee`; strictness from cards and fouls (`team_match_stat`) | Name on 100% of finished league matches in all 70 league-seasons (one exception: Ligue 2 2025, 307 of 309). **The name format changed during 2025/26** ("D. Massa" became "Davide Massa, Italy"), so distinct names per season roughly double (Serie A 41 → 76, 2. Bundesliga 42 → 80); entity resolution is needed. Cards and fouls 99.95% | R2 fixture lists; Neon | Name: post-match fact for history | **partial** (resolution) | Resolve names once (normalise, initial + surname within competition, review queue); until then strictness from the pool prior (2.19) only |
 | 2.19 | Referee assignment before kickoff (actual referee vs pool prior, §6.2) | `/fixtures` `fixture.referee` polled daily by capture (`fixture_snapshot`) | Captured 2026-11-05 to 11-09, matches played since capture began: referee present before kickoff in 10/10 PL, 9/9 Bundesliga, 9/9 2. Bundesliga, 10/10 Serie A, 10/10 Serie B, 9/9 Ligue 1, 9/9 Ligue 2 (all at least 24 h before), 12/12 Championship and 10/10 La Liga (all under 24 h before), **Segunda 2/9**, FA Cup 0/39 | `fixture_snapshot` | Pre-match, published; **when it was published is not reconstructable for 2019–2025** | **partial** | Pool prior by competition and tier until the referee appears (§6.2). For backtests, assume the referee is known at the as-of time only where capture shows ≥ 24 h lead (the eight leagues above); Championship, La Liga and Segunda use the pool prior at T-24h. Re-measure after a month of capture |
@@ -130,8 +130,8 @@ phase time.
 ## Summary: what fails, and where it degrades
 
 **Gate result: every covariate has an evidenced entry; Phase 2 is not yet buildable in full.**
-40 entries (37 distinct covariates; B.6–B.8 repeat Phase 2 rows): 15 verified, 18 partial,
-7 absent. The absent ones were expected and are already off the plan; the partial ones are what
+40 entries (37 distinct covariates; B.6–B.8 repeat Phase 2 rows): 17 verified, 16 partial,
+7 absent (updated 2026-11-09 after the calendar backfill: 2.15 and 2.16 moved to verified). The absent ones were expected and are already off the plan; the partial ones are what
 stands between Phase 2 and modelling.
 
 **Absent** (no source; the term stays out of the model everywhere, never imputed):
@@ -151,7 +151,6 @@ stands between Phase 2 and modelling.
 | Venue coordinates (2.9), so altitude (2.10), weather climatology (2.13), travel (2.14) | **All segments** until the venue table exists | No venue, weather or travel terms: Layer 3b off | A reviewed venue table (about 330 venues; geocoding resolves 240/244 city strings, with known errors) |
 | Weather forecast (2.12) | Every match before about Feb 2024: dev 2019–2023 and holdout 2024/25 up to Feb 2024 | Climatology (2.13) | Nothing: as-issued forecast history does not exist earlier. Live capture of forecasts from now on |
 | Venue identity (2.8) | Matches without a venue id: up to 15% per league-season in 2024, up to 46% in 2025/26 | Home team's modal venue | Name-and-city matching into the venue table |
-| Congestion backward (2.16), away-trips flag (2.15) | Every team-season with European or League Cup fixtures (most top-flight top halves) | Term off for those team-seasons | Backfilling UCL, UEL, UECL, EFL Cup and super-cup fixture lists (20–35 requests) |
 | Congestion forward (2.17) | Dev and holdout (no as-of fixture calendar before 2026-11-05) | Final fixture dates (stated look-ahead) or live period only | A decision, then capture |
 | Referee strictness (2.18) | 2025/26 names until resolved | Competition-tier pool prior | Name resolution |
 | Referee assignment (2.19) | Segunda (2/9 before kickoff), Championship and La Liga (under 24 h), cups | Pool prior until the referee appears | A longer capture sample to confirm lead times |
@@ -165,9 +164,10 @@ stands between Phase 2 and modelling.
 matches, coach on 99.59% of team-matches. Its two partial fields both have exact fallbacks
 from lineups.
 
-**Phase 2 style passes** (99.95%). **Phase 2 venue, weather, travel, importance and
-backward congestion cannot be modelled yet**: each needs a one-off data task first (venue
-table; missing competitions' fixtures; zone-rules table), none of them a modelling task.
+**Phase 2 style and backward congestion pass** (style 99.95%; congestion since the
+2026-11-09 calendar backfill). **Phase 2 venue, weather, travel and importance cannot be
+modelled yet**: each needs a one-off data task first (venue table for historical venues;
+zone-rules table), none of them a modelling task.
 
 ## Spec disagreements raised (CLAUDE.md: raise, don't silently diverge)
 
@@ -183,7 +183,20 @@ table; missing competitions' fixtures; zone-rules table), none of them a modelli
    or public use; per CLAUDE.md the owner decides before any paid service is added.
 4. **"Phase 3c"** names two different things in §19.3 (see Scope).
 
-## Proposed next steps (each needs the owner's go-ahead; none is done here)
+## Progress since the audit
+
+- **2026-11-09, next step 2 done:** European, League Cup and super-cup fixture lists loaded
+  (2.16 above).
+- **2026-11-09, next step 5 started:** weather-forecast capture is built into the poller
+  (`adatta/capture/weather.py`, tables `venue` and `weather_snapshot`, migration 0008 applied
+  to Neon). It forecasts each upcoming match at lead-time milestones (360, 168, 72, 24, 6 and
+  2 h before kickoff) from the venue's geocoded city. A first manual run stored 123 snapshots,
+  one per match in the next 15 days with coordinates. It runs every 15 minutes once merged to
+  `main`. Venues: 116 placed automatically, 5 by reviewed override
+  (`config/venue_overrides.yml`), 2 unresolved outside the bundles; 312 historical venues are
+  still pending (next step 1).
+
+## Proposed next steps (each needs the owner's go-ahead)
 
 1. Venue table: country-filtered geocoding of about 330 venues with a manual review queue,
    versioned home venue per team-season (`valid_from/to`). Free (Open-Meteo), no API-Football

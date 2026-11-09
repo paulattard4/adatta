@@ -194,6 +194,43 @@ def teams_by_ref(
     return out
 
 
+def venue_key(fx: dict[str, Any]) -> tuple[str, str, str | None] | None:
+    """(name, city, provider id) of a fixture's listed venue, or None when no name is given."""
+    v = (fx.get("fixture") or {}).get("venue") or {}
+    name = (v.get("name") or "").strip()
+    if not name:
+        return None
+    ref = str(v["id"]) if v.get("id") is not None else None
+    return name, (v.get("city") or "").strip(), ref
+
+
+def venues_by_key(
+    session: Session, venues: dict[tuple[str, str], str | None], country: str
+) -> dict[tuple[str, str], models.Venue]:
+    """Bulk get-or-create venues from {(name, city): provider id}. A known venue gains the
+    provider id if it had none; nothing else is overwritten (coordinates are geocoded later)."""
+    V = models.Venue
+    out: dict[tuple[str, str], models.Venue] = {}
+    names = sorted({name for name, _ in venues})
+    for part in chunks(names):
+        out.update(
+            ((v.name, v.city), v)
+            for v in session.scalars(select(V).where(V.source_id == SOURCE_ID, V.name.in_(part)))
+            if (v.name, v.city) in venues
+        )
+    now = datetime.now(UTC)
+    for key, ref in venues.items():
+        known = out.get(key)
+        if known is None:
+            out[key] = V(source_id=SOURCE_ID, source_ref=ref, name=key[0], city=key[1],
+                         country=country, geocode_status="pending", observed_at=now)  # fmt: skip
+            session.add(out[key])
+        elif known.source_ref is None and ref is not None:
+            known.source_ref = ref
+    session.flush()
+    return out
+
+
 def players_by_ref(session: Session, players: dict[str, str]) -> dict[str, models.Player]:
     """Bulk get-or-create players from {source_ref: name}."""
     P = models.Player
@@ -242,6 +279,10 @@ def ingest_fixtures(
         country,
     )  # fmt: skip
     matches = matches_by_ref(session, (str(fx["fixture"]["id"]) for fx in fixtures))
+    keys = {str(fx["fixture"]["id"]): venue_key(fx) for fx in fixtures}
+    venues = venues_by_key(
+        session, {(k[0], k[1]): k[2] for k in keys.values() if k is not None}, country
+    )
     for fx in fixtures:
         ref = str(fx["fixture"]["id"])
         kickoff = datetime.fromisoformat(fx["fixture"]["date"])
@@ -260,6 +301,8 @@ def ingest_fixtures(
         match.status = fx["fixture"]["status"]["short"]
         match.kickoff_time = kickoff
         match.round = (fx.get("league") or {}).get("round") or match.round
+        if (k := keys[ref]) is not None:
+            match.venue_id = venues[(k[0], k[1])].venue_id
     session.flush()
     finished = [fx for fx in fixtures if fx["fixture"]["status"]["short"] in FINISHED]
     R = models.MatchResult

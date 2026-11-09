@@ -7,6 +7,8 @@ can't be recovered and a daily job can simply run on the next tick:
   every run              lineups   fixtures within LINEUP_POLL_FROM of kickoff with no lineup
                          odds      milestone kinds that are due (capture.snapshots)
                          missed    milestone windows that passed uncaptured -> alert
+                         weather   Open-Meteo forecasts for upcoming matches (capture.weather);
+                                    no API-Football quota
   daily per competition  calendar  current-season fixtures -> match rows, results, and a
                                     fixture_snapshot whenever kickoff/status/referee/venue
                                     changes
@@ -39,8 +41,10 @@ from sqlalchemy.orm import Session
 from adatta.adapters import api_football_capture as afc
 from adatta.adapters import backfill, normalize
 from adatta.adapters.api_football import IDS_BATCH_MAX, SOURCE_ID, ApiFootballClient
+from adatta.adapters.open_meteo import OpenMeteoClient
 from adatta.adapters.quota import QuotaExceeded
 from adatta.capture import snapshots
+from adatta.capture.weather import capture_weather
 from adatta.config import Competition
 from adatta.db import models
 
@@ -455,7 +459,7 @@ def detect_missed(session: Session, now: datetime) -> list[str]:
 def run_capture(
     session: Session, client: ApiFootballClient, comps: list[Competition],
     now: datetime | None = None, daily_budget_s: float = DAILY_BUDGET_S,
-    clock: Callable[[], float] = time.monotonic,
+    clock: Callable[[], float] = time.monotonic, weather: OpenMeteoClient | None = None,
 ) -> CaptureReport:  # fmt: skip
     now = now or datetime.now(UTC)
     started = clock()
@@ -486,6 +490,9 @@ def run_capture(
         report.actions.update(odds or {})
         report.actions["lineups_confirmed"] += len(confirmed)
         report.missed = step("missed", "all", lambda: detect_missed(session, now)) or []
+        if weather is not None:
+            w = step("weather", "all", lambda: capture_weather(session, weather, now))
+            report.actions.update({f"weather_{k}": v for k, v in (w or {}).items()})
         for comp in comps:
             scope = str(comp.league_id)
             if clock() - started >= daily_budget_s:

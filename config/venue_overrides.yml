@@ -1,0 +1,13 @@
+# Reviewed venue coordinates (spec §4.6 review queue). `adatta venues-review` lists venues the
+# geocoder could not place with confidence (ambiguous: several towns of that name; unresolved:
+# none found). Add one row per venue; the next capture tick sets it to status `reviewed`, and
+# an override always wins over the geocoder. name and city must match the venue row exactly
+# (city "" where the provider gives none). City-level precision, like the geocoder's.
+venues:
+  # 2026-11-09: provider gives no city; coordinates from Open-Meteo geocoding of the home town
+  - {name: "Borussia-Park", city: "", latitude: 51.18539, longitude: 6.44172, elevation_m: 57, note: "Moenchengladbach (Open-Meteo PPLA3), reviewed 2026-11-09"}
+  - {name: "Estadio Municipal de Castalia", city: "", latitude: 39.98567, longitude: -0.04935, elevation_m: 30, note: "Castellon de la Plana (Open-Meteo PPLA2), reviewed 2026-11-09"}
+  - {name: "Estadio Municipal de Santo Domingo", city: "", latitude: 40.34582, longitude: -3.82487, elevation_m: 729, note: "Alcorcon (Open-Meteo PPLA3), reviewed 2026-11-09"}
+  - {name: "Stade Auguste Bonal", city: "", latitude: 47.50957, longitude: 6.79823, elevation_m: 327, note: "Montbeliard (Open-Meteo PPLA3), reviewed 2026-11-09"}
+  # ambiguous: two Portugaletes in Spain; the ground is in the Biscay one (the geocoder's pick)
+  - {name: "Estadio La Florida", city: "Portugalete", latitude: 43.32099, longitude: -3.02064, elevation_m: 49, note: "Portugalete, Biscay (Open-Meteo PPLA3), reviewed 2026-11-09"}

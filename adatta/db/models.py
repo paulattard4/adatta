@@ -111,10 +111,69 @@ class Match(Base):
     status: Mapped[str] = mapped_column(String(16), default="scheduled")
     # Provider's stage label ("Regular Season - 12", "Round of 16", "Promotion Play-offs").
     round: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Venue as last listed by the provider (pre-match, published); changes are in
+    # fixture_snapshot. NULL where the provider gives no venue name.
+    venue_id: Mapped[int | None] = mapped_column(ForeignKey("venue.venue_id"), nullable=True)
     __table_args__ = (
         UniqueConstraint("source_id", "source_ref"),
         Index("ix_match_kickoff", "kickoff_time"),
     )
+
+
+class Venue(Temporal, Base):
+    """A ground, keyed by the provider's name and city (its venue id is missing on up to 46%
+    of 2025/26 fixtures, docs/FEASIBILITY_REGISTER.md 2.8). Coordinates and elevation come
+    from Open-Meteo geocoding of the city (static facts, spec §6.2). geocode_status:
+    pending (not tried) | auto (one clear match) | ambiguous | unresolved (both need review)
+    | reviewed (set from config/venue_overrides.yml). Only auto and reviewed coordinates are
+    used for weather."""
+
+    __tablename__ = "venue"
+    venue_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    source_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)  # provider id
+    name: Mapped[str] = mapped_column(String(128))
+    city: Mapped[str] = mapped_column(String(128))
+    country: Mapped[str] = mapped_column(String(64))  # the competition's country
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    elevation_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    geocode_status: Mapped[str] = mapped_column(String(16), default="pending")
+    geocode_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    geocode_match: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    geocoded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    __table_args__ = (
+        UniqueConstraint("source_id", "name", "city"),
+        CheckConstraint(
+            "geocode_status IN ('pending', 'auto', 'ambiguous', 'unresolved', 'reviewed')",
+            name="ck_venue_geocode_status",
+        ),
+    )
+
+
+class WeatherSnapshot(Base):
+    """An Open-Meteo forecast for one match's venue and kickoff, as issued when captured
+    (spec §6.2, §12.2). Pre-match only: a row is usable as of observed_at, and lead_hours
+    says how far ahead it was. Summary columns cover the match (kickoff to kickoff + 2 h);
+    `hourly` keeps kickoff - 1 h to + 3 h; the full response is in the raw store."""
+
+    __tablename__ = "weather_snapshot"
+    snapshot_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    venue_id: Mapped[int] = mapped_column(ForeignKey("venue.venue_id"))
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_now())
+    kickoff_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # as known then
+    lead_hours: Mapped[float] = mapped_column(Float)
+    latitude: Mapped[float] = mapped_column(Float)
+    longitude: Mapped[float] = mapped_column(Float)
+    temperature_c: Mapped[float | None] = mapped_column(Float, nullable=True)
+    precipitation_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    wind_speed_kmh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hourly: Mapped[dict[str, Any]] = mapped_column(JsonType)
+    storage_key: Mapped[str] = mapped_column(String(255))
+    __table_args__ = (Index("ix_weather_snapshot_match", "match_id", "observed_at"),)
 
 
 class MatchResult(Temporal, Base):

@@ -26,6 +26,10 @@ SOURCE_ID = "open_meteo"
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 ELEVATION_URL = "https://api.open-meteo.com/v1/elevation"
+ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+# The free tier counts a request as one call per 14 days of data per location (fewer than 10
+# variables), and allows 10,000 calls a day and 5,000 an hour.
+DAYS_PER_CALL = 14
 FORECAST_DAYS = 16
 HOURLY = ("temperature_2m", "precipitation", "wind_speed_10m")
 
@@ -279,6 +283,26 @@ class OpenMeteoClient:
         params = {"latitude": round(latitude, 4), "longitude": round(longitude, 4)}
         values = self.fetch(session, ELEVATION_URL, params).get("elevation") or []
         return float(values[0]) if values and values[0] is not None else None
+
+    def archive(
+        self, session: Session, latitude: float, longitude: float, start: str, end: str,
+        elevation: float | None = None,
+    ) -> dict[str, Any]:  # fmt: skip
+        """ERA5 reanalysis, hourly, UTC, for one point, temperature corrected to `elevation`
+        (default: the 90 m terrain height there). Climatology only: realised weather is never
+        a pre-match feature."""
+        params: dict[str, Any] = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "start_date": start,
+            "end_date": end,
+            "hourly": ",".join(HOURLY),
+            "models": "era5",
+            "timezone": "UTC",
+        }
+        if elevation is not None:
+            params["elevation"] = elevation
+        return self.fetch(session, ARCHIVE_URL, params)
 
     def forecast(self, session: Session, latitude: float, longitude: float) -> dict[str, Any]:
         params = {

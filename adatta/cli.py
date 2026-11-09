@@ -328,13 +328,20 @@ def venues_coverage() -> None:
 @app.command("rules-check")
 def rules_check() -> None:
     """Check config/league_rules.yml against the newest stored final /standings table of
-    each league-season (no requests): team counts and every points gap."""
+    each league-season (no requests): team counts, every points gap, and each table rebuilt
+    from our regular-season results with deductions and awarded results."""
     import gzip
 
     from sqlalchemy import select
+    from sqlalchemy.orm import aliased
 
+    from adatta.adapters.normalize import FINISHED
     from adatta.db import models
-    from adatta.features.league_rules import check_against_standings, load_rules
+    from adatta.features.league_rules import (
+        check_against_standings,
+        check_results_against_standings,
+        load_rules,
+    )
 
     rules = load_rules()
     R = models.RawPayload
@@ -352,10 +359,155 @@ def rules_check() -> None:
             tables[k] = response[0]["league"]["standings"][0]
         else:
             typer.echo(f"{k[0]} {k[1]}: provider has no final table")
+    results: dict[tuple[int, int], list[tuple[str, str, int, int]]] = {}
+    M, S, C, T, MR = (
+        models.Match, models.Season, models.Competition, models.Team, models.MatchResult
+    )  # fmt: skip
+    H, A = aliased(T), aliased(T)
+    with get_session() as session:
+        for lg, yr, h, a, hg, ag in session.execute(
+            select(C.source_ref, S.year, H.source_ref, A.source_ref, MR.home_goals_nt,
+                   MR.away_goals_nt)
+            .join(S, S.competition_id == C.competition_id)
+            .join(M, M.season_id == S.season_id)
+            .join(MR, MR.match_id == M.match_id)
+            .join(H, H.team_id == M.home_team_id)
+            .join(A, A.team_id == M.away_team_id)
+            .where(MR.superseded_at.is_(None), M.status.in_(FINISHED),
+                   M.round.like("Regular Season%"), MR.home_goals_nt.is_not(None),
+                   MR.away_goals_nt.is_not(None))
+        ):  # fmt: skip
+            if hg is not None and ag is not None:
+                results.setdefault((int(lg), yr), []).append((h, a, hg, ag))
     problems = check_against_standings(rules, tables)
+    problems += check_results_against_standings(rules, tables, results)
     typer.echo(f"{len(tables)} tables checked, {len(problems)} problems")
     for p in problems:
         typer.echo(f"  {p}")
+
+
+def _modelled_venue_ids(session: Session) -> set[int]:
+    """Venues of bundle league matches from 2019 on, plus every team's home bases."""
+    from sqlalchemy import select
+
+    from adatta.db import models
+
+    M, S, H = models.Match, models.Season, models.TeamHomeVenue
+    leagues, _ = _bundle_competition_ids(session)
+    ids = set(
+        session.scalars(
+            select(M.venue_id)
+            .join(S, S.season_id == M.season_id)
+            .where(S.competition_id.in_(leagues), S.year >= 2019, M.venue_id.is_not(None))
+        )
+    )
+    ids |= set(session.scalars(select(H.venue_id).where(H.superseded_at.is_(None))))
+    return {i for i in ids if i is not None}
+
+
+@app.command("climatology-fetch")
+def climatology_fetch(
+    budget: int = typer.Option(6000, help="most Open-Meteo calls to use this run"),
+) -> None:
+    """Fetch the 2016-2018 ERA5 baseline for grid cells of modelled venues not yet stored.
+    Resumable: run it on later days until nothing is left. Free tier: 10,000 calls a day."""
+    from adatta.features.climatology import fetch_baseline, needed_cells
+
+    with get_session() as session:
+        cells = needed_cells(session, _modelled_venue_ids(session))
+        om = OpenMeteoClient(make_store(get_settings()))
+        counts = fetch_baseline(session, om, cells, budget)
+    typer.echo(f"{len(cells)} cells needed; {dict(counts)}")
+
+
+@app.command("importance-report")
+def importance_report() -> None:
+    """Importance labels (dead rubber, must-win, live) for every bundle league match from
+    2019, by league and season stage (no requests)."""
+    from sqlalchemy import select
+
+    from adatta.db import models
+    from adatta.features.importance import importance_features
+    from adatta.features.league_rules import load_rules
+
+    M, S, C = models.Match, models.Season, models.Competition
+    with get_session() as session:
+        leagues, _ = _bundle_competition_ids(session)
+        rows = session.execute(
+            select(M, C.name, S.year)
+            .join(S, S.season_id == M.season_id)
+            .join(C, C.competition_id == S.competition_id)
+            .where(S.competition_id.in_(leagues), S.year >= 2019)
+        ).all()
+        feats = importance_features(session, [r[0] for r in rows], load_rules())
+    keys = pl.DataFrame(
+        {"match_id": [r[0].match_id for r in rows], "league": [r[1] for r in rows],
+         "season": [r[2] for r in rows], "round": [r[0].round or "" for r in rows]}
+    )  # fmt: skip
+    df = (
+        keys.join(feats, on="match_id")
+        .filter(pl.col("home_importance").is_not_null())
+        .unpivot(
+            index=["league", "season", "round"],
+            on=["home_importance", "away_importance"],
+            value_name="importance",
+        )
+    )
+    with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=120):
+        typer.echo(
+            df.group_by("league")
+            .agg(
+                pl.len().alias("team_matches"),
+                (pl.col("importance") == "dead_rubber").mean().round(3).alias("dead_rubber"),
+                (pl.col("importance") == "must_win").mean().round(3).alias("must_win"),
+            )
+            .sort("league")
+        )
+
+
+@app.command("climatology-coverage")
+def climatology_coverage() -> None:
+    """Share of bundle league matches from 2019 with a climatology value, and the mean
+    values, by country (no requests; reads the stored baseline)."""
+    from sqlalchemy import select
+
+    from adatta.db import models
+    from adatta.features.climatology import load_cells, match_climatology, needed_cells
+    from adatta.features.travel import travel_features
+
+    M, S, C = models.Match, models.Season, models.Competition
+    with get_session() as session:
+        leagues, _ = _bundle_competition_ids(session)
+        rows = session.execute(
+            select(M, C.country)
+            .join(S, S.season_id == M.season_id)
+            .join(C, C.competition_id == S.competition_id)
+            .where(S.competition_id.in_(leagues), S.year >= 2019)
+        ).all()
+        matches = [r[0] for r in rows]
+        venue_of = dict(
+            travel_features(session, matches).select("match_id", "venue_id").iter_rows()
+        )
+        points = needed_cells(session, {v for v in venue_of.values() if v is not None})
+        climates = load_cells(session, make_store(get_settings()), points)
+        clim = match_climatology(session, matches, venue_of, climates)
+    typer.echo(f"{len(climates)} of {len(points)} venue points fetched")
+    keys = pl.DataFrame(
+        {"match_id": [m.match_id for m in matches], "country": [r[1] for r in rows]}
+    )
+    with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=120):
+        typer.echo(
+            keys.join(clim, on="match_id")
+            .group_by("country")
+            .agg(
+                pl.len().alias("matches"),
+                pl.col("clim_temperature_c").is_not_null().mean().round(3).alias("covered"),
+                pl.col("clim_temperature_c").mean().round(1).alias("temp_c"),
+                pl.col("clim_precipitation_mm").mean().round(2).alias("rain_mm"),
+                pl.col("clim_wind_speed_kmh").mean().round(1).alias("wind_kmh"),
+            )
+            .sort("country")
+        )
 
 
 if __name__ == "__main__":

@@ -76,6 +76,8 @@ class Deduction(BaseModel):
 class Rules(BaseModel):
     leagues: list[LeagueRules]
     deductions: list[Deduction]
+    # Points relative to the on-pitch result (positive = gained); same date rules.
+    awarded_results: list[Deduction] = []
 
     @model_validator(mode="after")
     def _unique(self) -> Rules:
@@ -100,11 +102,11 @@ class Rules(BaseModel):
     def deductions_as_of(
         self, league_id: int, year: int, as_of: date, season_over: bool = False
     ) -> dict[str, int]:
-        """{team_ref: points deducted so far} for a table as of `as_of`. A deduction with an
-        unknown date counts only once the season is over (season_over=True), so a backtest
-        never sees it early."""
+        """{team_ref: points deducted so far} for a table as of `as_of`, awarded results
+        included (as negative deductions for a gain). A change with an unknown date counts
+        only once the season is over (season_over=True), so a backtest never sees it early."""
         out: dict[str, int] = defaultdict(int)
-        for d in self.deductions:
+        for d in self._changes():
             if (d.league_id, d.season) != (league_id, year):
                 continue
             if (d.effective is None and season_over) or (
@@ -113,7 +115,13 @@ class Rules(BaseModel):
                 out[d.team_ref] += d.points
         return dict(out)
 
+    def _changes(self) -> list[Deduction]:
+        return self.deductions + [
+            d.model_copy(update={"points": -d.points}) for d in self.awarded_results
+        ]
+
     def net_deductions(self, league_id: int, year: int) -> dict[str, int]:
+        """Net deductions only (awarded results are inside the provider's W/D/L)."""
         out: dict[str, int] = defaultdict(int)
         for d in self.deductions:
             if (d.league_id, d.season) == (league_id, year):
@@ -152,4 +160,32 @@ def check_against_standings(
             for ref in net
             if ref not in refs
         ]
+    return problems
+
+
+def check_results_against_standings(
+    rules: Rules,
+    standings: dict[tuple[int, int], list[dict[str, Any]]],
+    results: dict[tuple[int, int], list[tuple[str, str, int, int]]],
+) -> list[str]:
+    """Rebuild each final table from our regular-season results [(home ref, away ref, home
+    goals, away goals)] with every deduction and awarded result, and compare points with the
+    provider's. Ranks are not compared: tie-breaks differ by league (head-to-head in Spain
+    and Italy)."""
+    problems: list[str] = []
+    for key, rows in sorted(standings.items()):
+        league_id, year = key
+        pts: dict[str, int] = defaultdict(int)
+        for h, a, hg, ag in results.get(key, []):
+            pts[h] += 3 if hg > ag else 1 if hg == ag else 0
+            pts[a] += 3 if ag > hg else 1 if hg == ag else 0
+        changes = rules.deductions_as_of(league_id, year, date.max, season_over=True)
+        for r in rows:
+            ref = str(r["team"]["id"])
+            ours = pts[ref] - changes.get(ref, 0)
+            if ours != r["points"]:
+                problems.append(
+                    f"{league_id} {year} {r['team']['name']}: from results {ours}, "
+                    f"table {r['points']}"
+                )
     return problems

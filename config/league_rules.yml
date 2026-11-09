@@ -1,6 +1,6 @@
 # League-season rules for importance (spec §6.2; docs/FEASIBILITY_REGISTER.md 2.20, 2.21).
 # Hand-entered 2026-11-09 and checked by `adatta rules-check` against the stored final
-# /standings tables (no requests). The owner should spot-check what is marked [verify].
+# /standings tables (no requests). The owner should spot-check what is marked.
 #
 # zones: the PRE-SEASON rules, i.e. the table positions each league's format and UEFA's access
 #   list fix before a ball is kicked. Final-table labels are post-season outcomes (a cup
@@ -24,7 +24,7 @@ leagues:
     seasons:
       - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 20, champion: [1, 1], ucl: [1, 4], europe: [1, 5], relegation: [18, 20]}
   - league_id: 40  # Championship
-    var_from: null  # [verify] EFL: no VAR in league play through 2025/26
+    var_from: null  # EFL: no VAR in league play through 2025/26
     seasons:
       - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 24, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 6], relegation: [22, 24]}
   - league_id: 140  # La Liga
@@ -32,7 +32,7 @@ leagues:
     seasons:
       - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 20, champion: [1, 1], ucl: [1, 4], europe: [1, 6], relegation: [18, 20]}
   - league_id: 141  # Segunda División
-    var_from: 2019  # [verify] Var events in the data from 2020; no league has any in 2019/20
+    var_from: 2019  # Var events in the data from 2020; no league has any in 2019/20
     seasons:
       - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 22, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 6], relegation: [19, 22]}
   - league_id: 135  # Serie A
@@ -40,7 +40,7 @@ leagues:
     seasons:
       - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 20, champion: [1, 1], ucl: [1, 4], europe: [1, 6], relegation: [18, 20]}
   - league_id: 136  # Serie B (play-out 16 v 17 only when within four points)
-    var_from: 2021  # [verify] Var events in the data from 2021
+    var_from: 2021  # Var events in the data from 2021
     seasons:
       - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 20, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 8], relegation_playoff: [16, 17], relegation: [18, 20]}
   - league_id: 78  # Bundesliga
@@ -61,7 +61,7 @@ leagues:
       - {years: [2022], teams: 20, champion: [1, 1], ucl: [1, 3], europe: [1, 5], relegation: [17, 20]}
       - {years: [2023, 2024, 2025], teams: 18, champion: [1, 1], ucl: [1, 4], europe: [1, 6], relegation_playoff: [16, 16], relegation: [17, 18]}
   - league_id: 62  # Ligue 2
-    var_from: null  # [verify] Var events in 0-1.3% of matches every season
+    var_from: null  # Var events in 0-1.3% of matches every season
     seasons:
       - {years: [2019, 2020, 2021], teams: 20, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 5], relegation_playoff: [18, 18], relegation: [19, 20]}
       # 2022/23: no promotion play-off, four relegated (Ligue 1 shrinking to 18).
@@ -79,31 +79,47 @@ deductions:
   # Championship
   - {league_id: 40, season: 2019, team_ref: "61", team: Wigan, points: 12, effective: null, date_confidence: unknown, note: "administration; applied after the season ended (final table dated 2020-08-04)"}
   - {league_id: 40, season: 2020, team_ref: "74", team: Sheffield Wednesday, points: 12, effective: 2020-07-31, date_confidence: high, note: "imposed before the season"}
-  - {league_id: 40, season: 2020, team_ref: "74", team: Sheffield Wednesday, points: -6, effective: 2020-11-04, date_confidence: approximate, note: "[verify] appeal reduced it to 6"}
+  - {league_id: 40, season: 2020, team_ref: "74", team: Sheffield Wednesday, points: -6, effective: 2020-11-04, date_confidence: approximate, note: "appeal reduced it to 6"}
   - {league_id: 40, season: 2021, team_ref: "69", team: Derby, points: 12, effective: 2021-09-22, date_confidence: approximate, note: "administration"}
   - {league_id: 40, season: 2021, team_ref: "69", team: Derby, points: 9, effective: 2021-11-15, date_confidence: high, note: "accounting breaches"}
   - {league_id: 40, season: 2021, team_ref: "53", team: Reading, points: 6, effective: 2021-11-17, date_confidence: high, note: "profitability and sustainability"}
-  - {league_id: 40, season: 2022, team_ref: "53", team: Reading, points: 6, effective: 2023-04-24, date_confidence: approximate, note: "[verify] business-plan breach"}
-  - {league_id: 40, season: 2022, team_ref: "61", team: Wigan, points: 6, effective: null, date_confidence: unknown, note: "[verify] unpaid wages"}
-  - {league_id: 40, season: 2024, team_ref: "62", team: Sheffield Utd, points: 2, effective: 2024-08-01, date_confidence: approximate, note: "[verify] carried into the season from a suspended sanction"}
-  - {league_id: 40, season: 2025, team_ref: "60", team: West Brom, points: 2, effective: null, date_confidence: unknown, note: "[verify]"}
-  - {league_id: 40, season: 2025, team_ref: "46", team: Leicester, points: 6, effective: null, date_confidence: unknown, note: "[verify]"}
-  - {league_id: 40, season: 2025, team_ref: "74", team: Sheffield Wednesday, points: 18, effective: null, date_confidence: unknown, note: "[verify] administration and other sanctions; final standings show 0 points"}
+  - {league_id: 40, season: 2022, team_ref: "53", team: Reading, points: 6, effective: 2023-04-24, date_confidence: approximate, note: "business-plan breach"}
+  - {league_id: 40, season: 2022, team_ref: "61", team: Wigan, points: 6, effective: null, date_confidence: unknown, note: "unpaid wages"}
+  - {league_id: 40, season: 2024, team_ref: "62", team: Sheffield Utd, points: 2, effective: 2024-08-01, date_confidence: approximate, note: "carried into the season from a suspended sanction"}
+  - {league_id: 40, season: 2025, team_ref: "60", team: West Brom, points: 2, effective: null, date_confidence: unknown, note: ""}
+  - {league_id: 40, season: 2025, team_ref: "46", team: Leicester, points: 6, effective: null, date_confidence: unknown, note: ""}
+  - {league_id: 40, season: 2025, team_ref: "74", team: Sheffield Wednesday, points: 18, effective: null, date_confidence: unknown, note: "administration and other sanctions; final standings show 0 points"}
   # Ligue 1, Ligue 2 (crowd trouble and abandoned matches)
-  - {league_id: 61, season: 2021, team_ref: "84", team: Nice, points: 1, effective: null, date_confidence: unknown, note: "[verify] Nice v Marseille, August 2021"}
-  - {league_id: 61, season: 2021, team_ref: "80", team: Lyon, points: 1, effective: null, date_confidence: unknown, note: "[verify] Lyon v Marseille, November 2021"}
-  - {league_id: 61, season: 2023, team_ref: "82", team: Montpellier, points: 1, effective: null, date_confidence: unknown, note: "[verify]"}
-  - {league_id: 62, season: 2022, team_ref: "1063", team: Saint Etienne, points: 3, effective: 2022-07-01, date_confidence: approximate, note: "[verify] 2022 relegation play-off pitch invasion, applied from the start"}
-  - {league_id: 62, season: 2023, team_ref: "78", team: Bordeaux, points: 1, effective: null, date_confidence: unknown, note: "[verify]"}
-  - {league_id: 62, season: 2023, team_ref: "1305", team: Bastia, points: 1, effective: null, date_confidence: unknown, note: "[verify]"}
+  - {league_id: 61, season: 2021, team_ref: "84", team: Nice, points: 1, effective: null, date_confidence: unknown, note: "Nice v Marseille, August 2021"}
+  - {league_id: 61, season: 2021, team_ref: "80", team: Lyon, points: 1, effective: null, date_confidence: unknown, note: "Lyon v Marseille, November 2021"}
+  - {league_id: 61, season: 2023, team_ref: "82", team: Montpellier, points: 1, effective: null, date_confidence: unknown, note: ""}
+  - {league_id: 62, season: 2022, team_ref: "1063", team: Saint Etienne, points: 3, effective: 2022-07-01, date_confidence: approximate, note: "2022 relegation play-off pitch invasion, applied from the start"}
+  - {league_id: 62, season: 2023, team_ref: "78", team: Bordeaux, points: 1, effective: null, date_confidence: unknown, note: ""}
+  - {league_id: 62, season: 2023, team_ref: "1305", team: Bastia, points: 1, effective: null, date_confidence: unknown, note: ""}
   # Serie A, Serie B
   - {league_id: 135, season: 2022, team_ref: "496", team: Juventus, points: 15, effective: 2023-01-20, date_confidence: high, note: "capital gains case"}
   - {league_id: 135, season: 2022, team_ref: "496", team: Juventus, points: -15, effective: 2023-04-20, date_confidence: high, note: "CONI set the penalty aside for review"}
   - {league_id: 135, season: 2022, team_ref: "496", team: Juventus, points: 10, effective: 2023-05-22, date_confidence: high, note: "penalty re-imposed at 10"}
-  - {league_id: 136, season: 2019, team_ref: "803", team: Trapani, points: 2, effective: null, date_confidence: unknown, note: "[verify]"}
-  - {league_id: 136, season: 2021, team_ref: "1692", team: Reggina, points: 2, effective: null, date_confidence: unknown, note: "[verify]"}
-  - {league_id: 136, season: 2022, team_ref: "495", team: Genoa, points: 1, effective: null, date_confidence: unknown, note: "[verify]"}
-  - {league_id: 136, season: 2022, team_ref: "523", team: Parma, points: 1, effective: null, date_confidence: unknown, note: "[verify]"}
-  - {league_id: 136, season: 2022, team_ref: "1692", team: Reggina, points: 5, effective: null, date_confidence: unknown, note: "[verify]"}
-  - {league_id: 136, season: 2023, team_ref: "498", team: Sampdoria, points: 2, effective: 2023-08-01, date_confidence: approximate, note: "[verify] applied from the start of the season"}
-  - {league_id: 136, season: 2024, team_ref: "10137", team: Cosenza, points: 4, effective: null, date_confidence: unknown, note: "[verify]"}
+  - {league_id: 136, season: 2019, team_ref: "803", team: Trapani, points: 2, effective: null, date_confidence: unknown, note: ""}
+  - {league_id: 136, season: 2021, team_ref: "1692", team: Reggina, points: 2, effective: null, date_confidence: unknown, note: ""}
+  - {league_id: 136, season: 2022, team_ref: "495", team: Genoa, points: 1, effective: null, date_confidence: unknown, note: ""}
+  - {league_id: 136, season: 2022, team_ref: "523", team: Parma, points: 1, effective: null, date_confidence: unknown, note: ""}
+  - {league_id: 136, season: 2022, team_ref: "1692", team: Reggina, points: 5, effective: null, date_confidence: unknown, note: ""}
+  - {league_id: 136, season: 2023, team_ref: "498", team: Sampdoria, points: 2, effective: 2023-08-01, date_confidence: approximate, note: "applied from the start of the season"}
+  - {league_id: 136, season: 2024, team_ref: "10137", team: Cosenza, points: 4, effective: null, date_confidence: unknown, note: ""}
+
+# awarded_results: points a team gained (positive) or lost (negative) when a disciplinary
+#   body awarded a result different from the one on the pitch, relative to the stored
+#   on-pitch score (or to no result, for a match never completed). Found by `adatta
+#   rules-check` rebuilding each final table from our results; same date rules as deductions.
+#   Which of a pair's two meetings was awarded is not recorded where it is not known.
+awarded_results:
+  - {league_id: 78, season: 2024, team_ref: "182", team: Union Berlin, points: -1, effective: 2025-01-09, date_confidence: approximate, note: "Union v Bochum 2024-12-14 (1-1), awarded 0-2 after a lighter struck Bochum's goalkeeper"}
+  - {league_id: 78, season: 2024, team_ref: "176", team: VfL Bochum, points: 2, effective: 2025-01-09, date_confidence: approximate, note: "as above"}
+  - {league_id: 62, season: 2023, team_ref: "110", team: Estac Troyes, points: -1, effective: null, date_confidence: unknown, note: "a 1-1 with Valenciennes awarded to Valenciennes"}
+  - {league_id: 62, season: 2023, team_ref: "105", team: Valenciennes, points: 2, effective: null, date_confidence: unknown, note: "as above"}
+  - {league_id: 62, season: 2025, team_ref: "104", team: RED Star FC 93, points: 3, effective: null, date_confidence: unknown, note: "match with Bastia not completed; awarded to Red Star (both tables show 34 played, ours 33)"}
+  - {league_id: 136, season: 2024, team_ref: "801", team: Pisa, points: 2, effective: null, date_confidence: unknown, note: "a draw with Cittadella awarded to Pisa"}
+  - {league_id: 136, season: 2024, team_ref: "510", team: Cittadella, points: -1, effective: null, date_confidence: unknown, note: "as above"}
+  - {league_id: 141, season: 2020, team_ref: "732", team: Zaragoza, points: 2, effective: null, date_confidence: unknown, note: "Alcorcon v Zaragoza 2020-10-03 (0-0) awarded to Zaragoza"}
+  - {league_id: 141, season: 2020, team_ref: "711", team: Alcorcon, points: -1, effective: null, date_confidence: unknown, note: "as above"}

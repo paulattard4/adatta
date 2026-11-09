@@ -10,6 +10,7 @@ from pathlib import Path
 import polars as pl
 import typer
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from adatta.adapters import backfill
 from adatta.adapters.api_football import ApiFootballClient
@@ -208,6 +209,7 @@ def venues_review() -> None:
     from sqlalchemy import select
 
     from adatta.db import models
+    from adatta.features.travel import relevant_venues
 
     V = models.Venue
     with get_session() as session:
@@ -217,9 +219,110 @@ def venues_review() -> None:
         counts = session.execute(
             select(V.geocode_status, func.count()).group_by(V.geocode_status)
         ).all()
+        used = relevant_venues(session, *_bundle_competition_ids(session))
     typer.echo(", ".join(f"{s}={n}" for s, n in counts) or "no venues")
-    for v in rows:
-        typer.echo(f"{v.geocode_status:10} {v.name} | {v.city} | {v.country}: {v.geocode_match}")
+    typer.echo("matches = bundle fixtures at the venue; most used first")
+    for v in sorted(rows, key=lambda v: -used.get(v.venue_id, 0)):
+        typer.echo(
+            f"{used.get(v.venue_id, 0):5} {v.geocode_status:10} {v.name} | {v.city} | "
+            f"{v.country}: {v.geocode_match}"
+        )
+
+
+def _bundle_competition_ids(session: Session) -> tuple[list[int], list[int]]:
+    """Internal competition ids of the bundle leagues and cups (config/competitions.yml)."""
+    from sqlalchemy import select
+
+    from adatta.adapters.normalize import SOURCE_ID
+    from adatta.db import models
+
+    comps = load_competitions("config/competitions.yml")
+    C = models.Competition
+    ids = dict(
+        session.execute(
+            select(C.source_ref, C.competition_id).where(
+                C.source_id == SOURCE_ID, C.source_ref.in_([str(c.league_id) for c in comps])
+            )
+        ).all()
+    )
+    split: tuple[list[int], list[int]] = ([], [])
+    for c in comps:
+        if str(c.league_id) in ids:
+            split[c.tier == "cup"].append(ids[str(c.league_id)])
+    return split
+
+
+@app.command("venues-geocode")
+def venues_geocode(
+    limit: int = typer.Option(2000, help="most venues to geocode this run"),
+) -> None:
+    """Geocode the venues of bundle fixtures (league, and cup ties involving a league team),
+    most used first: free Open-Meteo city searches, no API-Football quota. Ambiguous and
+    unresolved results go to `venues-review`."""
+    from adatta.capture.weather import apply_overrides, geocode_venues, load_overrides
+    from adatta.features.travel import relevant_venues
+
+    with get_session() as session:
+        reviewed = apply_overrides(session, load_overrides(), datetime.now(UTC))
+        session.commit()
+        typer.echo(f"overrides applied: {reviewed}")
+        leagues, cups = _bundle_competition_ids(session)
+        venues = relevant_venues(session, leagues, cups)
+        om = OpenMeteoClient(make_store(get_settings()))
+        counts = geocode_venues(
+            session, om, list(venues), datetime.now(UTC), limit=limit, backlog=True
+        )
+    typer.echo(f"{dict(counts)}; requests={om.requests_made}")
+
+
+@app.command("venues-home")
+def venues_home() -> None:
+    """Rebuild the versioned home base of every team from its home league fixtures (no
+    requests). Unchanged teams are left alone; changed ones are superseded, not deleted."""
+    from adatta.features.travel import build_home_venues
+
+    with get_session() as session:
+        leagues, _ = _bundle_competition_ids(session)
+        typer.echo(dict(build_home_venues(session, leagues)))
+
+
+@app.command("venues-coverage")
+def venues_coverage() -> None:
+    """Share of bundle league fixtures with travel and altitude terms, by country, tier and
+    season (no requests)."""
+    from sqlalchemy import select
+
+    from adatta.db import models
+    from adatta.features.travel import travel_features
+
+    M, S, C = models.Match, models.Season, models.Competition
+    with get_session() as session:
+        leagues, _ = _bundle_competition_ids(session)
+        rows = session.execute(
+            select(M, C.country, C.tier, S.year)
+            .join(S, S.season_id == M.season_id)
+            .join(C, C.competition_id == S.competition_id)
+            .where(S.competition_id.in_(leagues))
+        ).all()
+        feats = travel_features(session, [r[0] for r in rows])
+    keys = pl.DataFrame(
+        {"match_id": [r[0].match_id for r in rows], "country": [r[1] for r in rows],
+         "tier": [r[2] for r in rows], "season": [r[3] for r in rows]}
+    )  # fmt: skip
+    out = (
+        keys.join(feats, on="match_id")
+        .group_by("country", "tier", "season")
+        .agg(
+            pl.len().alias("matches"),
+            (pl.col("venue_source") == "home_base").sum().alias("venue_from_base"),
+            pl.col("away_travel_km").is_not_null().mean().round(3).alias("travel"),
+            pl.col("away_tz_shift_h").is_not_null().mean().round(3).alias("tz"),
+            pl.col("away_altitude_diff_m").is_not_null().mean().round(3).alias("altitude"),
+        )
+        .sort("country", "tier", "season")
+    )
+    with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=120):
+        typer.echo(out)
 
 
 if __name__ == "__main__":

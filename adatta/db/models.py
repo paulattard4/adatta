@@ -138,6 +138,7 @@ class Venue(Temporal, Base):
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     elevation_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)  # IANA name
     geocode_status: Mapped[str] = mapped_column(String(16), default="pending")
     geocode_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
     geocode_match: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -149,6 +150,24 @@ class Venue(Temporal, Base):
             name="ck_venue_geocode_status",
         ),
     )
+
+
+class TeamHomeVenue(Temporal, Base):
+    """A spell at a team's home base (spec Team.home_venue_id, versioned: ground moves and
+    shares, docs/FEASIBILITY_REGISTER.md 2.14). Derived from the venues of the team's home
+    league fixtures as published by the provider: a run of at least three consecutive home
+    fixtures at one venue starts a spell; shorter runs elsewhere are temporary venues and do
+    not move the base. valid_from is the spell's first home fixture, valid_to the next
+    spell's. A rebuild that changes a team's spells supersedes its old rows (superseded_at)
+    rather than deleting them."""
+
+    __tablename__ = "team_home_venue"
+    spell_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("team.team_id"))
+    venue_id: Mapped[int] = mapped_column(ForeignKey("venue.venue_id"))
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    n_home_matches: Mapped[int] = mapped_column(Integer)  # league home fixtures in the spell
+    __table_args__ = (Index("ix_team_home_venue_team", "team_id", "valid_from"),)
 
 
 class WeatherSnapshot(Base):

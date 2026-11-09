@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Iterable, Iterator
 from datetime import UTC, datetime
 from typing import Any, NamedTuple
@@ -204,6 +205,15 @@ def venue_key(fx: dict[str, Any]) -> tuple[str, str, str | None] | None:
     return name, (v.get("city") or "").strip(), ref
 
 
+def name_key(text: str) -> str:
+    """Accents, case, spaces and punctuation stripped: 'St. James’ Park' == 'St James Park'."""
+    plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    return "".join(ch for ch in plain.casefold() if ch.isalnum())
+
+
+INTERNATIONAL = frozenset({"Europe", "World"})  # competition countries that are not one
+
+
 def venues_by_key(
     session: Session, venues: dict[tuple[str, str], str | None], country: str
 ) -> dict[tuple[str, str], models.Venue]:
@@ -225,8 +235,17 @@ def venues_by_key(
             out[key] = V(source_id=SOURCE_ID, source_ref=ref, name=key[0], city=key[1],
                          country=country, geocode_status="pending", observed_at=now)  # fmt: skip
             session.add(out[key])
-        elif known.source_ref is None and ref is not None:
-            known.source_ref = ref
+        else:
+            if known.source_ref is None and ref is not None:
+                known.source_ref = ref
+            # A domestic ground first seen in a European fixture list takes the domestic
+            # country, so geocoding can filter by it.
+            if (
+                known.country in INTERNATIONAL
+                and country not in INTERNATIONAL
+                and known.geocode_status == "pending"
+            ):
+                known.country = country
     session.flush()
     return out
 

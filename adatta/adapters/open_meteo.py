@@ -7,7 +7,7 @@ raw_payload with source_id "open_meteo".
 
 from __future__ import annotations
 
-import unicodedata
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -18,12 +18,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from adatta.adapters.normalize import name_key
 from adatta.adapters.storage import RawStore, encode_payload, storage_key
 from adatta.db import models
 
 SOURCE_ID = "open_meteo"
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+ELEVATION_URL = "https://api.open-meteo.com/v1/elevation"
 FORECAST_DAYS = 16
 HOURLY = ("temperature_2m", "precipitation", "wind_speed_10m")
 
@@ -35,6 +37,15 @@ COUNTRY_CODES: dict[str, tuple[str, ...]] = {
     "Italy": ("IT", "SM"),
     "Germany": ("DE",),
     "France": ("FR", "MC"),
+}
+# Zone for a reviewed venue with no geocoder result (all bundle grounds outside the Canary
+# Islands; a Canary venue's override must name Atlantic/Canary).
+DEFAULT_TIMEZONE: dict[str, str] = {
+    "England": "Europe/London",
+    "Spain": "Europe/Madrid",
+    "Italy": "Europe/Rome",
+    "Germany": "Europe/Berlin",
+    "France": "Europe/Paris",
 }
 # The geocoder indexes English and official names; the provider uses local ones.
 CITY_ALIASES: dict[str, str] = {
@@ -55,7 +66,7 @@ CITY_ALIASES: dict[str, str] = {
     "Köln": "Cologne",
     "Nürnberg": "Nuremberg",
     "Tenerife": "Santa Cruz de Tenerife",
-    "Donostia-San Sebastián": "San Sebastián",
+    "Donostia-San Sebastián": "Donostia",
     "Saint Etienne": "Saint-Étienne",
     "Newcastle": "Newcastle upon Tyne",
     "Dunkerque": "Dunkirk",
@@ -65,6 +76,12 @@ CITY_ALIASES: dict[str, str] = {
     "Azcoitia": "Azkoitia",
     "Paris - Saint-Ouen": "Saint-Ouen",
     "Castellón de la Plana": "Castellón",
+    "Saragossa": "Zaragoza",
+    "Villarreal": "Vila-real",
+    "Freiburg": "Freiburg im Breisgau",
+    "La Coruna": "A Coruña",
+    "Wuerzburg": "Würzburg",
+    "Hamburg - St. Pauli": "Hamburg",
 }
 CLEAR_MARGIN = 10.0  # chosen place must be this many times more populous than the runner-up
 CITY_MIN = 50_000  # ... or, when the runner-up's population is unknown, at least this large
@@ -79,6 +96,7 @@ class Place:
     elevation_m: float | None
     population: int | None
     feature_code: str
+    timezone: str | None = None  # IANA name, as the geocoder gives it
 
 
 @dataclass(frozen=True)
@@ -99,8 +117,10 @@ class Geocode:
 
 
 def city_query(city: str) -> str:
-    """'Barnsley, South Yorkshire' -> 'Barnsley'; local names -> the geocoder's names."""
-    head = city.split(",")[0].strip()
+    """'Barnsley, South Yorkshire' -> 'Barnsley'; local names -> the geocoder's names. A ground
+    listed with no city often carries it in brackets: 'Wembley Stadium (London)' -> 'London'."""
+    bracket = re.search(r"\(([^()]+)\)\s*$", city)
+    head = (bracket.group(1) if bracket else city).split(",")[0].strip()
     return CITY_ALIASES.get(head, head)
 
 
@@ -114,12 +134,8 @@ def _place(r: dict[str, Any]) -> Place:
         elevation_m=None if elev is None or float(elev) <= -9000 else float(elev),
         population=r.get("population"),
         feature_code=str(r.get("feature_code") or ""),
+        timezone=r.get("timezone"),
     )
-
-
-def _norm(name: str) -> str:
-    plain = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
-    return "".join(ch for ch in plain.casefold() if ch.isalnum())
 
 
 def pick_place(results: list[dict[str, Any]], countries: tuple[str, ...], query: str) -> Geocode:
@@ -141,8 +157,8 @@ def pick_place(results: list[dict[str, Any]], countries: tuple[str, ...], query:
         return Geocode("unresolved", None, query, 0)
     cands.sort(key=lambda p: p.population or 0, reverse=True)
     best = cands[0]
-    if _norm(best.name) == _norm(query):
-        cands = [p for p in cands if _norm(p.name) == _norm(query)]
+    if name_key(best.name) == name_key(query):
+        cands = [p for p in cands if name_key(p.name) == name_key(query)]
     if len(cands) == 1:
         return Geocode("auto", best, query, 1)
     pop, runner = best.population or 0, cands[1].population
@@ -216,6 +232,7 @@ class OpenMeteoClient:
         self.requests_made = 0
         self.last_storage_key: str | None = None
         self.last_response_at: datetime | None = None
+        self._geocodes: dict[tuple[str, str], Geocode] = {}  # one search per city per run
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), reraise=True)
     def _get(self, url: str, params: dict[str, Any]) -> httpx.Response:
@@ -244,6 +261,9 @@ class OpenMeteoClient:
 
     def geocode(self, session: Session, city: str, country: str) -> Geocode:
         query = city_query(city)
+        cached = self._geocodes.get((query, country))
+        if cached is not None:
+            return cached
         countries = COUNTRY_CODES.get(country, ())
         params: dict[str, Any] = {"name": query, "count": 10, "language": "en", "format": "json"}
         results: list[dict[str, Any]] = []
@@ -251,7 +271,14 @@ class OpenMeteoClient:
             if code is not None:
                 params = {**params, "countryCode": code}
             results += self.fetch(session, GEOCODE_URL, params).get("results") or []
-        return pick_place(results, countries, query)
+        self._geocodes[(query, country)] = pick_place(results, countries, query)
+        return self._geocodes[(query, country)]
+
+    def elevation(self, session: Session, latitude: float, longitude: float) -> float | None:
+        """Ground elevation (90 m DEM) where the geocoder gives none."""
+        params = {"latitude": round(latitude, 4), "longitude": round(longitude, 4)}
+        values = self.fetch(session, ELEVATION_URL, params).get("elevation") or []
+        return float(values[0]) if values and values[0] is not None else None
 
     def forecast(self, session: Session, latitude: float, longitude: float) -> dict[str, Any]:
         params = {

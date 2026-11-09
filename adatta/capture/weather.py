@@ -29,7 +29,13 @@ from sqlalchemy.orm import Session
 
 from adatta.adapters import api_football_capture as afc
 from adatta.adapters import normalize
-from adatta.adapters.open_meteo import SOURCE_ID, OpenMeteoClient, match_weather
+from adatta.adapters.open_meteo import (
+    DEFAULT_TIMEZONE,
+    SOURCE_ID,
+    OpenMeteoClient,
+    city_query,
+    match_weather,
+)
 from adatta.db import models
 
 HORIZON = timedelta(days=15)  # inside the 16-day forecast, so the match hours are covered
@@ -45,6 +51,7 @@ class VenueOverride(BaseModel):
     latitude: float
     longitude: float
     elevation_m: float | None = None
+    timezone: str | None = None  # default: the competition country's zone
     note: str = ""
 
 
@@ -67,10 +74,12 @@ def apply_overrides(session: Session, overrides: list[VenueOverride], now: datet
     n = 0
     for o in overrides:
         for v in session.scalars(select(V).where(V.name == o.name, V.city == o.city)):
-            new = (o.latitude, o.longitude, o.elevation_m)
-            if v.geocode_status == "reviewed" and (v.latitude, v.longitude, v.elevation_m) == new:
+            tz = o.timezone or DEFAULT_TIMEZONE.get(v.country)
+            new = (o.latitude, o.longitude, o.elevation_m, tz)
+            old = (v.latitude, v.longitude, v.elevation_m, v.timezone)
+            if v.geocode_status == "reviewed" and old == new:
                 continue
-            v.latitude, v.longitude, v.elevation_m = new
+            v.latitude, v.longitude, v.elevation_m, v.timezone = new
             v.geocode_status, v.geocode_source = "reviewed", "config/venue_overrides.yml"
             v.geocode_match, v.geocoded_at = (o.note or "manual review")[:255], now
             n += 1
@@ -78,32 +87,125 @@ def apply_overrides(session: Session, overrides: list[VenueOverride], now: datet
     return n
 
 
+def _stored_query(v: models.Venue) -> str | None:
+    """The city query a geocoded venue was looked up with (the head of geocode_match)."""
+    if not v.geocode_match:
+        return None
+    return v.geocode_match.split(" -> ")[0].split(": no populated place")[0]
+
+
 def geocode_venues(
     session: Session, om: OpenMeteoClient, venue_ids: list[int], now: datetime,
-    limit: int = MAX_GEOCODES,
+    limit: int = MAX_GEOCODES, backlog: bool = False,
 ) -> Counter[str]:  # fmt: skip
     """Geocode pending venues by city; record the outcome either way (never retried blindly:
-    ambiguous and unresolved venues need a reviewed override)."""
+    ambiguous and unresolved venues need a reviewed override). A placed venue with no
+    elevation gets it from the elevation API.
+
+    With backlog (the one-off `venues-geocode` command, never the tick), also: venues placed
+    automatically before timezones were stored get theirs from the same search (same place
+    only), and ambiguous or unresolved venues are retried when their city query has changed
+    since (a new alias or the bracketed-city rule)."""
     V = models.Venue
     counts: Counter[str] = Counter()
-    pending = [
+    wanted = V.geocode_status == "pending"
+    if backlog:
+        wanted = (
+            wanted
+            | ((V.geocode_status == "auto") & V.timezone.is_(None))
+            | V.geocode_status.in_(["ambiguous", "unresolved"])
+        )
+    todo = [
         v
         for part in normalize.chunks(venue_ids)
-        for v in session.scalars(
-            select(V).where(V.venue_id.in_(part), V.geocode_status == "pending")
-        )
+        for v in session.scalars(select(V).where(V.venue_id.in_(part), wanted))
+        if v.geocode_status not in ("ambiguous", "unresolved")
+        or _stored_query(v) != city_query(v.city or v.name)
     ]
-    for v in pending[:limit]:
+    for v in todo[:limit]:
         g = om.geocode(session, v.city or v.name, v.country)
+        if v.geocode_status == "auto":
+            same = g.place is not None and (g.place.latitude, g.place.longitude) == (
+                v.latitude, v.longitude,
+            )  # fmt: skip
+            if same and g.place is not None:
+                v.timezone = g.place.timezone
+            counts["timezone_filled" if same else "timezone_mismatch"] += 1
+            session.commit()
+            continue
+        counts[f"retried_{v.geocode_status}"] += v.geocode_status != "pending"
         v.geocode_status, v.geocode_source = g.status, SOURCE_ID
         v.geocode_match, v.geocoded_at = g.describe()[:255], om.last_response_at or now
         if g.place is not None:
             v.latitude, v.longitude = g.place.latitude, g.place.longitude
             v.elevation_m = g.place.elevation_m
+            v.timezone = g.place.timezone or DEFAULT_TIMEZONE.get(v.country)
         counts[g.status] += 1
         session.commit()
-    counts["deferred"] += max(0, len(pending) - limit)
-    return counts
+    counts["deferred"] += max(0, len(todo) - limit)
+    counts["borrowed"] += borrow_by_name(session, venue_ids, now)
+    counts["elevation_filled"] += fill_elevations(session, om, venue_ids)
+    return +counts
+
+
+def borrow_by_name(session: Session, venue_ids: list[int], now: datetime) -> int:
+    """An ambiguous or unresolved venue takes the coordinates of a placed venue of the same
+    (normalised) name in the same country, when every such venue is at one place: the
+    provider lists one ground with a blank or misspelt city ('Estadio de Mestalla | Valdivia')
+    as well as correctly."""
+    V = models.Venue
+    stuck = [
+        v
+        for part in normalize.chunks(venue_ids)
+        for v in session.scalars(
+            select(V).where(V.venue_id.in_(part), V.geocode_status.in_(["ambiguous", "unresolved"]))
+        )
+    ]
+    if not stuck:
+        return 0
+    places: dict[tuple[str, str], set[tuple[float, float, float | None, str | None]]] = {}
+    for p in session.scalars(
+        select(V).where(
+            V.geocode_status.in_(USABLE),
+            V.latitude.is_not(None),
+            V.country.in_(sorted({v.country for v in stuck})),
+        )
+    ):
+        assert p.latitude is not None and p.longitude is not None
+        where = (round(p.latitude, 3), round(p.longitude, 3), p.elevation_m, p.timezone)
+        places.setdefault((p.country, normalize.name_key(p.name)), set()).add(where)
+    n = 0
+    for v in stuck:
+        found = places.get((v.country, normalize.name_key(v.name)), set())
+        if len({(lat, lon) for lat, lon, _, _ in found}) != 1:
+            continue
+        lat, lon, elev, tz = sorted(found, key=lambda w: (w[2] is None, w[3] is None))[0]
+        v.latitude, v.longitude, v.elevation_m, v.timezone = lat, lon, elev, tz
+        v.geocode_status, v.geocode_source, v.geocoded_at = "auto", "venue_name", now
+        v.geocode_match = f"same name as a placed venue at {lat}, {lon}"
+        n += 1
+    session.commit()
+    return n
+
+
+def fill_elevations(session: Session, om: OpenMeteoClient, venue_ids: list[int]) -> int:
+    V = models.Venue
+    n = 0
+    for part in normalize.chunks(venue_ids):
+        for v in session.scalars(
+            select(V).where(
+                V.venue_id.in_(part),
+                V.geocode_status.in_(USABLE),
+                V.elevation_m.is_(None),
+                V.latitude.is_not(None),
+                V.longitude.is_not(None),
+            )
+        ):
+            assert v.latitude is not None and v.longitude is not None
+            v.elevation_m = om.elevation(session, v.latitude, v.longitude)
+            n += v.elevation_m is not None
+            session.commit()
+    return n
 
 
 def _utc(dt: datetime) -> datetime:

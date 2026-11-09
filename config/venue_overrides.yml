@@ -11,3 +11,19 @@ venues:
   - {name: "Stade Auguste Bonal", city: "", latitude: 47.50957, longitude: 6.79823, elevation_m: 327, note: "Montbeliard (Open-Meteo PPLA3), reviewed 2026-11-09"}
   # ambiguous: two Portugaletes in Spain; the ground is in the Biscay one (the geocoder's pick)
   - {name: "Estadio La Florida", city: "Portugalete", latitude: 43.32099, longitude: -3.02064, elevation_m: 49, note: "Portugalete, Biscay (Open-Meteo PPLA3), reviewed 2026-11-09"}
+  # 2026-11-09 historical backlog. Ambiguous: the town's name recurs elsewhere in the country
+  # (hamlets of unknown population) or, for Ibiza, a Madrid district of 21k against Ibiza Town
+  # (49k). Coordinates are the Open-Meteo candidate for the club's town, checked by region.
+  - {name: "BWT-Stadion am Hardtwald", city: "Sandhausen", latitude: 49.34278, longitude: 8.65917, elevation_m: 109, note: "Sandhausen, Karlsruhe region (Open-Meteo PPLA4), reviewed 2026-11-09"}
+  - {name: "GP Stadion am Hardtwald", city: "Sandhausen", latitude: 49.34278, longitude: 8.65917, elevation_m: 109, note: "Sandhausen, Karlsruhe region (Open-Meteo PPLA4), reviewed 2026-11-09"}
+  - {name: "Hardtwaldstadion", city: "Sandhausen", latitude: 49.34278, longitude: 8.65917, elevation_m: 109, note: "Sandhausen, Karlsruhe region (Open-Meteo PPLA4), reviewed 2026-11-09"}
+  - {name: "Los Pajaritos", city: "Soria", latitude: 41.76401, longitude: -2.46883, elevation_m: 1064, note: "Soria, Castile and Leon (Open-Meteo PPLA2), reviewed 2026-11-09"}
+  - {name: "Nuevo Estadio Los Pajaritos", city: "Soria", latitude: 41.76401, longitude: -2.46883, elevation_m: 1064, note: "Soria, Castile and Leon (Open-Meteo PPLA2), reviewed 2026-11-09"}
+  - {name: "Erzgebirgsstadion", city: "Aue", latitude: 50.59034, longitude: 12.70657, elevation_m: 399, note: "Aue, Saxony (Open-Meteo PPL), reviewed 2026-11-09"}
+  - {name: "Sparkassen Erzgebirgsstadion", city: "Aue", latitude: 50.59034, longitude: 12.70657, elevation_m: 399, note: "Aue, Saxony (Open-Meteo PPL), reviewed 2026-11-09"}
+  - {name: "Estadio Can Misses – Power Electronic", city: "Ibiza", latitude: 38.90883, longitude: 1.43296, elevation_m: 7, note: "Ibiza Town, Balearic Islands (Open-Meteo PPLA3), reviewed 2026-11-09"}
+  - {name: "Estadio Municipal de Can Misses", city: "Ibiza", latitude: 38.90883, longitude: 1.43296, elevation_m: 7, note: "Ibiza Town, Balearic Islands (Open-Meteo PPLA3), reviewed 2026-11-09"}
+  - {name: "Instalaciones de Lezama Campo 2", city: "Lezama", latitude: 43.26667, longitude: -2.83333, elevation_m: 93, note: "Lezama, Biscay (Athletic's training ground; Open-Meteo PPL), reviewed 2026-11-09"}
+  - {name: "Rodney Parade", city: "Newport", latitude: 51.58774, longitude: -2.99835, elevation_m: 16, note: "Newport, Wales (Open-Meteo PPLA2, 161k), reviewed 2026-11-09"}
+  # unresolved: the provider gives the state as the city
+  - {name: "Voith-Arena", city: "Baden-Wurttemberg", latitude: 48.67798, longitude: 10.15162, elevation_m: 494, note: "Heidenheim an der Brenz (Open-Meteo PPLA3), reviewed 2026-11-09"}

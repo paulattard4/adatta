@@ -39,6 +39,8 @@ def test_pick_place_prefers_a_clearly_larger_town_in_country() -> None:
     assert om.pick_place(cesena, ("IT",), "Cesena").status == "auto"  # prefix match, district
     assert om.city_query("Barnsley, South Yorkshire") == "Barnsley"
     assert om.city_query("Napoli") == "Naples"
+    assert om.city_query("Wembley Stadium (London)") == "London"
+    assert om.city_query("Stadio Olimpico (Roma)") == "Rome"
 
 
 def hourly(start: datetime, hours: int) -> dict[str, Any]:
@@ -183,3 +185,39 @@ def test_load_venues_links_matches_from_stored_fixture_lists(tmp_path: Path) -> 
         v = s.get(models.Venue, m.venue_id if m else -1)
         assert v is not None and v.name == "New Ground" and v.geocode_status == "pending"
         assert load_venues(s, h.store, {1: "England"}, None).get("linked", 0) == 0  # idempotent
+
+
+def test_timezone_refresh_only_on_request(tmp_path: Path) -> None:
+    h = Harness(tmp_path)
+    h.tick(T0)
+    with Session(h.engine) as s:
+        leeds = s.scalar(select(models.Venue).where(models.Venue.city == "Leeds"))
+        assert leeds is not None and leeds.timezone == "Europe/London"  # country default
+        leeds.timezone = None
+        s.commit()
+        http = httpx.Client(transport=httpx.MockTransport(h.api.handler))
+        client = om.OpenMeteoClient(h.store, http=http, clock=lambda: T0)
+        ids = [leeds.venue_id]
+        assert +weather.geocode_venues(s, client, ids, T0) == {}  # the tick never refreshes
+        h.api.places["Leeds"][0]["timezone"] = "Europe/London"
+        out = weather.geocode_venues(s, client, ids, T0, backlog=True)
+        assert out["timezone_filled"] == 1
+
+
+def test_unplaced_venue_borrows_a_placed_namesake(tmp_path: Path) -> None:
+    h = Harness(tmp_path)
+    h.tick(T0)  # Elland Road | Leeds placed automatically
+    with Session(h.engine) as s:
+        normalize.venues_by_key(s, {("Elland  Road", ""): None, ("Lezama", "Elsewhere"): None},
+                                "England")  # fmt: skip
+        s.commit()
+        ids = list(s.scalars(select(models.Venue.venue_id)))
+        for v in s.scalars(select(models.Venue).where(models.Venue.geocode_status == "pending")):
+            v.geocode_status = "unresolved"
+        s.commit()
+        assert weather.borrow_by_name(s, ids, T0) == 1
+        blank = s.scalar(select(models.Venue).where(models.Venue.city == ""))
+        assert blank is not None and blank.latitude == 53.8 and blank.geocode_source == "venue_name"
+        # Lezama's namesake is itself ambiguous: nothing to borrow
+        other = s.scalar(select(models.Venue).where(models.Venue.city == "Elsewhere"))
+        assert other is not None and other.latitude is None

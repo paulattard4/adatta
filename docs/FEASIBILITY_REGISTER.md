@@ -74,13 +74,13 @@ timing (the entry says which) · `absent` = verified missing from every source w
 
 | # | Covariate | Source, endpoint, field | Coverage, bundles 2019–2025 | Verified by | Temporal availability | Status | Degrades to |
 |---|---|---|---|---|---|---|---|
-| 2.8 | Venue identity | API-Football `/fixtures` `fixture.venue{id,name,city}` | Venue name and city on every match. Venue id: 2019–2023 ≥ 95% in every league-season (lowest Ligue 2 2020, 365 of 384); 2024 85–100% (Serie A 323 of 380, Segunda 429 of 468, Ligue 1 291 of 308); **2025/26 54–100%** (Serie A 206 of 380, Championship 302 of 557, Segunda 284 of 468; PL 380 of 380). Stade Louis II appears under two ids (659 and 20470). 324 distinct ids, 244 city strings | R2 fixture lists (70 seasons) | Pre-match, published with the fixture; changes captured in `fixture_snapshot.venue_ref` since 2026-11-05 | **partial** (2024–2025 ids) | Match venue by name and city into a canonical venue table; until then, venue = home team's modal venue (2.14) |
-| 2.9 | Venue coordinates (lat, lon) | Not in API-Football (`/venues` and `/teams` give address, city, capacity, surface; no lat/lon: probe `/venues?city=Manchester`, 8 venues). Open-Meteo geocoding by city | Geocoding of all 244 city strings: 240 resolve to a place in a bundle country (GB, ES, IT, DE, FR, MC, AD), 4 do not (`Caerdydd`, `Iruñea`, `La Coruña`, `Napoli`, all local-language names), 13 have a non-bundle top hit (Roma → Romania, Como → Comoros), and at least one in-country hit is wrong (`Roma` → a 692 m village, not Rome). City-level precision only; a stadium name search sometimes hits (Old Trafford, 0.6 km off) | Open-Meteo geocoding API, 244 requests | Static | **partial** | Build a reviewed venue table once (country-filtered lookup, manual review queue as in §4.6, about 330 rows); until then 2.10, 2.12–2.15 cannot run |
-| 2.10 | Altitude and altitude differential | Open-Meteo elevation API (90 m DEM) from 2.9's coordinates; the differential uses the away team's home venue (2.14) | Elevation returned for 5 of 5 sampled stadiums (Old Trafford 18 m, Bernabéu area 716 m, Munich 491 m). City elevations span sea level to Soria 1,064 m and Encamp (Andorra) 1,257 m; Madrid, Getafe, Leganés, Alcorcón, Fuenlabrada, Valladolid, Granada, Albacete and Burgos are all 620–860 m, so Spanish matches have real differentials | Open-Meteo elevation and geocoding APIs | Static (look up once per venue, cache) | **partial** (needs 2.9) | Term absent until the venue table exists |
+| 2.8 | Venue identity | API-Football `/fixtures` `fixture.venue{id,name,city}` | Venue name and city on every match. Venue id: 2019–2023 ≥ 95% in every league-season (lowest Ligue 2 2020, 365 of 384); 2024 85–100% (Serie A 323 of 380, Segunda 429 of 468, Ligue 1 291 of 308); **2025/26 54–100%** (Serie A 206 of 380, Championship 302 of 557, Segunda 284 of 468; PL 380 of 380). Stade Louis II appears under two ids (659 and 20470). 324 distinct ids, 244 city strings | R2 fixture lists (70 seasons) | Pre-match, published with the fixture; changes captured in `fixture_snapshot.venue_ref` since 2026-11-05 | **verified** (2026-11-09: `venue` table keyed by name and city, every match linked; 2019–2025 league matches 100% named) | Ids no longer needed. A match with no listed venue (2026/27 fixtures only) is taken to be at the home team's base (2.14), flagged `venue_source = home_base` |
+| 2.9 | Venue coordinates (lat, lon) | Not in API-Football (`/venues` and `/teams` give address, city, capacity, surface; no lat/lon: probe `/venues?city=Manchester`, 8 venues). Open-Meteo geocoding by city | Geocoding of all 244 city strings: 240 resolve to a place in a bundle country (GB, ES, IT, DE, FR, MC, AD), 4 do not (`Caerdydd`, `Iruñea`, `La Coruña`, `Napoli`, all local-language names), 13 have a non-bundle top hit (Roma → Romania, Como → Comoros), and at least one in-country hit is wrong (`Roma` → a 692 m village, not Rome). City-level precision only; a stadium name search sometimes hits (Old Trafford, 0.6 km off) | Open-Meteo geocoding API, 244 requests; 2026-11-09 backlog run, about 2,000 requests | Static | **verified** (2026-11-09: city-level coordinates for every bundle league venue 2019–2026, see Progress) | Venue still ambiguous or unresolved: no venue terms for that match (none in league play 2019–2026) |
+| 2.10 | Altitude and altitude differential | Open-Meteo elevation API (90 m DEM) from 2.9's coordinates; the differential uses the away team's home venue (2.14) | Elevation returned for 5 of 5 sampled stadiums (Old Trafford 18 m, Bernabéu area 716 m, Munich 491 m). City elevations span sea level to Soria 1,064 m and Encamp (Andorra) 1,257 m; Madrid, Getafe, Leganés, Alcorcón, Fuenlabrada, Valladolid, Granada, Albacete and Burgos are all 620–860 m, so Spanish matches have real differentials | Open-Meteo elevation and geocoding APIs | Static (look up once per venue, cache) | **verified** (2026-11-09: 100% of 2019–2026 league matches; city elevation, so a ground on a hill above its town reads low) | Term null where either venue has no elevation |
 | 2.11 | Surface; pitch dimensions | API-Football `/venues`, `/teams` `venue.surface`. No pitch-dimension field anywhere | Surface: current value only, no history (PL 2024: 20 of 20 `grass`). Dimensions: 0% | Probes `/teams?league=39&season=2024`, `/venues?city=Manchester` | Static, but only today's value can be read; a past change of surface is not reconstructable | Surface **partial**; dimensions **absent** | Both terms absent; for these bundles the surface is near-constant, so little is lost |
 | 2.12 | Weather at kickoff as forecast before the match: temperature, wind, precipitation | Open-Meteo: forecast API (16 days ahead, live); **previous-runs API** (forecasts as issued 1–7 days earlier); historical-forecast API (stitched short-lead runs) | Live forecast: verified (384 hourly values, 16 days). As-issued history: **from about Feb 2024 only** (previous-runs empty on 2023-12-15, present on 2024-02-15). Historical-forecast: differs from reanalysis on 2023-03-15, but on 2019-10-20 it returns exactly the reanalysis values, so before about 2022 it is not a forecast. **Every value needs 2.9's coordinates** | Open-Meteo probes | Forecast: pre-match, must be captured live or read from previous-runs (2024+) with the lead time stated. **Realised weather (archive or reanalysis) is not observable before kickoff** and must not be a training feature for a pre-match prediction | **partial** | Climatology (2.13) for training before 2024 and for matches more than 16 days out (§6.2); forecast terms only where an as-issued forecast exists |
-| 2.13 | Weather climatology for venue and date | Open-Meteo archive API (ERA5 reanalysis, back to 1940) | Hourly values returned for 2019-10-20 at Old Trafford; full window covered | Open-Meteo probe | Reconstructable as of any date, if the climatology for a season uses only years before it | **partial** (needs 2.9; the data itself is verified) | Term absent until the venue table exists |
-| 2.14 | Travel burden: great-circle distance and timezone shift from home venue | Derived: team home venue = modal venue of its home fixtures in a season (2.8) + coordinates (2.9) | Home venue: 1,349 team-seasons; 31 play under 90% of home games at their modal venue and 8 under 60% (ground-shares, rebuilds), so `home_venue` needs `valid_from/to`. Timezone shift: only the Canary Islands (Las Palmas, Tenerife: UTC+0 against UTC+1 for the rest of Spain) | R2 fixture lists; geocoding | Static plus the fixture list | **partial** (needs 2.9) | Term absent until the venue table exists |
+| 2.13 | Weather climatology for venue and date | Open-Meteo archive API (ERA5 reanalysis, back to 1940) | Hourly values returned for 2019-10-20 at Old Trafford; full window covered | Open-Meteo probe | Reconstructable as of any date, if the climatology for a season uses only years before it | **verified** (coordinates now exist, 2.9; the climatology itself is not built yet) | Term absent until built |
+| 2.14 | Travel burden: great-circle distance and timezone shift from home venue | Derived: team home venue = modal venue of its home fixtures in a season (2.8) + coordinates (2.9) | Home venue: 1,349 team-seasons; 31 play under 90% of home games at their modal venue and 8 under 60% (ground-shares, rebuilds), so `home_venue` needs `valid_from/to`. Timezone shift: only the Canary Islands (Las Palmas, Tenerife: UTC+0 against UTC+1 for the rest of Spain) | R2 fixture lists; geocoding | Static plus the fixture list | **verified** (2026-11-09: `team_home_venue` spells, `adatta/features/travel.py`; 100% of 2019–2026 league matches) | Term null where either venue is unplaced |
 | 2.15 | Consecutive away trips flag | Derived from the fixture calendar (home and away sides of every fixture) | As 2.16 | Neon `match` | Fixture dates are pre-match, published | **verified** (the flag; distance-weighted variants need 2.9) | n/a |
 
 ## 3. Phase 2: referee, congestion, importance, regime facts (Layer 3c–e, §6.2)
@@ -130,8 +130,9 @@ phase time.
 ## Summary: what fails, and where it degrades
 
 **Gate result: every covariate has an evidenced entry; Phase 2 is not yet buildable in full.**
-40 entries (37 distinct covariates; B.6–B.8 repeat Phase 2 rows): 17 verified, 16 partial,
-7 absent (updated 2026-11-09 after the calendar backfill: 2.15 and 2.16 moved to verified). The absent ones were expected and are already off the plan; the partial ones are what
+40 entries (37 distinct covariates; B.6–B.8 repeat Phase 2 rows): 22 verified, 11 partial,
+7 absent (updated 2026-11-09: after the calendar backfill 2.15 and 2.16 moved to verified;
+after the venue table 2.8, 2.9, 2.10, 2.13 and 2.14 did). The absent ones were expected and are already off the plan; the partial ones are what
 stands between Phase 2 and modelling.
 
 **Absent** (no source; the term stays out of the model everywhere, never imputed):
@@ -148,9 +149,7 @@ stands between Phase 2 and modelling.
 
 | Covariate | Segments that degrade | Falls back to | Unblocked by |
 |---|---|---|---|
-| Venue coordinates (2.9), so altitude (2.10), weather climatology (2.13), travel (2.14) | **All segments** until the venue table exists | No venue, weather or travel terms: Layer 3b off | A reviewed venue table (about 330 venues; geocoding resolves 240/244 city strings, with known errors) |
 | Weather forecast (2.12) | Every match before about Feb 2024: dev 2019–2023 and holdout 2024/25 up to Feb 2024 | Climatology (2.13) | Nothing: as-issued forecast history does not exist earlier. Live capture of forecasts from now on |
-| Venue identity (2.8) | Matches without a venue id: up to 15% per league-season in 2024, up to 46% in 2025/26 | Home team's modal venue | Name-and-city matching into the venue table |
 | Congestion forward (2.17) | Dev and holdout (no as-of fixture calendar before 2026-11-05) | Final fixture dates (stated look-ahead) or live period only | A decision, then capture |
 | Referee strictness (2.18) | 2025/26 names until resolved | Competition-tier pool prior | Name resolution |
 | Referee assignment (2.19) | Segunda (2/9 before kickoff), Championship and La Liga (under 24 h), cups | Pool prior until the referee appears | A longer capture sample to confirm lead times |
@@ -165,9 +164,11 @@ matches, coach on 99.59% of team-matches. Its two partial fields both have exact
 from lineups.
 
 **Phase 2 style and backward congestion pass** (style 99.95%; congestion since the
-2026-11-09 calendar backfill). **Phase 2 venue, weather, travel and importance cannot be
-modelled yet**: each needs a one-off data task first (venue table for historical venues;
-zone-rules table), none of them a modelling task.
+2026-11-09 calendar backfill). **Phase 2 venue and travel now pass too** (venue table,
+2026-11-09: travel, timezone shift and altitude differential on 100% of 2019–2026 league
+matches). **Weather forecasts and importance cannot be modelled yet**: forecasts exist only
+from Feb 2024 and from live capture (climatology is the fallback, still to build), and
+importance needs the zone-rules table. Neither is a modelling task.
 
 ## Spec disagreements raised (CLAUDE.md: raise, don't silently diverge)
 
@@ -182,6 +183,11 @@ zone-rules table), none of them a modelling task.
    for the owner's personal use only, so the free tier applies. Revisit before any commercial
    or public use; per CLAUDE.md the owner decides before any paid service is added.
 4. **"Phase 3c"** names two different things in §19.3 (see Scope).
+5. **Figure 2 / §3, `Team.home_venue_id`.** A single column can't hold a ground move or a
+   temporary home (Spezia and Villarreal during works, Coventry at St Andrew's, Paris FC at
+   Troyes). Implemented as a versioned `team_home_venue` table (`valid_from/to`, superseded
+   rows kept), which the spec's temporal contract implies. The single column is not added;
+   raise if the spec meant otherwise.
 
 ## Progress since the audit
 
@@ -195,17 +201,43 @@ zone-rules table), none of them a modelling task.
   `main`. Venues: 116 placed automatically, 5 by reviewed override
   (`config/venue_overrides.yml`), 2 unresolved outside the bundles; 312 historical venues are
   still pending (next step 1).
+- **2026-11-09, next step 1 done: venue table.** Migration 0009 (applied to Neon) adds
+  `venue.timezone` and `team_home_venue`.
+  - *Venues:* every competition-season's stored fixture list linked: 55,900 matches, 3,841
+    venues (cups and European competitions included). The 1,453 venues that bundle teams
+    play at (league fixtures, plus cup ties involving a league team) were geocoded with free
+    Open-Meteo city searches, about 2,000 requests, no API-Football quota.
+  - *Rules added on review:* a blank city read from the bracket in the name ('Wembley
+    Stadium (London)'); more aliases (Saragossa, La Coruna, Villarreal → Vila-real,
+    Donostia, Freiburg im Breisgau, Wuerzburg); an unplaced venue borrows the coordinates of
+    a placed venue of the same name when that name is at one place (the provider's typos:
+    'Estadio de Mestalla | Valdivia', 'Arena Garibaldi | Pizza'); elevation from the
+    elevation API where the geocoder gives none (Ajaccio, Monaco). 12 more reviewed
+    overrides (Sandhausen, Soria, Aue, Ibiza, Lezama, Newport, Heidenheim).
+  - *Home base:* a run of three or more consecutive home league fixtures at one site sets
+    it; a team's venues within 15 km of each other or sharing a name or city are one site
+    (renames such as Hannover's three sponsor names, spellings such as Venezia/Venice). 294
+    teams; 15 with more than one spell, all real temporary or permanent moves, e.g. Spezia
+    at Cesena 2020 and 2023, Villarreal at Ciudad de Valencia 2022, Coventry at St Andrew's
+    2020/21, Carrarese at Pisa 2024. Not verified: the 2026/27 list puts three Annecy home
+    games at a ground in Avignon.
+  - *Coverage:* travel, timezone shift and altitude differential on 100% of league matches
+    in every league-season 2019–2026 (`adatta venues-coverage`). Medians of away travel:
+    England 175 km, Germany 301, Italy 310, Spain 448, France 465. Timezone shifts only for
+    Canary Islands matches (606). Altitude differentials up to 1,256 m (Andorra).
+  - *Left in review (`adatta venues-review`):* ambiguous and unresolved venues used by cup
+    ties, or by league seasons before 2019 (no 2019–2026 league match lacks coordinates).
+  - *Temporal note:* venues and home bases come from the published fixture lists, which hold
+    the final venue only (2.8), so a late venue change reads as known from the start.
 
 ## Proposed next steps (each needs the owner's go-ahead)
 
-1. Venue table: country-filtered geocoding of about 330 venues with a manual review queue,
-   versioned home venue per team-season (`valid_from/to`). Free (Open-Meteo), no API-Football
-   quota.
-2. Fixture lists for UCL, UEL, UECL, EFL Cup and the super cups, 2019–2025: 20–35
-   API-Football requests through the quota planner.
+1. ~~Venue table~~ done 2026-11-09 (see Progress).
+2. ~~Fixture lists for UCL, UEL, UECL, EFL Cup and the super cups~~ done 2026-11-09.
 3. Manual tables: zone rules and point deductions per league-season; VAR start per
    competition.
 4. Decision: forward congestion and referee assignment in backtests (final dates vs live-only;
    the T-24h rule in 2.19).
-5. Add weather-forecast capture to the poller (Open-Meteo forecast for each upcoming fixture,
-   stored as a snapshot), so forecasts exist as of each match from now on.
+5. ~~Weather-forecast capture in the poller~~ done 2026-11-09, live on `main`.
+6. Weather climatology per venue and calendar date from the Open-Meteo archive (2.13), using
+   only years before each season: the weather fallback for every match before Feb 2024.

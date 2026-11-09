@@ -325,6 +325,39 @@ def venues_coverage() -> None:
         typer.echo(out)
 
 
+@app.command("rules-check")
+def rules_check() -> None:
+    """Check config/league_rules.yml against the newest stored final /standings table of
+    each league-season (no requests): team counts and every points gap."""
+    import gzip
+
+    from sqlalchemy import select
+
+    from adatta.db import models
+    from adatta.features.league_rules import check_against_standings, load_rules
+
+    rules = load_rules()
+    R = models.RawPayload
+    store = make_store(get_settings())
+    newest: dict[tuple[int, int], str] = {}
+    with get_session() as session:
+        for params, key in session.execute(
+            select(R.params, R.storage_key).where(R.endpoint == "/standings").order_by(R.fetched_at)
+        ):
+            newest[(int(params["league"]), int(params["season"]))] = key
+    tables: dict[tuple[int, int], list[dict[str, object]]] = {}
+    for k, key in newest.items():
+        response = json.loads(gzip.decompress(store.get(key)))["response"]
+        if response:
+            tables[k] = response[0]["league"]["standings"][0]
+        else:
+            typer.echo(f"{k[0]} {k[1]}: provider has no final table")
+    problems = check_against_standings(rules, tables)
+    typer.echo(f"{len(tables)} tables checked, {len(problems)} problems")
+    for p in problems:
+        typer.echo(f"  {p}")
+
+
 if __name__ == "__main__":
     app()
 

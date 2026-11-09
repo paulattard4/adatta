@@ -91,8 +91,8 @@ timing (the entry says which) · `absent` = verified missing from every source w
 | 2.17 | Congestion, forward: days to the next significant match | Fixture calendar as known at the as-of time | History holds only final kickoff times. Live capture shows schedules move: 130 of 4,384 captured matches had their kickoff changed in 4 days (2026-11-05 to 11-09). Also needs 2.16's competitions and 2.20's importance | `fixture_snapshot` | Pre-match, published, and revised: as-of reconstructable only from `fixture_snapshot` (from 2026-11-05) | **partial** | Dev and holdout use final dates (a small, stated look-ahead for postponements) or the term is tested on the live period only; decide before building |
 | 2.18 | Referee identity and strictness history | API-Football `/fixtures` `fixture.referee`; strictness from cards and fouls (`team_match_stat`) | Name on 100% of finished league matches in all 70 league-seasons (one exception: Ligue 2 2025, 307 of 309). **The name format changed during 2025/26** ("D. Massa" became "Davide Massa, Italy"), so distinct names per season roughly double (Serie A 41 → 76, 2. Bundesliga 42 → 80); entity resolution is needed. Cards and fouls 99.95% | R2 fixture lists; Neon | Name: post-match fact for history | **partial** (resolution) | Resolve names once (normalise, initial + surname within competition, review queue); until then strictness from the pool prior (2.19) only |
 | 2.19 | Referee assignment before kickoff (actual referee vs pool prior, §6.2) | `/fixtures` `fixture.referee` polled daily by capture (`fixture_snapshot`) | Captured 2026-11-05 to 11-09, matches played since capture began: referee present before kickoff in 10/10 PL, 9/9 Bundesliga, 9/9 2. Bundesliga, 10/10 Serie A, 10/10 Serie B, 9/9 Ligue 1, 9/9 Ligue 2 (all at least 24 h before), 12/12 Championship and 10/10 La Liga (all under 24 h before), **Segunda 2/9**, FA Cup 0/39 | `fixture_snapshot` | Pre-match, published; **when it was published is not reconstructable for 2019–2025** | **partial** | Pool prior by competition and tier until the referee appears (§6.2). For backtests, assume the referee is known at the as-of time only where capture shows ≥ 24 h lead (the eight leagues above); Championship, La Liga and Segunda use the pool prior at T-24h. Re-measure after a month of capture |
-| 2.20 | Importance (dead rubber, must-win, final) | Derived: as-of league table computed from our results, plus each league-season's zone rules (promotion, play-off, relegation places). `/standings` gives zone labels | Results 100%. `/standings` returns only the final table (`update` = season end) and its labels are post-season outcomes (PL 2024 labels 17th place "Champions League"), so they are not usable as of a date. Zone rules and point deductions are not in the results | Probes `/standings` PL and Serie B 2024; Neon results | Results: post-match facts. Zone rules: static per season. Deductions: dated facts | **partial** | Manual table of zone rules and point deductions per league-season (70 rows) before the term is built; without it, importance off |
-| 2.21 | VAR in use (`has_var`) | Events `type=Var` in `/fixtures?ids` | **No Var event in any 2019/20 match**, although VAR was in use that season in all five top flights. From 2020: top flights 16–43% of matches have a Var event; Serie B from 2021, Segunda and 2. Bundesliga from 2020; Championship 0–0.2% and Ligue 2 0–1.3% every season | R2 detail scan, 26,969 matches | Competition-season fact; static | **partial** | Manual competition-season table (VAR start dates are public), not inferred from events |
+| 2.20 | Importance (dead rubber, must-win, final) | Derived: as-of league table computed from our results, plus each league-season's zone rules (promotion, play-off, relegation places). `/standings` gives zone labels | Results 100%. `/standings` returns only the final table (`update` = season end) and its labels are post-season outcomes (PL 2024 labels 17th place "Champions League"), so they are not usable as of a date. Zone rules and point deductions are not in the results | Probes `/standings` PL and Serie B 2024; Neon results; 2026-11-09 final `/standings` for all 70 league-seasons (68 requests) | Results: post-match facts. Zone rules: static per season. Deductions: dated facts | **verified** (2026-11-09: `config/league_rules.yml`, checked by `adatta rules-check`; 22 of 32 deduction dates approximate or unknown, see Progress) | A deduction with an unknown date counts only after the season's last match; a season with no rule has importance off |
+| 2.21 | VAR in use (`has_var`) | Events `type=Var` in `/fixtures?ids` | **No Var event in any 2019/20 match**, although VAR was in use that season in all five top flights. From 2020: top flights 16–43% of matches have a Var event; Serie B from 2021, Segunda and 2. Bundesliga from 2020; Championship 0–0.2% and Ligue 2 0–1.3% every season | R2 detail scan, 26,969 matches | Competition-season fact; static | **partial** (2026-11-09: `var_from` per league in `config/league_rules.yml`; 4 of 10 entries flagged [verify]: Championship, Segunda, Serie B, Ligue 2) | The table, once the owner confirms the flagged entries |
 | 2.22 | Added time per half | Events `time.extra` (a goal, card or sub during added time) | A lower bound only: a second-half `extra` value appears in 15–74% of matches (mean of the per-match maximum 2.3–5.0 min); first half 3–31%. Announced added time is not provided. `fixture.periods` gives half start times only | R2 detail scan | Post-match fact | **partial** | Competition-season average from the lower bound, used only weakly (§6.2); stated as a known bias |
 | 2.23 | Kickoff time of day | `/fixtures` `fixture.date` (UTC), local time from the venue's country | 100% of matches; spread across 10:00–21:00 UTC | R2 fixture lists | Pre-match, published; can change (2.17). History holds the final time only | **verified** | n/a (also §20.2 backlog) |
 | 2.24 | Attendance (dynamic home advantage, §5.2) | none: `fixture.attendance` absent | 0 of 26,969 matches | R2 detail scan; capability table | n/a | **absent** | Static home advantage (§4.4); stays backlog (§20.2) |
@@ -130,9 +130,10 @@ phase time.
 ## Summary: what fails, and where it degrades
 
 **Gate result: every covariate has an evidenced entry; Phase 2 is not yet buildable in full.**
-40 entries (37 distinct covariates; B.6–B.8 repeat Phase 2 rows): 22 verified, 11 partial,
+40 entries (37 distinct covariates; B.6–B.8 repeat Phase 2 rows): 23 verified, 10 partial,
 7 absent (updated 2026-11-09: after the calendar backfill 2.15 and 2.16 moved to verified;
-after the venue table 2.8, 2.9, 2.10, 2.13 and 2.14 did). The absent ones were expected and are already off the plan; the partial ones are what
+after the venue table 2.8, 2.9, 2.10, 2.13 and 2.14 did; after the league-rules table 2.20
+did). The absent ones were expected and are already off the plan; the partial ones are what
 stands between Phase 2 and modelling.
 
 **Absent** (no source; the term stays out of the model everywhere, never imputed):
@@ -153,8 +154,7 @@ stands between Phase 2 and modelling.
 | Congestion forward (2.17) | Dev and holdout (no as-of fixture calendar before 2026-11-05) | Final fixture dates (stated look-ahead) or live period only | A decision, then capture |
 | Referee strictness (2.18) | 2025/26 names until resolved | Competition-tier pool prior | Name resolution |
 | Referee assignment (2.19) | Segunda (2/9 before kickoff), Championship and La Liga (under 24 h), cups | Pool prior until the referee appears | A longer capture sample to confirm lead times |
-| Importance (2.20) | All segments | Term off | Manual zone-rules and point-deductions table (70 league-seasons) |
-| VAR (2.21), added time (2.22) | All segments | Manual VAR table; added time as a lower bound | Manual table |
+| VAR (2.21), added time (2.22) | Championship, Segunda, Serie B, Ligue 2 VAR dates until confirmed | VAR table as entered; added time as a lower bound | Owner check of 4 VAR entries |
 | Surface (2.11) | All (current value only) | Term off; near-constant in these bundles anyway | n/a |
 | Player position code (3c.3) | Serie B and Ligue 2 2025, Championship 2019 (75–80%) | Grid-derived slot codes | n/a |
 | Manager dates (3c.5) | All | Tenure from lineups (exact to the match) | n/a |
@@ -166,9 +166,10 @@ from lineups.
 **Phase 2 style and backward congestion pass** (style 99.95%; congestion since the
 2026-11-09 calendar backfill). **Phase 2 venue and travel now pass too** (venue table,
 2026-11-09: travel, timezone shift and altitude differential on 100% of 2019–2026 league
-matches). **Weather forecasts and importance cannot be modelled yet**: forecasts exist only
-from Feb 2024 and from live capture (climatology is the fallback, still to build), and
-importance needs the zone-rules table. Neither is a modelling task.
+matches), **and so does importance's data** (league-rules table, 2026-11-09; the as-of
+table and the importance term are still to build). **Weather forecasts cannot be modelled
+before Feb 2024**: as-issued forecasts exist only from then and from live capture; climatology
+is the fallback, still to build.
 
 ## Spec disagreements raised (CLAUDE.md: raise, don't silently diverge)
 
@@ -229,15 +230,35 @@ importance needs the zone-rules table. Neither is a modelling task.
     ties, or by league seasons before 2019 (no 2019–2026 league match lacks coordinates).
   - *Temporal note:* venues and home bases come from the published fixture lists, which hold
     the final venue only (2.8), so a late venue change reads as known from the start.
+- **2026-11-09, next step 3 done (owner spot-check pending): league-rules table**
+  (`config/league_rules.yml`, `adatta/features/league_rules.py`).
+  - *Zone rules:* pre-season positions for champion, Champions League, any UEFA place by
+    league position, promotion, promotion play-off, relegation play-off (Serie B play-out)
+    and relegation, for all 70 league-seasons. Written from each league's format and UEFA's
+    access list, not from final-table labels, which record outcomes (a cup winner's place
+    passing down; England's and Spain's extra 2024/25 Champions League places). Format
+    changes covered: Ligue 1 and Ligue 2 shrinking to 18 (four relegated in 2022/23 and
+    2023/24 respectively, no play-offs those seasons).
+  - *Deductions:* found from the final standings (68 `/standings` requests through the quota
+    planner; account at 357 of 7,500 that day): 26 team-seasons, entered as 32 dated changes
+    (Everton -10, +4, -2; Juventus -15, +15, -10). `adatta rules-check`: every team's gap
+    between 3W + D and its points equals its listed deductions in all 70 tables, and every
+    table has the rule's number of teams. Dates: 10 known, 6 approximate, 16 unknown (the
+    unknown ones count only after the season ends). All approximate and unknown rows are
+    flagged [verify] for the owner.
+  - *VAR:* first full season per league. Top flights are public record (Serie A and
+    Bundesliga 2017, La Liga and Ligue 1 2018, Premier League 2019); 2. Bundesliga 2019;
+    Segunda 2019, Serie B 2021, Championship and Ligue 2 none, all four [verify].
 
 ## Proposed next steps (each needs the owner's go-ahead)
 
 1. ~~Venue table~~ done 2026-11-09 (see Progress).
 2. ~~Fixture lists for UCL, UEL, UECL, EFL Cup and the super cups~~ done 2026-11-09.
-3. Manual tables: zone rules and point deductions per league-season; VAR start per
-   competition.
+3. ~~Manual tables~~ done 2026-11-09; owner spot-check of the [verify] rows pending.
 4. Decision: forward congestion and referee assignment in backtests (final dates vs live-only;
    the T-24h rule in 2.19).
 5. ~~Weather-forecast capture in the poller~~ done 2026-11-09, live on `main`.
-6. Weather climatology per venue and calendar date from the Open-Meteo archive (2.13), using
+6. As-of league table and the importance term (dead rubber, must-win) from results, zone
+   rules and dated deductions.
+7. Weather climatology per venue and calendar date from the Open-Meteo archive (2.13), using
    only years before each season: the weather fallback for every match before Feb 2024.

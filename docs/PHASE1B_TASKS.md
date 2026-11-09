@@ -671,7 +671,15 @@ warning only under D20.
 - Decided (2026-11-09): D23, kappa ~ Normal(0, 0.5). The D22 acceptance test is unchanged
   and applies to the widened prior: the 7-day dev backtest (item 2 under D19, draw
   calibration within 2 se per league) and audit attempt 5 (every blocking check in all 25).
-- [ ] Inference gate passes (acceptance item 1).
+
+Audit attempt 5 (2026-11-09, run 42619784416, commit 1c43a39, D23 model): **25 of 25 pass.**
+Sampling is clean in all 25 (worst R-hat 1.006, min bulk ESS 785, 0 divergences);
+identifiability, truncation and reproducibility pass everywhere. The draw-rate PPC passes in
+all 50 league checks, quantiles 0.47 to 0.56. corr(rho, kappa) is 0.46 to 0.80 (limit 0.9).
+Prior sensitivity: the worst move at x0.5 is now 0.65 posterior sd (xg_bias in England 2023;
+attempt 4: kappa[Serie B] 1.015), and kappa is no longer the worst-moving parameter in any of
+the top five fits. Non-blocking warnings: 25 (total dispersion, warning only under D20).
+- [x] Inference gate passes (acceptance item 1): audit attempt 5, all 25 fits.
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and
       summarised in `reports/phase1b/`.
 

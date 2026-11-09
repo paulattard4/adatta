@@ -8,7 +8,7 @@
                     + attack[s, home] - defence[s, away]
     log lam_away  = mu_league[l] + attack[s, away] - defence[s, home]
     + Dixon-Coles tau(rho[l]) on the four low scores, one rho per league (D21)
-    x exp(kappa[l]) on every draw, renormalised exactly, one kappa per league (D22)
+    x exp(kappa[l]) on every draw, renormalised exactly, one kappa per league (D22, D23)
 
 Priors are §5.1–5.2: mu_league ~ Normal(log 1.35, 0.3); sigma_attack, sigma_defence ~
 HalfNormal(0.5); sigma_walk ~ HalfNormal(0.15); sigma_home ~ HalfNormal(0.3). The walk is
@@ -230,7 +230,8 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
         rho = pm.Uniform("rho", -0.2, 0.2, dims="league")
         # draw inflation per league (D22): tau only moves 0-0 and 1-1, and second tiers still
         # drew 2-3 points more often than the fitted model simulated (audit attempt 3)
-        kappa = pm.Normal("kappa", 0.0, 0.25 * k, dims="league")
+        # sd 0.5 (D23): 0.25 failed the x0.5 prior-sensitivity check (audit attempt 4)
+        kappa = pm.Normal("kappa", 0.0, 0.5 * k, dims="league")
 
         reset = pt.where(pt.as_tensor(fd.season_start), pt.sqrt(1.0 + reset_weeks), 1.0)
 

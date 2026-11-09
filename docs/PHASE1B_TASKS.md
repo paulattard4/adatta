@@ -655,6 +655,22 @@ minutes per bundle, well inside the §12.3 wall-clock budget (30 to 60 minutes p
   most: -0.20% [-0.41%, +0.01%], RPS -0.31% [-0.58%, -0.04%] (was -0.06% / -0.23%). By
   season 2019 to 2022: +0.10%, +0.05%, -0.10%, -0.02%, all including 0. xG-informed -0.67%
   [-1.12%, -0.22%]; not informed +0.01%.
+
+Audit attempt 4 (2026-11-09, run 42601918654, commit 89e2bdd, D22 model): **24 of 25 pass.**
+Sampling is clean in all 25 (worst R-hat 1.006, min bulk ESS 694, 0 divergences);
+identifiability, truncation and reproducibility pass everywhere. corr(rho, kappa) is 0.44 to
+0.79 (limit 0.9). The draw-rate PPC now passes in all 50 league checks, quantiles 0.44 to
+0.62 (attempt 3: second tiers up to 0.98). Total dispersion is outside the band in 23 checks,
+warning only under D20.
+- **The only blocking failure: prior sensitivity x0.5 in Italy 2023**, kappa[Serie B] moves
+  1.015 posterior sd (limit 1.0; posterior 0.289 +/- 0.096).
+- It is systematic, not a one-off: kappa is the worst-moving parameter at x0.5 in 21 of 25
+  fits, and 5 fits are at 0.90 or above (Germany 2020 0.97, France 2022 0.96, Italy 2020 and
+  2024 0.90). The Normal(0, 0.25) prior is tight against second-tier kappas of 0.2 to 0.3
+  (posterior sd about 0.1), so halving it pulls them back by about one posterior sd.
+- Decided (2026-11-09): D23, kappa ~ Normal(0, 0.5). The D22 acceptance test is unchanged
+  and applies to the widened prior: the 7-day dev backtest (item 2 under D19, draw
+  calibration within 2 se per league) and audit attempt 5 (every blocking check in all 25).
 - [ ] Inference gate passes (acceptance item 1).
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and
       summarised in `reports/phase1b/`.

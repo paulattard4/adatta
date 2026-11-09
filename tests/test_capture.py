@@ -107,6 +107,7 @@ class Harness:
         self.now = T0
         self.tmp_path = tmp_path
         self.daily_limit = 7500
+        self.fetch_delay = timedelta(0)  # how long after the tick's start each response arrives
 
     def tick(self, now: datetime, **kwargs: Any) -> Any:
         self.now = now
@@ -115,8 +116,9 @@ class Harness:
             transport=httpx.MockTransport(lambda r: self.api.handler(r, self.now)),
         )
         client = ApiFootballClient(
-            Settings(), LocalStore(self.tmp_path), QuotaPlanner(self.daily_limit, 300), http=http
-        )
+            Settings(), LocalStore(self.tmp_path), QuotaPlanner(self.daily_limit, 300), http=http,
+            clock=lambda: self.now + self.fetch_delay,
+        )  # fmt: skip
         with Session(self.engine) as s:
             return run_capture(s, client, [COMP], now=now, **kwargs)
 
@@ -250,6 +252,59 @@ def test_odds_already_fetched_survive_a_later_failure(tmp_path: Path) -> None:
     with Session(h.engine) as s:
         rows = s.scalars(select(models.OddsCapture)).all()
     assert sum(r.snapshot_kind == "T-24h" for r in rows) == 1
+
+
+def _naive(dt: datetime) -> datetime:
+    return dt.replace(tzinfo=None)  # SQLite returns naive UTC
+
+
+def test_rows_carry_the_response_time_not_the_tick_start(tmp_path: Path) -> None:
+    """A busy tick can fetch minutes after it starts; stamping the start would claim the data
+    was known before it was (principle 2)."""
+    h = Harness(tmp_path)
+    h.fetch_delay = timedelta(minutes=3)
+    h.tick(T0)
+    h.tick(K - timedelta(hours=22))
+    with Session(h.engine) as s:
+        fixture = s.scalars(select(models.FixtureSnapshot)).one()
+        status = s.scalars(select(models.PlayerStatusSnapshot)).first()
+        t24 = s.scalars(
+            select(models.OddsCapture).where(models.OddsCapture.snapshot_kind == "T-24h")
+        ).one()
+        prices = s.scalars(
+            select(models.OddsSnapshot).where(models.OddsSnapshot.capture_id == t24.capture_id)
+        ).all()
+    delay = timedelta(minutes=3)
+    assert _naive(fixture.observed_at) == _naive(T0 + delay)
+    assert status is not None
+    assert _naive(status.observed_at) == _naive(status.valid_from) == _naive(T0 + delay)
+    assert _naive(t24.observed_at) == _naive(K - timedelta(hours=22) + delay)
+    assert prices and {_naive(p.observed_at) for p in prices} == {_naive(t24.observed_at)}
+
+
+def test_window_closing_during_the_tick_is_not_labelled(tmp_path: Path) -> None:
+    h = Harness(tmp_path)
+    for t in full_timeline()[:4]:
+        h.tick(t)
+    h.fetch_delay = timedelta(minutes=2)
+    h.tick(K - timedelta(minutes=41))  # T-60m closes at K-40m; the response arrives at K-39m
+    assert "T-60m" not in h.captures()
+    assert h.captures()["lineup"] == "captured"  # untimed: still before kickoff
+    h.fetch_delay = timedelta(0)
+    r = h.tick(K - timedelta(minutes=30))
+    assert len(r.missed) == 1 and "T-60m missed" in r.missed[0]
+
+
+def test_kickoff_during_the_tick_records_no_close(tmp_path: Path) -> None:
+    h = Harness(tmp_path)
+    for t in full_timeline()[:5]:
+        h.tick(t)
+    h.fetch_delay = timedelta(minutes=2)
+    h.tick(K - timedelta(minutes=1))  # the response arrives after kickoff
+    assert "close" not in h.captures()
+    h.fetch_delay = timedelta(0)
+    r = h.tick(K + timedelta(minutes=5))
+    assert len(r.missed) == 1 and "close missed" in r.missed[0]
 
 
 def test_alert_keeps_match_detail_out_of_public_logs(capsys: pytest.CaptureFixture[str]) -> None:

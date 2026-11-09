@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -27,12 +28,16 @@ class ApiFootballClient:
         store: RawStore,
         quota: QuotaPlanner,
         http: httpx.Client | None = None,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._settings = settings
         self._store = store
         self._quota = quota
+        self._clock = clock
         self._requests_made = 0
         self.last_storage_key: str | None = None
+        # When the last response arrived: the observed_at of whatever it carried (principle 2).
+        self.last_response_at: datetime | None = None
         self._http = http or httpx.Client(
             base_url=settings.api_football_base_url,
             headers={"x-apisports-key": settings.api_football_key},
@@ -62,13 +67,13 @@ class ApiFootballClient:
         self._quota.acquire(live=live)
         self._requests_made += 1
         resp = self._get(endpoint, params)
+        self.last_response_at = self._clock()
         remaining = resp.headers.get("x-ratelimit-requests-remaining")
         if remaining is not None:
             self._quota.sync_from_header(int(remaining))
         payload: dict[str, Any] = resp.json()
         blob, digest = encode_payload(payload)
-        now = datetime.now(UTC)
-        key = storage_key(SOURCE_ID, endpoint, now.strftime("%Y-%m-%d"), digest)
+        key = storage_key(SOURCE_ID, endpoint, self.last_response_at.strftime("%Y-%m-%d"), digest)
         self.last_storage_key = key
         exists = session.scalar(
             select(models.RawPayload.payload_id).where(models.RawPayload.storage_key == key)

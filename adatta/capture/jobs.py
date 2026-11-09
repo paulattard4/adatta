@@ -13,6 +13,10 @@ can't be recovered and a daily job can simply run on the next tick:
                          status    /injuries -> player_status_snapshot for unplayed fixtures
                          detail    post-match detail + team stats for newly finished matches
 
+Rows are stamped with the time the API response arrived (client.last_response_at), not the
+tick's start, which can be minutes earlier on a busy run: an earlier stamp would claim the data
+was known before it was. Windows and filters still use the tick's `now`.
+
 Daily jobs stop starting once a run has used DAILY_BUDGET_S, so a backlog spreads over several
 ticks and the run still finishes inside the workflow's timeout.
 
@@ -60,6 +64,13 @@ class CaptureReport:
 
 def _utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+def _observed(client: ApiFootballClient) -> datetime:
+    """Arrival time of the client's last response."""
+    if client.last_response_at is None:
+        raise RuntimeError("no response received yet")
+    return client.last_response_at
 
 
 def _log(
@@ -139,6 +150,7 @@ def capture_calendar(
     if year is None:
         raise RuntimeError(f"/leagues reports no current season for league {comp.league_id}")
     fixtures = client.fixtures(session, comp.league_id, year, live=True)
+    observed = _observed(client)
     season = _season(session, comp, year)
     normalize.ingest_fixtures(session, season, fixtures, comp.country)
     added = 0
@@ -173,7 +185,7 @@ def capture_calendar(
                 continue
         session.add(
             F(
-                match_id=match.match_id, source_id=SOURCE_ID, observed_at=now,
+                match_id=match.match_id, source_id=SOURCE_ID, observed_at=observed,
                 kickoff_time=st.kickoff, status=st.status, referee=st.referee,
                 venue_ref=st.venue_ref, round=st.round,
             )
@@ -197,6 +209,7 @@ def capture_status(
         for a in afc.parse_injuries(client.injuries(session, comp.league_id, season.year))
         if a.fixture_kickoff > now
     }
+    observed = _observed(client)
     absences = list(latest.values())
     P, M = models.PlayerStatusSnapshot, models.Match
     matches = normalize.matches_by_ref(session, (str(a.fixture_id) for a in absences))
@@ -225,22 +238,22 @@ def capture_status(
             counts["unchanged"] += 1
             continue
         if cur is not None:
-            cur.valid_to = now
-            cur.superseded_at = now
+            cur.valid_to = observed
+            cur.superseded_at = observed
             counts["changed"] += 1
         else:
             counts["new"] += 1
         session.add(
             P(
                 player_id=player.player_id, team_id=team.team_id, match_id=match.match_id,
-                source_id=SOURCE_ID, observed_at=now, valid_from=now, status=a.status,
+                source_id=SOURCE_ID, observed_at=observed, valid_from=observed, status=a.status,
                 reason=a.reason,
             )
         )  # fmt: skip
     # Players no longer listed for an upcoming fixture of this season: their spell has ended.
     for row in open_rows:
         if row.match_id is not None and (row.player_id, row.match_id) not in seen:
-            row.valid_to = now
+            row.valid_to = observed
             counts["cleared"] += 1
     session.flush()
     return counts
@@ -284,23 +297,25 @@ def capture_lineups(session: Session, client: ApiFootballClient, now: datetime) 
     by_ref = {int(m.source_ref): m for m in pending}
     confirmed: list[int] = []
     refs = sorted(by_ref)
-    found: list[tuple[models.Match, list[afc.Lineup]]] = []
+    found: list[tuple[models.Match, list[afc.Lineup], datetime]] = []
     for i in range(0, len(refs), IDS_BATCH_MAX):
-        for fx in client.fixtures_by_ids(session, refs[i : i + IDS_BATCH_MAX], live=True):
+        batch = client.fixtures_by_ids(session, refs[i : i + IDS_BATCH_MAX], live=True)
+        observed = _observed(client)
+        for fx in batch:
             match = by_ref.get(afc.fixture_state(fx).fixture_id)
             lineups = afc.parse_lineups(fx)
             if match is not None and lineups:
-                found.append((match, lineups))
+                found.append((match, lineups, observed))
     teams = normalize.teams_by_ref(
-        session, {lu.team_ref: lu.team_ref for _, lus in found for lu in lus}
+        session, {lu.team_ref: lu.team_ref for _, lus, _ in found for lu in lus}
     )
-    for match, lineups in found:
+    for match, lineups, observed in found:
         for lu in lineups:
             team = teams[lu.team_ref]
             session.add(
                 models.LineupSnapshot(
                     match_id=match.match_id, team_id=team.team_id, source_id=SOURCE_ID,
-                    observed_at=now, formation=lu.formation, coach_ref=lu.coach_ref,
+                    observed_at=observed, formation=lu.formation, coach_ref=lu.coach_ref,
                     coach_name=lu.coach_name, starters=lu.starters,
                     substitutes=lu.substitutes,
                 )
@@ -360,6 +375,12 @@ def capture_odds(
         if not kinds and not want_initial:
             continue
         odds = client.odds(session, fixture_ref)
+        observed = _observed(client)
+        if observed >= kickoff:
+            continue  # kicked off while this tick ran: no pre-match label fits; next tick reports
+        # A window can close between the tick's start and the response: never label late.
+        still_open = set(snapshots.due_kinds(kickoff, observed, done))
+        kinds = [k for k in kinds if k in still_open or k not in snapshots.TIMED]
         has_market = afc.n_bookmakers(odds) > 0
         if "initial" not in done and has_market:
             kinds.insert(0, "initial")
@@ -367,8 +388,9 @@ def capture_odds(
             _log(session, "odds_initial", str(match_id), now, "ok", 1, "no market yet")
         if kinds:
             _record_capture(
-                session, match_id, kinds, odds if has_market else None, client.last_storage_key, now
-            )
+                session, match_id, kinds, odds if has_market else None, client.last_storage_key,
+                observed,
+            )  # fmt: skip
             for k in kinds:
                 counts[f"{k}:{'captured' if has_market else 'no_market'}"] += 1
         session.commit()  # a later failure or a timeout must not lose this window

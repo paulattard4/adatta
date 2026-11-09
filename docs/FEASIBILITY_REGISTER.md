@@ -178,8 +178,9 @@ table; missing competitions' fixtures; zone-rules table), none of them a modelli
    competitions we load leave out European and League Cup games, and the forward calendar is
    as-of reconstructable only from live capture (started 2026-11-05).
 3. **§4.1, Open-Meteo "No key, no cost".** The free API is for non-commercial use; a commercial
-   or betting-facing service would need its paid plan. Licensing `[verify]`, and per CLAUDE.md
-   the owner decides before any paid service is added.
+   or betting-facing service would need its paid plan. **Resolved for now (D24):** adatta is
+   for the owner's personal use only, so the free tier applies. Revisit before any commercial
+   or public use; per CLAUDE.md the owner decides before any paid service is added.
 4. **"Phase 3c"** names two different things in §19.3 (see Scope).
 
 ## Proposed next steps (each needs the owner's go-ahead; none is done here)

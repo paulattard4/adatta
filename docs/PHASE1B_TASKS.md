@@ -638,6 +638,23 @@ is outside the band in 20 checks, warning only under D20.
   (was about -0.1 to -0.15 without kappa); corr(rho, kappa) 0.63 and 0.73. Draw-rate PPC:
   Serie B observed 0.312 against 0.307 (quantile 0.59), Serie A 0.248 against 0.247 (0.52).
   Mean p_draw over the next 4 weeks: Serie A 0.241, Serie B 0.301. Container model tests pass.
+
+Final dev run, D22 model (2026-11-09, run 42530225909, commit fa9b21e, 7-day cadence, report
+`backtest/reports/20261109T102214Z` in R2): 928 refits; R-hat over 1.01 in 9, ESS under 400 in
+0, divergences in 2 (worst R-hat 1.019). Refits are about 1.6x slower than D21 (median over
+the 12 jobs that finished in both runs; the draw mass is a 16-term sum per match), so 8 jobs
+hit GitHub's 6-hour job limit and were rerun from the R2 cache. A refit is still about 10
+minutes per bundle, well inside the §12.3 wall-clock budget (30 to 60 minutes per league).
+- **Acceptance condition 2 of D22 passes.** Item 2 under D19: 2023/24 1X2 log loss -0.47%
+  [-0.81%, -0.13%], RPS -0.74% [-1.28%, -0.21%] (n 3,734); England 2023/24 -0.52% [-1.47%,
+  +0.43%] and RPS -0.77% [-2.28%, +0.74%], right direction. Draw calibration: every
+  league's mean p_draw is within 1.1 se of its observed draw rate (Serie B 0.311 against
+  0.316, z +0.4, was +2.5; Serie A +1.1, was +1.8; the rest within 0.7).
+- All 18,682 warm dev matches: 1X2 log loss -0.09% [-0.20%, +0.02%] (was -0.06%), RPS
+  -0.12% [-0.28%, +0.03%]; OU2.5 -0.36% and CRPS -0.44%, both excluding 0. Italy improves
+  most: -0.20% [-0.41%, +0.01%], RPS -0.31% [-0.58%, -0.04%] (was -0.06% / -0.23%). By
+  season 2019 to 2022: +0.10%, +0.05%, -0.10%, -0.02%, all including 0. xG-informed -0.67%
+  [-1.12%, -0.22%]; not informed +0.01%.
 - [ ] Inference gate passes (acceptance item 1).
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and
       summarised in `reports/phase1b/`.

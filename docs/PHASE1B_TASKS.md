@@ -680,6 +680,20 @@ Prior sensitivity: the worst move at x0.5 is now 0.65 posterior sd (xg_bias in E
 attempt 4: kappa[Serie B] 1.015), and kappa is no longer the worst-moving parameter in any of
 the top five fits. Non-blocking warnings: 25 (total dispersion, warning only under D20).
 - [x] Inference gate passes (acceptance item 1): audit attempt 5, all 25 fits.
+
+Final dev run, D23 model (2026-11-10, run 42619779486, commit 1c43a39, 7-day cadence, report
+`backtest/reports/20261110T003219Z` in R2): 928 refits; R-hat over 1.01 in 7, ESS under 400 in
+0, divergences in 2 (worst R-hat 1.014). 4 jobs hit the 6-hour limit and were rerun from the
+R2 cache. **The D22 acceptance test passes under D23** (with audit attempt 5 above).
+- Item 2 under D19: 2023/24 1X2 log loss -0.48% [-0.82%, -0.14%], RPS -0.75% [-1.29%,
+  -0.22%] (n 3,734); England 2023/24 -0.53% [-1.48%, +0.42%], right direction. Germany
+  2023/24 -1.33% [-2.23%, -0.42%]; no bundle is worse in 2023/24.
+- Draw calibration: every league's mean p_draw is within 1.0 se of its observed draw rate
+  (Serie A +1.0, Serie B +0.2; the baseline is at +2.3 for Serie B).
+- All 18,682 warm dev matches: 1X2 log loss -0.09% [-0.20%, +0.01%], RPS -0.13% [-0.29%,
+  +0.02%]. By season 2019 to 2022: +0.12%, +0.05%, -0.11%, -0.05%, all including 0. By
+  bundle, all-season: France +0.01% and Spain +0.02% are the only ones above 0, both well
+  inside 1.0%. xG-informed -0.68% [-1.13%, -0.23%]; not informed +0.01%.
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and
       summarised in `reports/phase1b/`.
 

@@ -694,6 +694,32 @@ R2 cache. **The D22 acceptance test passes under D23** (with audit attempt 5 abo
   +0.02%]. By season 2019 to 2022: +0.12%, +0.05%, -0.11%, -0.05%, all including 0. By
   bundle, all-season: France +0.01% and Spain +0.02% are the only ones above 0, both well
   inside 1.0%. xG-informed -0.68% [-1.13%, -0.23%]; not informed +0.01%.
+Holdout tooling (stated 2026-11-10, before building; nothing here opens the holdout).
+Until now every path refuses the holdout seasons (`HoldoutLocked`). The run that opens it:
+- **Gate pinned first (D28):** the segment rule is the point estimate per league on one
+  score per market (1X2 log loss, 1X2 RPS, OU2.5 log loss, BTTS log loss, total CRPS), warm
+  matches, in `config/evaluation.yml` (`phase1b_gate.segment_metrics`).
+- **Opened once:** a holdout run first claims a marker in the store
+  (`backtest/holdout/opened.json`: run id, model, commit, time). A different run id is
+  refused; the same run id may resume (timed-out jobs rerun from the cache).
+- **Only the pre-registered run:** the production spec exactly (`phase1b_strength_open_xg`,
+  prior scale 1, 4 x 2000 draws), the weekly cadence (D11), holdout seasons only; anything
+  else raises `HoldoutLocked`. Phase 1a is scored on the same grid.
+- **Verdict:** `champion` if 1X2 log loss and RPS both improve with the paired 95% interval
+  below 0 and no league segment is worse than +1.0% on a gate metric; otherwise `rejected`,
+  with every failed condition listed. Recorded in `model_run` (window `holdout`), with
+  reliability per 1X2 outcome (acceptance item 4) and refit diagnostics in the report.
+- **Acceptance test (unit tests, synthetic data only):** without the marker, or with the
+  wrong run id, a non-production spec, dev seasons mixed in or a 28-day cadence, the plan
+  raises `HoldoutLocked`; a second run id is refused; the verdict function returns
+  `champion` and `rejected` on constructed comparisons, including a single segment at
+  +1.01% and one at +0.99%. Existing tests still pass.
+- **Built 2026-11-10; acceptance test passes** (`tests/test_holdout.py`, 5 tests; full suite
+  131 passed). `adatta/eval/holdout.py` (claim, unlock, verdict, reliability), the key in
+  `harness.refit_plan`, and `.github/workflows/holdout.yml` (dispatch with the confirm text:
+  claim, then 10 refit jobs (5 bundles x 2 seasons), then assembly with the gate and
+  `--record`). Assembly also refuses missing parts or a grid that differs from Phase 1a's.
+  Not yet run: it waits for the x0.5 / x2 sensitivity backtests and the owner's go-ahead.
 - [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and
       summarised in `reports/phase1b/`.
 

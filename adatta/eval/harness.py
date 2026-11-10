@@ -41,6 +41,22 @@ class HoldoutLocked(RuntimeError):
     pass
 
 
+@dataclass(frozen=True)
+class HoldoutKey:
+    """Permission to plan the locked holdout, issued only by `adatta.eval.holdout.unlock`
+    after the opened-once marker is checked. `run_id` is the run that opened it."""
+
+    run_id: str
+
+
+class Phase1bGate(BaseModel):
+    min_rel_logloss_gain_1x2: float
+    min_rel_rps_gain: float
+    paired_interval: float
+    max_segment_rel_worse: float
+    segment_metrics: list[str]
+
+
 class Phase1aSelected(BaseModel):
     half_life_days: float | None
     team_prior_sd: float | None
@@ -63,7 +79,7 @@ class EvalConfig(BaseModel):
     max_goals: int
     bundles: dict[str, list[int]]
     headline_bundle: str
-    phase1b_gate: dict[str, float]
+    phase1b_gate: Phase1bGate
     phase1a_selected: Phase1aSelected
 
 
@@ -266,15 +282,26 @@ def mover_codes(df: pl.DataFrame, leagues: list[int]) -> tuple[NDArray[np.int64]
 
 
 def refit_plan(
-    df: pl.DataFrame, cfg: EvalConfig, seasons: list[int], every_days: int
+    df: pl.DataFrame,
+    cfg: EvalConfig,
+    seasons: list[int],
+    every_days: int,
+    holdout: HoldoutKey | None = None,
 ) -> list[tuple[datetime, NDArray[np.int64], NDArray[np.int64]]]:
     """The shared walk-forward grid: (as_of, target row indices, training row indices) for
     every refit with at least one target and one observable training match. Every model
-    (1a, 1b) is scored on this plan, so their (match, as_of) pairs are identical."""
-    if set(seasons) & set(cfg.holdout_seasons):
-        raise HoldoutLocked(
-            f"seasons {sorted(set(seasons) & set(cfg.holdout_seasons))} are the locked holdout"
-        )
+    (1a, 1b) is scored on this plan, so their (match, as_of) pairs are identical.
+    Holdout seasons need a HoldoutKey, holdout seasons only and the weekly cadence (D11)."""
+    locked = set(seasons) & set(cfg.holdout_seasons)
+    if locked and holdout is None:
+        raise HoldoutLocked(f"seasons {sorted(locked)} are the locked holdout")
+    if holdout is not None:
+        if not locked or set(seasons) - set(cfg.holdout_seasons):
+            raise HoldoutLocked(f"a holdout run scores holdout seasons only, not {seasons}")
+        if every_days != cfg.refit_every_days:
+            raise HoldoutLocked(
+                f"the holdout uses the {cfg.refit_every_days}-day cadence, not {every_days}"
+            )
     kick = np.array([t.timestamp() for t in df["kickoff"].to_list()]) / DAY
     targets_mask = np.isin(df["season"].to_numpy(), seasons)
     if not targets_mask.any():
@@ -299,10 +326,11 @@ def walk_forward(
     seasons: list[int], models_: tuple[str, ...] = MODELS, prior_sd: float | None = None,
     open_sd: float | None = None,
     shift_sd: float | None = None,
+    holdout: HoldoutKey | None = None,
 ) -> pl.DataFrame:  # fmt: skip
     """Predict and score every match of `seasons` in `df` (one bundle). Returns one row per
     match x model."""
-    plan = refit_plan(df, cfg, seasons, cfg.refit_every_days)
+    plan = refit_plan(df, cfg, seasons, cfg.refit_every_days, holdout)
     league_idx = {lid: i for i, lid in enumerate(leagues)}
     kick = np.array([t.timestamp() for t in df["kickoff"].to_list()]) / DAY
     home_all, away_all = df["home"].to_numpy(), df["away"].to_numpy()

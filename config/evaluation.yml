@@ -48,3 +48,5 @@ phase1b_gate:
   min_rel_rps_gain: 0.0
   paired_interval: 0.95                   # per-match score difference interval must exclude 0
   max_segment_rel_worse: 0.010            # no league x market segment worse than this
+  # D28: the scores that define a league x market segment (point estimate, warm matches)
+  segment_metrics: ["1X2:log_loss", "1X2:rps", "OU2.5:log_loss", "BTTS:log_loss", "total:crps"]

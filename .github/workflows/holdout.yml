@@ -1,0 +1,83 @@
+# Phase 1b locked holdout (PHASE1B_TASKS acceptance item 3; spec §14.3; D18, D28). Manual
+# dispatch only, once. The first job claims the holdout for this run id in R2
+# (backtest/holdout/opened.json); any other run is refused by the code, so a second dispatch
+# fails at its first step. Failed or timed-out jobs of THIS run may be rerun (same run id),
+# resuming from the R2 refit cache.
+# Scores the production spec only (phase1b_strength_open_xg, prior scale 1, weekly cadence)
+# on 2024/25 and 2025/26, with Phase 1a on the same grid, then applies the pre-registered
+# gate from config/evaluation.yml and records champion / rejected in model_run.
+# The repo is public: logs carry metrics only; match-level parts and the report go to R2.
+# One heavy workflow at a time: don't dispatch this while a backtest or gate run is going.
+name: holdout
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'type "open the locked holdout once" to proceed'
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: holdout
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  claim:
+    if: ${{ inputs.confirm == 'open the locked holdout once' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run python -m adatta.model.backtest claim-holdout --run-id ${{ github.run_id }}
+  refit:
+    needs: claim
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        bundle: ["england", "spain", "italy", "germany", "france"]
+        season: [2024, 2025]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: refit and score the holdout
+        run: >-
+          uv run --frozen --group model python -m adatta.model.backtest run
+          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }}
+          --every-days 7 --holdout ${{ github.run_id }} --upload ${{ github.run_id }}
+  assemble:
+    needs: refit
+    if: ${{ !cancelled() && needs.refit.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: score Phase 1a, apply the pre-registered gate, record the verdict
+        run: |
+          names=$(uv run python -c "
+          from adatta.eval import harness
+          from adatta.model.backtest import production_spec
+          cfg = harness.load_config()
+          m = production_spec(cfg).model_name
+          print(' '.join(f'${{ github.run_id }}/{m}_{b}_{s}.parquet' for b in cfg.bundles for s in cfg.holdout_seasons))")
+          uv run python -m adatta.model.backtest assemble --fetch $names \
+            --holdout ${{ github.run_id }} --upload-report --record | tee -a "$GITHUB_STEP_SUMMARY"

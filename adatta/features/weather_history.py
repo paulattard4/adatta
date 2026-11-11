@@ -192,8 +192,9 @@ def fetch(
     sleep: Callable[[float], None] = time.sleep, calls_per_hour: int = 4000,
 ) -> Counter[str]:  # fmt: skip
     """Run jobs (one call each) until the budget is spent; stops on a rate limit. A server
-    error skips the window (stopping after MAX_CONSECUTIVE_FAILURES in a row). Commits after
-    each job, so an interrupted run resumes where it stopped."""
+    error, timeout or dropped connection skips the window, stopping after
+    MAX_CONSECUTIVE_FAILURES in a row. Commits after each job, so an interrupted run resumes
+    where it stopped."""
     counts: Counter[str] = Counter(jobs=len(jobs))
     pause = 3600 / calls_per_hour
     failures = 0
@@ -212,15 +213,16 @@ def fetch(
             else:
                 om.archive(session, lat, lon, job.start.isoformat(), job.end.isoformat(),
                            elevation=job.elevation)  # fmt: skip
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 429:
+        except (httpx.HTTPStatusError, httpx.TransportError) as e:
+            status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None
+            if status == 429:
                 counts["rate_limited"] += 1
                 counts["left_for_later"] = len(jobs) - i
                 break
-            if e.response.status_code < 500:
+            if status is not None and status < 500:
                 raise
-            # A server error after the client's retries: skip the window (the next run
-            # plans it again); stop if the service looks down.
+            # A server error, timeout or dropped connection after the client's retries:
+            # skip the window (the next run plans it again); stop if the service looks down.
             session.rollback()
             counts["server_errors"] += 1
             counts["calls"] += 1

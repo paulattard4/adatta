@@ -274,6 +274,8 @@ def test_server_errors_skip_the_window_and_stop_when_persistent(tmp_path: Path) 
     assert {j.start.isoformat() for j in weather_history.plan(s, targets, now)} == {"2024-03-02"}
 
     def down(request: httpx.Request) -> httpx.Response:
+        if request.url.params["longitude"] in ("0.0", "1.0"):
+            raise httpx.ReadTimeout("timed out", request=request)
         return httpx.Response(503)
 
     client = om.OpenMeteoClient(store, http=httpx.Client(transport=httpx.MockTransport(down)))

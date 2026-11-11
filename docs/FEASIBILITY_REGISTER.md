@@ -308,6 +308,30 @@ is the fallback, still to build.
   - *Upkeep:* a deduction imposed mid-season reaches the live table only once entered.
     Re-fetching the ten current tables and running `rules-check` (10 requests) catches it.
 
+- **Match context table (Layer 3b–e inputs), 2026-11-11:** `adatta/features/context.py`,
+  `adatta context-build` (writes `data/features/context.parquet`, git-ignored).
+  - *What:* one row per match with every §6.2 input, each observable at
+    `as_of = kickoff − horizon` (default 1 h): venue and travel (2.8–2.14); days since the
+    last match in any loaded competition and days to the next with its kind and id (2.16,
+    2.17 under D25); weather from the newest usable forecast observed by as_of, else the
+    climatology (2.12, 2.13); importance from the table as of as_of (2.20); referee as
+    captured by as_of, else by D26 from T−24 h, else the pool prior (2.18, 2.19); has_var
+    (2.21); local kickoff hour.
+  - *Acceptance test, stated before building:* no value uses a fact first observable after
+    as_of; coverage ≥ 99% per league-season for travel, congestion, weather and kickoff hour;
+    importance wherever a zone rule exists; nulls only for documented reasons, never imputed.
+  - *Result:* `tests/test_context.py` seeds a later result, deduction, forecast and referee
+    and checks the row is unchanged, then that the same facts observed in time are used:
+    passes. Bundle league matches 2019–2025 (26,972, cancelled, postponed and walkover
+    matches excluded): every column ≥ 99.96%, no league-season under 99% on any column.
+    2026/27 (3,755): referee on 99.6% of played matches, none yet for unplayed ones (not
+    yet published); days to next 97.4% (the season's last rounds have no next match yet).
+    The remaining nulls are teams with no loaded previous or next match (promoted from or
+    relegated to a league we don't load).
+  - *Not in it yet:* referee strictness (needs name resolution, 2.18), added time per half
+    (2.22, partial), surface (2.11), the consecutive-away-trips flag (§6.2), and the
+    importance weighting of the next match (left to the model, which gets its id).
+
 ## Proposed next steps (each needs the owner's go-ahead)
 
 1. ~~Venue table~~ done 2026-11-09 (see Progress).
@@ -318,3 +342,6 @@ is the fallback, still to build.
 6. ~~As-of league table and the importance term~~ done 2026-11-09 (see Progress).
 7. ~~Weather climatology~~ done 2026-11-11: built, and all 277 venue points downloaded.
 8. ~~Zone rules for 2026/27~~ done 2026-11-11 (see Progress); owner to review.
+9. ~~Match context table~~ done 2026-11-11 (see Progress).
+10. Monthly deduction check: one command fetching the ten current tables (10 requests)
+    and running `rules-check`.

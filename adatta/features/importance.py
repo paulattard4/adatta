@@ -136,10 +136,12 @@ def _utc(dt: datetime) -> datetime:
 
 
 def importance_features(
-    session: Session, matches: Sequence[models.Match], rules: Rules
-) -> pl.DataFrame:
-    """One row per regular-season league match. Null where the season has no zone rule, and
-    for play-off and decider matches (their stakes are the tie itself, not the table)."""
+    session: Session, matches: Sequence[models.Match], rules: Rules,
+    horizon: timedelta = timedelta(0),
+) -> pl.DataFrame:  # fmt: skip
+    """One row per regular-season league match, from the table as of kickoff - `horizon`.
+    Null where the season has no zone rule, and for play-off and decider matches (their
+    stakes are the tie itself, not the table)."""
     M, S, C, T, R = models.Match, models.Season, models.Competition, models.Team, models.MatchResult
     season_ids = sorted({m.season_id for m in matches})
     meta = {
@@ -189,12 +191,12 @@ def importance_features(
         stakes = stakes_of(rule)
         games_each = 2 * (rule.teams - 1)
         for m in sorted(targets, key=lambda x: x.kickoff_time):
-            ko = _utc(m.kickoff_time)
+            as_of = _utc(m.kickoff_time) - horizon
             before = [
                 (h, a, hg, ag) for k, h, a, hg, ag in played
-                if _utc(k) <= ko - RESULT_LAG and hg is not None and ag is not None
+                if _utc(k) <= as_of - RESULT_LAG and hg is not None and ag is not None
             ]  # fmt: skip
-            by_ref = rules.deductions_as_of(league_id, year, (ko - timedelta(days=1)).date())
+            by_ref = rules.deductions_as_of(league_id, year, (as_of - timedelta(days=1)).date())
             ded: dict[int, int] = defaultdict(int)
             for t, ref in refs.items():
                 ded[t] += by_ref.get(ref, 0)

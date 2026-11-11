@@ -735,8 +735,14 @@ Until now every path refuses the holdout seasons (`HoldoutLocked`). The run that
   claim, then 10 refit jobs (5 bundles x 2 seasons), then assembly with the gate and
   `--record`). Assembly also refuses missing parts or a grid that differs from Phase 1a's.
   Not yet run: it waits for the x0.5 / x2 sensitivity backtests and the owner's go-ahead.
-- [ ] Holdout opened once and the gate applied; outcome recorded in `model_run` and
-      summarised in `reports/phase1b/`.
+- [x] Holdout opened once and the gate applied; outcome recorded in `model_run` and
+      summarised in `reports/phase1b/`. **Champion** (2026-11-11, run 42983498620, code
+      f35b32c, report `backtest/reports/20261111T143819Z` in R2; summary
+      `reports/phase1b/HOLDOUT.md`). 7,261 warm holdout matches: 1X2 log loss -0.48%
+      [-0.76%, -0.20%], RPS -0.75% [-1.19%, -0.32%]; England -1.06% [-1.74%, -0.39%]. All
+      50 league x metric segment checks within +1.0% (worst Segunda BTTS log loss +0.70%).
+      373 refits, 0 over R-hat 1.01, 0 divergences. Watch item: Spain BTTS log loss +0.53%
+      [+0.00%, +1.07%] at bundle level.
 
 ## Out of scope for 1b (spec places them later)
 Global cross-league layer / Q_league (§10.1; needs continental bridging data), neutral and host

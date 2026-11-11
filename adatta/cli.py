@@ -574,9 +574,9 @@ def referees_report() -> None:
         history = RefereeHistory.load(session, store)
         leagues, _ = _bundle_competition_ids(session)
         seasons = {
-            sid: (name, country, year)
-            for sid, name, country, year in session.execute(
-                select(S.season_id, C.name, C.country, S.year)
+            sid: (name, country, year, league)
+            for sid, name, country, year, league in session.execute(
+                select(S.season_id, C.name, C.country, S.year, C.source_ref)
                 .join(C, C.competition_id == S.competition_id)
                 .where(S.competition_id.in_(leagues), S.year >= 2019)
             )
@@ -588,10 +588,10 @@ def referees_report() -> None:
             select(M.source_ref, M.season_id).where(M.season_id.in_(list(seasons)))
         ):
             if ref in names:
-                name, country, year = seasons[sid]
+                name, country, year, league = seasons[sid]
                 raw, ids = per[(name, year)]
                 raw.add(names[ref])
-                ids.add(history.identify(country, names[ref]))
+                ids.add(history.identify(country, names[ref], league))
     years = sorted({y for _, y in per})
     typer.echo("raw names -> identities, by season: " + " ".join(str(y) for y in years))
     for league in sorted({n for n, _ in per}):

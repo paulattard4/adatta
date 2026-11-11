@@ -1,6 +1,7 @@
 """Referee identity across the provider's name formats, and the as-of history."""
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from adatta.features import referees as R
 
@@ -67,3 +68,28 @@ def test_history_uses_only_matches_final_by_as_of() -> None:
     assert h.referee(rid, t0) == (0, None, None)
     # A name first seen now joins the identity the other formats formed.
     assert h.identify("Italy", "Davide Massa") == rid
+
+
+def test_league_override_splits_one_short_name_between_two_referees(tmp_path: Path) -> None:
+    cfg = tmp_path / "overrides.yml"
+    cfg.write_text(
+        'Spain:\n  "J. Sanchez": Jose Maria Sanchez Martinez\n'
+        'by_league:\n  "141":\n    "J. Sanchez": Jose Antonio Sanchez Villalobos\n'
+    )
+    over, league = R.load_overrides(cfg), R.load_league_overrides(cfg)
+    assert over == {"Spain": {"J. Sanchez": "Jose Maria Sanchez Martinez"}}
+    t0 = datetime(2026, 2, 7, 15, tzinfo=UTC)
+    rows = [
+        R.Officiated("Spain", 1, t0, "Jose Maria Sanchez Martinez, Spain", 4, 20, "140"),
+        R.Officiated("Spain", 1, t0 + timedelta(days=7), "J. Sanchez", 6, 30, "140"),
+        R.Officiated("Spain", 2, t0 + timedelta(days=7), "J. Sanchez", 2, 10, "141"),
+        R.Officiated("Spain", 2, t0, "Jose Antonio Sanchez Villalobos, Spain", 8, 40, "141"),
+    ]
+    h = R.RefereeHistory(rows, over, league)
+    top = h.identify("Spain", "J. Sanchez", "140")
+    second = h.identify("Spain", "J. Sanchez", "141")
+    assert top == "Spain|Jose Maria Sanchez Martinez"
+    assert second == "Spain|Jose Antonio Sanchez Villalobos"
+    later = t0 + timedelta(days=30)
+    assert h.referee(top, later) == (2, 5.0, 25.0)
+    assert h.referee(second, later) == (2, 5.0, 25.0)

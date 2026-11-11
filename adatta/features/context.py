@@ -277,7 +277,7 @@ def context_features(
         row["referee"], row["referee_basis"] = named[m.match_id]
         if comp.country not in CONTINENTAL:
             if row["referee"] is not None:
-                rid = history.identify(comp.country, str(row["referee"]))
+                rid = history.identify(comp.country, str(row["referee"]), comp.source_ref)
                 n, cards, fouls = history.referee(rid, t)
                 row |= {"referee_id": rid, "referee_matches": n, "referee_cards_pm": cards,
                         "referee_fouls_pm": fouls}  # fmt: skip

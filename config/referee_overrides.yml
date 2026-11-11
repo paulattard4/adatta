@@ -4,11 +4,10 @@
 # rules (same first token, or matching initial) do not merge.
 # Entered 2026-11-11 from `adatta referees-report`; owner to review.
 #
-# Left unmerged on purpose (genuinely ambiguous, each stays its own identity; the list
-# `adatta referees-report` prints): Spain "J. Martinez" (José María Sánchez Martínez or Juan
-# Martínez Munuera), "J. Munuera" (Juan Martínez Munuera or José Luis Munuera Montero),
-# "J. Sanchez" and "José Sánchez" (Sánchez Martínez, Sánchez Villalobos or Sánchez Santos),
-# "A. Ruiz" (Alejandro Muñiz Ruiz or Alejandro Ruiz Aguilera).
+# The Spanish short names that fit two referees were assigned by the owner on 2026-11-11.
+# "J. Sanchez" and "José Sánchez" are two people: in La Liga and the cups Sánchez Martínez,
+# in Segunda Sánchez Villalobos (by_league below). The two refereed on the same weekend
+# 6 times each, which confirms the split.
 
 England:
   "Andy Madley, England": Andrew Madley
@@ -25,3 +24,14 @@ Italy:
   "Andrea Rapuano, Italy": Antonio Rapuano
 Spain:
   "Sergui Claudiu Muresan, Spain": Sergiu Claudiu Muresan
+  "J. Martinez": Juan Martinez Munuera
+  "J. Munuera": Jose Luis Munuera Montero
+  "J. Sanchez": Jose Maria Sanchez Martinez
+  "José Sánchez": Jose Maria Sanchez Martinez
+  "A. Ruiz": Alejandro Muniz Ruiz
+
+# {league id: {raw name: raw name}}, applied to that league's matches before the above.
+by_league:
+  "141":  # Segunda División
+    "J. Sanchez": Jose Antonio Sanchez Villalobos
+    "José Sánchez": Jose Antonio Sanchez Villalobos

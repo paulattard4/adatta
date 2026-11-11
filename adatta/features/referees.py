@@ -18,6 +18,8 @@ and cups share one referee pool; continental matches are not resolved):
              different people behind one "J. Martinez") bridges two referees: it stays
              unmerged, its own identity, and is listed for review.
   overrides  config/referee_overrides.yml maps a raw name to a canonical one by hand, first.
+             Its by_league section does so for one league's matches only, before anything
+             else: one short name used for two referees, each in their own league.
 
 The identity is "Country|canonical name": the group's longest full name, else its name.
 
@@ -161,13 +163,30 @@ def resolve(
     return Resolution(identity, sorted(r for r in raw if parsed[r].raw in review))
 
 
-def load_overrides(path: Path | str = "config/referee_overrides.yml") -> dict[str, dict[str, str]]:
-    """{country: {raw name: canonical raw name}}; empty when the file does not exist."""
+OVERRIDES = "config/referee_overrides.yml"
+BY_LEAGUE = "by_league"
+
+
+def _read_overrides(path: Path | str) -> dict[str, object]:
     p = Path(path)
-    if not p.exists():
-        return {}
-    data = yaml.safe_load(p.read_text()) or {}
-    return {str(k): {str(a): str(b) for a, b in (v or {}).items()} for k, v in data.items()}
+    return (yaml.safe_load(p.read_text()) or {}) if p.exists() else {}
+
+
+def _str_map(v: object) -> dict[str, str]:
+    return {str(a): str(b) for a, b in (v or {}).items()} if isinstance(v, dict) else {}
+
+
+def load_overrides(path: Path | str = OVERRIDES) -> dict[str, dict[str, str]]:
+    """{country: {raw name: canonical raw name}}; empty when the file does not exist."""
+    data = _read_overrides(path)
+    return {str(k): _str_map(v) for k, v in data.items() if k != BY_LEAGUE}
+
+
+def load_league_overrides(path: Path | str = OVERRIDES) -> dict[str, dict[str, str]]:
+    """{league id: {raw name: raw name}}: the by_league section, applied to that league's
+    matches before resolution."""
+    section = _read_overrides(path).get(BY_LEAGUE)
+    return {str(k): _str_map(v) for k, v in section.items()} if isinstance(section, dict) else {}
 
 
 RESULT_LAG = timedelta(hours=3)  # as importance.RESULT_LAG: a result is final 3 h after kickoff
@@ -213,6 +232,7 @@ class Officiated:
     referee: str | None  # raw provider name
     cards: float
     fouls: float
+    league: str | None = None  # the competition's provider id, for by_league overrides
 
 
 @dataclass
@@ -245,14 +265,18 @@ class RefereeHistory:
     """As-of card and foul history per referee identity and per competition."""
 
     def __init__(
-        self, rows: Iterable[Officiated], overrides: Mapping[str, Mapping[str, str]] | None = None
+        self,
+        rows: Iterable[Officiated],
+        overrides: Mapping[str, Mapping[str, str]] | None = None,
+        league_overrides: Mapping[str, Mapping[str, str]] | None = None,
     ) -> None:
         rows = sorted(rows, key=lambda o: o.kickoff)
         self._overrides = overrides or {}
+        self._league = league_overrides or {}
         names: dict[str, set[str]] = defaultdict(set)
         for o in rows:
             if o.referee:
-                names[o.country].add(o.referee)
+                names[o.country].add(self.in_league(o.referee, o.league))
         self._identity: dict[tuple[str, str], str] = {}
         self.review: dict[str, list[str]] = {}
         for country, ns in names.items():
@@ -261,7 +285,7 @@ class RefereeHistory:
         self._by_comp: dict[int, _Series] = defaultdict(_Series)
         for o in rows:
             if o.referee:
-                self._by_ref[self.identify(o.country, o.referee)].add(o)
+                self._by_ref[self.identify(o.country, o.referee, o.league)].add(o)
             self._by_comp[o.competition_id].add(o)
 
     def add_names(self, country: str, names: Iterable[str]) -> None:
@@ -270,9 +294,15 @@ class RefereeHistory:
         self._identity |= {(country, r): i for r, i in res.identity.items()}
         self.review[country] = res.review
 
-    def identify(self, country: str, raw: str) -> str:
-        """The identity of a name; a name not seen in the history joins the one identity
-        its compatible names share, else stands alone. Existing identities never change."""
+    def in_league(self, raw: str, league: str | None) -> str:
+        """The name after the by_league override of the match's league, if any."""
+        return self._league.get(league, {}).get(raw, raw) if league is not None else raw
+
+    def identify(self, country: str, raw: str, league: str | None = None) -> str:
+        """The identity of a name (in a match of `league`, the provider's competition id);
+        a name not seen in the history joins the one identity its compatible names share,
+        else stands alone. Existing identities never change."""
+        raw = self.in_league(raw, league)
         if (country, raw) in self._identity:
             return self._identity[(country, raw)]
         name = parse(self._overrides.get(country, {}).get(raw, raw))
@@ -307,9 +337,9 @@ class RefereeHistory:
             models.FixtureSnapshot,
         )  # fmt: skip
         seasons = {
-            sid: (country, cid)
-            for sid, country, cid in session.execute(
-                select(S.season_id, C.country, C.competition_id).join(
+            sid: (country, cid, str(league))
+            for sid, country, cid, league in session.execute(
+                select(S.season_id, C.country, C.competition_id, C.source_ref).join(
                     C, C.competition_id == S.competition_id
                 )
             )
@@ -343,9 +373,9 @@ class RefereeHistory:
             ):
                 if counts.get(match_id) != 2:
                     continue
-                country, cid = seasons[sid]
+                country, cid, league = seasons[sid]
                 name = names.get(ref) or names.get(f"snap:{match_id}")
                 ko = ko if ko.tzinfo else ko.replace(tzinfo=UTC)
                 n_cards, n_fouls = totals[match_id]
-                rows.append(Officiated(country, cid, ko, name, n_cards, n_fouls))
-        return cls(rows, load_overrides())
+                rows.append(Officiated(country, cid, ko, name, n_cards, n_fouls, league))
+        return cls(rows, load_overrides(), load_league_overrides())

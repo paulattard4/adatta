@@ -327,9 +327,10 @@ def venues_coverage() -> None:
 
 @app.command("rules-check")
 def rules_check() -> None:
-    """Check config/league_rules.yml against the newest stored final /standings table of
-    each league-season (no requests): team counts, every points gap, and each table rebuilt
-    from our regular-season results with deductions and awarded results."""
+    """Check config/league_rules.yml against the newest stored /standings table of each
+    league-season (final, or current for the season in play; no requests): team counts,
+    every points gap, and each table rebuilt from our regular-season results with
+    deductions and awarded results."""
     import gzip
 
     from sqlalchemy import select

@@ -16,41 +16,47 @@
 #   change applied to the table; date_confidence: high (decision date known), approximate
 #   (within weeks), unknown (`effective: null`, applied after the season's last match, so a
 #   backtest never sees it early).
-# var_from: first season (start year) with VAR in every match. null: none through 2025/26.
+# var_from: first season (start year) with VAR in every match. null: not in every match through
+#   2026/27 so far.
+#
+# 2026/27 (added 2026-11-11): every league keeps its 2025/26 team count (checked against the
+#   stored fixtures) and format, so each 2025/26 rule is extended to 2026. Assumes UEFA's
+#   2027/28 access list gives each league the same places by position as 2026/27; the extra
+#   Champions League places from the coefficient race are excluded as before. Owner to review.
 
 leagues:
   - league_id: 39  # Premier League
     var_from: 2019
     seasons:
-      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 20, champion: [1, 1], ucl: [1, 4], europe: [1, 5], relegation: [18, 20]}
+      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], teams: 20, champion: [1, 1], ucl: [1, 4], europe: [1, 5], relegation: [18, 20]}
   - league_id: 40  # Championship
-    var_from: null  # EFL: no VAR in league play through 2025/26
+    var_from: null  # EFL: no VAR in league play through 2025/26, none in 2026/27 so far
     seasons:
-      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 24, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 6], relegation: [22, 24]}
+      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], teams: 24, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 6], relegation: [22, 24]}
   - league_id: 140  # La Liga
     var_from: 2018
     seasons:
-      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 20, champion: [1, 1], ucl: [1, 4], europe: [1, 6], relegation: [18, 20]}
+      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], teams: 20, champion: [1, 1], ucl: [1, 4], europe: [1, 6], relegation: [18, 20]}
   - league_id: 141  # Segunda División
     var_from: 2019  # Var events in the data from 2020; no league has any in 2019/20
     seasons:
-      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 22, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 6], relegation: [19, 22]}
+      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], teams: 22, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 6], relegation: [19, 22]}
   - league_id: 135  # Serie A
     var_from: 2017
     seasons:
-      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 20, champion: [1, 1], ucl: [1, 4], europe: [1, 6], relegation: [18, 20]}
+      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], teams: 20, champion: [1, 1], ucl: [1, 4], europe: [1, 6], relegation: [18, 20]}
   - league_id: 136  # Serie B (play-out 16 v 17 only when within four points)
     var_from: 2021  # Var events in the data from 2021
     seasons:
-      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 20, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 8], relegation_playoff: [16, 17], relegation: [18, 20]}
+      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], teams: 20, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 8], relegation_playoff: [16, 17], relegation: [18, 20]}
   - league_id: 78  # Bundesliga
     var_from: 2017
     seasons:
-      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 18, champion: [1, 1], ucl: [1, 4], europe: [1, 6], relegation_playoff: [16, 16], relegation: [17, 18]}
+      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], teams: 18, champion: [1, 1], ucl: [1, 4], europe: [1, 6], relegation_playoff: [16, 16], relegation: [17, 18]}
   - league_id: 79  # 2. Bundesliga
     var_from: 2019
     seasons:
-      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025], teams: 18, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 3], relegation_playoff: [16, 16], relegation: [17, 18]}
+      - {years: [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], teams: 18, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 3], relegation_playoff: [16, 16], relegation: [17, 18]}
   - league_id: 61  # Ligue 1
     var_from: 2018
     seasons:
@@ -59,16 +65,16 @@ leagues:
       - {years: [2021], teams: 20, champion: [1, 1], ucl: [1, 3], europe: [1, 5], relegation_playoff: [18, 18], relegation: [19, 20]}
       # 2022/23: four relegated, no play-off (the league went from 20 to 18 clubs).
       - {years: [2022], teams: 20, champion: [1, 1], ucl: [1, 3], europe: [1, 5], relegation: [17, 20]}
-      - {years: [2023, 2024, 2025], teams: 18, champion: [1, 1], ucl: [1, 4], europe: [1, 6], relegation_playoff: [16, 16], relegation: [17, 18]}
+      - {years: [2023, 2024, 2025, 2026], teams: 18, champion: [1, 1], ucl: [1, 4], europe: [1, 6], relegation_playoff: [16, 16], relegation: [17, 18]}
   - league_id: 62  # Ligue 2
-    var_from: null  # Var events in 0-1.3% of matches every season
+    var_from: null  # Var events in some matches only (19% in 2025/26, 6% in 2026/27 so far)
     seasons:
       - {years: [2019, 2020, 2021], teams: 20, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 5], relegation_playoff: [18, 18], relegation: [19, 20]}
       # 2022/23: no promotion play-off, four relegated (Ligue 1 shrinking to 18).
       - {years: [2022], teams: 20, champion: [1, 1], promotion: [1, 2], relegation: [17, 20]}
       # 2023/24: four relegated, no relegation play-off (Ligue 2 shrinking to 18).
       - {years: [2023], teams: 20, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 5], relegation: [17, 20]}
-      - {years: [2024, 2025], teams: 18, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 5], relegation_playoff: [16, 16], relegation: [17, 18]}
+      - {years: [2024, 2025, 2026], teams: 18, champion: [1, 1], promotion: [1, 2], promotion_playoff: [3, 5], relegation_playoff: [16, 16], relegation: [17, 18]}
 
 deductions:
   # Premier League
@@ -89,6 +95,7 @@ deductions:
   - {league_id: 40, season: 2025, team_ref: "60", team: West Brom, points: 2, effective: null, date_confidence: unknown, note: ""}
   - {league_id: 40, season: 2025, team_ref: "46", team: Leicester, points: 6, effective: null, date_confidence: unknown, note: ""}
   - {league_id: 40, season: 2025, team_ref: "74", team: Sheffield Wednesday, points: 18, effective: null, date_confidence: unknown, note: "administration and other sanctions; final standings show 0 points"}
+  - {league_id: 40, season: 2026, team_ref: "41", team: Southampton, points: 4, effective: 2026-05-19, date_confidence: high, note: "spying on opponents' training (2025/26); EFL commission ruling 2026-05-19, applied to the 2026/27 table from the start; the club appealed, still in the provider's table 2026-11-11"}
   # Ligue 1, Ligue 2 (crowd trouble and abandoned matches)
   - {league_id: 61, season: 2021, team_ref: "84", team: Nice, points: 1, effective: null, date_confidence: unknown, note: "Nice v Marseille, August 2021"}
   - {league_id: 61, season: 2021, team_ref: "80", team: Lyon, points: 1, effective: null, date_confidence: unknown, note: "Lyon v Marseille, November 2021"}
@@ -107,6 +114,8 @@ deductions:
   - {league_id: 136, season: 2022, team_ref: "1692", team: Reggina, points: 5, effective: null, date_confidence: unknown, note: ""}
   - {league_id: 136, season: 2023, team_ref: "498", team: Sampdoria, points: 2, effective: 2023-08-01, date_confidence: approximate, note: "applied from the start of the season"}
   - {league_id: 136, season: 2024, team_ref: "10137", team: Cosenza, points: 4, effective: null, date_confidence: unknown, note: ""}
+  - {league_id: 136, season: 2026, team_ref: "863", team: Juve Stabia, points: 2, effective: 2026-09-24, date_confidence: approximate, note: "TFN, missing transfer documentation; appealed (reports of 2026-10-12)"}
+  - {league_id: 136, season: 2026, team_ref: "863", team: Juve Stabia, points: 2, effective: 2026-11-11, date_confidence: approximate, note: "second sanction, reason and date not confirmed; dated when first seen in the provider's table, so a backtest never sees it early"}
 
 # awarded_results: points a team gained (positive) or lost (negative) when a disciplinary
 #   body awarded a result different from the one on the pitch, relative to the stored

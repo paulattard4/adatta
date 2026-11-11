@@ -79,7 +79,7 @@ timing (the entry says which) · `absent` = verified missing from every source w
 | 2.10 | Altitude and altitude differential | Open-Meteo elevation API (90 m DEM) from 2.9's coordinates; the differential uses the away team's home venue (2.14) | Elevation returned for 5 of 5 sampled stadiums (Old Trafford 18 m, Bernabéu area 716 m, Munich 491 m). City elevations span sea level to Soria 1,064 m and Encamp (Andorra) 1,257 m; Madrid, Getafe, Leganés, Alcorcón, Fuenlabrada, Valladolid, Granada, Albacete and Burgos are all 620–860 m, so Spanish matches have real differentials | Open-Meteo elevation and geocoding APIs | Static (look up once per venue, cache) | **verified** (2026-11-09: 100% of 2019–2026 league matches; city elevation, so a ground on a hill above its town reads low) | Term null where either venue has no elevation |
 | 2.11 | Surface; pitch dimensions | API-Football `/venues`, `/teams` `venue.surface`. No pitch-dimension field anywhere | Surface: current value only, no history (PL 2024: 20 of 20 `grass`). Dimensions: 0% | Probes `/teams?league=39&season=2024`, `/venues?city=Manchester` | Static, but only today's value can be read; a past change of surface is not reconstructable | Surface **partial**; dimensions **absent** | Both terms absent; for these bundles the surface is near-constant, so little is lost |
 | 2.12 | Weather at kickoff as forecast before the match: temperature, wind, precipitation | Open-Meteo: forecast API (16 days ahead, live); **previous-runs API** (forecasts as issued 1–7 days earlier); historical-forecast API (stitched short-lead runs) | Live forecast: verified (384 hourly values, 16 days). As-issued history: **from about Feb 2024 only** (previous-runs empty on 2023-12-15, present on 2024-02-15). Historical-forecast: differs from reanalysis on 2023-03-15, but on 2019-10-20 it returns exactly the reanalysis values, so before about 2022 it is not a forecast. **Every value needs 2.9's coordinates** | Open-Meteo probes | Forecast: pre-match, must be captured live or read from previous-runs (2024+) with the lead time stated. **Realised weather (archive or reanalysis) is not observable before kickoff** and must not be a training feature for a pre-match prediction | **partial** | Climatology (2.13) for training before 2024 and for matches more than 16 days out (§6.2); forecast terms only where an as-issued forecast exists |
-| 2.13 | Weather climatology for venue and date | Open-Meteo archive API (ERA5 reanalysis, back to 1940) | Hourly values returned for 2019-10-20 at Old Trafford; full window covered | Open-Meteo probe | Reconstructable as of any date, if the climatology for a season uses only years before it | **verified** (2026-11-09: built from ERA5 2016–2018 per venue point with elevation correction, `adatta/features/climatology.py`; 77 of 277 points downloaded, the rest over the next days) | Null for a match whose venue point is not downloaded yet; never imputed |
+| 2.13 | Weather climatology for venue and date | Open-Meteo archive API (ERA5 reanalysis, back to 1940) | Hourly values returned for 2019-10-20 at Old Trafford; full window covered | Open-Meteo probe | Reconstructable as of any date, if the climatology for a season uses only years before it | **verified** (2026-11-09: built from ERA5 2016–2018 per venue point with elevation correction, `adatta/features/climatology.py`; all 277 points downloaded 2026-11-11, every modelled league match covered) | Null only for a venue without usable coordinates; never imputed |
 | 2.14 | Travel burden: great-circle distance and timezone shift from home venue | Derived: team home venue = modal venue of its home fixtures in a season (2.8) + coordinates (2.9) | Home venue: 1,349 team-seasons; 31 play under 90% of home games at their modal venue and 8 under 60% (ground-shares, rebuilds), so `home_venue` needs `valid_from/to`. Timezone shift: only the Canary Islands (Las Palmas, Tenerife: UTC+0 against UTC+1 for the rest of Spain) | R2 fixture lists; geocoding | Static plus the fixture list | **verified** (2026-11-09: `team_home_venue` spells, `adatta/features/travel.py`; 100% of 2019–2026 league matches) | Term null where either venue is unplaced |
 | 2.15 | Consecutive away trips flag | Derived from the fixture calendar (home and away sides of every fixture) | As 2.16 | Neon `match` | Fixture dates are pre-match, published | **verified** (the flag; distance-weighted variants need 2.9) | n/a |
 
@@ -283,11 +283,12 @@ is the fallback, still to build.
     kickoff's calendar day, from the kickoff hour to two hours after (UTC): temperature and
     wind as means, precipitation as the mean two-hour total, matching the live forecast
     summary.
-  - *Progress:* 77 of 277 points fetched (5,925 calls on the first day, under the
-    10,000/day limit). The rest needs about three more daily runs; until then a match at an
-    unfetched point has a null climatology. Coverage of modelled matches so far: Spain 85%,
-    Italy 33%, France 4%, England and Germany 0% (points are fetched in coordinate order).
-    Sanity means where covered: 16–17 °C, 0.15–0.26 mm, 10–11 km/h.
+  - *Download:* all 277 points fetched 2026-11-09 to 2026-11-11 (three days, each under
+    the 10,000-call daily limit). Every modelled league match (2019 on, 30,933 matches) has
+    a climatology. Means by country: England 10.7 °C, 0.17 mm, 16.9 km/h; Germany 11.4 °C,
+    0.19 mm, 12.5 km/h; France 12.6 °C, 0.19 mm, 12.4 km/h; Italy 15.3 °C, 0.26 mm,
+    7.9 km/h; Spain 17.1 °C, 0.18 mm, 11.4 km/h. Warmer south and windier England, as
+    expected.
 
 ## Proposed next steps (each needs the owner's go-ahead)
 
@@ -297,6 +298,5 @@ is the fallback, still to build.
 4. ~~Decision: forward congestion and referee assignment in backtests~~ D25, D26.
 5. ~~Weather-forecast capture in the poller~~ done 2026-11-09, live on `main`.
 6. ~~As-of league table and the importance term~~ done 2026-11-09 (see Progress).
-7. Weather climatology: built 2026-11-09; the baseline download finishes over about three
-   more days (`adatta climatology-fetch`, once a day, until it reports nothing left).
+7. ~~Weather climatology~~ done 2026-11-11: built, and all 277 venue points downloaded.
 8. Zone rules for 2026/27 (the current season), so importance runs live.

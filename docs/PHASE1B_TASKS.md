@@ -744,6 +744,61 @@ Until now every path refuses the holdout seasons (`HoldoutLocked`). The run that
       373 refits, 0 over R-hat 1.01, 0 divergences. Watch item: Spain BTTS log loss +0.53%
       [+0.00%, +1.07%] at bundle level.
 
+### 7. Serving (acceptance item 5; spec §12.1–12.3, §14.8, §15.2)
+
+Design (stated 2026-11-11, before building):
+- **Weekly refit** (`.github/workflows/serve.yml`, `adatta/model/live.py`): the champion spec
+  (`production_spec`), one job per bundle, as of Monday 00:00 UTC, the same grid as the
+  backtest (D11), so live predictions are made exactly as the holdout's were. Scheduled for
+  Monday midday so Sunday's results are in; runs one bundle at a time (max-parallel 1), so a
+  backtest running alongside still leaves the capture poller a slot. Draws plus the refit's
+  team and league index go to R2 under `serving/<config_hash>/<bundle>/<as_of>.npz`; each
+  refit gets a `model_run` row (component `phase1b`, window `live`) with its manifest and
+  convergence numbers.
+- **Inference gates per refit:** R-hat <= 1.01, bulk ESS >= 400, 0 divergences. A refit that
+  fails is stored and recorded `failed`, and serving keeps the bundle's last passing refit
+  (principle 8); the failure and any refit older than 9 days raise the capture alert.
+- **Projection** (`adatta/sim/serve.py`, numpy only, inside the 15-minute capture tick):
+  for every regular-season fixture of a bundle league within 14 days, from the latest
+  passing refit with as_of <= now. Milestones (§12.3, §15.2): `initial` (first tick that
+  can project it), `T-7d`, `T-24h`, `T-60m` and `close`, each in the same window as the odds
+  milestone of that name, written once and never late. They are tracked from
+  `market_projection` itself: sim code never reads odds (principle 1). Intermediate
+  resimulations aren't stored. `lineup` isn't a projection milestone yet: 1b has no lineup
+  input, so it would repeat the T-60m numbers.
+- **Rows:** 1X2 (home, draw, away), OU 1.5 / 2.5 / 3.5 (over, under) and BTTS (yes, no) from
+  the full-time score matrix (principle 6). Probability = posterior mean (the backtest's
+  posterior-mean matrix); interval = 5th and 95th percentiles of the per-draw probability
+  (90%). One `projection_run` per tick that writes rows, with the §14.8 manifest: code SHA,
+  lockfile and config hashes, component_versions (bundle -> model_run id and refit as_of),
+  training-snapshot hash, override-set hash (no overrides yet), seed.
+
+Acceptance test:
+1. **Same numbers as the backtest:** for one refit's draws and a set of fixtures, served
+   1X2, OU2.5 and BTTS probabilities equal `backtest.score_targets` to 1e-9 (unit test).
+2. **Intervals:** lo <= p <= hi for every row; each market's selections sum to 1.
+3. **No leakage, no live NUTS:** a projection uses only a refit with as_of <= now, of a
+   fixture with kickoff > now; serving runs without PyMC/JAX installed (test: importing and
+   running it leaves them out of `sys.modules`); refit training rows obey kickoff + 3 h <=
+   as_of (existing `prepare` assertion).
+4. **Milestones:** idempotent across ticks; each (match, milestone) at most once; a timed
+   milestone only inside its window; a failing or stale refit is skipped for the last
+   passing one and reported (unit tests on SQLite with a fake clock).
+5. **Live:** after the first weekly refit, a capture tick writes initial rows for every
+   upcoming bundle fixture within 14 days, and the projection step adds under 60 s to the
+   tick. Each refit job finishes inside the 6-hour limit.
+
+Tasks:
+- [x] `adatta/sim/serve.py`: vectorised score matrices, markets with intervals, milestone
+      writer; wired into `run_capture`. Items 1–4 pass in `tests/test_serve.py`; 128
+      fixtures x 400 draws project in about 1 s.
+- [x] `adatta/model/live.py` and `serve.yml`: weekly refit, gates, R2 draws, `model_run`.
+      Built and unit-tested; not yet run on GitHub.
+- [ ] First live refit and projection tick (item 5).
+- Spec deviation, raised 2026-11-11 for the owner: §12.1 stores posterior draws as ArviZ
+  netCDF; serving stores the 400 thinned draws prediction reads (npz, a few MB per bundle),
+  as the backtest cache does, because a full trace is about 0.7 GB per bundle per week.
+
 ## Out of scope for 1b (spec places them later)
 Global cross-league layer / Q_league (§10.1; needs continental bridging data), neutral and host
 flags (needed with play-offs and cups), attendance modifier (`has_attendance_data` is absent),

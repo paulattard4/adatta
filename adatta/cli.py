@@ -164,6 +164,26 @@ def audit(
     )
 
 
+def _projector(session: Session, settings: Any) -> Any:
+    """Milestone projections from the champion's latest passing refit (adatta.sim.serve)."""
+    from adatta.eval import harness
+    from adatta.eval.baseline import _file_hash, _git_sha
+    from adatta.model.backtest import production_spec
+    from adatta.sim import serve
+
+    cfg = harness.load_config()
+    store = make_store(settings)
+    manifest = {"git_commit": _git_sha(), "lockfile_hash": _file_hash("uv.lock"),
+                "seed": production_spec(cfg).seed}  # fmt: skip
+
+    def run(now: datetime) -> serve.ProjectReport:
+        return serve.run_projection(session, store, cfg.bundles,
+                                    production_spec(cfg).model_name, cfg.max_goals, manifest,
+                                    now=now)  # fmt: skip
+
+    return run
+
+
 @app.command()
 def capture() -> None:
     """Snapshot capture tick: run whatever is due (designed for a ~15-minute schedule).
@@ -175,7 +195,8 @@ def capture() -> None:
     client = _client()
     with get_session() as session:
         weather = OpenMeteoClient(make_store(settings))
-        report = run_capture(session, client, load_competitions(), weather=weather)
+        report = run_capture(session, client, load_competitions(), weather=weather,
+                             projector=_projector(session, settings))  # fmt: skip
     summary = ", ".join(f"{k}={v}" for k, v in sorted(report.actions.items())) or "nothing due"
     typer.echo(
         f"capture {report.started_at:%Y-%m-%dT%H:%MZ}: {summary}; {report.requests} requests"

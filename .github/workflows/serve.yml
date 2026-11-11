@@ -1,0 +1,55 @@
+# Weekly live refit of the champion (PHASE1B_TASKS section 7; spec §12.1; D11). One refit per
+# bundle as of Monday 00:00 UTC (the backtest grid) with the production spec; draws go to R2
+# under serving/, and a model_run row (window live) records each refit and its inference
+# gates. The capture tick projects from the latest passing refit (adatta.sim.serve).
+# Several schedules because GitHub's scheduler is best-effort (D17) and because a refit waits
+# for Sunday's results: a bundle that is done is skipped, one whose results aren't in yet
+# fails with "not ready" and is retried by the next schedule.
+# max-parallel 1: one runner slot at most, so a backtest running alongside (18 jobs) still
+# leaves the capture poller its slot. The repo is public: logs carry metrics only.
+name: serve
+on:
+  workflow_dispatch:
+    inputs:
+      as_of:
+        description: "refit as of this Monday (YYYY-MM-DD); empty = this week's"
+        required: false
+        default: ""
+  schedule:
+    - cron: "17 13 * * 1"
+    - cron: "17 19 * * 1"
+    - cron: "17 7 * * 2"
+    - cron: "17 13 * * 2"
+permissions:
+  contents: read
+concurrency:
+  group: serve
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  refit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        bundle: ["england", "spain", "italy", "germany", "france"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: refit as of Monday
+        env:
+          AS_OF: ${{ inputs.as_of }}
+        run: >-
+          uv run --frozen --group model python -m adatta.model.live refit
+          --bundle ${{ matrix.bundle }} ${AS_OF:+--as-of "$AS_OF"}

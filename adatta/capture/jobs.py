@@ -143,6 +143,19 @@ def _logged(session: Session, job: str, ids: list[int], since: datetime | None =
     return out
 
 
+def _alert_once(session: Session, job: str, problems: list[str], now: datetime) -> list[str]:
+    """Problems not already alerted in the last day (a stale refit would otherwise fail every
+    15-minute tick until the next refit). Keyed by the text before the first colon."""
+    out = []
+    for msg in problems:
+        scope = msg.split(":")[0][:64]
+        if not _ran_recently(session, job, scope, now):
+            _log(session, job, scope, now, "ok", 0, msg)
+            out.append(msg)
+    session.commit()
+    return out
+
+
 # --------------------------------------------------------------------------- daily jobs
 
 
@@ -460,6 +473,7 @@ def run_capture(
     session: Session, client: ApiFootballClient, comps: list[Competition],
     now: datetime | None = None, daily_budget_s: float = DAILY_BUDGET_S,
     clock: Callable[[], float] = time.monotonic, weather: OpenMeteoClient | None = None,
+    projector: Callable[[datetime], Any] | None = None,
 ) -> CaptureReport:  # fmt: skip
     now = now or datetime.now(UTC)
     started = clock()
@@ -490,6 +504,12 @@ def run_capture(
         report.actions.update(odds or {})
         report.actions["lineups_confirmed"] += len(confirmed)
         report.missed = step("missed", "all", lambda: detect_missed(session, now)) or []
+        if projector is not None:  # milestone projections (adatta.sim.serve): no API requests
+            proj = step("project", "all", lambda: projector(now))
+            if proj is not None:
+                report.actions.update({f"projected_{k}": v for k, v in proj.written.items()})
+                report.actions["projected_no_refit"] += proj.no_refit
+                report.errors += _alert_once(session, "serve_alert", proj.problems, now)
         if weather is not None:
             w = step("weather", "all", lambda: capture_weather(session, weather, now))
             report.actions.update({f"weather_{k}": v for k, v in (w or {}).items()})

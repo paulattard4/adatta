@@ -385,6 +385,33 @@ def rules_check() -> None:
     typer.echo(f"{len(tables)} tables checked, {len(problems)} problems")
     for p in problems:
         typer.echo(f"  {p}")
+    if problems:
+        raise typer.Exit(1)
+
+
+@app.command("standings-refresh")
+def standings_refresh(
+    season: int | None = typer.Option(None, help="season start year; default: the newest"),
+) -> None:
+    """Fetch the current /standings of every bundle league (one request each, through the
+    quota planner) and run rules-check, so a deduction or awarded result imposed mid-season
+    shows up as a points gap. Exits 1 when rules-check finds a problem. Run monthly."""
+    from sqlalchemy import func, select
+
+    from adatta.db import models
+
+    leagues = [c for c in load_competitions("config/competitions.yml") if c.tier != "cup"]
+    client = _client()
+    with get_session() as session:
+        if season is None:
+            season = session.scalar(select(func.max(models.Season.year)))
+        for c in leagues:
+            payload = client.fetch(session, "/standings", {"league": c.league_id, "season": season})
+            session.commit()
+            rows = payload.get("response") or []
+            n = len(rows[0]["league"]["standings"][0]) if rows else 0
+            typer.echo(f"{c.name} {season}: {n} teams")
+    rules_check()
 
 
 def _modelled_venue_ids(session: Session) -> set[int]:

@@ -306,7 +306,7 @@ is the fallback, still to build.
   - *VAR:* the Championship still has no Var events in 2026/27; Ligue 2 has them in some
     matches only (19% in 2025/26, 6% so far), so `var_from` stays null for both.
   - *Upkeep:* a deduction imposed mid-season reaches the live table only once entered.
-    Re-fetching the ten current tables and running `rules-check` (10 requests) catches it.
+    `adatta standings-refresh` (10 requests) re-fetches the current tables and flags it.
 
 - **Match context table (Layer 3b–e inputs), 2026-11-11:** `adatta/features/context.py`,
   `adatta context-build` (writes `data/features/context.parquet`, git-ignored).
@@ -343,5 +343,6 @@ is the fallback, still to build.
 7. ~~Weather climatology~~ done 2026-11-11: built, and all 277 venue points downloaded.
 8. ~~Zone rules for 2026/27~~ done 2026-11-11 (see Progress); owner to review.
 9. ~~Match context table~~ done 2026-11-11 (see Progress).
-10. Monthly deduction check: one command fetching the ten current tables (10 requests)
-    and running `rules-check`.
+10. ~~Monthly deduction check~~ done 2026-11-11: `adatta standings-refresh` fetches the ten
+    current tables (10 requests, quota planner) and runs `rules-check`, exiting 1 on any
+    problem. First run: 80 tables, 0 problems. Run it monthly, or after news of a sanction.

@@ -694,6 +694,21 @@ R2 cache. **The D22 acceptance test passes under D23** (with audit attempt 5 abo
   +0.02%]. By season 2019 to 2022: +0.12%, +0.05%, -0.11%, -0.05%, all including 0. By
   bundle, all-season: France +0.01% and Spain +0.02% are the only ones above 0, both well
   inside 1.0%. xG-informed -0.68% [-1.13%, -0.23%]; not informed +0.01%.
+Prior sensitivity backtests (§14.5 predictive part: dev 1X2 log loss moves < 0.2% relative
+vs the scale-1 run 42619779486, 7-day cadence, same model code):
+- **x0.5: pass** (2026-11-10, run 42762332765, report `backtest/reports/20261110T161539Z`;
+  grid identical to 1a). 1X2 log loss +0.009% (n 18,682); RPS +0.02%, OU2.5 -0.02%, CRPS
+  -0.02%. 928 refits: R-hat over 1.01 in 9, ESS under 400 in 0, divergences in 1 (worst
+  1.014). 4 jobs hit the 6-hour limit and were rerun from the cache. (The x2 run was first
+  dispatched alongside it and cancelled: two runs fill the 20-job limit and delayed capture
+  by about 20 minutes on 2026-11-10 05:37 to 05:57.)
+- **x2: pass** (2026-11-11, run 42853606964, report `backtest/reports/20261111T031759Z`;
+  grid identical to 1a). 1X2 log loss +0.012% (n 18,682); every other metric within
+  +0.02%. 928 refits: R-hat over 1.01 in 7, ESS under 400 in 0, divergences in 0 (worst
+  1.014). Timed-out jobs were rerun from the cache.
+- **Acceptance item 1 is now complete** (audit attempt 5 plus both sensitivity backtests).
+  Next: the locked holdout, opened once, on the owner's go-ahead.
+
 Holdout tooling (stated 2026-11-10, before building; nothing here opens the holdout).
 Until now every path refuses the holdout seasons (`HoldoutLocked`). The run that opens it:
 - **Gate pinned first (D28):** the segment rule is the point estimate per league on one

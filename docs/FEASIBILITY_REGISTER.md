@@ -378,3 +378,6 @@ is the fallback, still to build.
     current tables (10 requests, quota planner) and runs `rules-check`, exiting 1 on any
     problem. First run: 80 tables, 0 problems. Run it monthly, or after news of a sanction.
 11. ~~Referee name resolution and history~~ done 2026-11-11 (see Progress).
+12. Phase 2 plan and acceptance test stated 2026-11-11 in `docs/PHASE2_TASKS.md` (no model
+    code yet). Next in this lane: the style features (task F1) and, after the owner rules
+    on D29, the weather history (F2). The model tasks wait for the Phase 1b audit.

@@ -246,3 +246,39 @@ def test_realised_stand_in_only_before_as_issued_and_at_short_horizons(tmp_path:
     s.add(_forecast(target, AS_OF - timedelta(hours=3), 12.5))
     s.commit()
     assert _row(s, store, ids, _rules())["weather_source"] == "forecast"
+
+
+def test_server_errors_skip_the_window_and_stop_when_persistent(tmp_path: Path) -> None:
+    s, store, ids = _setup(tmp_path)
+    t = ids["teams"]
+    days = [datetime(2024, 3, 2, 15, tzinfo=UTC) + timedelta(days=20 * i) for i in range(8)]
+    matches = [ids["match"](f"w{i}", t[2], t[3], ko) for i, ko in enumerate(days)]
+    s.commit()
+    api = _FakeOpenMeteo()
+    seen: list[str] = []
+
+    def flaky(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.params["start_date"])
+        if request.url.params["start_date"] == "2024-03-02":
+            return httpx.Response(502)
+        return api.handler(request)
+
+    client = om.OpenMeteoClient(store, http=httpx.Client(transport=httpx.MockTransport(flaky)))
+    client._get.retry.sleep = lambda _: None
+    now = datetime(2026, 11, 11, tzinfo=UTC)
+    targets = weather_history.load_targets(s, matches)
+    jobs = weather_history.plan(s, targets, now)
+    counts = weather_history.fetch(s, client, jobs, 100, sleep=lambda _: None)
+    assert counts["server_errors"] == 2  # the 2024-03-02 window, as-issued and ERA5
+    assert counts["as_issued"] == 7 and "left_for_later" not in counts
+    assert {j.start.isoformat() for j in weather_history.plan(s, targets, now)} == {"2024-03-02"}
+
+    def down(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503)
+
+    client = om.OpenMeteoClient(store, http=httpx.Client(transport=httpx.MockTransport(down)))
+    client._get.retry.sleep = lambda _: None
+    many = [weather_history.Job("era5", (1.0, float(i)), date(2020, 1, 1), date(2020, 1, 1))
+            for i in range(9)]  # fmt: skip
+    counts = weather_history.fetch(s, client, many, 100, sleep=lambda _: None)
+    assert counts["server_errors"] == 5 and counts["left_for_later"] == 4

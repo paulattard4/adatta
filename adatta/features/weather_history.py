@@ -54,7 +54,8 @@ CHECK_UNTIL = datetime(2024, 6, 1, tzinfo=UTC)
 PROXY_MAX_HORIZON = timedelta(hours=24)
 RUNS = {1: 24.0, 2: 48.0}  # previous_dayN -> lead hours
 PLAYED_AFTER = timedelta(days=1)  # fetch as-issued forecasts only for matches this long past
-ERA5_SINCE = "2019-01-01"  # archive payloads from here on are realised weather, not baseline
+ERA5_SINCE = "2019-01-01"
+MAX_CONSECUTIVE_FAILURES = 5  # archive payloads from here on are realised weather, not baseline
 
 
 def _utc(dt: datetime) -> datetime:
@@ -190,10 +191,12 @@ def fetch(
     session: Session, om: OpenMeteoClient, jobs: Sequence[Job], budget_calls: int,
     sleep: Callable[[float], None] = time.sleep, calls_per_hour: int = 4000,
 ) -> Counter[str]:  # fmt: skip
-    """Run jobs (one call each) until the budget is spent; stops on a rate limit. Commits
-    after each job, so an interrupted run resumes where it stopped."""
+    """Run jobs (one call each) until the budget is spent; stops on a rate limit. A server
+    error skips the window (stopping after MAX_CONSECUTIVE_FAILURES in a row). Commits after
+    each job, so an interrupted run resumes where it stopped."""
     counts: Counter[str] = Counter(jobs=len(jobs))
     pause = 3600 / calls_per_hour
+    failures = 0
     for i, job in enumerate(jobs):
         if counts["calls"] + 1 > budget_calls:
             counts["left_for_later"] = len(jobs) - i
@@ -214,7 +217,19 @@ def fetch(
                 counts["rate_limited"] += 1
                 counts["left_for_later"] = len(jobs) - i
                 break
-            raise
+            if e.response.status_code < 500:
+                raise
+            # A server error after the client's retries: skip the window (the next run
+            # plans it again); stop if the service looks down.
+            session.rollback()
+            counts["server_errors"] += 1
+            counts["calls"] += 1
+            failures += 1
+            if failures >= MAX_CONSECUTIVE_FAILURES:
+                counts["left_for_later"] = len(jobs) - i - 1
+                break
+            continue
+        failures = 0
         session.commit()
         counts[job.kind] += 1
         counts["calls"] += 1

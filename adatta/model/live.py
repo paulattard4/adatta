@@ -115,6 +115,9 @@ def refit(
     n_pending = pending_results(session, leagues, as_of, lag)
     if n_pending:
         raise NotReady(f"{bundle}: {n_pending} matches before {as_of:%Y-%m-%d} have no result yet")
+    # End the read transaction before the fit: Neon drops a connection left idle in a
+    # transaction (the first live refit lost its model_run row after a 7-minute fit).
+    session.commit()
     fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, lag)
     key = serve.refit_key(h, bundle, as_of)
     cached = try_get(store, key)

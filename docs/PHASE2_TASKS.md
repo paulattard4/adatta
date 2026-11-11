@@ -9,7 +9,7 @@ promotes it). If 1b is rejected, this plan is revisited before any build.
 Status (2026-11-11): **stated, not started.** The inputs are built and verified
 (`adatta/features/context.py`, `docs/FEASIBILITY_REGISTER.md`). Model work waits for the
 Phase 1b audit to finish (it holds `adatta/model/` and the backtest and gate workflows).
-Three decisions below (D29–D31) are the owner's before the build.
+The owner settled D29–D31 on 2026-11-11, each as leaned below.
 
 Tick each item only when its acceptance check passes.
 
@@ -62,7 +62,7 @@ time. The backtest does the same:
 - The 1b reference has no context, so its predictions are the same at every horizon and it
   pairs with both.
 
-## Decisions for the owner (before the build)
+## Decisions (resolved 2026-11-11 by the owner: the leaning in each)
 
 - **D29: weather in backtests.** As-issued forecast history exists only from about Feb 2024
   (register 2.12), so dev 2019/20–2023/24 has climatology only. Climatology is near-constant
@@ -143,7 +143,30 @@ Features (outside `adatta/model/`, can start now):
       (365 days, matches final by as_of, league-normalised tempo: shots for and against,
       on target, possession). Acceptance: leakage test as for context; coverage ≥ 99% of
       2019–2025 league matches with at least 5 prior matches in the window; null otherwise.
-- [ ] F2 Weather history per D29 (only after the owner's choice; free tier, background).
+- [ ] F2 Weather history per D29 (c), free tier, in the background.
+      Design: (1) as-issued forecasts for every bundle league match from 2024-02-01 (the
+      previous-runs API has values from late January 2024: probed 2026-11-11, Manchester
+      empty on 01-25, Madrid present on 01-28), read from the runs 1 and 2 days before
+      (`previous_day1`, `previous_day2`) and stored as `weather_snapshot` rows with
+      lead_hours 24 and 48 and observed_at = kickoff - lead, so the context table's
+      forecast rule picks them up unchanged; (2) ERA5 realised weather at the venue point
+      for matches from 2019-07-01 to 2024-01-31, read from the raw store at build time like
+      the climatology and never stored as a forecast; (3) ERA5 also for Feb–May 2024, to
+      measure the stand-in's optimism against the as-issued forecasts.
+      Acceptance test (stated 2026-11-11, before building):
+      - the context row uses the stand-in only when there is no as-issued forecast, the
+        kickoff is before 2024-02-01 and the horizon is 24 h or less, labelled
+        `weather_source = realised_proxy` (null lead); at T − 48 h such a match keeps
+        climatology; unit tests on synthetic payloads, and the existing leakage test passes;
+      - an as-issued row is used only from its observed_at (T − 1 h gets the day-1 run,
+        T − 48 h the day-2 run);
+      - coverage after the download: at T − 1 h, ≥ 99% of bundle league matches 2019/20 to
+        2026-11-05 have a forecast or the stand-in; climatology only where neither exists;
+      - the stand-in's error is reported on Feb–May 2024 (mean absolute difference from the
+        day-1 forecast for temperature, wind and rain), so its optimism has a size;
+      - free tier only: each run takes a call budget (default 8,000), paced under 4,000
+        calls an hour, stops on a rate limit and resumes on the next run; requests are
+        grouped into windows of at most 14 days per venue point (one call each).
 - [ ] F3 Context rows for every training and target match at kickoff − 1 h and − 48 h,
       written once per data snapshot (`context-build --horizon-hours`), hashed into the
       reproducibility manifest.

@@ -6,7 +6,8 @@ importance, league_rules); this module joins them and adds congestion, referee, 
 choice, VAR and local kickoff hour.
 
 Acceptance test (stated before building, docs/FEASIBILITY_REGISTER.md progress):
-  leakage   no value uses a fact first observable after as_of (tests/test_context.py seeds a
+  leakage   no value uses a fact first observable after as_of, except the labelled D29
+            weather stand-in (realised_proxy) (tests/test_context.py seeds a
             later result, deduction, forecast and referee and checks none reach the row);
   coverage  bundle league matches 2019 on, by league-season: travel, congestion (both
             directions), weather and kickoff hour >= 99%; importance wherever a zone rule
@@ -23,9 +24,13 @@ Columns and their as-of rule:
                          {side}_next_kind league | cup | continental, {side}_next_match_id
                          so a model can weight it by that match's importance.
   weather_source         forecast (newest Open-Meteo snapshot observed <= as_of for this
-                         kickoff hour) | climatology (ERA5 2016-2018 at the venue) | null
-                         (venue not placed); temperature_c, precipitation_mm, wind_speed_kmh,
-                         forecast_lead_hours (2.12, 2.13).
+                         kickoff hour: live capture, or the previous-runs forecasts of
+                         weather_history from 2024-02-01) | realised_proxy (D29: ERA5 weather
+                         on the day, kickoffs 2019-07-01 to 2024-01-31 at horizons <= 24 h
+                         only; an optimistic look-ahead admitted for backtests) |
+                         climatology (ERA5 2016-2018 at the venue) | null (venue not
+                         placed); temperature_c, precipitation_mm, wind_speed_kmh,
+                         forecast_lead_hours (null unless forecast) (2.12, 2.13).
   {side}_importance      dead_rubber | must_win | live from the table as of as_of; null for
                          cups, play-off rounds and seasons without a zone rule (2.20).
   referee, referee_basis snapshot: what the newest fixture_snapshot observed <= as_of names;
@@ -55,9 +60,10 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from adatta.adapters import normalize
+from adatta.adapters.open_meteo import MatchWeather
 from adatta.adapters.storage import RawStore
 from adatta.db import models
-from adatta.features import climatology, importance, referees, travel
+from adatta.features import climatology, importance, referees, travel, weather_history
 from adatta.features.league_rules import Rules
 
 DEFAULT_HORIZON = timedelta(hours=1)
@@ -237,6 +243,16 @@ def context_features(
     imp = importance.importance_features(session, matches, rules, horizon)
     cal = Calendar(session, [t for m in matches for t in (m.home_team_id, m.away_team_id)])
     forecasts = forecasts_as_of(session, matches, as_of)
+    realised: dict[int, MatchWeather] = {}
+    if horizon <= weather_history.PROXY_MAX_HORIZON:  # D29 stand-in, backtests only
+        early = [
+            m for m in matches
+            if m.match_id not in forecasts
+            and weather_history.PROXY_FROM <= _utc(m.kickoff_time) < weather_history.AS_ISSUED_FROM
+        ]  # fmt: skip
+        realised = weather_history.load_realised(
+            session, store, weather_history.targets(early, venue_of, venues)
+        )
     named = referees_as_of(session, store, matches, as_of)
     history = referees.RefereeHistory.load(session, store)
     meta = {
@@ -267,6 +283,11 @@ def context_features(
                 "weather_source": "forecast", "temperature_c": w.temperature_c,
                 "precipitation_mm": w.precipitation_mm, "wind_speed_kmh": w.wind_speed_kmh,
                 "forecast_lead_hours": round(_days(_utc(w.observed_at), ko) * 24, 2),
+            }  # fmt: skip
+        elif (r := realised.get(m.match_id)) is not None:
+            row |= {
+                "weather_source": "realised_proxy", "temperature_c": r.temperature_c,
+                "precipitation_mm": r.precipitation_mm, "wind_speed_kmh": r.wind_speed_kmh,
             }  # fmt: skip
         elif c.get("clim_temperature_c") is not None:
             row |= {

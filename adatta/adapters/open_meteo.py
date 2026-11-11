@@ -27,6 +27,9 @@ GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 ELEVATION_URL = "https://api.open-meteo.com/v1/elevation"
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+# Forecasts as issued by earlier model runs (`<var>_previous_dayN`: the run N days before);
+# values exist from late January 2024 (probed 2026-11-11).
+PREVIOUS_RUNS_URL = "https://previous-runs-api.open-meteo.com/v1/forecast"
 # The free tier counts a request as one call per 14 days of data per location (fewer than 10
 # variables), and allows 10,000 calls a day and 5,000 an hour.
 DAYS_PER_CALL = 14
@@ -217,6 +220,15 @@ def match_weather(payload: dict[str, Any], kickoff: datetime) -> MatchWeather | 
     )
 
 
+def previous_run_view(payload: dict[str, Any], day: int) -> dict[str, Any]:
+    """A previous-runs response seen as one run's forecast: `<var>_previous_day<day>` renamed
+    to `<var>`, so match_weather reads it like a live forecast."""
+    h = payload.get("hourly") or {}
+    suffix = f"_previous_day{day}"
+    return {"hourly": {"time": h.get("time") or [],
+                       **{var: h.get(var + suffix) or [] for var in HOURLY}}}  # fmt: skip
+
+
 def ensure_source(session: Session) -> None:
     if session.get(models.Source, SOURCE_ID) is None:
         session.add(models.Source(source_id=SOURCE_ID, description="Open-Meteo (free API)"))
@@ -303,6 +315,22 @@ class OpenMeteoClient:
         if elevation is not None:
             params["elevation"] = elevation
         return self.fetch(session, ARCHIVE_URL, params)
+
+    def previous_runs(
+        self, session: Session, latitude: float, longitude: float, start: str, end: str,
+        days: tuple[int, ...] = (1, 2),
+    ) -> dict[str, Any]:  # fmt: skip
+        """Hourly forecasts for [start, end] (UTC dates) as issued by the runs `days` days
+        earlier, at the point the live forecast uses (coordinates to 4 decimals)."""
+        params = {
+            "latitude": round(latitude, 4),
+            "longitude": round(longitude, 4),
+            "hourly": ",".join(f"{v}_previous_day{d}" for d in days for v in HOURLY),
+            "start_date": start,
+            "end_date": end,
+            "timezone": "UTC",
+        }
+        return self.fetch(session, PREVIOUS_RUNS_URL, params)
 
     def forecast(self, session: Session, latitude: float, longitude: float) -> dict[str, Any]:
         params = {

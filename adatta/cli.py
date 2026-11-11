@@ -6,6 +6,7 @@ import subprocess
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 import typer
@@ -446,6 +447,60 @@ def climatology_fetch(
         om = OpenMeteoClient(make_store(get_settings()))
         counts = fetch_baseline(session, om, cells, budget)
     typer.echo(f"{len(cells)} cells needed; {dict(counts)}")
+
+
+def _bundle_league_matches(session: Session) -> list[Any]:
+    """Bundle league matches from 2019 that were played or are to be played."""
+    from sqlalchemy import select
+
+    from adatta.db import models
+    from adatta.features.context import NOT_PLAYED
+
+    M, S = models.Match, models.Season
+    leagues, _ = _bundle_competition_ids(session)
+    return list(
+        session.scalars(
+            select(M)
+            .join(S, S.season_id == M.season_id)
+            .where(S.competition_id.in_(leagues), S.year >= 2019, M.status.not_in(NOT_PLAYED))
+        )
+    )
+
+
+@app.command("weather-history")
+def weather_history_fetch(
+    budget: int = typer.Option(8000, help="most Open-Meteo calls to use this run"),
+    dry_run: bool = typer.Option(False, help="only count the requests still needed"),
+) -> None:
+    """Past-match weather for backtests (D29; adatta/features/weather_history.py): as-issued
+    previous-runs forecasts from 2024-02-01 and ERA5 realised weather 2019-07 to 2024-05.
+    Resumable: run it on later days until nothing is left. Free tier: 10,000 calls a day."""
+    from collections import Counter
+
+    from adatta.features import weather_history as wh
+
+    with get_session() as session:
+        targets = wh.load_targets(session, _bundle_league_matches(session))
+        jobs = wh.plan(session, targets, datetime.now(UTC))
+        typer.echo(
+            f"{len(targets)} placed matches; jobs needed: {dict(Counter(j.kind for j in jobs))}"
+        )
+        if dry_run:
+            return
+        om = OpenMeteoClient(make_store(get_settings()))
+        counts = wh.fetch(session, om, jobs, budget)
+    typer.echo(dict(counts))
+
+
+@app.command("weather-history-report")
+def weather_history_report() -> None:
+    """The D29 stand-in's error: ERA5 realised minus the day-1 as-issued forecast, Feb-May
+    2024 (no requests)."""
+    from adatta.features import weather_history as wh
+
+    with get_session() as session:
+        targets = wh.load_targets(session, _bundle_league_matches(session))
+        typer.echo(wh.proxy_error(session, make_store(get_settings()), targets))
 
 
 @app.command("importance-report")

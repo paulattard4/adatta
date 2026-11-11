@@ -1,17 +1,20 @@
 """The match context table: as-of rules and the no-leakage acceptance test."""
 
+from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import httpx
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from adatta.adapters import normalize
+from adatta.adapters import open_meteo as om
 from adatta.adapters.storage import LocalStore, encode_payload
 from adatta.db import models
 from adatta.db.models import Base
-from adatta.features import context, travel
+from adatta.features import context, travel, weather_history
 from adatta.features.league_rules import Deduction, LeagueRules, Rules, SeasonRule
 
 T0 = datetime(2023, 8, 12, 14, 0, tzinfo=UTC)
@@ -164,3 +167,82 @@ def _forecast(
         latitude=43.26, longitude=-2.93, temperature_c=temp, precipitation_mm=0.0,
         wind_speed_kmh=10.0, hourly={}, storage_key="w",
     )  # fmt: skip
+
+
+class _FakeOpenMeteo:
+    """Previous-runs: day-1 run 20 C, day-2 run 10 C; archive (ERA5): 30 C. Counts calls."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        self.calls.append(request.url.host)
+        start = datetime.fromisoformat(request.url.params["start_date"]).replace(tzinfo=UTC)
+        end = datetime.fromisoformat(request.url.params["end_date"]).replace(tzinfo=UTC)
+        hours = int((end - start).total_seconds() // 3600) + 24
+        times = [(start + timedelta(hours=i)).strftime("%Y-%m-%dT%H:%M") for i in range(hours)]
+        if "previous-runs" in request.url.host:
+            h: dict[str, Any] = {"time": times}
+            for day, temp in ((1, 20.0), (2, 10.0)):
+                h[f"temperature_2m_previous_day{day}"] = [temp] * hours
+                h[f"precipitation_previous_day{day}"] = [0.5] * hours
+                h[f"wind_speed_10m_previous_day{day}"] = [12.0] * hours
+        else:
+            h = {"time": times, "temperature_2m": [30.0] * hours,
+                 "precipitation": [0.0] * hours, "wind_speed_10m": [5.0] * hours}  # fmt: skip
+        return httpx.Response(200, json={"hourly": h})
+
+
+def _history(s: Session, store: LocalStore, matches: list[models.Match],
+             api: _FakeOpenMeteo) -> Counter[str]:  # fmt: skip
+    client = om.OpenMeteoClient(
+        store, http=httpx.Client(transport=httpx.MockTransport(api.handler))
+    )
+    now = datetime(2026, 11, 11, tzinfo=UTC)
+    jobs = weather_history.plan(s, weather_history.load_targets(s, matches), now)
+    return weather_history.fetch(s, client, jobs, budget_calls=100, sleep=lambda _: None)
+
+
+def test_as_issued_forecasts_are_used_from_their_run(tmp_path: Path) -> None:
+    s, store, ids = _setup(tmp_path)
+    t = ids["teams"]
+    late = ids["match"]("issued", t[2], t[3], datetime(2024, 3, 2, 15, tzinfo=UTC),
+                        status="FT")  # fmt: skip
+    s.commit()
+    api = _FakeOpenMeteo()
+    counts = _history(s, store, [late], api)
+    # Feb-May 2024 also gets ERA5, to measure the stand-in against the forecasts.
+    assert counts["as_issued"] == 1 and counts["era5"] == 1 and counts["snapshots"] == 2
+    assert _history(s, store, [late], api)["jobs"] == 0  # resumable: nothing left
+    near = context.context_features(s, store, [late], _rules(), timedelta(hours=1)).row(
+        0, named=True
+    )
+    assert (near["weather_source"], near["temperature_c"], near["forecast_lead_hours"]) == (
+        "forecast", 20.0, 24.0)  # fmt: skip
+    far = context.context_features(s, store, [late], _rules(), timedelta(hours=48)).row(
+        0, named=True
+    )
+    assert (far["temperature_c"], far["forecast_lead_hours"]) == (10.0, 48.0)
+    far = context.context_features(s, store, [late], _rules(), timedelta(hours=72)).row(
+        0, named=True
+    )
+    assert far["weather_source"] is None  # no run that early, and no stand-in after 2024-02
+    err = weather_history.proxy_error(s, store, weather_history.load_targets(s, [late]))
+    assert err["temperature_c"] == {"n": 1, "mae": 10.0, "bias": 10.0}
+
+
+def test_realised_stand_in_only_before_as_issued_and_at_short_horizons(tmp_path: Path) -> None:
+    s, store, ids = _setup(tmp_path)
+    target = ids["target"]
+    api = _FakeOpenMeteo()
+    counts = _history(s, store, [target], api)
+    assert counts["era5"] == 1 and counts["as_issued"] == 0
+    near = _row(s, store, ids, _rules(), timedelta(hours=1))
+    assert (near["weather_source"], near["temperature_c"]) == ("realised_proxy", 30.0)
+    assert near["forecast_lead_hours"] is None
+    far = _row(s, store, ids, _rules(), timedelta(hours=48))
+    assert far["weather_source"] is None  # beyond 24 h: climatology (not downloaded here)
+    # A forecast observed by as_of wins over the stand-in.
+    s.add(_forecast(target, AS_OF - timedelta(hours=3), 12.5))
+    s.commit()
+    assert _row(s, store, ids, _rules())["weather_source"] == "forecast"

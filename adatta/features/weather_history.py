@@ -189,7 +189,7 @@ def _span(start: date, end: date) -> set[date]:
 
 def fetch(
     session: Session, om: OpenMeteoClient, jobs: Sequence[Job], budget_calls: int,
-    sleep: Callable[[float], None] = time.sleep, calls_per_hour: int = 4000,
+    sleep: Callable[[float], None] = time.sleep, calls_per_hour: int = 2000,
 ) -> Counter[str]:  # fmt: skip
     """Run jobs (one call each) until the budget is spent; stops on a rate limit. A server
     error, timeout or dropped connection skips the window, stopping after

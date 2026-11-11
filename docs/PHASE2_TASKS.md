@@ -164,9 +164,13 @@ Features (outside `adatta/model/`, can start now):
         2026-11-05 have a forecast or the stand-in; climatology only where neither exists;
       - the stand-in's error is reported on Feb–May 2024 (mean absolute difference from the
         day-1 forecast for temperature, wind and rain), so its optimism has a size;
-      - free tier only: each run takes a call budget (default 8,000), paced under 4,000
+      - free tier only: each run takes a call budget (default 8,000), paced at 2,000
         calls an hour, stops on a rate limit and resumes on the next run; requests are
         grouped into windows of at most 14 days per venue point (one call each).
+      Progress: 2026-11-11, 1,551 of 6,641 as-issued windows stored; the ERA5 windows not
+      started. Open-Meteo began refusing this machine ("Too many concurrent requests")
+      after about 1,550 requests at 4,000 an hour on top of the day's climatology calls, so
+      the pace is now 2,000 an hour. Resume daily with `adatta weather-history`.
 - [ ] F3 Context rows for every training and target match at kickoff − 1 h and − 48 h,
       written once per data snapshot (`context-build --horizon-hours`), hashed into the
       reproducibility manifest.

@@ -1,0 +1,27 @@
+# Referee name overrides (adatta/features/referees.py; register 2.18).
+# {country: {raw provider name: canonical name}}: the raw name is resolved as if it were the
+# canonical one. For spelling and nickname variants of one first name, which the automatic
+# rules (same first token, or matching initial) do not merge.
+# Entered 2026-11-11 from `adatta referees-report`; owner to review.
+#
+# Left unmerged on purpose (genuinely ambiguous, each stays its own identity; the list
+# `adatta referees-report` prints): Spain "J. Martinez" (José María Sánchez Martínez or Juan
+# Martínez Munuera), "J. Munuera" (Juan Martínez Munuera or José Luis Munuera Montero),
+# "J. Sanchez" and "José Sánchez" (Sánchez Martínez, Sánchez Villalobos or Sánchez Santos),
+# "A. Ruiz" (Alejandro Muñiz Ruiz or Alejandro Ruiz Aguilera).
+
+England:
+  "Andy Madley, England": Andrew Madley
+  "Benjamin Speedie, England": Ben Speedie
+  "Rueben Ricardo, England": Ruebyn Ricardo
+  "Samuel Allison, England": Sam Allison
+  "Stephen Martin, England": Steve Martin
+France:
+  "Bastein Dechepy": Bastien Dechepy
+  "Bastein Dechepy, France": Bastien Dechepy
+Italy:
+  "Guiseppe Collu": Giuseppe Collu
+  # The Serie A referee is Antonio Rapuano; "Andrea" appears only in the new format.
+  "Andrea Rapuano, Italy": Antonio Rapuano
+Spain:
+  "Sergui Claudiu Muresan, Spain": Sergiu Claudiu Muresan

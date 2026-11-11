@@ -89,7 +89,7 @@ timing (the entry says which) · `absent` = verified missing from every source w
 |---|---|---|---|---|---|---|---|
 | 2.16 | Congestion, backward: days since the last match | Fixture calendar across **all** a team's competitions, API-Football `/fixtures?league&season` | League and domestic-cup fixtures: every season. **Added 2026-11-09** (`config/calendar_competitions.yml`, fixture lists only): UCL, UEL, UECL (from 2021), UEFA Super Cup, Club World Cup, EFL Cup, Community Shield, the Spanish, Italian, German and French super cups, Coupe de la Ligue (2019): 75 seasons, 75 requests, 6,457 finished matches, 2,678 involving a bundle team (911 UCL, 776 UEL, 554 EFL Cup). Not loaded: friendlies (excluded by §4.5) and international duty (a player-level effect) | Neon `match`; `reports/backfill/20261109T141402Z.csv` | Past match dates are facts; reconstructable | **verified** | n/a |
 | 2.17 | Congestion, forward: days to the next significant match | Fixture calendar as known at the as-of time | History holds only final kickoff times. Live capture shows schedules move: 130 of 4,384 captured matches had their kickoff changed in 4 days (2026-11-05 to 11-09). Also needs 2.16's competitions and 2.20's importance | `fixture_snapshot` | Pre-match, published, and revised: as-of reconstructable only from `fixture_snapshot` (from 2026-11-05) | **partial** | D25 (2026-11-09): dev and holdout use final dates, labelled an optimistic look-ahead; the live period checks it |
-| 2.18 | Referee identity and strictness history | API-Football `/fixtures` `fixture.referee`; strictness from cards and fouls (`team_match_stat`) | Name on 100% of finished league matches in all 70 league-seasons (one exception: Ligue 2 2025, 307 of 309). **The name format changed during 2025/26** ("D. Massa" became "Davide Massa, Italy"), so distinct names per season roughly double (Serie A 41 → 76, 2. Bundesliga 42 → 80); entity resolution is needed. Cards and fouls 99.95% | R2 fixture lists; Neon | Name: post-match fact for history | **partial** (resolution) | Resolve names once (normalise, initial + surname within competition, review queue); until then strictness from the pool prior (2.19) only |
+| 2.18 | Referee identity and strictness history | API-Football `/fixtures` `fixture.referee`; strictness from cards and fouls (`team_match_stat`) | Name on 100% of finished league matches in all 70 league-seasons (one exception: Ligue 2 2025, 307 of 309). **The name format changed during 2025/26** ("D. Massa" became "Davide Massa, Italy"), so distinct names per season roughly double (Serie A 41 → 76, 2. Bundesliga 42 → 80); entity resolution is needed. Cards and fouls 99.95% | R2 fixture lists; Neon | Name: post-match fact for history | **verified** (2026-11-11: names resolved per country, `adatta/features/referees.py`, `config/referee_overrides.yml`; history in the context table) | Five ambiguous Spanish short names ("J. Martinez" and others) stay unmerged, each its own identity; a referee with no history uses the pool (`pool_*` columns) |
 | 2.19 | Referee assignment before kickoff (actual referee vs pool prior, §6.2) | `/fixtures` `fixture.referee` polled daily by capture (`fixture_snapshot`) | Captured 2026-11-05 to 11-09, matches played since capture began: referee present before kickoff in 10/10 PL, 9/9 Bundesliga, 9/9 2. Bundesliga, 10/10 Serie A, 10/10 Serie B, 9/9 Ligue 1, 9/9 Ligue 2 (all at least 24 h before), 12/12 Championship and 10/10 La Liga (all under 24 h before), **Segunda 2/9**, FA Cup 0/39 | `fixture_snapshot` | Pre-match, published; **when it was published is not reconstructable for 2019–2025** | **partial** | Pool prior by competition and tier until the referee appears (§6.2). D26 (2026-11-09): in backtests the actual referee is known from T-24 h, the pool prior before that; optimistic for Championship, La Liga and Segunda, whose segments are flagged. Re-measure after a month of capture |
 | 2.20 | Importance (dead rubber, must-win, final) | Derived: as-of league table computed from our results, plus each league-season's zone rules (promotion, play-off, relegation places). `/standings` gives zone labels | Results 100%. `/standings` returns only the final table (`update` = season end) and its labels are post-season outcomes (PL 2024 labels 17th place "Champions League"), so they are not usable as of a date. Zone rules and point deductions are not in the results | Probes `/standings` PL and Serie B 2024; Neon results; 2026-11-09 final `/standings` for all 70 league-seasons (68 requests) | Results: post-match facts. Zone rules: static per season. Deductions: dated facts | **verified** (2026-11-09: `config/league_rules.yml`, confirmed by the owner, D27; checked by `adatta rules-check`; importance labels built, `adatta/features/importance.py`) | A deduction or awarded result with an unknown date counts only after the season's last match; a season with no rule has importance off |
 | 2.21 | VAR in use (`has_var`) | Events `type=Var` in `/fixtures?ids` | **No Var event in any 2019/20 match**, although VAR was in use that season in all five top flights. From 2020: top flights 16–43% of matches have a Var event; Serie B from 2021, Segunda and 2. Bundesliga from 2020; Championship 0–0.2% and Ligue 2 0–1.3% every season | R2 detail scan, 26,969 matches | Competition-season fact; static | **verified** (2026-11-09: `var_from` per league in `config/league_rules.yml`, confirmed by the owner, D27) | n/a |
@@ -130,8 +130,9 @@ phase time.
 ## Summary: what fails, and where it degrades
 
 **Gate result: every covariate has an evidenced entry; Phase 2 is not yet buildable in full.**
-40 entries (37 distinct covariates; B.6–B.8 repeat Phase 2 rows): 24 verified, 9 partial,
-7 absent (updated 2026-11-09: after the calendar backfill 2.15 and 2.16 moved to verified;
+40 entries (37 distinct covariates; B.6–B.8 repeat Phase 2 rows): 25 verified, 8 partial,
+7 absent (updated 2026-11-11: after referee name resolution 2.18 moved to verified;
+updated 2026-11-09: after the calendar backfill 2.15 and 2.16 moved to verified;
 after the venue table 2.8, 2.9, 2.10, 2.13 and 2.14 did; after the league-rules table 2.20
 did; after the owner's review 2.21 did). The absent ones were expected and are already off the plan; the partial ones are what
 stands between Phase 2 and modelling.
@@ -152,7 +153,6 @@ stands between Phase 2 and modelling.
 |---|---|---|---|
 | Weather forecast (2.12) | Every match before about Feb 2024: dev 2019–2023 and holdout 2024/25 up to Feb 2024 | Climatology (2.13) | Nothing: as-issued forecast history does not exist earlier. Live capture of forecasts from now on |
 | Congestion forward (2.17) | Dev and holdout (no as-of fixture calendar before 2026-11-05) | Final fixture dates (stated look-ahead) or live period only | A decision, then capture |
-| Referee strictness (2.18) | 2025/26 names until resolved | Competition-tier pool prior | Name resolution |
 | Referee assignment (2.19) | Segunda (2/9 before kickoff), Championship and La Liga (under 24 h), cups | Pool prior until the referee appears | A longer capture sample to confirm lead times |
 | Added time (2.22) | All | Added time as a lower bound | n/a |
 | Surface (2.11) | All (current value only) | Term off; near-constant in these bundles anyway | n/a |
@@ -328,9 +328,36 @@ is the fallback, still to build.
     yet published); days to next 97.4% (the season's last rounds have no next match yet).
     The remaining nulls are teams with no loaded previous or next match (promoted from or
     relegated to a league we don't load).
-  - *Not in it yet:* referee strictness (needs name resolution, 2.18), added time per half
+  - *Not in it yet:* added time per half
     (2.22, partial), surface (2.11), the consecutive-away-trips flag (§6.2), and the
     importance weighting of the next match (left to the model, which gets its id).
+
+- **Referee identity and history (2.18), 2026-11-11:** `adatta/features/referees.py`,
+  `config/referee_overrides.yml`, `adatta referees-report`; new context columns.
+  - *Problem:* the provider writes one referee as "D. Massa", "Davide Massa, Italy" or (La
+    Liga) "César Soto", and switched during 2025/26, so names per league-season doubled
+    (Serie A 41 → 76).
+  - *Resolution:* per country (leagues and cups share referees): accents, case and the
+    ", Country" suffix folded; initials + surname matched to the full name containing it;
+    full names merged when one's tokens appear in order in the other's with the same first
+    token. A name that links two different referees stays unmerged and is listed for
+    review. Ten first-name variants and typos (Andy/Andrew Madley, Bastein/Bastien Dechepy,
+    Andrea/Antonio Rapuano and others) are in the overrides file, owner to review.
+  - *Acceptance test, stated first:* 2025/26 identities per league-season back inside each
+    league's 2019–2024 range; every raw name maps to one identity; real-name unit tests;
+    history only from matches final by as_of. Result: passes. Serie A 2025 76 → 42,
+    2. Bundesliga 80 → 44, Championship 75 → 42, Ligue 1 41 → 22 (2019–2024: 37–45, 40–46,
+    37–51, 19–26); La Liga 26 against 20–25 (the unmerged names). Five Spanish short names
+    remain unmerged ("J. Martinez" is Sánchez Martínez or Martínez Munuera; "J. Munuera",
+    "J. Sanchez", "José Sánchez", "A. Ruiz"). Histories run on through the switch (Davide
+    Massa 176 → 199 prior matches across both formats).
+  - *Context columns:* referee_id; referee_matches, referee_cards_pm, referee_fouls_pm
+    (that referee's finished domestic matches before as_of, from 2016); pool_matches,
+    pool_cards_pm, pool_fouls_pm (the competition's last 365 days) for every match.
+    2019–2025: identity on 99.99% of matches, 95% with at least 10 prior matches; pool on
+    100%. Pool cards per match: Premier League 3.8, Championship 3.8, Bundesliga 4.0,
+    Ligue 1 4.1, Serie A 4.7, La Liga 5.1, Segunda 5.3, Serie B 5.3. Shrinkage of a
+    referee towards the pool is the model's (§8.4).
 
 ## Proposed next steps (each needs the owner's go-ahead)
 
@@ -346,3 +373,4 @@ is the fallback, still to build.
 10. ~~Monthly deduction check~~ done 2026-11-11: `adatta standings-refresh` fetches the ten
     current tables (10 requests, quota planner) and runs `rules-check`, exiting 1 on any
     problem. First run: 80 tables, 0 problems. Run it monthly, or after news of a sanction.
+11. ~~Referee name resolution and history~~ done 2026-11-11 (see Progress).

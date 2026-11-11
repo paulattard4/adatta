@@ -33,15 +33,18 @@ Columns and their as-of rule:
                          final name (season fixture list, else the newest snapshot) is used
                          only when as_of >= kickoff - 24 h (D26); pool_prior: not known
                          (2.18, 2.19).
-                         Raw provider names: not yet resolved to one referee entity.
+  referee_id             the referee identity (adatta/features/referees.py: name formats
+                         merged per country, config/referee_overrides.yml); referee_matches,
+                         referee_cards_pm, referee_fouls_pm: that referee's finished matches
+                         in any domestic competition before as_of (null with no referee).
+  pool_*                 the same over the competition's matches in the 365 days before
+                         as_of: the pool prior's data, for every match (2.18).
   has_var                league-season fact from config/league_rules.yml; null for cups.
   kickoff_hour_local     hour at the venue (its IANA timezone); null if the venue is unplaced.
 """
 
 from __future__ import annotations
 
-import gzip
-import json
 from bisect import bisect_left, bisect_right
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
@@ -54,7 +57,7 @@ from sqlalchemy.orm import Session
 from adatta.adapters import normalize
 from adatta.adapters.storage import RawStore
 from adatta.db import models
-from adatta.features import climatology, importance, travel
+from adatta.features import climatology, importance, referees, travel
 from adatta.features.league_rules import Rules
 
 DEFAULT_HORIZON = timedelta(hours=1)
@@ -81,6 +84,13 @@ CONTEXT_SCHEMA: dict[str, pl.DataType | type[pl.DataType]] = {
     "forecast_lead_hours": pl.Float64,
     "referee": pl.Utf8,
     "referee_basis": pl.Utf8,
+    "referee_id": pl.Utf8,
+    "referee_matches": pl.Int64,
+    "referee_cards_pm": pl.Float64,
+    "referee_fouls_pm": pl.Float64,
+    "pool_matches": pl.Int64,
+    "pool_cards_pm": pl.Float64,
+    "pool_fouls_pm": pl.Float64,
     "has_var": pl.Boolean,
     "kickoff_hour_local": pl.Int64,
 }
@@ -180,7 +190,9 @@ def referees_as_of(
                 seen[match_id] = name or None
             if name:
                 final[match_id] = name
-    lists = _season_referees(session, store, [m for m in matches if m.match_id not in seen])
+    lists = referees.fixture_referees(
+        session, store, {m.season_id for m in matches if m.match_id not in seen}
+    )
     out: dict[int, tuple[str | None, str]] = {}
     for m in matches:
         if m.match_id in seen:  # capture was watching by as_of: what it saw then
@@ -192,37 +204,6 @@ def referees_as_of(
             out[m.match_id] = (name, "d26")
         else:
             out[m.match_id] = (None, "pool_prior")
-    return out
-
-
-def _season_referees(
-    session: Session, store: RawStore, matches: Sequence[models.Match]
-) -> dict[str, str]:
-    """{fixture source_ref: referee} from the newest stored /fixtures list of each
-    league-season the matches belong to."""
-    S, C, R = models.Season, models.Competition, models.RawPayload
-    season_ids = sorted({m.season_id for m in matches})
-    keys = {
-        (str(ref), int(year))
-        for ref, year in session.execute(
-            select(C.source_ref, S.year)
-            .join(C, C.competition_id == S.competition_id)
-            .where(S.season_id.in_(season_ids))
-        )
-    }
-    newest: dict[tuple[str, int], str] = {}
-    for params, key in session.execute(
-        select(R.params, R.storage_key).where(R.endpoint == "/fixtures").order_by(R.fetched_at)
-    ):
-        if set(params) == {"league", "season"}:
-            k = (str(params["league"]), int(params["season"]))
-            if k in keys:
-                newest[k] = key
-    out: dict[str, str] = {}
-    for key in newest.values():
-        for f in json.loads(gzip.decompress(store.get(key)))["response"]:
-            if f["fixture"].get("referee"):
-                out[str(f["fixture"]["id"])] = f["fixture"]["referee"]
     return out
 
 
@@ -256,7 +237,8 @@ def context_features(
     imp = importance.importance_features(session, matches, rules, horizon)
     cal = Calendar(session, [t for m in matches for t in (m.home_team_id, m.away_team_id)])
     forecasts = forecasts_as_of(session, matches, as_of)
-    referees = referees_as_of(session, store, matches, as_of)
+    named = referees_as_of(session, store, matches, as_of)
+    history = referees.RefereeHistory.load(session, store)
     meta = {
         sid: (comp, year)
         for sid, comp, year in session.execute(
@@ -292,7 +274,15 @@ def context_features(
                 "precipitation_mm": c["clim_precipitation_mm"],
                 "wind_speed_kmh": c["clim_wind_speed_kmh"],
             }  # fmt: skip
-        row["referee"], row["referee_basis"] = referees[m.match_id]
+        row["referee"], row["referee_basis"] = named[m.match_id]
+        if comp.country not in CONTINENTAL:
+            if row["referee"] is not None:
+                rid = history.identify(comp.country, str(row["referee"]))
+                n, cards, fouls = history.referee(rid, t)
+                row |= {"referee_id": rid, "referee_matches": n, "referee_cards_pm": cards,
+                        "referee_fouls_pm": fouls}  # fmt: skip
+            n, cards, fouls = history.pool(comp.competition_id, t)
+            row |= {"pool_matches": n, "pool_cards_pm": cards, "pool_fouls_pm": fouls}
         league = rules.league(int(comp.source_ref)) if competition_kind(comp) == "league" else None
         row["has_var"] = league.has_var(year) if league is not None else None
         vid = venue_of.get(m.match_id)

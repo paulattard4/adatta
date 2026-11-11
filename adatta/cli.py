@@ -555,6 +555,64 @@ def context_build(
     typer.echo(f"{df.height} matches written to {out}")
 
 
+@app.command("referees-report")
+def referees_report() -> None:
+    """Referee identities (adatta/features/referees.py): distinct raw names and identities by
+    league and season, the names left unmerged for review, and the busiest identities' card
+    and foul rates (no requests; reads stored fixture lists)."""
+    from collections import defaultdict
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from adatta.db import models
+    from adatta.features.referees import CONTINENTAL, RefereeHistory, fixture_referees
+
+    S, C, M = models.Season, models.Competition, models.Match
+    store = make_store(get_settings())
+    with get_session() as session:
+        history = RefereeHistory.load(session, store)
+        leagues, _ = _bundle_competition_ids(session)
+        seasons = {
+            sid: (name, country, year)
+            for sid, name, country, year in session.execute(
+                select(S.season_id, C.name, C.country, S.year)
+                .join(C, C.competition_id == S.competition_id)
+                .where(S.competition_id.in_(leagues), S.year >= 2019)
+            )
+            if country not in CONTINENTAL
+        }
+        names = fixture_referees(session, store, seasons)
+        per: dict[tuple[str, int], tuple[set[str], set[str]]] = defaultdict(lambda: (set(), set()))
+        for ref, sid in session.execute(
+            select(M.source_ref, M.season_id).where(M.season_id.in_(list(seasons)))
+        ):
+            if ref in names:
+                name, country, year = seasons[sid]
+                raw, ids = per[(name, year)]
+                raw.add(names[ref])
+                ids.add(history.identify(country, names[ref]))
+    years = sorted({y for _, y in per})
+    typer.echo("raw names -> identities, by season: " + " ".join(str(y) for y in years))
+    for league in sorted({n for n, _ in per}):
+        cells = []
+        for y in years:
+            raw, ids = per.get((league, y), (set(), set()))
+            cells.append(f"{len(raw)}->{len(ids)}")
+        typer.echo(f"  {league:17} " + " ".join(cells))
+    for country, review in sorted(history.review.items()):
+        if review:
+            typer.echo(f"unmerged for review, {country}: {', '.join(review)}")
+    now = datetime.now(UTC)
+    busiest = sorted(
+        ((rid, *history.referee(rid, now)) for rid in history.identities()),
+        key=lambda r: -r[1],
+    )[:10]
+    typer.echo("busiest referees (matches, cards/match, fouls/match):")
+    for rid, n, cards, fouls in busiest:
+        typer.echo(f"  {rid:40} {n:4} {cards} {fouls}")
+
+
 @app.command("climatology-coverage")
 def climatology_coverage() -> None:
     """Share of bundle league matches from 2019 with a climatology value, and the mean

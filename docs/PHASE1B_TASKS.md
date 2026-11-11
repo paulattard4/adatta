@@ -37,7 +37,7 @@ Order matters (§14.5): the diagnostics gate first, the backtest comparison seco
    as `champion` or `rejected` in `model_run`, with reasons (§14.6).
 4. **Calibration:** reliability per 1X2 outcome reported for dev and holdout. Recalibration,
    if ever wanted, is a separate challenger (§14.7).
-5. **Serving:** posterior-predictive simulation from stored draws writes `market_projection`
+5. **Serving (passed 2026-11-11, section 7):** posterior-predictive simulation from stored draws writes `market_projection`
    rows (probability + 90% interval) under a `projection_run` with the full §14.8 manifest.
    No live NUTS on request (§12.1).
 
@@ -794,7 +794,15 @@ Tasks:
       fixtures x 400 draws project in about 1 s.
 - [x] `adatta/model/live.py` and `serve.yml`: weekly refit, gates, R2 draws, `model_run`.
       Built and unit-tested; not yet run on GitHub.
-- [ ] First live refit and projection tick (item 5).
+- [x] First live refit and projection tick (item 5). **Pass, 2026-11-11.** Refits as of
+      2026-11-09 (serve runs 43067196649 and 43071409227, code 4866132), `model_run` 20–24,
+      all passing the gates: R-hat 1.004–1.005, bulk ESS 1,225–1,674, tail ESS 1,188–3,017,
+      0 divergences; fits 4.6 min (Germany, France) to 10.0 min (Spain). The first run lost
+      the England, Spain and Italy rows to Neon's idle-in-transaction timeout during the fit
+      (fixed in 4866132); the rerun reused their stored draws. Capture tick 43074670596
+      (18:07 UTC) wrote projection_run 1: initial projections for all 128 upcoming bundle
+      fixtures (1,408 rows), none outside its interval; the whole capture step took 46 s
+      (27–52 s on the three ticks before).
 - Spec deviation, raised 2026-11-11 for the owner: §12.1 stores posterior draws as ArviZ
   netCDF; serving stores the 400 thinned draws prediction reads (npz, a few MB per bundle),
   as the backtest cache does, because a full trace is about 0.7 GB per bundle per week.

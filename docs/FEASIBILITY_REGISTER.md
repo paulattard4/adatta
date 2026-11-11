@@ -298,8 +298,8 @@ is the fallback, still to build.
     through the quota planner) showed two: Southampton −4 (Championship; EFL ruling of
     2026-05-19 for spying, applied from the start, appeal lodged) and Juve Stabia −4
     (Serie B; a second 2 points from a TFN decision of 2026-09-24, appeal rejected
-    2026-11-10, owner-confirmed; the first 2 were already in the table by then, exact date
-    not confirmed, so also dated 2026-09-24). `adatta rules-check` now checks the current tables
+    2026-11-10, owner-confirmed; the first 2 applied from the start of the season,
+    owner-confirmed, dated 2026-08-01). `adatta rules-check` now checks the current tables
     too: 80 tables, 0 problems.
   - *Labels:* all 3,758 league matches of 2026/27 are labelled; every one is "live" so far
     (about a third of the season played), as expected.

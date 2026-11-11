@@ -114,7 +114,7 @@ deductions:
   - {league_id: 136, season: 2022, team_ref: "1692", team: Reggina, points: 5, effective: null, date_confidence: unknown, note: ""}
   - {league_id: 136, season: 2023, team_ref: "498", team: Sampdoria, points: 2, effective: 2023-08-01, date_confidence: approximate, note: "applied from the start of the season"}
   - {league_id: 136, season: 2024, team_ref: "10137", team: Cosenza, points: 4, effective: null, date_confidence: unknown, note: ""}
-  - {league_id: 136, season: 2026, team_ref: "863", team: Juve Stabia, points: 2, effective: 2026-09-24, date_confidence: approximate, note: "first sanction, imposed before 2026-09-24 (reported then as already in the table); exact date not confirmed, so dated 2026-09-24 and a backtest never sees it early"}
+  - {league_id: 136, season: 2026, team_ref: "863", team: Juve Stabia, points: 2, effective: 2026-08-01, date_confidence: approximate, note: "first sanction: in the table from the start of the season (owner); decision date not known, dated before the first round (2026-08-21)"}
   - {league_id: 136, season: 2026, team_ref: "863", team: Juve Stabia, points: 2, effective: 2026-09-24, date_confidence: high, note: "second sanction: TFN, missing ownership documentation after the 2026-04-17 sale; appeal rejected 2026-11-10 (owner)"}
 
 # awarded_results: points a team gained (positive) or lost (negative) when a disciplinary

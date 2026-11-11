@@ -20,8 +20,10 @@ France:
   "Bastein Dechepy, France": Bastien Dechepy
 Italy:
   "Guiseppe Collu": Giuseppe Collu
-  # The Serie A referee is Antonio Rapuano; "Andrea" appears only in the new format.
+  # One referee, Antonio Rapuano (owner confirmed 2026-11-11): the provider also writes
+  # "Andrea Rapuano, Italy" (Serie B 2016/17) and, surname first, "Rapuano Andrea" (2026/27).
   "Andrea Rapuano, Italy": Antonio Rapuano
+  "Rapuano Andrea": Antonio Rapuano
 Spain:
   "Sergui Claudiu Muresan, Spain": Sergiu Claudiu Muresan
   "J. Martinez": Juan Martinez Munuera

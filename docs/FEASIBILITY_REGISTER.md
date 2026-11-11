@@ -341,8 +341,9 @@ is the fallback, still to build.
     ", Country" suffix folded; initials + surname matched to the full name containing it;
     full names merged when one's tokens appear in order in the other's with the same first
     token. A name that links two different referees stays unmerged and is listed for
-    review. Ten first-name variants and typos (Andy/Andrew Madley, Bastein/Bastien Dechepy,
-    Andrea/Antonio Rapuano and others) are in the overrides file, owner to review.
+    review. Eleven first-name variants and typos (Andy/Andrew Madley, Bastein/Bastien Dechepy,
+    and others) are in the overrides file; the owner confirmed on 2026-11-11 that "Andrea
+    Rapuano" and "Rapuano Andrea" are Antonio Rapuano (179 prior matches as one identity).
   - *Acceptance test, stated first:* 2025/26 identities per league-season back inside each
     league's 2019–2024 range; every raw name maps to one identity; real-name unit tests;
     history only from matches final by as_of. Result: passes. Serie A 2025 76 → 42,

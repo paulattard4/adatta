@@ -187,9 +187,9 @@ Features (outside `adatta/model/`, can start now):
       reproducibility manifest.
 
 Model (after the Phase 1b audit closes):
-- [ ] M1 Harness: prediction-time scoring (latest refit's draws + the target's context
+- [x] M1 Harness: prediction-time scoring (latest refit's draws + the target's context
       row), with the leakage test above. The 1b reference scores unchanged.
-      **Built 2026-11-12, awaiting the CI model job.** `backtest.score_targets` adds each
+      **Pass, 2026-11-12** (CI run 43173650741). `backtest.score_targets` adds each
       target's context terms (`covariates.offsets`: its own row, observed by kickoff − 1 h)
       to the refit's draws; `RunSpec.groups` / `--group G1..G7` (canonical order, model
       name `_ctx-<groups>`). `covariates.check_as_of` refuses any training or target row
@@ -199,9 +199,9 @@ Model (after the Phase 1b audit closes):
       final at the refit leaves the fit's design unchanged; changing one target's weather
       moves that prediction only; with no groups, or groups at coefficient 0, the scores
       equal the 1b scores (rtol 1e-12).
-- [ ] M2 Covariate terms in the team model, one flag per group, all off by default; with
+- [x] M2 Covariate terms in the team model, one flag per group, all off by default; with
       every flag off the model is bit-identical to 1b (same seed, same draws).
-      **Built 2026-11-12, awaiting the CI model job.** `adatta/model/covariates.py` codes
+      **Pass, 2026-11-12** (CI run 43173650741). `adatta/model/covariates.py` codes
       G1–G7 as the table above (nulls add 0); `team_strength.covariate_terms` adds
       `beta_<group>` per group: Normal(0, 0.2), referee 0.1, kickoff a regularised
       horseshoe (global scale 0.01, Student-t(4) slab of scale 0.2, fixed before testing).
@@ -213,6 +213,9 @@ Model (after the Phase 1b audit closes):
       push (a deliberate change to the default model fails that step, by design). The
       local Docker engine stopped creating containers on 2026-11-12, so these run in CI
       (the model tests never ran in CI before: `ci.yml` installed no model group).
+      Result against 35a2813, the last commit before M2 (manual dispatch, `identical_ref`):
+      strength_open and independent, 8 stored variables x 400 draws each, bit-identical;
+      the 8 PyMC tests pass.
       Note: editing `team_strength.py` changes the config hash, so cached backtest draws
       are not reused; with the default path identical, the stored 1b dev predictions stay
       the M3 reference.

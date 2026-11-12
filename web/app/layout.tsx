@@ -10,6 +10,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <header className="topbar">
           <Link href="/" className="brand">adatta</Link>
+          <nav className="topnav"><Link href="/">Fixtures</Link><Link href="/played">Played</Link></nav>
           <span className="topbar-note">local · read-only · champion projections</span>
         </header>
         <main>{children}</main>

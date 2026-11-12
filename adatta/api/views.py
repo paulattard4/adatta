@@ -487,3 +487,145 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
         no_projection_reason=reason,
         unavailable=UNAVAILABLE,
     )  # fmt: skip
+
+
+# --------------------------------------------------------------------------- played view
+
+
+def _pre_kickoff_forecasts(
+    session: Session, kickoffs: dict[int, datetime]
+) -> dict[int, tuple[str, datetime, list[models.MarketProjection]]]:
+    """Per match: the latest milestone whose projection run was generated before kickoff,
+    its generation time and rows. A run generated at or after kickoff is never used."""
+    MP, PR = models.MarketProjection, models.ProjectionRun
+    found: dict[int, dict[str, tuple[datetime, list[models.MarketProjection]]]] = {}
+    ids = list(kickoffs)
+    for i in range(0, len(ids), 500):
+        for r, gen in session.execute(
+            select(MP, PR.generated_at)
+            .join(PR, PR.projection_run_id == MP.projection_run_id)
+            .where(MP.match_id.in_(ids[i : i + 500]))
+        ):
+            gen = _utc(gen)
+            if gen >= kickoffs[r.match_id]:
+                continue
+            slot = found.setdefault(r.match_id, {})
+            t, rows = slot.get(r.milestone, (gen, []))
+            if gen > t:  # a newer run of the same milestone replaces the older one
+                t, rows = gen, []
+            if gen == t:
+                rows.append(r)
+            slot[r.milestone] = (t, rows)
+    out = {}
+    for mid, slot in found.items():
+        ms = max(slot, key=lambda m: serve.MILESTONES.index(m))
+        out[mid] = (ms, *slot[ms])
+    return out
+
+
+def _results(session: Session, ids: list[int]) -> dict[int, tuple[int, int]]:
+    R = models.MatchResult
+    out: dict[int, tuple[int, int]] = {}
+    for i in range(0, len(ids), 500):
+        for mid, hg, ag in session.execute(
+            select(R.match_id, R.home_goals_nt, R.away_goals_nt).where(
+                R.match_id.in_(ids[i : i + 500]), R.superseded_at.is_(None))
+        ):  # fmt: skip
+            if hg is not None and ag is not None:
+                out[mid] = (int(hg), int(ag))
+    return out
+
+
+def _mean_score(metric: str, xs: list[float]) -> sc.MeanScore:
+    a = np.asarray(xs, dtype=float)
+    se = float(a.std(ddof=1) / np.sqrt(len(a))) if len(a) > 1 else float("nan")
+    m = float(a.mean())
+    return sc.MeanScore(metric=metric, n=len(a), mean=m, lo=m - 1.96 * se, hi=m + 1.96 * se)
+
+
+PLAYED_METRICS = ("log_loss_1x2", "rps_1x2", "brier_1x2", "log_loss_ou25", "log_loss_btts")
+
+
+def _summary(segment: str, cid: int | None, ms: list[sc.PlayedMatch]) -> sc.ScoreSummary:
+    scores = []
+    for metric in PLAYED_METRICS:
+        xs = [v for m in ms if (v := getattr(m.scores, metric)) is not None]
+        if xs:
+            scores.append(_mean_score(metric, xs))
+    return sc.ScoreSummary(segment=segment, competition_id=cid, n=len(ms), scores=scores)
+
+
+def played(
+    session: Session,
+    ctx: Context,
+    now: datetime,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    competition_id: int | None = None,
+) -> sc.PlayedList:
+    """Finished bundle league matches against the forecast published before their kickoff
+    (docs/DASHBOARD_TASKS.md, played view)."""
+    from adatta.adapters.normalize import FINISHED
+    from adatta.eval import metrics
+
+    end = end or now
+    PR, M, C = models.ProjectionRun, models.Match, models.Competition
+    first = session.scalar(select(PR.generated_at).order_by(PR.generated_at).limit(1))
+    since = _utc(first) if first is not None else None
+    lo = max(t for t in (start, since) if t is not None) if (start or since) else None
+    where: list[Any] = [M.status.in_(FINISHED), M.kickoff_time <= end]
+    if lo is not None:
+        where.append(M.kickoff_time >= lo)
+    if competition_id is not None:
+        where.append(C.competition_id == competition_id)
+    rows = [r for r in _matches(session, ctx, where)
+            if (r.round or "").startswith("Regular Season")] if since else []  # fmt: skip
+    results = _results(session, [r.match_id for r in rows])
+    forecasts = _pre_kickoff_forecasts(
+        session, {r.match_id: r.kickoff for r in rows if r.match_id in results}
+    )
+    out: list[sc.PlayedMatch] = []
+    for r in rows:
+        if r.match_id not in forecasts or r.match_id not in results:
+            continue
+        ms, gen, prs = forecasts[r.match_id]
+        sel = {(p.market_type, p.line, p.selection): p for p in prs}
+        hg, ag = results[r.match_id]
+        x = [sel[("1X2", None, s)] for s in ("home", "draw", "away")]
+        p1x2 = np.array([p.probability for p in x])
+        k = metrics.outcomes(hg, ag)
+        over, btts = sel.get(("OU", 2.5, "over")), sel.get(("BTTS", None, "yes"))
+        scores = sc.PlayedScores(
+            log_loss_1x2=metrics.log_loss(p1x2, k["1X2"]), rps_1x2=metrics.rps(p1x2, k["1X2"]),
+            brier_1x2=metrics.brier(p1x2, k["1X2"]),
+            log_loss_ou25=None if over is None else metrics.log_loss(
+                np.array([over.probability, 1 - over.probability]), k["OU2.5"]),
+            log_loss_btts=None if btts is None else metrics.log_loss(
+                np.array([btts.probability, 1 - btts.probability]), k["BTTS"]),
+        )  # fmt: skip
+        out.append(sc.PlayedMatch(
+            match_id=r.match_id, kickoff=r.kickoff, competition_id=r.competition_id,
+            competition=r.competition, home=r.home, away=r.away, home_goals=hg, away_goals=ag,
+            outcome=("home", "draw", "away")[k["1X2"]], milestone=ms, generated_at=gen,
+            home_p=_p(x[0]), draw_p=_p(x[1]), away_p=_p(x[2]),
+            over25=None if over is None else _p(over), btts=None if btts is None else _p(btts),
+            scores=scores,
+        ))  # fmt: skip
+    out.sort(key=lambda m: (m.kickoff, m.match_id), reverse=True)
+    summary = [_summary("all", None, out)] if out else []
+    comps: dict[int, list[sc.PlayedMatch]] = {}
+    for m in out:
+        comps.setdefault(m.competition_id, []).append(m)
+    summary += [
+        _summary(v[0].competition, cid, v)
+        for cid, v in sorted(comps.items(), key=lambda kv: kv[1][0].competition)
+    ]
+    return sc.PlayedList(
+        generated_at=now,
+        forecasts_since=since,
+        start=lo,
+        end=end,
+        uniform_log_loss_1x2=float(np.log(3)),
+        summary=summary,
+        matches=out,
+    )

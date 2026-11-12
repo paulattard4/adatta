@@ -168,3 +168,58 @@ class MatchView(BaseModel):
     coherence: Coherence | None
     no_projection_reason: str | None
     unavailable: list[Unavailable]
+
+
+class PlayedScores(BaseModel):
+    """Proper scores of one forecast against its result (adatta.eval.metrics)."""
+
+    log_loss_1x2: float
+    rps_1x2: float
+    brier_1x2: float
+    log_loss_ou25: float | None
+    log_loss_btts: float | None
+
+
+class PlayedMatch(BaseModel):
+    match_id: int
+    kickoff: datetime
+    competition_id: int
+    competition: str
+    home: str
+    away: str
+    home_goals: int
+    away_goals: int
+    outcome: Literal["home", "draw", "away"]
+    milestone: str  # the latest milestone published before kickoff
+    generated_at: datetime
+    home_p: Prob
+    draw_p: Prob
+    away_p: Prob
+    over25: Prob | None
+    btts: Prob | None
+    scores: PlayedScores
+
+
+class MeanScore(BaseModel):
+    metric: str
+    n: int
+    mean: float
+    lo: float  # 95% interval of the mean
+    hi: float
+
+
+class ScoreSummary(BaseModel):
+    segment: str  # "all" or a competition name
+    competition_id: int | None
+    n: int
+    scores: list[MeanScore]
+
+
+class PlayedList(BaseModel):
+    generated_at: datetime
+    forecasts_since: datetime | None  # first projection run; nothing earlier was forecast
+    start: datetime | None
+    end: datetime
+    uniform_log_loss_1x2: float  # ln 3: a forecast of 1/3 each
+    summary: list[ScoreSummary]
+    matches: list[PlayedMatch]  # newest first

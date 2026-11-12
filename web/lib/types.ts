@@ -63,3 +63,25 @@ export interface MatchView {
   milestones: Milestone[]; matrix: ScoreMatrix | null; decomposition: Decomposition[];
   coherence: Coherence | null; no_projection_reason: string | null; unavailable: Unavailable[];
 }
+
+export interface PlayedScores {
+  log_loss_1x2: number; rps_1x2: number; brier_1x2: number;
+  log_loss_ou25: number | null; log_loss_btts: number | null;
+}
+
+export interface PlayedMatch {
+  match_id: number; kickoff: string; competition_id: number; competition: string;
+  home: string; away: string; home_goals: number; away_goals: number;
+  outcome: "home" | "draw" | "away"; milestone: string; generated_at: string;
+  home_p: Prob; draw_p: Prob; away_p: Prob; over25: Prob | null; btts: Prob | null;
+  scores: PlayedScores;
+}
+
+export interface MeanScore { metric: string; n: number; mean: number; lo: number; hi: number }
+
+export interface ScoreSummary { segment: string; competition_id: number | null; n: number; scores: MeanScore[] }
+
+export interface PlayedList {
+  generated_at: string; forecasts_since: string | null; start: string | null; end: string;
+  uniform_log_loss_1x2: number; summary: ScoreSummary[]; matches: PlayedMatch[];
+}

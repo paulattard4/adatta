@@ -165,3 +165,28 @@ h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
   .market-sels .prob-value { font-size: 15px; }
   .prob { grid-template-areas: "label label" "value value" "interval interval" "bar bar"; }
 }
+
+/* nav and played view */
+.topnav { display: flex; gap: 14px; margin-left: 18px; font-size: 13px; }
+.topnav a { color: var(--dim); text-decoration: none; }
+.topnav a:hover { color: var(--text); }
+.played-head, .played-row { display: grid; grid-template-columns: 110px minmax(180px, 1fr) 60px repeat(3, minmax(90px, 120px)) 110px; gap: 10px; align-items: center; }
+.played-head { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.played-row { padding: 6px; border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
+.played-row:hover { background: var(--panel-2); }
+.played-cell { border-radius: 4px; padding: 2px 4px; min-width: 0; }
+.played-cell.hit { outline: 1px solid var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.result { font-weight: 600; }
+.played-comp, .played-pp { font-size: 11px; display: block; }
+.table-wrap { overflow-x: auto; }
+table.scores { border-collapse: collapse; width: 100%; font-size: 12px; }
+table.scores th, table.scores td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.scores th { color: var(--dim); font-weight: 500; font-size: 11px; }
+@media (max-width: 760px) {
+  .played-head { display: none; }
+  .played-row { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: dense; }
+  .played-row .kickoff { grid-column: 1 / 3; }
+  .played-row .result { grid-column: 3; text-align: right; }
+  .played-row .teams, .played-row .ll { grid-column: 1 / -1; }
+  .played-row .ll { text-align: left; }
+}

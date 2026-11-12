@@ -94,3 +94,38 @@ Homebrew has no bottle for this macOS and was compiling OpenSSL and Node from so
 - The decomposition leaves out the form term because the champion has none (no zero rows).
 - CI: `ci.yml` has a `web` job (Node 22: `npm ci`, `npm audit --audit-level=high`, lint, build,
   typecheck), added 2026-11-12.
+
+## Played view: forecasts against results (requested 2026-11-12)
+
+Live forecasting began 2026-11-11, so the first forecast matches are played from
+2026-11-21. The view shows only forecasts actually published before kickoff: no
+reconstruction (the owner chose to wait for real results over a retrospective backtest).
+
+Acceptance test (stated 2026-11-12, before building):
+1. **Only real pre-kickoff forecasts.** A match appears when it is finished with a 90'
+   result and has a projection whose run was generated before the match's kickoff; the
+   forecast shown is the latest such milestone (initial, T-7d, T-24h, T-60m, close). A
+   projection generated at or after kickoff is never used. Unit-tested, including a
+   post-kickoff run that must be ignored.
+2. **The stored numbers.** Probabilities and intervals are the `market_projection` rows of
+   that milestone, unchanged (1X2, OU 2.5, BTTS).
+3. **Scored like the backtest.** Per match: 1X2 log loss, RPS and Brier, OU 2.5 and BTTS
+   log loss, computed with `adatta.eval.metrics` (the backtest's functions); tested against
+   hand-computed values.
+4. **Summary with its uncertainty.** Overall and per competition: the number of matches and
+   each mean score with a 95% interval, and a note that a few dozen matches say little.
+   A uniform 1X2 forecast (log loss ln 3) is shown as the only fixed yardstick: no odds
+   (principle 1; market comparison is the wave 2 edge view).
+5. **Filters and links.** Competition and date range; each row links to its match view.
+6. **Empty state** says forecasts began 2026-11-11 and when the first results are due.
+7. Read-only and no odds (the existing AST test covers the new code); ruff, mypy, pytest,
+   lint, typecheck and build pass.
+
+- [x] Played view built 2026-11-12: `GET /api/played` (`views.played`), page `/played`
+      (nav: Fixtures · Played). **Pass on synthetic data** (`tests/test_played_view.py`,
+      4 tests: items 1–3 and the endpoint, incl. a post-kickoff run with a better-looking
+      forecast that must be ignored, and played-but-never-forecast matches left out);
+      checked in the browser on a six-match synthetic world at desktop and phone width (no
+      sideways scroll). Live it shows the empty state (forecasting began 2026-11-11,
+      0 forecast matches played). **To confirm after 21 November:** the first real rows
+      match their match views and the stored projections.

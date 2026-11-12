@@ -54,6 +54,11 @@ def create_app(sessions: Callable[[], Session], ctx: views.Context,
         except KeyError:
             raise HTTPException(404, "not a projected-bundle match") from None
 
+    @app.get("/api/played", response_model=sc.PlayedList)
+    def played(db: Db, start: datetime | None = None, end: datetime | None = None,
+               competition_id: int | None = None) -> sc.PlayedList:  # fmt: skip
+        return views.played(db, ctx, clock(), start, end, competition_id)
+
     return app
 
 

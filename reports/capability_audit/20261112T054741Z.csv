@@ -1,0 +1,17 @@
+league_id,competition,season,n_finished,capability,declared,n_sampled,n_with,coverage_ratio,status,mismatch
+40,Championship,2026,180,has_lineups,true,40,40,1.0,available,false
+40,Championship,2026,180,has_player_match_stats,true,40,40,1.0,available,false
+40,Championship,2026,180,has_shot_stats,true,40,40,1.0,available,false
+40,Championship,2026,180,has_xg,,40,40,1.0,available,false
+40,Championship,2026,180,has_corners_data,true,40,40,1.0,available,false
+40,Championship,2026,180,has_cards_data,true,40,40,1.0,available,false
+40,Championship,2026,180,has_half_split_stats,,40,40,1.0,available,false
+40,Championship,2026,180,has_substitution_timestamps,true,40,40,1.0,available,false
+40,Championship,2026,180,has_referee_history,,40,40,1.0,available,false
+40,Championship,2026,180,has_event_coordinates,,40,0,0.0,absent,false
+40,Championship,2026,180,has_physical_load_data,,40,0,0.0,absent,false
+40,Championship,2026,180,has_attendance_data,,40,0,0.0,absent,false
+40,Championship,2026,180,supports_lineup_strength_adjustment,,0,0,,unknown,false
+40,Championship,2026,180,supports_player_goal_props,,0,0,,unknown,false
+40,Championship,2026,180,supports_player_shot_props,,0,0,,unknown,false
+40,Championship,2026,180,supports_player_discipline_props,,0,0,,unknown,false

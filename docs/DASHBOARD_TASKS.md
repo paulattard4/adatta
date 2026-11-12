@@ -78,13 +78,19 @@ Node 22 LTS lives in `~/.local/node22` (the official nodejs.org build, checksum 
 Homebrew has no bottle for this macOS and was compiling OpenSSL and Node from source.
 
 ## Notes from the build
-- **Capability audit misses the current season.** No `competition_source_capability` rows
-  exist for any 2026/27 bundle season (2024 and 2025 have 160 each), so every fixture shows
-  "capabilities not audited" and the source-capability component reads "xG unknown". The
-  dashboard is reporting the gap correctly; the fix is to run the capability audit for the
-  current seasons (API quota, so not run here).
+- **Capability audit for the current season: run 2026-11-12.** No `competition_source_capability`
+  rows existed for any 2026/27 bundle season, so every fixture showed "capabilities not
+  audited" and "xG unknown". `adatta audit --league L --season 2026` for the 10 leagues (40
+  sampled finished fixtures each, seed 20261105; 40 requests, details already in the raw store),
+  reports `reports/capability_audit/20261112T0546*`–`T0548*`. Same pattern as 2025/26: xG
+  available in 8 leagues, partial in Ligue 2 (22.5%) and Segunda (87.5%); the four player-prop
+  capabilities stay unknown, as in every season. **Effect on the model:** `harness.load_xg`
+  admits xG only where `has_xg` is available or partial, so the refits up to 2026-11-09 fitted
+  2026/27 matches on goals only (graceful fallback, principle 8). The next scheduled weekly
+  refit (Monday 2026-11-16) includes 2026/27 xG. Re-audit each new season before its first refit.
 - `npm audit`: the PostCSS advisory inside Next 15 is closed with an override to PostCSS
   8.5.32; six moderate advisories remain in the ESLint toolchain (minimatch ReDoS), dev-only
   and fixed only by major upgrades.
 - The decomposition leaves out the form term because the champion has none (no zero rows).
-- Not in CI yet: the web checks run locally; adding a Node job to `ci.yml` is a small follow-up.
+- CI: `ci.yml` has a `web` job (Node 22: `npm ci`, `npm audit --audit-level=high`, lint, build,
+  typecheck), added 2026-11-12.

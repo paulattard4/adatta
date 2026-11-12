@@ -264,5 +264,18 @@ Model (after the Phase 1b audit closes):
       (with the 2016–2018 importance labels; weather still partial, which only G3 reads).
       Order: G1, G2, G5, G4, G6, G7, then G3 after the weather download.
       `tests/test_phase2_report.py` (6 tests).
+      **G1 rest: fail (2026-11-12, run 43186485166, commit c9ebc89, snapshot e9feb71c1fce2b40,
+      reference run 42359964241; grid identical).** 18,591 warm dev matches, 8,685 active.
+      (1) mixing pass: R-hat > 1.01 in 4 refits (reference + 2 = 5), ESS < 400 in 0,
+      divergences in 1. (2) active 1X2 log loss −0.02% [−0.10%, +0.07%]: **fail**, no
+      detectable gain. (3) all warm 1X2 log loss −0.00%, **RPS +0.02% (fail, limit 0)**,
+      OU2.5 log loss +0.05%, total CRPS +0.07%; bundles −0.08% to +0.06%. (4) ECE better on
+      every outcome (home −0.0037, draw −0.0031, away −0.0003, over 2.5 −0.0005). D25/D26
+      leagues −0.04% [−0.15%, +0.08%], others −0.01% [−0.13%, +0.12%]. (5) short_rest −0.011
+      to −0.032 in four bundles, +0.023 in England, each within about one sd of 0;
+      long_break mixed (−0.054 to +0.011); sd / prior 0.12–0.24, so the data inform the
+      coefficients and place them near 0. Reading: rest moves expected goals by a percent or
+      two at most, which the strength walk already absorbs; it does not improve 1X2.
+      Recorded as failed; the group stays off by default.
 - [ ] M4 Combined model: gate, weekly dev run, feasibility.
 - [ ] M5 Promotion per D30.

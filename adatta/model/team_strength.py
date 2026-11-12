@@ -427,7 +427,8 @@ def slim(idata: Any, max_draws: int = 400) -> dict[str, NDArray[np.float64]]:
     n = post.sizes["sample"]
     take = np.linspace(0, n - 1, min(max_draws, n)).astype(int)
     # optional: delta (D16), form_last and phi (AR(1) form), xg_shape and xg_bias (xG)
-    extra = ("delta", "form_last", "phi", "xg_shape", "xg_bias", "change_weeks")
+    # sigma_walk: the weekly strength step, for matches ahead of the last step (D34)
+    extra = ("delta", "form_last", "phi", "xg_shape", "xg_bias", "change_weeks", "sigma_walk")
     names = [v for v in (*SLIM_VARS, *extra) if v in post.data_vars]
     # Phase 2 context coefficients (not the horseshoe's auxiliary variables)
     names += [b for b in map(cv.beta_name, cv.GROUPS.values()) if b in post.data_vars]

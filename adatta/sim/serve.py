@@ -32,6 +32,7 @@ from adatta.adapters.storage import RawStore
 from adatta.capture import snapshots
 from adatta.db import models
 from adatta.eval import harness
+from adatta.model import horizon as hz
 from adatta.model.team_strength import FitData, rates_from_draws
 
 Arr = NDArray[np.float64]
@@ -138,13 +139,16 @@ class Fixture:
     league_id: int
     home: int  # team ids
     away: int
+    season: int | None = None  # season start year (D34: a season with no training match)
 
 
-def project(draws: Draws, fd: FitData, fixtures: list[Fixture], max_goals: int
+def project(draws: Draws, fd: FitData, fixtures: list[Fixture], max_goals: int,
+            walk: hz.Walk | None = None,
             ) -> list[dict[tuple[str, float | None, str], tuple[float, float, float]]]:  # fmt: skip
     """Per fixture: selection -> (posterior-mean probability, 5th, 95th percentile).
     Rates as `backtest.score_targets` computes them, for the production model (no D16 shift
-    pending at prediction: the champion has no `delta`)."""
+    pending at prediction: the champion has no `delta`). `walk` (D34) adds the strength
+    drift ahead of the refit; draws stored before D34 have no sigma_walk and get none."""
     if "delta" in draws:
         raise ValueError("D16 shifts are not served; the champion has none")
     tix = {int(t): i for i, t in enumerate(fd.team_ids)}
@@ -154,7 +158,12 @@ def project(draws: Draws, fd: FitData, fixtures: list[Fixture], max_goals: int
     league = np.array([lix[f.league_id] for f in fixtures], dtype=np.int64)
     horizon = np.array([(f.kickoff - fd.start).days // 7 - (fd.n_steps - 1) for f in fixtures],
                        dtype=np.int64)  # fmt: skip
-    lam, mu_ = rates_from_draws(draws, fd, home, away, league, horizon=horizon)
+    offset = None
+    if walk is not None and "sigma_walk" in draws:
+        seasons = np.array([f.season if f.season is not None else -1 for f in fixtures])
+        weeks = hz.weeks_ahead(horizon, hz.new_season(fd, seasons))
+        offset = hz.offsets(draws, fd, home, away, weeks, walk)
+    lam, mu_ = rates_from_draws(draws, fd, home, away, league, horizon=horizon, offset=offset)
     rho = np.asarray(draws["rho"])
     rho = rho[league] if rho.ndim == 2 else np.broadcast_to(rho, lam.shape)
     kappa = np.asarray(draws["kappa"])[league] if "kappa" in draws else np.zeros_like(lam)
@@ -243,7 +252,7 @@ def upcoming(session: Session, leagues: dict[int, str], now: datetime) -> list[F
     M, S, C = models.Match, models.Season, models.Competition
     rows = session.execute(
         select(M.match_id, M.kickoff_time, C.source_ref, M.home_team_id, M.away_team_id,
-               M.status, M.round)
+               M.status, M.round, S.year)
         .join(S, S.season_id == M.season_id)
         .join(C, C.competition_id == S.competition_id)
         .where(C.source_id == SOURCE_ID, C.source_ref.in_([str(x) for x in leagues]),
@@ -251,7 +260,7 @@ def upcoming(session: Session, leagues: dict[int, str], now: datetime) -> list[F
         .order_by(M.kickoff_time, M.match_id)
     ).all()  # fmt: skip
     return [
-        Fixture(r[0], _utc(r[1]), int(r[2]), r[3], r[4])
+        Fixture(r[0], _utc(r[1]), int(r[2]), r[3], r[4], r[7])
         for r in rows
         if r[5] not in NO_MATCH and (r[6] or "").startswith("Regular Season")
     ]
@@ -280,6 +289,7 @@ def run_projection(
     session: Session, store: RawStore, bundles: dict[str, list[int]], model_name: str,
     max_goals: int, manifest: dict[str, Any], now: datetime | None = None,
     loader: Callable[[RawStore, models.ModelRun], Refit] = load_refit,
+    walk: hz.Walk | None = None,
 ) -> ProjectReport:  # fmt: skip
     """Write the due milestone projections for every upcoming bundle fixture. Idempotent:
     a (match, milestone) already in market_projection is never written again. `manifest`
@@ -307,7 +317,7 @@ def run_projection(
         if refit.as_of > now:
             raise ValueError(f"refit {refit.model_run_id} is from the future")  # never leak
         refits[b] = refit
-        for f, proj in zip(fx, project(refit.draws, refit.fd, fx, max_goals), strict=True):
+        for f, proj in zip(fx, project(refit.draws, refit.fd, fx, max_goals, walk), strict=True):
             results[f.match_id] = proj
     if not results:
         return report

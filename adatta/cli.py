@@ -170,6 +170,7 @@ def _projector(session: Session, settings: Any) -> Any:
     """Milestone projections from the champion's latest passing refit (adatta.sim.serve)."""
     from adatta.eval import harness
     from adatta.eval.baseline import _file_hash, _git_sha
+    from adatta.model import horizon as hz
     from adatta.model.backtest import production_spec
     from adatta.sim import serve
 
@@ -178,10 +179,12 @@ def _projector(session: Session, settings: Any) -> Any:
     manifest = {"git_commit": _git_sha(), "lockfile_hash": _file_hash("uv.lock"),
                 "seed": production_spec(cfg).seed}  # fmt: skip
 
+    spec = production_spec(cfg)
+    walk = hz.Walk(spec.seed, spec.structure) if spec.widen else None
+
     def run(now: datetime) -> serve.ProjectReport:
-        return serve.run_projection(session, store, cfg.bundles,
-                                    production_spec(cfg).model_name, cfg.max_goals, manifest,
-                                    now=now)  # fmt: skip
+        return serve.run_projection(session, store, cfg.bundles, spec.model_name,
+                                    cfg.max_goals, manifest, now=now, walk=walk)  # fmt: skip
 
     return run
 

@@ -38,6 +38,7 @@ from adatta.eval import holdout as ho
 from adatta.features import context_table
 from adatta.model import covariates as cv
 from adatta.model import dixon_coles as dc
+from adatta.model import horizon as hz
 from adatta.model import team_strength as ts
 
 Draws = dict[str, NDArray[np.float64]]
@@ -72,6 +73,8 @@ class RunSpec:
     context: str = ""
     # refit times: "weekly" (Mondays) or "results" (Mondays + results triggers, D33)
     grid: str = "weekly"
+    # strength drift for matches ahead of the last refit step (D34)
+    widen: bool = False
 
     @property
     def model_name(self) -> str:
@@ -80,6 +83,7 @@ class RunSpec:
         tags += "_xg" if self.xg else ""
         tags += "_mgr" if self.manager else ""
         tags += f"_ctx-{'-'.join(self.groups)}" if self.groups else ""
+        tags += "_hz" if self.widen else ""
         tags += "_rd" if self.grid == "results" else ""
         return f"phase1b_{self.structure}{tags}{k}"
 
@@ -108,15 +112,18 @@ def config_hash(spec: RunSpec) -> str:
             del fields[name]
     if fields["grid"] == "weekly":  # so does a weekly spec
         del fields["grid"]
+    if not fields["widen"]:  # and one without D34
+        del fields["widen"]
     blob = json.dumps({"spec": fields, "files": {f: _file_hash(f) for f in HASHED_FILES}},
                       sort_keys=True)  # fmt: skip
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
 
 def fit_hash(spec: RunSpec) -> str:
-    """The hash a refit's draws are cached under: the draws don't depend on the grid, so a
-    results-grid run shares its Monday fits with the weekly run (D33)."""
-    return config_hash(replace(spec, grid="weekly"))
+    """The hash a refit's draws are cached under: the draws depend on neither the grid nor
+    prediction-time widening, so a results-grid run (D33) or a widened run (D34) shares its
+    fits with the plain weekly run."""
+    return config_hash(replace(spec, grid="weekly", widen=False))
 
 
 def cache_key(h: str, bundle: str, as_of: datetime) -> str:
@@ -194,11 +201,12 @@ def coefficient_summary(draws: Draws, groups: Sequence[str]) -> dict[str, float]
 
 def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals: int,
                   groups: Sequence[str] = (), horizon_ctx: timedelta = cv.HEADLINE_HORIZON,
-                  ) -> list[dict[str, Any]]:  # fmt: skip
+                  walk: hz.Walk | None = None) -> list[dict[str, Any]]:  # fmt: skip
     """Per target: markets from the posterior-mean score matrix, their scores, tail mass.
     Prediction time (Phase 2, M1): the refit's draws (fitted as of the plan date) with each
     target's own context row, observed by kickoff - horizon_ctx (the headline T - 1 h);
-    `groups` () scores the 1b model unchanged."""
+    `groups` () scores the 1b model unchanged. `walk` (D34) adds the strength drift for
+    matches ahead of the last refit step; None scores them from the last step as is."""
     tix = {int(t): i for i, t in enumerate(fd.team_ids)}
     lix = {lid: i for i, lid in enumerate(fd.leagues)}
     home = np.array([tix.get(int(t), -1) for t in targets["home"]], dtype=np.int64)
@@ -223,6 +231,9 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
         blocks = cv.design(targets, groups)
         offset = cv.offsets(draws, blocks)
         flags = cv.active(blocks)
+    if walk is not None:
+        weeks = hz.weeks_ahead(horizon, hz.new_season(fd, targets["season"].to_numpy()))
+        offset = hz.combine(offset, hz.offsets(draws, fd, home, away, weeks, walk))
     lam, mu_ = ts.rates_from_draws(draws, fd, home, away, league, pending[0], pending[1],
                                    horizon, offset)  # fmt: skip
     rho = np.asarray(draws["rho"])
@@ -261,6 +272,7 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
     if holdout is not None and (spec != production_spec(cfg) or limit is not None):
         raise harness.HoldoutLocked(f"the holdout scores the production spec only, not {spec}")
     fitter = fitter or nuts_fitter(spec)
+    walk = hz.Walk(spec.seed, spec.structure) if spec.widen else None
     plan = harness.refit_plan(df, cfg, seasons, spec.every_days, holdout, spec.grid)[:limit]
     h = config_hash(spec)
     log(f"{bundle} seasons {seasons}: {len(plan)} refits, model {spec.model_name}, config {h}")
@@ -283,6 +295,10 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
             store.put(key, encode(draws, diag))
         coefs = coefficient_summary(draws, spec.groups)
         targets = df[tgt]
+        weeks = iter(hz.weeks_ahead(
+            np.array([(k - fd.start).days // 7 - (fd.n_steps - 1) for k in targets["kickoff"]]),
+            hz.new_season(fd, targets["season"].to_numpy()),
+        ).tolist())  # fmt: skip
         if target_context is not None:
             targets = context_table.attach(targets.select(base_cols), target_context)
         counts = np.bincount(np.concatenate([fd.home, fd.away]), minlength=len(fd.team_ids))
@@ -296,7 +312,7 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
 
         for r, s in zip(targets.iter_rows(named=True),
                         score_targets(draws, fd, targets, cfg.max_goals, spec.groups,
-                                      target_horizon), strict=True):  # fmt: skip
+                                      target_horizon, walk), strict=True):  # fmt: skip
             n_h, n_a = n_of.get(int(r["home"]), 0), n_of.get(int(r["away"]), 0)
             rows.append({
                 "match_id": int(r["match_id"]), "league_id": int(r["league_id"]),
@@ -312,6 +328,7 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
                 "model": spec.model_name, "bundle": bundle, "config_hash": h,
                 **({"ctx_horizon_h": target_horizon.total_seconds() / 3600,
                     "context": spec.context} if spec.groups else {}),
+                **({"walk_weeks": next(weeks)} if spec.widen else {}),
                 "cached": cached is not None, **{f"refit_{k}": v for k, v in diag.items()},
                 **coefs, **s,
             })  # fmt: skip
@@ -559,6 +576,12 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
         p2 = phase2.group_report(pred, c, reference)
         (out / f"phase2_{c}.json").write_text(json.dumps(p2, indent=2, default=str))
         lines += [""] + phase2.markdown(p2)
+    for c in challengers:  # D34: strength drift ahead of the refit against the plain model
+        if reference is None or "_hz" not in c or c.replace("_hz", "") != reference:
+            continue
+        hr = refit_cadence.horizon_report(pred, c, reference)
+        (out / f"horizon_{c}.json").write_text(json.dumps(hr, indent=2, default=str))
+        lines += [""] + refit_cadence.horizon_markdown(hr)
     for c in challengers:  # D33: the results grid against the weekly reference
         if reference is None or not c.endswith("_rd"):
             continue
@@ -698,6 +721,7 @@ def main() -> None:
         help="xG auxiliary likelihood (§5.2); default on for strength_open",
     )
     r.add_argument("--manager", action="store_true", help="manager-change widening (§5.2)")
+    r.add_argument("--widen", action="store_true", help="strength drift ahead of the refit (D34)")
     r.add_argument(
         "--group",
         action="append",
@@ -802,7 +826,7 @@ def main() -> None:
                    form=args.form,
                    xg=args.structure == "strength_open" if args.xg is None else args.xg,
                    manager=args.manager, groups=cv.resolve(args.group),
-                   grid=args.grid)  # fmt: skip
+                   grid=args.grid, widen=args.widen)  # fmt: skip
     leagues = cfg.bundles[args.bundle]
     df = _load(leagues, spec.xg, spec.manager)
     target_ctx, target_h = None, timedelta(hours=args.target_horizon_hours)

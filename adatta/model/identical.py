@@ -71,8 +71,11 @@ def compare(old: ModuleType, new: ModuleType, draws: int = 200) -> bool:
                                 draws=draws, chains=2, structure=structure))  # fmt: skip
         b = new.slim(new.sample(new.prepare(df, LEAGUES, as_of, 1095, 3.0), seed=11,
                                 draws=draws, chains=2, structure=structure))  # fmt: skip
-        same = a.keys() == b.keys() and all(np.array_equal(a[k], b[k]) for k in a)
-        print(f"{structure}: {len(a)} variables x {draws * 2} draws, bit-identical: {same}")
+        # a variable newly stored (e.g. sigma_walk, D34) is allowed; every old one must match
+        added = sorted(b.keys() - a.keys())
+        same = a.keys() <= b.keys() and all(np.array_equal(a[k], b[k]) for k in a)
+        print(f"{structure}: {len(a)} variables x {draws * 2} draws, bit-identical: {same}"
+              + (f"; newly stored: {', '.join(added)}" if added else ""))  # fmt: skip
         ok &= same
     return ok
 

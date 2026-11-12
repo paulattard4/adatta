@@ -889,6 +889,55 @@ Tasks:
       with `vs` = that run (fits only the triggers).
 - [ ] Set `RESULTS_REFITS=on`, then item 4 on the first midweek round.
 
+### 7c. Strength uncertainty ahead of the refit (D34)
+
+Problem: a forecast is made from the refit's last weekly step as if the match were that
+week. Team strength is a weekly random walk (sd `sigma_walk`), so a match h weeks later
+should carry h more weeks of drift, and a match in a season with no training match yet
+should carry the season-start reset (16 weeks of drift, D21) as the training likelihood
+does. Today the initial and T-7d forecasts of matches 1-2 weeks out, and every forecast
+of a season's opening matches, are too sure of themselves.
+
+Design (stated 2026-11-12, before building):
+- **At prediction only** (`adatta/model/horizon.py`): for each team in a target match, a
+  strength innovation N(0, sigma_walk^2 * w) per posterior draw, w = horizon weeks + 16 if
+  the target's season has no training match (`RESET_WEEKS`). With strength + openness
+  (D15) it moves attack and defence by the same delta / sqrt 2, so log lambda_home gains
+  (delta_home - delta_away) / sqrt 2 and log lambda_away the opposite; the independent
+  structure draws attack and defence innovations apart. It enters as an offset on log
+  lambda, like the Phase 2 terms. Cold-start teams get none (already the league average).
+- **Deterministic:** the innovations come from a generator seeded by (spec seed, team id),
+  so the backtest and serving give the same numbers.
+- **The fit is unchanged:** only `sigma_walk` is added to the stored draws, so every config
+  hash changes once (new keys from the next refit) but the posterior is bit-identical
+  (`adatta.model.identical`, extended to allow added stored variables).
+- **Spec flag** `RunSpec.widen` (model tag `_hz`), off by default, so the Phase 2 group
+  runs stay comparable with their reference.
+
+Acceptance test (stated 2026-11-12, before building):
+1. **Unit tests:** with w = 0 the predictions are bit-identical to before; serving equals
+   the backtest to 1e-9 with widening on; the same seed gives the same numbers; the spread
+   of the per-draw log lambda grows with w; cold-start teams are untouched.
+2. **Dev backtest**, 28-day grid (horizons 0-3 weeks; the weekly grid only has horizon
+   0), production spec + widen against reference run 42359964241, paired by match, warm
+   matches. Widened matches (horizon >= 1 or a new season): mean 1X2 log loss and RPS
+   differences <= 0, OU2.5 log loss no worse than +0.1%, ECE of each 1X2 outcome no worse
+   by more than 0.005. Matches with w = 0 must be unchanged (reported; non-zero means the
+   reference has to be rerun on the current code first).
+3. **Promotion (if 2 passes):** `production_spec` gets widen = True. The locked holdout was
+   scored on the weekly grid, where every target has horizon 0, so only its season-opening
+   matches would change; the holdout is not reopened for this (recorded in D34).
+
+Tasks:
+- [x] `adatta/model/horizon.py`, `RunSpec.widen` (`_hz`), serving and backtest plumbing,
+      `sigma_walk` stored, assemble report; widened runs share cached fits with the plain
+      model. Item 1 passes in `tests/test_horizon.py` (6 tests). Storing `sigma_walk`
+      changes `team_strength.py`, so every config hash changes once (including the
+      Monday hash D33 item 2 refers to; D33 itself still leaves it unchanged).
+- [ ] Item 2: 28-day dev backtest, production spec + `widen`, `vs` 42359964241, after the
+      Phase 2 group runs (one backtest at a time).
+- [ ] Item 3 if item 2 passes.
+
 ## Out of scope for 1b (spec places them later)
 Global cross-league layer / Q_league (§10.1; needs continental bridging data), neutral and host
 flags (needed with play-offs and cups), attendance modifier (`has_attendance_data` is absent),

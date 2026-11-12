@@ -29,6 +29,10 @@ on:
         description: "manager-change widening (strength_open only)"
         type: boolean
         default: false
+      widen:
+        description: "strength drift for matches ahead of the last refit step (D34)"
+        type: boolean
+        default: false
       groups:
         description: "Phase 2 context groups, comma-separated (G1-G7 or names); empty = the 1b model"
         default: ""
@@ -63,7 +67,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: backtest-${{ inputs.structure }}-${{ inputs.shifts }}-${{ inputs.form }}-${{ inputs.xg }}-${{ inputs.manager }}-${{ inputs.prior_scale }}-${{ inputs.groups }}-${{ inputs.grid }}
+  group: backtest-${{ inputs.structure }}-${{ inputs.shifts }}-${{ inputs.form }}-${{ inputs.xg }}-${{ inputs.manager }}-${{ inputs.prior_scale }}-${{ inputs.groups }}-${{ inputs.grid }}-${{ inputs.widen }}
   cancel-in-progress: false
 env:
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -109,6 +113,7 @@ jobs:
           ${{ inputs.form && '--form' || '' }}
           ${{ inputs.xg && '--xg' || '--no-xg' }}
           ${{ inputs.manager && '--manager' || '' }}
+          ${{ inputs.widen && '--widen' || '' }}
   assemble:
     needs: refit
     if: ${{ !cancelled() }}
@@ -131,6 +136,7 @@ jobs:
           VS: ${{ inputs.vs }}
           CTX_GROUPS: ${{ inputs.groups }}
           GRID: ${{ inputs.grid }}
+          WIDEN: ${{ inputs.widen }}
           BUNDLES: ${{ inputs.bundles }}
           SEASONS: ${{ inputs.seasons }}
         run: |
@@ -139,7 +145,7 @@ jobs:
           from adatta.model.backtest import RunSpec
           from adatta.model.covariates import resolve
           groups = resolve([g.strip() for g in os.environ['CTX_GROUPS'].split(',') if g.strip()])
-          m = RunSpec(structure=os.environ['STRUCTURE'], prior_scale=float(os.environ['PRIOR_SCALE']), shifts=os.environ['SHIFTS'] == 'true', form=os.environ['FORM'] == 'true', xg=os.environ['XG'] == 'true', manager=os.environ['MANAGER'] == 'true', groups=groups, grid=os.environ['GRID']).model_name
+          m = RunSpec(structure=os.environ['STRUCTURE'], prior_scale=float(os.environ['PRIOR_SCALE']), shifts=os.environ['SHIFTS'] == 'true', form=os.environ['FORM'] == 'true', xg=os.environ['XG'] == 'true', manager=os.environ['MANAGER'] == 'true', groups=groups, grid=os.environ['GRID'], widen=os.environ['WIDEN'] == 'true').model_name
           runs = [('${{ github.run_id }}', m)] + ([tuple(os.environ['VS'].split('/', 1))] if os.environ['VS'] else [])
           print(' '.join(f'{r}/{n}_{b}_{s}.parquet' for r, n in runs for b in json.loads(os.environ['BUNDLES']) for s in json.loads(os.environ['SEASONS'])))")
           vs=()

@@ -818,6 +818,77 @@ Tasks:
   Full traces stay netCDF where they are inspected: the inference-gate runs
   (`adatta/model/gate.py`) and any one-off diagnostic run.
 
+### 7b. Results-triggered refits (D33; spec §12.1 "after each matchday")
+
+Problem: with Monday refits only, a midweek result (Tuesday-Thursday, or a Monday-night
+match) is not used until the following Monday, so the weekend's T-24h, T-60m and close
+forecasts ignore it. The end goal is cup, continental and international football, where
+midweek-to-weekend turnarounds are the norm.
+
+Design (stated 2026-11-12, before building):
+- **Trigger rule** (`harness.refit_triggers`, the same function in production and in the
+  backtest). For each UTC day D with bundle matches, let t = the last kickoff on D + the
+  result lag (3 h, `result_available_after_hours`). A team is pending when its latest
+  result is newer than the latest refit (this week's Monday or an earlier trigger) and its
+  next match is after t and before the next Monday. Refit as of t when a team is pending
+  and waiting for the next match day's t would be later than 26 h before a pending team's
+  next kickoff (the T-24h milestone plus time for the refit). So a Tuesday-Wednesday block
+  gets one refit after Wednesday, a Monday-night result is refitted by midweek (not on
+  Friday night, after Saturday's T-24h), and a weekend gets none (Monday covers it). The
+  rule reads only kickoff times from the published fixture list. On the dev seasons it
+  adds 3-44 refits per bundle-season, mostly 27-40 (Bundesliga 2021-2023: 3-6), against
+  about 45 Mondays. First version (next match day only) refitted Monday-night results on
+  Friday night, after the T-24h forecast; replaced before any run.
+- **Results arrive fast enough:** a new capture job (every tick) fetches `/fixtures?ids`
+  (20 per request) for bundle matches that kicked off 2 h to 3 days ago and are not final,
+  and ingests the result and the match detail (xG for the auxiliary likelihood). Today the
+  calendar refresh is daily, so a result could take up to a day to arrive.
+- **Dispatch:** when a trigger is due (t <= now and no `model_run` as of t), the capture tick
+  dispatches `serve.yml` (GITHUB_TOKEN, `actions: write`), at most once an hour per as_of.
+  `serve.yml` with no input refits everything due for each bundle: this week's Monday and
+  any trigger since. A run that a newer dispatch replaces in the concurrency queue loses
+  nothing, because the next run refits whatever is still due.
+- **Storage and serving:** a trigger refit is stored as
+  `serving/<hash>/<bundle>/<YYYYmmddTHHMM>.npz` (Monday keys are unchanged), and serving
+  already uses the latest passing refit with as_of <= now. Same gates as Monday. A failing
+  trigger refit keeps the last passing one.
+- **Backtest:** `RunSpec.grid = "results"` (model tag `_rd`) plans Mondays plus triggers.
+  Targets are predicted from the latest grid point before their kickoff. Draws are cached
+  under the weekly spec's hash, so the Monday fits are shared with a weekly run. The
+  holdout stays weekly-only.
+
+Acceptance test (stated 2026-11-12, before building):
+1. **No leakage, same rule everywhere (unit tests):** every trigger refit's training rows
+   satisfy kickoff + 3 h <= as_of; the trigger list is a function of kickoffs and results
+   observable at t only; production and the backtest call the same function; with no
+   midweek matches the results grid equals the weekly grid.
+2. **Monday refits unchanged:** same config hash and storage key as before, so the live
+   weekly refits and their cached draws are untouched.
+3. **Dev backtest** (2019-2023, five bundles, production spec, 2,000 draws): `_rd` against
+   the weekly run, paired by match. On the matches it predicts from a trigger refit, the
+   mean 1X2 log loss and RPS differences must be <= 0 (no worse), and the same over all
+   matches. ECE no worse by more than 0.005. The share of trigger refits failing the
+   inference gates is no more than the Monday refits' + 2 points. A gain whose interval
+   excludes 0 is not required: this adds information, not a model term.
+4. **Live:** after a midweek round, the refit as of its trigger passes and is recorded
+   within 60 minutes of t, and the next weekend's T-24h projections use it (component
+   versions in `projection_run`).
+
+Switch: trigger refits run only when the repository variable `RESULTS_REFITS` is `on`
+(read by `serve.yml` and `capture.yml`). It stays off until item 3 passes, so pushing the
+code changes nothing in production except that results are fetched every tick.
+
+Tasks:
+- [x] Trigger rule, results grid, `_rd` backtest spec with shared Monday fits, live due
+      mode, per-tick results job, refit dispatch, the switch. Items 1-2 pass in
+      `tests/test_results_refits.py` (14 tests). Live check of the rule on the real
+      calendar (read-only): no trigger this week (international break); recent weeks give
+      e.g. England Wed 23:00 (week of 2 Nov), Spain and France Monday nights.
+- [ ] Item 3: two backtests, one at a time after the Phase 2 group runs: the production
+      spec at `every_days` 7 on the weekly grid (fits the Mondays), then `grid` results
+      with `vs` = that run (fits only the triggers).
+- [ ] Set `RESULTS_REFITS=on`, then item 4 on the first midweek round.
+
 ## Out of scope for 1b (spec places them later)
 Global cross-league layer / Q_league (§10.1; needs continental bridging data), neutral and host
 flags (needed with play-offs and cups), attendance modifier (`has_attendance_data` is absent),

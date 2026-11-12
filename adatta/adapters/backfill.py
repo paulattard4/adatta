@@ -91,6 +91,25 @@ def _pending_detail(session: Session, season_id: int) -> list[models.Match]:
     )
 
 
+def record_detail(session: Session, match_id: int, fx: dict[str, Any] | None, storage_key: str,
+                  now: datetime) -> None:  # fmt: skip
+    """One finished match's detail row, with its team stats (incl. xG) and coaches. A
+    fixture the provider didn't return is recorded too (returned=False), so the report shows
+    the gap and resumption doesn't ask for it forever."""
+    flags: dict[str, Any] = (
+        {**coverage.observed_flags(fx), "returned": True} if fx else {"returned": False}
+    )
+    session.add(
+        models.MatchDetail(match_id=match_id, source_id=SOURCE_ID, storage_key=storage_key,
+                           observed_at=now, flags=flags)
+    )  # fmt: skip
+    if fx:
+        normalize.ingest_team_stats(session, match_id, stats_adapter.team_stats(fx),
+                                    storage_key, now)  # fmt: skip
+        normalize.ingest_match_coaches(session, match_id, stats_adapter.match_coaches(fx),
+                                       storage_key, now)  # fmt: skip
+
+
 def fetch_detail(
     session: Session, client: ApiFootballClient, season: models.Season,
     on_commit: Callable[[], None],
@@ -104,27 +123,8 @@ def fetch_detail(
         got = {int(fx["fixture"]["id"]): fx for fx in client.fixtures_by_ids(session, batch)}
         now = datetime.now(UTC)
         for ref in batch:
-            fx = got.get(ref)
-            # A fixture the provider didn't return is recorded too (returned=False), so the
-            # report shows the gap and resumption doesn't ask for it forever.
-            flags: dict[str, Any] = (
-                {**coverage.observed_flags(fx), "returned": True} if fx else {"returned": False}
-            )
-            session.add(
-                models.MatchDetail(
-                    match_id=by_ref[ref].match_id, source_id=SOURCE_ID,
-                    storage_key=client.last_storage_key or "", observed_at=now, flags=flags,
-                )
-            )  # fmt: skip
-            if fx:
-                normalize.ingest_team_stats(
-                    session, by_ref[ref].match_id, stats_adapter.team_stats(fx),
-                    client.last_storage_key or "", now,
-                )  # fmt: skip
-                normalize.ingest_match_coaches(
-                    session, by_ref[ref].match_id, stats_adapter.match_coaches(fx),
-                    client.last_storage_key or "", now,
-                )  # fmt: skip
+            record_detail(session, by_ref[ref].match_id, got.get(ref),
+                          client.last_storage_key or "", now)  # fmt: skip
         on_commit()
         session.commit()
         done += len(batch)

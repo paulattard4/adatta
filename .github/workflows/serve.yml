@@ -1,10 +1,12 @@
-# Weekly live refit of the champion (PHASE1B_TASKS section 7; spec §12.1; D11). One refit per
-# bundle as of Monday 00:00 UTC (the backtest grid) with the production spec; draws go to R2
-# under serving/, and a model_run row (window live) records each refit and its inference
-# gates. The capture tick projects from the latest passing refit (adatta.sim.serve).
-# Several schedules because GitHub's scheduler is best-effort (D17) and because a refit waits
-# for Sunday's results: a bundle that is done is skipped, one whose results aren't in yet
-# fails with "not ready" and is retried by the next schedule.
+# Live refits of the champion (PHASE1B_TASKS sections 7 and 7b; spec §12.1; D11, D33). Each
+# job refits every refit of its bundle that is due this week: Monday 00:00 UTC and any
+# results trigger since (after a match day whose teams play again before Monday). The
+# capture tick dispatches this workflow when one is due; the schedules below are the
+# backstop (GitHub's scheduler is best-effort, D17). Production spec; draws go to R2 under
+# serving/, and a model_run row (window live) records each refit and its inference gates.
+# The capture tick projects from the latest passing refit (adatta.sim.serve). A refit whose
+# results aren't in yet is reported "not ready" and left for the next dispatch or schedule;
+# with an as_of input it fails instead.
 # max-parallel 1: one runner slot at most, so a backtest running alongside (18 jobs) still
 # leaves the capture poller its slot. The repo is public: logs carry metrics only.
 name: serve
@@ -12,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       as_of:
-        description: "refit as of this Monday (YYYY-MM-DD); empty = this week's"
+        description: "one refit time: a Monday (YYYY-MM-DD) or a trigger (YYYY-MM-DDTHH:MM, UTC); empty = everything due"
         required: false
         default: ""
   schedule:
@@ -32,6 +34,9 @@ env:
   R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
   R2_BUCKET: ${{ secrets.R2_BUCKET }}
   STORAGE_BACKEND: r2
+  # results-triggered refits (D33): repository variable, "on" once the dev backtest passes;
+  # until then only the Monday refit is due
+  RESULTS_REFITS: ${{ vars.RESULTS_REFITS }}
 jobs:
   refit:
     runs-on: ubuntu-latest
@@ -47,7 +52,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --frozen --group model
-      - name: refit as of Monday
+      - name: refit what is due
         env:
           AS_OF: ${{ inputs.as_of }}
         run: >-

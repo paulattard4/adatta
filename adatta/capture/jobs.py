@@ -7,6 +7,9 @@ can't be recovered and a daily job can simply run on the next tick:
   every run              lineups   fixtures within LINEUP_POLL_FROM of kickoff with no lineup
                          odds      milestone kinds that are due (capture.snapshots)
                          missed    milestone windows that passed uncaptured -> alert
+                         results   final score + detail (xG) for matches that kicked off
+                                    RESULT_WAIT to RESULT_WINDOW ago and aren't final (D33)
+                         refits    dispatch serve.yml when a live refit is due (D33)
                          weather   Open-Meteo forecasts for upcoming matches (capture.weather);
                                     no API-Football quota
   daily per competition  calendar  current-season fixtures -> match rows, results, and a
@@ -51,6 +54,9 @@ from adatta.db import models
 DAILY = timedelta(hours=20)  # "daily" jobs re-run once this long has passed since the last ok
 MISSED_LOOKBACK = timedelta(days=2)
 DAILY_BUDGET_S = 480.0  # no new competition's daily jobs after this much of a run (timeout 14 min)
+RESULT_WAIT = timedelta(hours=2)  # a result is first asked for this long after kickoff
+RESULT_WINDOW = timedelta(days=3)  # and asked for again each tick until final, this long
+DISPATCH_EVERY = timedelta(hours=1)  # a due refit is dispatched again after this long
 
 
 @dataclass
@@ -288,6 +294,67 @@ def capture_detail(session: Session, client: ApiFootballClient, comp: Competitio
 # --------------------------------------------------------------------------- per-match jobs
 
 
+def capture_results(
+    session: Session, client: ApiFootballClient, comps: list[Competition], now: datetime
+) -> int:  # fmt: skip
+    """Every tick: the final score and detail (team stats incl. xG, coaches) of matches that
+    kicked off RESULT_WAIT to RESULT_WINDOW ago and aren't final yet, 20 per /fixtures?ids
+    request, so a results-triggered refit (D33) has them within the hour. The daily calendar
+    refresh stays the backstop. Returns the number of matches that are now final."""
+    M, S, C, D = models.Match, models.Season, models.Competition, models.MatchDetail
+    country = {str(c.league_id): c.country for c in comps}
+    rows = session.execute(
+        select(M, S, C.source_ref)
+        .join(S, S.season_id == M.season_id)
+        .join(C, C.competition_id == S.competition_id)
+        .where(C.source_id == SOURCE_ID, C.source_ref.in_(list(country)),
+               M.kickoff_time <= now - RESULT_WAIT, M.kickoff_time >= now - RESULT_WINDOW)
+    ).all()  # fmt: skip
+    open_ = {int(m.source_ref): (m, season, ref) for m, season, ref in rows
+             if m.status not in normalize.FINISHED and m.status not in afc.NO_MATCH}  # fmt: skip
+    refs = sorted(open_)
+    got: list[tuple[dict[str, Any], str, datetime]] = []  # (fixture, storage key, observed)
+    for i in range(0, len(refs), IDS_BATCH_MAX):
+        batch = client.fixtures_by_ids(session, refs[i : i + IDS_BATCH_MAX], live=True)
+        key, observed = client.last_storage_key or "", _observed(client)
+        got += [(f, key, observed) for f in batch if int(f["fixture"]["id"]) in open_]
+    by_season: dict[int, list[dict[str, Any]]] = {}
+    for f, _, _ in got:
+        by_season.setdefault(open_[int(f["fixture"]["id"])][1].season_id, []).append(f)
+    for fxs in by_season.values():  # one batched upsert per season, not per fixture
+        _, season, league = open_[int(fxs[0]["fixture"]["id"])]
+        normalize.ingest_fixtures(session, season, fxs, country[league])
+    done = [(f, k, o) for f, k, o in got if f["fixture"]["status"]["short"] in normalize.FINISHED]
+    ids = [open_[int(f["fixture"]["id"])][0].match_id for f, _, _ in done]
+    have = set(session.scalars(select(D.match_id).where(D.match_id.in_(ids)))) if ids else set()
+    for f, key, observed in done:
+        m = open_[int(f["fixture"]["id"])][0]
+        if m.match_id not in have:
+            backfill.record_detail(session, m.match_id, f, key, observed)
+    session.flush()
+    return len(done)
+
+
+def dispatch_refits(
+    session: Session, now: datetime, refits_due: Callable[[datetime], list[str]],
+    dispatch: Callable[[], None],
+) -> str:  # fmt: skip
+    """Start serve.yml when a live refit is due (D33), at most once per DISPATCH_EVERY: the
+    serve run refits everything due, so one dispatch covers every bundle."""
+    todo = refits_due(now)
+    if not todo:
+        return "nothing due"
+    L = models.CaptureLog
+    last = session.scalar(
+        select(func.max(L.run_at)).where(L.job == "refit_dispatched", L.outcome == "ok")
+    )
+    if last is not None and _utc(last) > now - DISPATCH_EVERY:
+        return f"due, dispatched at {_utc(last):%H:%M}: {', '.join(todo)}"
+    dispatch()
+    _log(session, "refit_dispatched", "all", now, "ok", 0, ", ".join(todo))
+    return f"dispatched: {', '.join(todo)}"
+
+
 def _with_lineup(session: Session, ids: list[int]) -> set[int]:
     L = models.LineupSnapshot
     out: set[int] = set()
@@ -474,6 +541,8 @@ def run_capture(
     now: datetime | None = None, daily_budget_s: float = DAILY_BUDGET_S,
     clock: Callable[[], float] = time.monotonic, weather: OpenMeteoClient | None = None,
     projector: Callable[[datetime], Any] | None = None,
+    refits_due: Callable[[datetime], list[str]] | None = None,
+    dispatch: Callable[[], None] | None = None,
 ) -> CaptureReport:  # fmt: skip
     now = now or datetime.now(UTC)
     started = clock()
@@ -504,6 +573,10 @@ def run_capture(
         report.actions.update(odds or {})
         report.actions["lineups_confirmed"] += len(confirmed)
         report.missed = step("missed", "all", lambda: detect_missed(session, now)) or []
+        final = step("results", "all", lambda: capture_results(session, client, comps, now))
+        report.actions["results_final"] += final or 0
+        if refits_due is not None and dispatch is not None:
+            step("refits", "all", lambda: dispatch_refits(session, now, refits_due, dispatch))
         if projector is not None:  # milestone projections (adatta.sim.serve): no API requests
             proj = step("project", "all", lambda: projector(now))
             if proj is not None:

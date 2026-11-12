@@ -32,6 +32,7 @@ import polars as pl
 from numpy.typing import NDArray
 
 from adatta.adapters.storage import LocalStore, RawStore, make_store, try_get
+from adatta.eval import cadence as refit_cadence
 from adatta.eval import harness, metrics, phase2
 from adatta.eval import holdout as ho
 from adatta.features import context_table
@@ -69,6 +70,8 @@ class RunSpec:
     groups: tuple[str, ...] = ()
     # digest of the context snapshot the groups were fitted on (features.context_table)
     context: str = ""
+    # refit times: "weekly" (Mondays) or "results" (Mondays + results triggers, D33)
+    grid: str = "weekly"
 
     @property
     def model_name(self) -> str:
@@ -77,6 +80,7 @@ class RunSpec:
         tags += "_xg" if self.xg else ""
         tags += "_mgr" if self.manager else ""
         tags += f"_ctx-{'-'.join(self.groups)}" if self.groups else ""
+        tags += "_rd" if self.grid == "results" else ""
         return f"phase1b_{self.structure}{tags}{k}"
 
 
@@ -102,13 +106,21 @@ def config_hash(spec: RunSpec) -> str:
     for name in ("groups", "context"):  # a spec without context hashes as it did before
         if not fields[name]:
             del fields[name]
+    if fields["grid"] == "weekly":  # so does a weekly spec
+        del fields["grid"]
     blob = json.dumps({"spec": fields, "files": {f: _file_hash(f) for f in HASHED_FILES}},
                       sort_keys=True)  # fmt: skip
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
 
+def fit_hash(spec: RunSpec) -> str:
+    """The hash a refit's draws are cached under: the draws don't depend on the grid, so a
+    results-grid run shares its Monday fits with the weekly run (D33)."""
+    return config_hash(replace(spec, grid="weekly"))
+
+
 def cache_key(h: str, bundle: str, as_of: datetime) -> str:
-    return f"{CACHE_PREFIX}/{h}/{bundle}/{as_of:%Y%m%d}.npz"
+    return f"{CACHE_PREFIX}/{h}/{bundle}/{harness.stamp(as_of)}.npz"
 
 
 def encode(draws: Draws, diag: Diag) -> bytes:
@@ -249,7 +261,7 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
     if holdout is not None and (spec != production_spec(cfg) or limit is not None):
         raise harness.HoldoutLocked(f"the holdout scores the production spec only, not {spec}")
     fitter = fitter or nuts_fitter(spec)
-    plan = harness.refit_plan(df, cfg, seasons, spec.every_days, holdout)[:limit]
+    plan = harness.refit_plan(df, cfg, seasons, spec.every_days, holdout, spec.grid)[:limit]
     h = config_hash(spec)
     log(f"{bundle} seasons {seasons}: {len(plan)} refits, model {spec.model_name}, config {h}")
     lag = cfg.result_available_after_hours
@@ -262,7 +274,7 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
         fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, lag, spec.groups)
         # the 1b window is the plan's training set: same rows, all observable at as_of
         assert len(fd.hg) == len(train), "1b training window differs from the refit plan"
-        key = cache_key(h, bundle, as_of)
+        key = cache_key(fit_hash(spec), bundle, as_of)
         cached = try_get(store, key)
         if cached is not None:
             draws, diag = decode(cached)
@@ -303,7 +315,7 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
                 "cached": cached is not None, **{f"refit_{k}": v for k, v in diag.items()},
                 **coefs, **s,
             })  # fmt: skip
-        log(f"  refit {i + 1}/{len(plan)} as of {as_of:%Y-%m-%d}: {len(tgt)} targets, "
+        log(f"  refit {i + 1}/{len(plan)} as of {as_of:%Y-%m-%d %H:%M}: {len(tgt)} targets, "
             f"{'cached' if cached is not None else f'fitted in {diag.get("fit_s", 0):.0f} s'}, "
             f"R-hat {diag.get('rhat_max', float('nan')):.3f}, "
             f"ESS {diag.get('ess_bulk_min', float('nan')):.0f}, "
@@ -547,6 +559,12 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
         p2 = phase2.group_report(pred, c, reference)
         (out / f"phase2_{c}.json").write_text(json.dumps(p2, indent=2, default=str))
         lines += [""] + phase2.markdown(p2)
+    for c in challengers:  # D33: the results grid against the weekly reference
+        if reference is None or not c.endswith("_rd"):
+            continue
+        rd = refit_cadence.report(pred, c, reference)
+        (out / f"cadence_{c}.json").write_text(json.dumps(rd, indent=2, default=str))
+        lines += [""] + refit_cadence.markdown(rd)
     if "mover_home" in pred.columns and pred["mover_home"].null_count() == 0:
         mb = mover_bias(pred)
         mb.write_csv(out / "mover_bias.csv")
@@ -694,6 +712,12 @@ def main() -> None:
     r.add_argument("--target-horizon-hours", type=float, default=1.0,
                    help="score targets with context at kickoff - this (1 or 48)")  # fmt: skip
     r.add_argument("--every-days", type=int, default=None, help="default: D14 dev cadence")
+    r.add_argument(
+        "--grid",
+        default="weekly",
+        choices=harness.GRIDS,
+        help="results = Mondays plus results-triggered refits (D33, 7 days)",
+    )
     r.add_argument("--draws", type=int, default=2000)
     r.add_argument("--chains", type=int, default=4)
     r.add_argument("--limit", type=int, default=None, help="first N refits only (smoke test)")
@@ -777,7 +801,8 @@ def main() -> None:
                    chains=args.chains, every_days=every, shifts=args.shifts,
                    form=args.form,
                    xg=args.structure == "strength_open" if args.xg is None else args.xg,
-                   manager=args.manager, groups=cv.resolve(args.group))  # fmt: skip
+                   manager=args.manager, groups=cv.resolve(args.group),
+                   grid=args.grid)  # fmt: skip
     leagues = cfg.bundles[args.bundle]
     df = _load(leagues, spec.xg, spec.manager)
     target_ctx, target_h = None, timedelta(hours=args.target_horizon_hours)

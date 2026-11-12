@@ -1,22 +1,27 @@
-"""Weekly live refit of the champion (spec §12.1, §14.6; D11; PHASE1B_TASKS section 7).
+"""Live refits of the champion (spec §12.1, §14.6; D11, D33; PHASE1B_TASKS sections 7, 7b).
 
-One refit per bundle as of Monday 00:00 UTC, the backtest's grid, with the production spec
-the locked holdout promoted. The draws and the training index go to the store; a `model_run`
-row (component phase1b, window live) records the refit, its convergence numbers and whether
-it passed the inference gates. `adatta.sim.serve` projects from the latest passing refit.
+Each bundle is refitted as of Monday 00:00 UTC and as of every results trigger of the week
+(`harness.refit_triggers`: after a match day whose results the next forecasts need),
+the same refit times as the backtest's results grid, with the production spec the locked
+holdout promoted. The draws and the training index go to the store; a `model_run` row
+(component phase1b, window live) records each refit, its convergence numbers and whether it
+passed the inference gates. `adatta.sim.serve` projects from the latest passing refit.
 
-    python -m adatta.model.live refit --bundle england [--as-of 2026-11-09]
+    python -m adatta.model.live refit --bundle england            # everything due this week
+    python -m adatta.model.live refit --bundle england --as-of 2026-11-09
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import numpy as np
+import polars as pl
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -31,16 +36,76 @@ from adatta.sim import serve
 
 GATES = {"rhat_max": 1.01, "ess_bulk_min": 400.0, "ess_tail_min": 400.0, "divergences": 0.0}
 RESULT_LOOKBACK = timedelta(days=14)  # how far back to look for results not yet ingested
+FIXTURE_WINDOW = timedelta(days=8)  # fixtures read around this week for the trigger rule
+
+
+def triggers_enabled() -> bool:
+    """Results-triggered refits are live only once the D33 dev backtest has passed: the
+    repository variable RESULTS_REFITS=on, passed to serve.yml and capture.yml."""
+    return os.environ.get("RESULTS_REFITS", "").strip().lower() == "on"
 
 
 class NotReady(RuntimeError):
     """The data a refit needs is not in yet (rerun later)."""
 
 
-def week_start(now: datetime) -> datetime:
-    """Monday 00:00 UTC of `now`'s week: the as_of of the week's refit (harness grid)."""
-    d = now.astimezone(UTC) - timedelta(days=now.astimezone(UTC).weekday())
-    return d.replace(hour=0, minute=0, second=0, microsecond=0)
+week_start = harness.week_start  # Monday 00:00 UTC: the as_of of the week's first refit
+
+
+def bundle_fixtures(session: Session, leagues: list[int], lo: datetime, hi: datetime
+                    ) -> pl.DataFrame:  # fmt: skip
+    """Regular-season matches of the leagues kicking off in [lo, hi], played or scheduled,
+    without the cancelled and postponed ones: the trigger rule's input."""
+    M, S, C = models.Match, models.Season, models.Competition
+    rows = session.execute(
+        select(M.kickoff_time, M.home_team_id, M.away_team_id, M.status, M.round)
+        .join(S, S.season_id == M.season_id)
+        .join(C, C.competition_id == S.competition_id)
+        .where(C.source_id == SOURCE_ID, C.source_ref.in_([str(x) for x in leagues]),
+               M.kickoff_time >= lo, M.kickoff_time <= hi)
+    ).all()  # fmt: skip
+    keep = [
+        (k if k.tzinfo else k.replace(tzinfo=UTC), h, a) for k, h, a, status, rnd in rows
+        if status not in serve.NO_MATCH and (rnd or "").startswith(harness.REGULAR_SEASON)
+    ]  # fmt: skip
+    return pl.DataFrame(keep, schema={"kickoff": pl.Datetime("us", "UTC"), "home": pl.Int64,
+                                      "away": pl.Int64}, orient="row")  # fmt: skip
+
+
+def refit_times(session: Session, cfg: harness.EvalConfig, bundle: str, now: datetime,
+                triggers: bool = True) -> list[datetime]:  # fmt: skip
+    """This week's refit times up to `now`: Monday 00:00 and every results trigger since
+    (D33). The rule restarts each Monday, so a window around this week is enough."""
+    monday = week_start(now)
+    if not triggers:
+        return [monday]
+    fx = bundle_fixtures(session, cfg.bundles[bundle], monday - FIXTURE_WINDOW,
+                         monday + 2 * FIXTURE_WINDOW)  # fmt: skip
+    trig = harness.refit_triggers(fx, cfg.result_available_after_hours)
+    return [monday, *(t for t in trig if monday < t <= now)]
+
+
+def recorded(session: Session, model_name: str, bundle: str) -> set[datetime]:
+    """as_of of every live refit row of the bundle, passing or not (a failed refit is not
+    retried: serving keeps the last passing one and the alert reports it)."""
+    MR = models.ModelRun
+    rows = session.execute(
+        select(MR.as_of, MR.manifest)
+        .where(MR.component == serve.COMPONENT, MR.window == serve.WINDOW,
+               MR.model_name == model_name)
+    ).all()  # fmt: skip
+    return {serve._utc(a) for a, man in rows if a is not None and man.get("bundle") == bundle}
+
+
+def due(session: Session, cfg: harness.EvalConfig, model_name: str, now: datetime,
+        triggers: bool = True) -> list[tuple[str, datetime]]:  # fmt: skip
+    """(bundle, as_of) of this week's refits that have no model_run row yet."""
+    out = []
+    for bundle in cfg.bundles:
+        done = recorded(session, model_name, bundle)
+        times = refit_times(session, cfg, bundle, now, triggers)
+        out += [(bundle, t) for t in times if t not in done]
+    return out
 
 
 def gate_failures(diag: dict[str, float]) -> list[str]:
@@ -146,12 +211,23 @@ def refit(
     return row
 
 
+def _parse_as_of(text: str) -> datetime:
+    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(text, fmt).replace(tzinfo=UTC)
+        except ValueError:
+            pass
+    raise SystemExit(f"--as-of {text!r}: use YYYY-MM-DD or YYYY-MM-DDTHH:MM (UTC)")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
-    r = sub.add_parser("refit", help="weekly live refit of one bundle")
+    r = sub.add_parser("refit", help="live refits of one bundle")
     r.add_argument("--bundle", required=True)
-    r.add_argument("--as-of", default=None, help="YYYY-MM-DD, a Monday (default: this week's)")
+    r.add_argument("--as-of", default=None,
+                   help="one refit time (a Monday, or a trigger time YYYY-MM-DDTHH:MM); "
+                        "default: every refit due this week")  # fmt: skip
     r.add_argument("--cache", default="data/cache", help="local store root (if not R2)")
     args = ap.parse_args()
 
@@ -159,25 +235,46 @@ def main() -> None:
     from adatta.eval.baseline import _git_sha
 
     cfg = harness.load_config()
-    as_of = (datetime.strptime(args.as_of, "%Y-%m-%d").replace(tzinfo=UTC) if args.as_of
-             else week_start(datetime.now(UTC)))  # fmt: skip
-    if as_of != week_start(as_of):
-        raise SystemExit("--as-of must be a Monday (the refit grid)")
     spec = bt.production_spec(cfg)
-    df = bt._load(cfg.bundles[args.bundle], spec.xg, spec.manager)
+    now = datetime.now(UTC)
     with get_session() as s:
-        try:
-            row = refit(s, bt._store(args.cache), cfg, args.bundle, as_of, df,
-                        git_commit=_git_sha())  # fmt: skip
-        except NotReady as exc:
-            raise SystemExit(f"not ready: {exc}") from None
-        s.commit()
-        d = row.manifest["diag"]
-        print(f"{args.bundle} as of {as_of:%Y-%m-%d}: model_run {row.model_run_id} {row.status}; "
-              f"R-hat {d.get('rhat_max', float('nan')):.3f}, ESS {d.get('ess_bulk_min', 0):.0f}, "
-              f"div {d.get('divergences', 0):.0f}, fit {d.get('fit_s', 0):.0f} s")  # fmt: skip
-        if row.status != "ok":
-            raise SystemExit(f"inference gates failed: {row.manifest['gate_failures']}")
+        if args.as_of:
+            as_of = _parse_as_of(args.as_of)
+            times = refit_times(s, cfg, args.bundle, max(now, as_of))
+            week = refit_times(s, cfg, args.bundle, as_of + timedelta(days=7))
+            if as_of not in times and as_of not in week and as_of != week_start(as_of):
+                raise SystemExit(f"{as_of:%Y-%m-%dT%H:%M} is not a Monday or a results "
+                                 f"trigger of {args.bundle} (the refit grid, D33)")  # fmt: skip
+            todo, strict = [as_of], True
+        else:
+            todo = [t for b, t in due(s, cfg, spec.model_name, now, triggers_enabled())
+                    if b == args.bundle]  # fmt: skip
+            strict = False
+        s.rollback()
+        if not todo:
+            print(f"{args.bundle}: nothing due")
+            return
+        df = bt._load(cfg.bundles[args.bundle], spec.xg, spec.manager)
+        failed = []
+        for as_of in todo:
+            try:
+                row = refit(s, bt._store(args.cache), cfg, args.bundle, as_of, df,
+                            git_commit=_git_sha())  # fmt: skip
+            except NotReady as exc:
+                if strict:
+                    raise SystemExit(f"not ready: {exc}") from None
+                print(f"not ready: {exc}")  # the next dispatch or schedule retries
+                break
+            s.commit()
+            d = row.manifest["diag"]
+            print(f"{args.bundle} as of {as_of:%Y-%m-%d %H:%M}: model_run {row.model_run_id} "
+                  f"{row.status}; R-hat {d.get('rhat_max', float('nan')):.3f}, "
+                  f"ESS {d.get('ess_bulk_min', 0):.0f}, div {d.get('divergences', 0):.0f}, "
+                  f"fit {d.get('fit_s', 0):.0f} s")  # fmt: skip
+            if row.status != "ok":
+                failed.append(f"{as_of:%Y-%m-%d %H:%M}: {row.manifest['gate_failures']}")
+        if failed:
+            raise SystemExit(f"inference gates failed: {failed}")
 
 
 if __name__ == "__main__":

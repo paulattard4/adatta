@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
+import httpx
 import polars as pl
 import typer
 from sqlalchemy import func
@@ -184,6 +186,44 @@ def _projector(session: Session, settings: Any) -> Any:
     return run
 
 
+def _refits_due(session: Session) -> Any:
+    """Live refits due now (D33), as "bundle stamp" labels for the capture log."""
+    from adatta.eval import harness
+    from adatta.model import live
+    from adatta.model.backtest import production_spec
+
+    cfg = harness.load_config()
+    name = production_spec(cfg).model_name
+
+    def run(now: datetime) -> list[str]:
+        due = live.due(session, cfg, name, now, live.triggers_enabled())
+        return [f"{b} {harness.stamp(t)}" for b, t in due]
+
+    return run
+
+
+def _serve_dispatcher() -> Any:
+    """Starts serve.yml on main with the run's GITHUB_TOKEN (capture.yml grants actions:
+    write); None outside GitHub Actions, where the refit is run by hand, and while results
+    refits are off (RESULTS_REFITS, until the D33 dev backtest passes)."""
+    from adatta.model import live
+
+    token, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPOSITORY")
+    if not token or not repo or not live.triggers_enabled():
+        return None
+
+    def run() -> None:
+        r = httpx.post(
+            f"https://api.github.com/repos/{repo}/actions/workflows/serve.yml/dispatches",
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
+                     "X-GitHub-Api-Version": "2022-11-28"},
+            json={"ref": "main"}, timeout=30,
+        )  # fmt: skip
+        r.raise_for_status()
+
+    return run
+
+
 @app.command()
 def capture() -> None:
     """Snapshot capture tick: run whatever is due (designed for a ~15-minute schedule).
@@ -195,8 +235,11 @@ def capture() -> None:
     client = _client()
     with get_session() as session:
         weather = OpenMeteoClient(make_store(settings))
-        report = run_capture(session, client, load_competitions(), weather=weather,
-                             projector=_projector(session, settings))  # fmt: skip
+        report = run_capture(
+            session, client, load_competitions(), weather=weather,
+            projector=_projector(session, settings), refits_due=_refits_due(session),
+            dispatch=_serve_dispatcher(),
+        )  # fmt: skip
     summary = ", ".join(f"{k}={v}" for k, v in sorted(report.actions.items())) or "nothing due"
     typer.echo(
         f"capture {report.started_at:%Y-%m-%dT%H:%MZ}: {summary}; {report.requests} requests"

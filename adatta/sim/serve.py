@@ -31,6 +31,7 @@ from adatta.adapters.normalize import SOURCE_ID
 from adatta.adapters.storage import RawStore
 from adatta.capture import snapshots
 from adatta.db import models
+from adatta.eval import harness
 from adatta.model.team_strength import FitData, rates_from_draws
 
 Arr = NDArray[np.float64]
@@ -49,7 +50,7 @@ NO_OVERRIDES = hashlib.sha256(b"[]").hexdigest()  # overrides arrive with §8.5 
 
 
 def refit_key(config_hash: str, bundle: str, as_of: datetime) -> str:
-    return f"{PREFIX}/{config_hash}/{bundle}/{as_of:%Y%m%d}.npz"
+    return f"{PREFIX}/{config_hash}/{bundle}/{harness.stamp(as_of)}.npz"
 
 
 # --------------------------------------------------------------------------- refit files

@@ -13,6 +13,7 @@ Models scored on the same harness:
 
 from __future__ import annotations
 
+import bisect
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -252,6 +253,88 @@ def as_of_times(first: datetime, last: datetime, every_days: int) -> list[dateti
     return out
 
 
+GRIDS = ("weekly", "results")
+
+
+def week_start(t: datetime) -> datetime:
+    """Monday 00:00 UTC of t's week: the weekly refit's as_of."""
+    t = t.astimezone(UTC)
+    return (t - timedelta(days=t.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def stamp(as_of: datetime) -> str:
+    """Storage stamp of a refit time: the date for midnight (Mondays, as before D33), date
+    and time otherwise (results triggers)."""
+    a = as_of.astimezone(UTC)
+    return f"{a:%Y%m%d}" if (a.hour, a.minute, a.second) == (0, 0, 0) else f"{a:%Y%m%dT%H%M%S}"
+
+
+TRIGGER_LEAD = timedelta(hours=26)  # the T-24h milestone, plus time for the refit to run
+
+
+def refit_triggers(fixtures: pl.DataFrame, lag_hours: float) -> list[datetime]:
+    """Results-triggered refit times (D33, docs/PHASE1B_TASKS.md section 7b), the same rule
+    in production and in the backtest.
+
+    `fixtures`: one bundle's matches (kickoff, home, away), played or scheduled; cancelled
+    and postponed ones left out. For each UTC day D with matches, t = the last kickoff on D
+    + the result lag. A team is pending when its latest result is newer than the latest
+    refit (this week's Monday 00:00 or an earlier trigger) and its next match kicks off
+    after t and before the next Monday. A refit as of t is triggered when a team is pending
+    and waiting for the next day's t would come later than TRIGGER_LEAD before a pending
+    team's next kickoff. So the results of a midweek block are refitted once, after its
+    last day, still in time for the next forecasts from T-24h on, and a weekend triggers
+    nothing (Monday covers it). The rule reads kickoff times only, and every match on or
+    before D kicked off at least `lag_hours` before t."""
+    lag = timedelta(hours=lag_hours)
+    by_day: dict[Any, list[tuple[datetime, int, int]]] = {}
+    kicks: dict[int, list[datetime]] = {}
+    for k, h, a in fixtures.select("kickoff", "home", "away").sort("kickoff").iter_rows():
+        by_day.setdefault(k.date(), []).append((k, int(h), int(a)))
+        kicks.setdefault(int(h), []).append(k)
+        kicks.setdefault(int(a), []).append(k)
+    days = sorted(by_day)
+    ends = [max(k for k, _, _ in by_day[d]) + lag for d in days]
+    last_played: dict[int, datetime] = {}
+    last_trigger: datetime | None = None
+    out = []
+    for i, d in enumerate(days):
+        for k, h, a in by_day[d]:
+            last_played[h] = last_played[a] = k
+        t = ends[i]
+        monday = week_start(t)
+        if t == monday:
+            continue  # the Monday refit itself
+        refit = monday if last_trigger is None or last_trigger < monday else last_trigger
+        upcoming = [
+            nk for team, played in last_played.items() if played + lag > refit
+            for nk in kicks[team][bisect.bisect_right(kicks[team], t):][:1]
+            if nk < monday + timedelta(days=7)
+        ]  # fmt: skip
+        if not upcoming:
+            continue
+        wait_until = ends[i + 1] if i + 1 < len(days) else None
+        if wait_until is None or wait_until > min(upcoming) - TRIGGER_LEAD:
+            out.append(t)
+            last_trigger = t
+    return out
+
+
+def grid_times(df: pl.DataFrame, first: datetime, last: datetime, every_days: int,
+               grid: str = "weekly", lag_hours: float = 3.0) -> list[datetime]:  # fmt: skip
+    """Refit times covering [first, last]: Mondays every `every_days`, plus the results
+    triggers (`refit_triggers`) on the "results" grid (weekly cadence only)."""
+    if grid not in GRIDS:
+        raise ValueError(f"grid {grid!r} not in {GRIDS}")
+    weekly = as_of_times(first, last, every_days)
+    if grid == "weekly":
+        return weekly
+    if every_days != 7:
+        raise ValueError("the results grid adds triggers to the weekly (7-day) grid")
+    trig = [t for t in refit_triggers(df, lag_hours) if weekly[0] < t <= last]
+    return sorted(set(weekly) | set(trig))
+
+
 def mover_codes(df: pl.DataFrame, leagues: list[int]) -> tuple[NDArray[np.int64], ...]:
     """D16 status of each match's home and away team: 1 = first season after promotion into
     this league's tier, 2 = after relegation, 0 = otherwise (same tier, or new to the bundle).
@@ -287,10 +370,12 @@ def refit_plan(
     seasons: list[int],
     every_days: int,
     holdout: HoldoutKey | None = None,
+    grid: str = "weekly",
 ) -> list[tuple[datetime, NDArray[np.int64], NDArray[np.int64]]]:
     """The shared walk-forward grid: (as_of, target row indices, training row indices) for
     every refit with at least one target and one observable training match. Every model
-    (1a, 1b) is scored on this plan, so their (match, as_of) pairs are identical.
+    (1a, 1b) is scored on this plan, so their (match, as_of) pairs are identical. Targets
+    of a refit kick off from its as_of until the next refit time (`grid_times`).
     Holdout seasons need a HoldoutKey, holdout seasons only and the weekly cadence (D11)."""
     locked = set(seasons) & set(cfg.holdout_seasons)
     if locked and holdout is None:
@@ -298,22 +383,29 @@ def refit_plan(
     if holdout is not None:
         if not locked or set(seasons) - set(cfg.holdout_seasons):
             raise HoldoutLocked(f"a holdout run scores holdout seasons only, not {seasons}")
-        if every_days != cfg.refit_every_days:
+        if every_days != cfg.refit_every_days or grid != "weekly":
             raise HoldoutLocked(
-                f"the holdout uses the {cfg.refit_every_days}-day cadence, not {every_days}"
+                f"the holdout uses the {cfg.refit_every_days}-day weekly grid, not "
+                f"{every_days} days on the {grid} grid"
             )
-    kick = np.array([t.timestamp() for t in df["kickoff"].to_list()]) / DAY
+    # whole seconds, so the comparisons are exact and agree with `prepare`'s datetimes
+    kick = np.array([round(t.timestamp()) for t in df["kickoff"].to_list()], dtype=np.int64)
     targets_mask = np.isin(df["season"].to_numpy(), seasons)
     if not targets_mask.any():
         return []
-    lag = cfg.result_available_after_hours / 24
-    t_first = datetime.fromtimestamp(kick[targets_mask].min() * DAY, UTC)
-    t_last = datetime.fromtimestamp(kick[targets_mask].max() * DAY, UTC)
+    lag = round(cfg.result_available_after_hours * 3600)
+    lookback = cfg.lookback_days * int(DAY)
+    t_first = datetime.fromtimestamp(int(kick[targets_mask].min()), UTC)
+    t_last = datetime.fromtimestamp(int(kick[targets_mask].max()), UTC)
+    times = grid_times(df, t_first, t_last, every_days, grid, cfg.result_available_after_hours)
+    starts = [round(t.timestamp()) for t in times]
+    ends = starts[1:] + [starts[-1] + every_days * int(DAY)]
+    if grid == "weekly":
+        ends = [t + every_days * int(DAY) for t in starts]
     plan = []
-    for asof_dt in as_of_times(t_first, t_last, every_days):
-        asof = asof_dt.timestamp() / DAY
-        tgt = np.flatnonzero(targets_mask & (kick >= asof) & (kick < asof + every_days))
-        train = np.flatnonzero((kick + lag <= asof) & (kick >= asof - cfg.lookback_days))
+    for asof_dt, asof, end in zip(times, starts, ends, strict=True):
+        tgt = np.flatnonzero(targets_mask & (kick >= asof) & (kick < end))
+        train = np.flatnonzero((kick + lag <= asof) & (kick >= asof - lookback))
         if len(tgt) and len(train):
             # leakage guard: nothing in training was unobservable at the as-of time
             assert (kick[train] + lag <= asof).all(), "training row not observable at as-of"

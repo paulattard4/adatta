@@ -229,6 +229,7 @@ def test_config_hash_of_the_1b_spec_ignores_the_new_field() -> None:
 
     fields = asdict(spec)
     del fields["groups"], fields["context"]  # fields added in Phase 2, empty for 1b
+    del fields["grid"]  # added for D33, "weekly" for 1b
     blob = json.dumps({"spec": fields, "files": {f: bt._file_hash(f) for f in bt.HASHED_FILES}},
                       sort_keys=True)  # fmt: skip
     assert bt.config_hash(spec) == hashlib.sha256(blob.encode()).hexdigest()[:16]

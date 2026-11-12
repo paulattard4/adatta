@@ -4,11 +4,9 @@
 #   uv run adatta backfill-run --config config/calendar_competitions.yml
 # league_id values are API-Football ids; each was checked against the league name in the
 # /fixtures response on first load. The UEFA Conference League starts in 2021/22; the Coupe
-# de la Ligue ended after 2019/20.
+# de la Ligue ended after 2019/20. The Champions, Europa and Conference League moved to
+# config/competitions.yml on 2026-11-12 (D35): live capture and full detail.
 competitions:
-  - {name: UEFA Champions League,        country: Europe,  league_id: 2,   level: senior, tier: cup, priority: 4, detail: false, seasons: [2019, 2020, 2021, 2022, 2023, 2024, 2025]}
-  - {name: UEFA Europa League,           country: Europe,  league_id: 3,   level: senior, tier: cup, priority: 4, detail: false, seasons: [2019, 2020, 2021, 2022, 2023, 2024, 2025]}
-  - {name: UEFA Europa Conference League, country: Europe, league_id: 848, level: senior, tier: cup, priority: 4, detail: false, seasons: [2021, 2022, 2023, 2024, 2025]}
   - {name: UEFA Super Cup,               country: Europe,  league_id: 531, level: senior, tier: cup, priority: 4, detail: false, seasons: [2019, 2020, 2021, 2022, 2023, 2024, 2025]}
   - {name: FIFA Club World Cup,          country: World,   league_id: 15,  level: senior, tier: cup, priority: 4, detail: false, seasons: [2019, 2020, 2021, 2022, 2023, 2025]}
   - {name: EFL Cup,                      country: England, league_id: 48,  level: senior, tier: cup, priority: 4, detail: false, seasons: [2019, 2020, 2021, 2022, 2023, 2024, 2025]}

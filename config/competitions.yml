@@ -18,3 +18,10 @@ competitions:
   - {name: Coppa Italia,     country: Italy,   league_id: 137, level: senior, tier: cup, priority: 3, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
   - {name: DFB Pokal,        country: Germany, league_id: 81,  level: senior, tier: cup, priority: 3, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
   - {name: Coupe de France,  country: France,  league_id: 66,  level: senior, tier: cup, priority: 3, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  # UEFA club competitions (D35, docs/BEYOND_LEAGUES_PLAN.md Stage 0): live capture of the
+  # current season (odds, lineups, status, results) from 2026-11-12, because pre-match
+  # snapshots can't be recovered later; the past seasons are for the Stage 0 detail backfill.
+  # Not modelled until Stage C. The Conference League starts in 2021/22.
+  - {name: UEFA Champions League,         country: Europe, league_id: 2,   level: senior, tier: cup, priority: 4, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: UEFA Europa League,            country: Europe, league_id: 3,   level: senior, tier: cup, priority: 4, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: UEFA Europa Conference League, country: Europe, league_id: 848, level: senior, tier: cup, priority: 4, seasons: [2021, 2022, 2023, 2024, 2025]}

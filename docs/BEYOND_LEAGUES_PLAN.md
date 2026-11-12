@@ -1,6 +1,6 @@
 # Beyond domestic leagues: cups, continental and international football
 
-Status: **draft plan, 2026-11-12**, for the owner's review. Nothing here is built yet.
+Status: **agreed 2026-11-12 (D35)**. Stage 0 in progress; nothing else built yet.
 The end goal is forecasting domestic cups, continental club competitions and national-team
 football as well as the five league bundles. This plan orders the work, names what each
 stage needs (data, model, evaluation), and states the gate before the next stage. Every
@@ -17,7 +17,7 @@ untouched, graceful degradation instead of imputed fiction (principle 8).
 | Continental (UEFA) with Q_league | 6 (scale-out) | **Stage C, after B**, starting with the five bundles' leagues |
 | Internationals v1 (squad offset), v2 (tournament simulator) | after 3 / after 3d | as the spec |
 
-**Decision needed (D35, pending):** moving Stages A to C ahead of Phase 3 (squad and
+**Decision (D35, agreed 2026-11-12):** moving Stages A to C ahead of Phase 3 (squad and
 player). Reason for: these competitions are the end goal, and §10.1 itself says
 continental and international data "are scraped and modelled early" because they
 calibrate the cross-league scale. Reason against: cup forecasts without lineups miss
@@ -46,6 +46,21 @@ Starts in parallel with Phase 2, since it only loads data:
   those ties can't be forecast.
 
 Gate: feasibility register rows verified for each new field; capability table filled.
+
+Progress:
+- [x] 2026-11-12: Champions, Europa and Conference League moved from the calendar-only
+      list to `config/competitions.yml`, so the capture tick covers the current season
+      (daily calendar and injuries, odds milestones, lineups, results every tick, weather).
+      Cost estimate: about 50 matches in a UEFA matchday week at roughly 12 requests each
+      (odds milestones, lineup polls, results, detail), about 650 requests that week,
+      against current use of about 480 a day and a quota of about 7,500. Not modelled
+      until Stage C; the projector serves bundle leagues only.
+- [ ] Check the first ticks: 2026/27 UEFA fixtures loaded, odds and lineups captured on
+      the next matchday (24-27 Nov), requests as estimated.
+- [ ] National-team competitions: feasibility rows, then live capture before the March
+      2027 window, then the history from 2014.
+- [ ] UEFA detail backfill 2016-2025 (`adatta backfill-run`, by hand).
+- [ ] Neutral venue flag; third tiers.
 
 ## Stage A: domestic cup ties, 90-minute forecasts
 

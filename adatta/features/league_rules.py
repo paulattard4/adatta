@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, model_validator
@@ -73,11 +73,40 @@ class Deduction(BaseModel):
         return self
 
 
+class TableIssue(BaseModel):
+    """A known fault in a provider's stored final table, so the checks can account for it:
+    `partial` (a mid-season snapshot stored as final: team count checked, points not) or
+    `team_ref` (the table names a team by `table_ref`, the fixtures by `team_ref`)."""
+
+    league_id: int
+    season: int
+    kind: Literal["partial", "team_ref"]
+    table_ref: str | None = None
+    team_ref: str | None = None
+    note: str = ""
+
+
 class Rules(BaseModel):
     leagues: list[LeagueRules]
     deductions: list[Deduction]
     # Points relative to the on-pitch result (positive = gained); same date rules.
     awarded_results: list[Deduction] = []
+    table_issues: list[TableIssue] = []
+
+    def partial_table(self, league_id: int, year: int) -> bool:
+        return any(i.kind == "partial" and (i.league_id, i.season) == (league_id, year)
+                   for i in self.table_issues)  # fmt: skip
+
+    def table_ref(self, league_id: int, year: int, ref: str) -> str:
+        """The fixtures' team ref for a ref read from a stored table."""
+        for i in self.table_issues:
+            if i.kind == "team_ref" and (i.league_id, i.season, i.table_ref) == (
+                league_id,
+                year,
+                ref,
+            ):
+                return str(i.team_ref)
+        return ref
 
     @model_validator(mode="after")
     def _unique(self) -> Rules:
@@ -145,16 +174,18 @@ def check_against_standings(
             problems.append(f"{league_id} {year}: no zone rule")
         elif rule.teams != len(rows):
             problems.append(f"{league_id} {year}: rule has {rule.teams} teams, table {len(rows)}")
+        if rules.partial_table(league_id, year):
+            continue  # a mid-season snapshot: its points say nothing about deductions
         net = rules.net_deductions(league_id, year)
         for r in rows:
-            ref = str(r["team"]["id"])
+            ref = rules.table_ref(league_id, year, str(r["team"]["id"]))
             gap = 3 * r["all"]["win"] + r["all"]["draw"] - r["points"]
             if gap != net.get(ref, 0):
                 problems.append(
                     f"{league_id} {year} {r['team']['name']}: table gap {gap}, "
                     f"deductions {net.get(ref, 0)}"
                 )
-        refs = {str(r["team"]["id"]) for r in rows}
+        refs = {rules.table_ref(league_id, year, str(r["team"]["id"])) for r in rows}
         problems += [
             f"{league_id} {year}: deduction for team {ref} not in the table"
             for ref in net
@@ -175,13 +206,15 @@ def check_results_against_standings(
     problems: list[str] = []
     for key, rows in sorted(standings.items()):
         league_id, year = key
+        if rules.partial_table(league_id, year):
+            continue
         pts: dict[str, int] = defaultdict(int)
         for h, a, hg, ag in results.get(key, []):
             pts[h] += 3 if hg > ag else 1 if hg == ag else 0
             pts[a] += 3 if ag > hg else 1 if hg == ag else 0
         changes = rules.deductions_as_of(league_id, year, date.max, season_over=True)
         for r in rows:
-            ref = str(r["team"]["id"])
+            ref = rules.table_ref(league_id, year, str(r["team"]["id"]))
             ours = pts[ref] - changes.get(ref, 0)
             if ours != r["points"]:
                 problems.append(

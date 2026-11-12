@@ -204,10 +204,18 @@ Features (outside `adatta/model/`, can start now):
       horizon (items 1, 2). Not yet uploaded: the F2 weather download is still running
       (as-issued forecasts so far reach La Liga, Serie A, Segunda and Serie B from 2024,
       Ligue 1 and 2 in part, England not yet), so a snapshot now would be superseded.
-      **Gap for G5:** importance is null for every 2016–2018 match, because
-      `config/league_rules.yml` has zone rules from 2019 only. Dev training windows reach
-      into 2016–2018, so dead rubbers there would be fitted as live and pull the
-      importance coefficient toward 0. Add the 2016–2018 zone rules before G5's backtest.
+      **G5 gap closed 2026-11-12:** importance was null for every 2016–2018 match
+      (zone rules from 2019 only), so dead rubbers in the dev training windows would have
+      been fitted as live. `config/league_rules.yml` now has 2016/17–2018/19 rules (UEFA
+      access lists and formats, cross-checked against the zone labels of the final tables,
+      fetched for this: 30 requests), plus the deductions and awarded results those
+      tables show (Birmingham 2018/19 dated; the rest with unknown dates, so a backtest
+      applies them only after the season). `rules-check`: 110 tables, 0 problems (was 129).
+      The provider's 2017/18 tables for the five second divisions are mid-season snapshots
+      stored as final, and its 2018/19 Serie B table names Cosenza by another id; both are
+      recorded as `table_issues`, so 2017/18 second-division deductions cannot be checked.
+      Rebuilt at − 1 h: importance on 100% of 2016–2018 regular-season matches (11,844;
+      446 dead rubbers, 421 must-win), was 0%.
 
 Model (after the Phase 1b audit closes):
 - [x] M1 Harness: prediction-time scoring (latest refit's draws + the target's context

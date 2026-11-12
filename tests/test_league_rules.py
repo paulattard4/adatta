@@ -10,7 +10,9 @@ from adatta.features.league_rules import (
     Deduction,
     Rules,
     SeasonRule,
+    TableIssue,
     check_against_standings,
+    check_results_against_standings,
     load_rules,
 )
 
@@ -22,7 +24,7 @@ def test_rules_file_covers_every_bundle_league_season() -> None:
     for comp in load_competitions("config/competitions.yml"):
         if comp.tier == "cup":
             continue
-        for year in range(2019, 2026):
+        for year in range(2016, 2027):  # dev training windows reach back to 2016/17
             assert rules.season(comp.league_id, year) is not None, (comp.league_id, year)
     pl = rules.league(39)
     assert pl is not None and pl.has_var(2019) and not pl.has_var(2018)
@@ -74,3 +76,24 @@ def test_check_against_standings_finds_unexplained_gaps() -> None:
     assert any("T7: table gap 0, deductions 3" in p for p in problems)
     assert any("T8: table gap 1" in p for p in problems)
     assert any("2021: no zone rule" in p for p in problems)
+
+
+def test_known_table_faults_are_accounted_for() -> None:
+    rules = Rules(
+        leagues=[{"league_id": 1, "var_from": None, "seasons": [{"years": [2017], "teams": 2}]}],
+        deductions=[],
+        table_issues=[TableIssue(league_id=1, season=2017, kind="team_ref", table_ref="99",
+                                 team_ref="8")],
+    )  # fmt: skip
+    table = {(1, 2017): [row(7, 1, 0, 3), row(99, 0, 0, 0)]}
+    results = {(1, 2017): [("7", "8", 2, 0)]}
+    assert check_results_against_standings(rules, table, results) == []  # 99 read as 8
+    half = {(1, 2017): [row(7, 1, 0, 3), row(8, 0, 0, 0)]}
+    full = {(1, 2017): [("7", "8", 2, 0), ("8", "7", 1, 0)]}
+    assert check_results_against_standings(rules, half, full)  # a snapshot disagrees
+    partial = rules.model_copy(
+        update={"table_issues": [TableIssue(league_id=1, season=2017, kind="partial")]}
+    )
+    assert check_results_against_standings(partial, half, full) == []
+    three = {(1, 2017): [row(7, 1, 0, 3), row(8, 0, 0, 0), row(9, 0, 0, 0)]}
+    assert any("2 teams, table 3" in p for p in check_against_standings(partial, three))

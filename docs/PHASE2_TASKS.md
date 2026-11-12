@@ -298,5 +298,21 @@ Model (after the Phase 1b audit closes):
       −0.121 (Italy) in the expected direction, positive elsewhere, all within about one sd.
       Reading: within-country travel is already part of the home advantage; it adds nothing
       to 1X2. Recorded as failed; the group stays off by default.
+      **G5 importance: fail (2026-11-12, run 43243963383, commit c9ebc89, snapshot
+      e9feb71c1fce2b40, reference run 42359964241; grid identical).** 18,591 warm dev
+      matches, 2,150 active (a dead rubber or must-win side). (1) mixing pass: R-hat > 1.01
+      in 3 refits, ESS < 400 in 0, divergences in 2. (2) active 1X2 log loss **+0.40%
+      [+0.13%, +0.67%]: fail, and worse with the interval excluding 0**. (3) all warm 1X2
+      log loss **+0.02%** and **RPS +0.06% (both fail, limit 0)**, OU2.5 log loss -0.05%,
+      total CRPS -0.02%; bundles -0.09% (Italy) to +0.10% (England). (4) ECE pass and
+      clearly better on active matches: home -0.0090, draw -0.0060, away +0.0020, over 2.5
+      -0.0169 (0.0383 vs 0.0552). (5) dead_rubber **positive in every bundle** (+0.002 to
+      +0.176, Germany about 2.4 sd from 0), against the expected negative sign; must_win
+      -0.001 to +0.081; sd / prior 0.27-0.37. Reading: a dead rubber does not make a side
+      score less; if anything both sides score more (more open games), which the over 2.5
+      calibration picks up, but as a per-side term it moves 1X2 the wrong way. Recorded as
+      failed; the group stays off by default. A total-goals version (one term on both
+      sides' rates, judged on CRPS and OU2.5) is a candidate for a later dev iteration, as
+      a new pre-stated test, not a rescue of this one.
 - [ ] M4 Combined model: gate, weekly dev run, feasibility.
 - [ ] M5 Promotion per D30.

@@ -277,5 +277,19 @@ Model (after the Phase 1b audit closes):
       coefficients and place them near 0. Reading: rest moves expected goals by a percent or
       two at most, which the strength walk already absorbs; it does not improve 1X2.
       Recorded as failed; the group stays off by default.
+      **G2 travel: fail (2026-11-12, run 43213487067, commit c9ebc89, snapshot
+      e9feb71c1fce2b40, reference run 42359964241; grid identical).** 18,591 warm dev
+      matches, 18,303 active (log travel is non-zero for almost every away side).
+      (1) mixing pass: R-hat > 1.01 in 1 refit, ESS < 400 in 0, divergences in 1.
+      (2) active 1X2 log loss −0.01% [−0.06%, +0.05%]: **fail**, no detectable gain.
+      (3) all warm 1X2 log loss −0.00%, **RPS +0.02% (fail, limit 0)**, OU2.5 log loss
+      +0.03%, total CRPS +0.03%; bundles −0.11% (Italy) to +0.06% (England). (4) ECE pass
+      (home +0.0012, draw −0.0039, away +0.0003, over 2.5 +0.0029). (5) log_travel −0.031
+      to +0.030, signs mixed, sd / prior 0.15–0.20, so the data place it near 0; tz_shift
+      sd / prior about 1 except Spain (0.44): no time-zone variation in domestic leagues
+      outside Spain's Canaries, so the prior is returned; altitude_climb −0.135 (Spain) and
+      −0.121 (Italy) in the expected direction, positive elsewhere, all within about one sd.
+      Reading: within-country travel is already part of the home advantage; it adds nothing
+      to 1X2. Recorded as failed; the group stays off by default.
 - [ ] M4 Combined model: gate, weekly dev run, feasibility.
 - [ ] M5 Promotion per D30.

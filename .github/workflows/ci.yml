@@ -28,3 +28,17 @@ jobs:
       - run: npm run lint
       - run: npm run build  # also writes next-env.d.ts, which tsc needs
       - run: npm run typecheck
+  model:
+    # PyMC tests (the model group installs on Linux only, D13), and the check that the
+    # default model still gives the draws it gave before this push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen --group model
+      - run: uv run --frozen --group model pytest -q tests/test_covariate_model.py tests/test_xg_model.py tests/test_manager_model.py tests/test_form_model.py
+      - name: Default model draws unchanged since the previous push
+        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
+        run: uv run --frozen --group model python -m adatta.model.identical --ref ${{ github.event.before }}

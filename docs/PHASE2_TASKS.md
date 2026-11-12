@@ -189,8 +189,33 @@ Features (outside `adatta/model/`, can start now):
 Model (after the Phase 1b audit closes):
 - [ ] M1 Harness: prediction-time scoring (latest refit's draws + the target's context
       row), with the leakage test above. The 1b reference scores unchanged.
+      **Built 2026-11-12, awaiting the CI model job.** `backtest.score_targets` adds each
+      target's context terms (`covariates.offsets`: its own row, observed by kickoff − 1 h)
+      to the refit's draws; `RunSpec.groups` / `--group G1..G7` (canonical order, model
+      name `_ctx-<groups>`). `covariates.check_as_of` refuses any training or target row
+      whose context is later than its kickoff − 1 h. `--group` stops with a message until
+      F3 provides the context table. `tests/test_covariates.py` (9 tests, pure numpy): each
+      group's coding; late context refused (training and target); context of matches not
+      final at the refit leaves the fit's design unchanged; changing one target's weather
+      moves that prediction only; with no groups, or groups at coefficient 0, the scores
+      equal the 1b scores (rtol 1e-12).
 - [ ] M2 Covariate terms in the team model, one flag per group, all off by default; with
       every flag off the model is bit-identical to 1b (same seed, same draws).
+      **Built 2026-11-12, awaiting the CI model job.** `adatta/model/covariates.py` codes
+      G1–G7 as the table above (nulls add 0); `team_strength.covariate_terms` adds
+      `beta_<group>` per group: Normal(0, 0.2), referee 0.1, kickoff a regularised
+      horseshoe (global scale 0.01, Student-t(4) slab of scale 0.2, fixed before testing).
+      `fd.cov == ()` adds no variable. `tests/test_covariate_model.py` (PyMC): no groups adds
+      nothing; a simulated heat effect of −0.3 is recovered inside its 90% interval; the
+      empty-design path samples identically. Bit-identical to 1b: `python -m
+      adatta.model.identical --ref <commit>` samples the default model at that commit and
+      now and compares every stored draw; the CI `model` job runs it against the previous
+      push (a deliberate change to the default model fails that step, by design). The
+      local Docker engine stopped creating containers on 2026-11-12, so these run in CI
+      (the model tests never ran in CI before: `ci.yml` installed no model group).
+      Note: editing `team_strength.py` changes the config hash, so cached backtest draws
+      are not reused; with the default path identical, the stored 1b dev predictions stay
+      the M3 reference.
 - [ ] M3 Group backtests G1–G7, one at a time (two backtests at once starve capture).
 - [ ] M4 Combined model: gate, weekly dev run, feasibility.
 - [ ] M5 Promotion per D30.

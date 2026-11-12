@@ -21,9 +21,9 @@ import hashlib
 import io
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +34,7 @@ from numpy.typing import NDArray
 from adatta.adapters.storage import LocalStore, RawStore, make_store, try_get
 from adatta.eval import harness, metrics
 from adatta.eval import holdout as ho
+from adatta.model import covariates as cv
 from adatta.model import dixon_coles as dc
 from adatta.model import team_strength as ts
 
@@ -42,7 +43,8 @@ Diag = dict[str, float]
 Fitter = Callable[[ts.FitData, int], tuple[Draws, Diag]]
 CACHE_PREFIX = "backtest"
 XG_MIN_MATCHES = 50  # xG matches a league needs in the window for a target to count as informed
-HASHED_FILES = ("adatta/model/team_strength.py", "config/evaluation.yml", "uv.lock")
+HASHED_FILES = ("adatta/model/team_strength.py", "adatta/model/covariates.py",
+                "config/evaluation.yml", "uv.lock")  # fmt: skip
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,8 @@ class RunSpec:
     form: bool = False  # AR(1) short-term form (§5.2)
     xg: bool = True  # xG auxiliary likelihood (§5.2); production since 2026-11-07
     manager: bool = False  # manager-change widening (§5.2, D12)
+    # Phase 2 context groups (covariates.GROUPS, canonical order); () is the 1b model
+    groups: tuple[str, ...] = ()
 
     @property
     def model_name(self) -> str:
@@ -69,6 +73,7 @@ class RunSpec:
         tags = ("_d16" if self.shifts else "") + ("_ar1" if self.form else "")
         tags += "_xg" if self.xg else ""
         tags += "_mgr" if self.manager else ""
+        tags += f"_ctx-{'-'.join(self.groups)}" if self.groups else ""
         return f"phase1b_{self.structure}{tags}{k}"
 
 
@@ -90,7 +95,10 @@ def _file_hash(path: str) -> str:
 def config_hash(spec: RunSpec) -> str:
     """Changes whenever the model code, sampler settings, evaluation config or locked
     libraries change, so stale cached draws are never reused."""
-    blob = json.dumps({"spec": asdict(spec), "files": {f: _file_hash(f) for f in HASHED_FILES}},
+    fields = asdict(spec)
+    if not spec.groups:  # a spec without context hashes as it did before groups existed
+        del fields["groups"]
+    blob = json.dumps({"spec": fields, "files": {f: _file_hash(f) for f in HASHED_FILES}},
                       sort_keys=True)  # fmt: skip
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
@@ -155,9 +163,13 @@ def _release_memory() -> None:
         sys.modules["jax"].clear_caches()
 
 
-def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals: int
+def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals: int,
+                  groups: Sequence[str] = (), horizon_ctx: timedelta = cv.HEADLINE_HORIZON,
                   ) -> list[dict[str, Any]]:  # fmt: skip
-    """Per target: markets from the posterior-mean score matrix, their scores, tail mass."""
+    """Per target: markets from the posterior-mean score matrix, their scores, tail mass.
+    Prediction time (Phase 2, M1): the refit's draws (fitted as of the plan date) with each
+    target's own context row, observed by kickoff - horizon_ctx (the headline T - 1 h);
+    `groups` () scores the 1b model unchanged."""
     tix = {int(t): i for i, t in enumerate(fd.team_ids)}
     lix = {lid: i for i, lid in enumerate(fd.leagues)}
     home = np.array([tix.get(int(t), -1) for t in targets["home"]], dtype=np.int64)
@@ -175,8 +187,12 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
     # weeks from the last training step to each match (AR(1) form fades as phi^h)
     horizon = np.array([(k - fd.start).days // 7 - (fd.n_steps - 1) for k in targets["kickoff"]],
                        dtype=np.int64)  # fmt: skip
+    offset = None
+    if groups:
+        cv.check_as_of(targets, horizon_ctx)
+        offset = cv.offsets(draws, cv.design(targets, groups))
     lam, mu_ = ts.rates_from_draws(draws, fd, home, away, league, pending[0], pending[1],
-                                   horizon)  # fmt: skip
+                                   horizon, offset)  # fmt: skip
     rho = np.asarray(draws["rho"])
     rho = rho[league] if rho.ndim == 2 else np.broadcast_to(rho, lam.shape)  # per league (D21)
     kappa = np.asarray(draws["kappa"])[league] if "kappa" in draws else np.zeros_like(lam)  # D22
@@ -216,7 +232,7 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
     df = df.with_columns(mover_home=pl.Series(mh), mover_away=pl.Series(ma))
     rows: list[dict[str, Any]] = []
     for i, (as_of, tgt, train) in enumerate(plan):
-        fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, lag)
+        fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, lag, spec.groups)
         # the 1b window is the plan's training set: same rows, all observable at as_of
         assert len(fd.hg) == len(train), "1b training window differs from the refit plan"
         key = cache_key(h, bundle, as_of)
@@ -237,7 +253,8 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
         }  # fmt: skip
 
         for r, s in zip(targets.iter_rows(named=True),
-                        score_targets(draws, fd, targets, cfg.max_goals), strict=True):  # fmt: skip
+                        score_targets(draws, fd, targets, cfg.max_goals, spec.groups),
+                        strict=True):  # fmt: skip
             n_h, n_a = n_of.get(int(r["home"]), 0), n_of.get(int(r["away"]), 0)
             rows.append({
                 "match_id": int(r["match_id"]), "league_id": int(r["league_id"]),
@@ -624,6 +641,8 @@ def main() -> None:
         help="xG auxiliary likelihood (§5.2); default on for strength_open",
     )
     r.add_argument("--manager", action="store_true", help="manager-change widening (§5.2)")
+    r.add_argument("--group", action="append", default=[],
+                   help="Phase 2 context group (G1-G7 or its name); repeatable")  # fmt: skip
     r.add_argument("--every-days", type=int, default=None, help="default: D14 dev cadence")
     r.add_argument("--draws", type=int, default=2000)
     r.add_argument("--chains", type=int, default=4)
@@ -708,8 +727,11 @@ def main() -> None:
                    chains=args.chains, every_days=every, shifts=args.shifts,
                    form=args.form,
                    xg=args.structure == "strength_open" if args.xg is None else args.xg,
-                   manager=args.manager)  # fmt: skip
+                   manager=args.manager, groups=cv.resolve(args.group))  # fmt: skip
     leagues = cfg.bundles[args.bundle]
+    if spec.groups:
+        # every row needs its context at kickoff - 1 h (task F3), joined with ctx_as_of
+        raise SystemExit("context groups need the F3 context table, which is not built yet")
     df = _load(leagues, spec.xg, spec.manager)
     t0 = time.time()
     key = ho.unlock(_store(args.cache), args.holdout, spec.model_name) if args.holdout else None

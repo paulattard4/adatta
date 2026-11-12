@@ -49,11 +49,18 @@ innovations are re-centred over teams so the walk stays zero-sum. change_weeks ~
 LogNormal(log 8, 0.75). Prediction reads the last state, so it is unchanged. Kept only if it
 passes its acceptance test.
 
+Context covariates (Phase 2, `adatta.model.covariates`, groups G1-G7): with design blocks
+in `fd.cov`, each group adds a coefficient vector beta_<group> (shared by the bundle's
+leagues) and log lambda_home += x_home @ beta, log lambda_away += x_away @ beta. With no
+groups (`fd.cov == ()`, the default) no variable is added and the model is the 1b model,
+draw for draw (tests/test_covariate_model.py).
+
 Only importable where the model dependency group is installed (Linux / Docker, D13).
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -62,6 +69,7 @@ import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
+from adatta.model import covariates as cv
 from adatta.model import dixon_coles as dc
 
 IntArr = NDArray[np.int64]
@@ -95,6 +103,8 @@ class FitData:
     xg_away: NDArray[np.float64] | None = None
     # (step, team): 1 inside a coach-change window, else 0 (None: coaches not loaded)
     mgr: NDArray[np.float64] | None = None
+    # Phase 2 context covariates, one block per group in the training rows' order
+    cov: cv.Design = ()
 
     @property
     def xg_rows(self) -> IntArr:
@@ -105,9 +115,10 @@ class FitData:
 
 
 def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days: int,
-            lag_hours: float = 3.0) -> FitData:  # fmt: skip
+            lag_hours: float = 3.0, groups: Sequence[str] = ()) -> FitData:  # fmt: skip
     """Training rows observable at `as_of` (kickoff + lag <= as_of, within the lookback),
-    indexed by team, league and weekly step."""
+    indexed by team, league and weekly step. `groups` (Phase 2) builds the covariate design
+    from each training row's context at its kickoff - 1 h (`cv.check_as_of`)."""
     lo = as_of - timedelta(days=lookback_days)
     hi = as_of - timedelta(hours=lag_hours)
     # D16 status from everything observable at as_of (the season before the window counts)
@@ -162,6 +173,10 @@ def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days
             lo_s, hi_s = max(s0, 0), min(s0 + MGR_WINDOW_WEEKS, n_steps)
             if lo_s < hi_s:
                 mgr[lo_s:hi_s, tix[team]] = 1.0
+    cov: cv.Design = ()
+    if groups:
+        cv.check_as_of(d)
+        cov = cv.design(d, groups)
     return FitData(
         home=np.array([tix[int(t)] for t in d["home"]], dtype=np.int64),
         away=np.array([tix[int(t)] for t in d["away"]], dtype=np.int64),
@@ -170,6 +185,7 @@ def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days
         season_start=season_start, team_ids=teams.astype(np.int64), leagues=leagues,
         start=start, n_steps=n_steps, moved_up=moved[1], moved_down=moved[2],
         team_seasons=seasons_seen, xg_home=xg["xg_home"], xg_away=xg["xg_away"], mgr=mgr,
+        cov=cov,
     )  # fmt: skip
 
 
@@ -281,6 +297,9 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
         log_lam = (mu_league[fd.league] + home + attack[fd.step, fd.home]
                    - defence[fd.step, fd.away])  # fmt: skip
         log_mu = mu_league[fd.league] + attack[fd.step, fd.away] - defence[fd.step, fd.home]
+        if fd.cov:  # Phase 2 context terms; nothing at all is added without groups
+            off_h, off_a = covariate_terms(fd.cov, k)
+            log_lam, log_mu = log_lam + off_h, log_mu + off_a
         lam, mu_ = pt.exp(log_lam), pt.exp(log_mu)
         pm.Poisson("home_goals", lam, observed=fd.hg)
         pm.Poisson("away_goals", mu_, observed=fd.ag)
@@ -301,6 +320,34 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
         log_w = kap * (hg == ag) - pt.log1p(pt.expm1(kap) * p_draw)
         pm.Potential("draw_inflation", pt.sum(log_w))
     return model
+
+
+def covariate_terms(blocks: cv.Design, k: float = 1.0) -> tuple[Any, Any]:
+    """The context terms on log lambda_home and log lambda_away, one coefficient vector per
+    group. Priors Normal(0, sd); the kickoff group a regularised horseshoe (Piironen and
+    Vehtari 2017) with global scale HORSESHOE_TAU0 and a Student-t(4) slab of scale
+    HORSESHOE_SLAB, fixed before testing. Call inside a model."""
+    import pymc as pm
+    import pytensor.tensor as pt
+
+    off_h: Any = 0.0
+    off_a: Any = 0.0
+    for b in blocks:
+        g, n = b.group, len(b.group.columns)
+        name = cv.beta_name(g)
+        if g.prior == "horseshoe":
+            tau = pm.HalfCauchy(f"{name}_tau", cv.HORSESHOE_TAU0 * k)
+            lam_j = pm.HalfCauchy(f"{name}_lambda", 1.0, shape=n)
+            half = cv.HORSESHOE_SLAB_DF / 2
+            c2 = pm.InverseGamma(f"{name}_c2", half, half * (cv.HORSESHOE_SLAB * k) ** 2)
+            lam_t = pt.sqrt(c2 * lam_j**2 / (c2 + tau**2 * lam_j**2))
+            z = pm.Normal(f"{name}_z", 0.0, 1.0, shape=n)
+            beta = pm.Deterministic(name, z * tau * lam_t)
+        else:
+            beta = pm.Normal(name, 0.0, g.sd * k, shape=n)
+        off_h = off_h + pt.dot(pt.as_tensor(b.x_home), beta)
+        off_a = off_a + pt.dot(pt.as_tensor(b.x_away), beta)
+    return off_h, off_a
 
 
 def xg_likelihood(fd: FitData, lam: Any, mu_: Any, k: float = 1.0) -> None:
@@ -382,12 +429,15 @@ def slim(idata: Any, max_draws: int = 400) -> dict[str, NDArray[np.float64]]:
     # optional: delta (D16), form_last and phi (AR(1) form), xg_shape and xg_bias (xG)
     extra = ("delta", "form_last", "phi", "xg_shape", "xg_bias", "change_weeks")
     names = [v for v in (*SLIM_VARS, *extra) if v in post.data_vars]
+    # Phase 2 context coefficients (not the horseshoe's auxiliary variables)
+    names += [b for b in map(cv.beta_name, cv.GROUPS.values()) if b in post.data_vars]
     return {v: np.asarray(post[v].values[..., take], dtype=np.float64) for v in names}
 
 
 def rates_from_draws(d: dict[str, NDArray[np.float64]], fd: FitData, home: IntArr,
                      away: IntArr, league: IntArr, pending_home: IntArr | None = None,
                      pending_away: IntArr | None = None, horizon: IntArr | None = None,
+                     offset: tuple[NDArray[np.float64], NDArray[np.float64]] | None = None,
                      ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:  # fmt: skip
     """Posterior draws of (lambda_home, lambda_away) for matches after the training window,
     from the final step's state. home/away index fd.team_ids; -1 = unseen team, which gets
@@ -396,6 +446,8 @@ def rates_from_draws(d: dict[str, NDArray[np.float64]], fd: FitData, home: IntAr
     tier and that season has no training match yet, so its shift is applied here.
     horizon (AR(1) form): weeks from the last training step to each match (default 0); form
     adds phi^h m_last / sqrt 2 to attack and defence. Unseen teams have no form.
+    offset (Phase 2): per (match, draw) context terms on log lambda_home and log lambda_away,
+    from `cv.offsets` on the target's context; None adds nothing.
     Pure numpy: works on the Mac and on cached draws."""
     att, dfn = d["attack_last"], d["defence_last"]  # (team, draw)
     mu_l, h_l = d["mu_league"], d["h_league"]  # (league, draw)
@@ -429,14 +481,18 @@ def rates_from_draws(d: dict[str, NDArray[np.float64]], fd: FitData, home: IntAr
         return np.asarray(d["phi"] ** h * d["form_last"][t] / np.sqrt(2.0))
 
     out_h, out_a = [], []
-    for hh, aa, lg, ch, ca, h in zip(home, away, league, ph, pa, hz, strict=True):
+    for i, (hh, aa, lg, ch, ca, h) in enumerate(zip(home, away, league, ph, pa, hz, strict=True)):
         a_h, d_h, ht = team(int(hh), int(lg))
         a_a, d_a, _ = team(int(aa), int(lg))
         f_h, f_a = form(int(hh), int(h)), form(int(aa), int(h))
         a_h, d_h = a_h + sh[ch] + f_h, d_h + sh[ch] + f_h
         a_a, d_a = a_a + sh[ca] + f_a, d_a + sh[ca] + f_a
-        out_h.append(np.exp(mu_l[lg] + h_l[lg] + ht + a_h - d_a))
-        out_a.append(np.exp(mu_l[lg] + a_a - d_h))
+        log_h = mu_l[lg] + h_l[lg] + ht + a_h - d_a
+        log_a = mu_l[lg] + a_a - d_h
+        if offset is not None:
+            log_h, log_a = log_h + offset[0][i], log_a + offset[1][i]
+        out_h.append(np.exp(log_h))
+        out_a.append(np.exp(log_a))
     return np.array(out_h), np.array(out_a)
 
 

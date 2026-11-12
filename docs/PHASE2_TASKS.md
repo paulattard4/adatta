@@ -251,5 +251,18 @@ Model (after the Phase 1b audit closes):
       are not reused; with the default path identical, the stored 1b dev predictions stay
       the M3 reference.
 - [ ] M3 Group backtests G1–G7, one at a time (two backtests at once starve capture).
+      Tooling (2026-11-12): `backtest.yml` inputs `groups` (one group per run) and
+      `context` (snapshot digest, default latest); `assemble --vs <1b reference>` writes
+      `phase2_<model>.json` and a report section via `adatta/eval/phase2.py`, which applies
+      items 1–4 as pass/fail and reports item 5 (coefficients per bundle, sign, sd / prior)
+      for the owner, with rest and referee results for the Championship, La Liga and
+      Segunda shown apart (D25/D26). Prediction rows carry `active__<group>` and each
+      refit's coefficient mean and sd. A run's draws are keyed by a digest of only the
+      columns its group reads, over the seasons its plan uses, so the weather rebuild does
+      not invalidate G1, G2 and G4–G7 runs. Reference: `phase1b_strength_open_xg`, 28-day
+      dev grid, run 42359964241. Snapshot at − 1 h stored 2026-11-12: `e9feb71c1fce2b40`
+      (with the 2016–2018 importance labels; weather still partial, which only G3 reads).
+      Order: G1, G2, G5, G4, G6, G7, then G3 after the weather download.
+      `tests/test_phase2_report.py` (6 tests).
 - [ ] M4 Combined model: gate, weekly dev run, feasibility.
 - [ ] M5 Promotion per D30.

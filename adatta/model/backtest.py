@@ -32,7 +32,7 @@ import polars as pl
 from numpy.typing import NDArray
 
 from adatta.adapters.storage import LocalStore, RawStore, make_store, try_get
-from adatta.eval import harness, metrics
+from adatta.eval import harness, metrics, phase2
 from adatta.eval import holdout as ho
 from adatta.features import context_table
 from adatta.model import covariates as cv
@@ -167,6 +167,19 @@ def _release_memory() -> None:
         sys.modules["jax"].clear_caches()
 
 
+def coefficient_summary(draws: Draws, groups: Sequence[str]) -> dict[str, float]:
+    """Posterior mean and sd of each context coefficient of a refit, as
+    coef__<group>__<column>__mean / __sd (Phase 2 acceptance item 5)."""
+    out: dict[str, float] = {}
+    for name in cv.resolve(groups):
+        g = cv.GROUPS[name]
+        beta = np.asarray(draws[cv.beta_name(g)]).reshape(len(g.columns), -1)
+        for j, col in enumerate(g.columns):
+            out[f"coef__{name}__{col}__mean"] = float(beta[j].mean())
+            out[f"coef__{name}__{col}__sd"] = float(beta[j].std())
+    return out
+
+
 def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals: int,
                   groups: Sequence[str] = (), horizon_ctx: timedelta = cv.HEADLINE_HORIZON,
                   ) -> list[dict[str, Any]]:  # fmt: skip
@@ -192,9 +205,12 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
     horizon = np.array([(k - fd.start).days // 7 - (fd.n_steps - 1) for k in targets["kickoff"]],
                        dtype=np.int64)  # fmt: skip
     offset = None
+    flags: dict[str, NDArray[np.bool_]] = {}
     if groups:
         cv.check_as_of(targets, horizon_ctx)
-        offset = cv.offsets(draws, cv.design(targets, groups))
+        blocks = cv.design(targets, groups)
+        offset = cv.offsets(draws, blocks)
+        flags = cv.active(blocks)
     lam, mu_ = ts.rates_from_draws(draws, fd, home, away, league, pending[0], pending[1],
                                    horizon, offset)  # fmt: skip
     rho = np.asarray(draws["rho"])
@@ -212,6 +228,7 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
             "exp_total": float(np.mean(lam[k] + mu_[k])),
             "p_home": mk["1X2"][0], "p_draw": mk["1X2"][1], "p_away": mk["1X2"][2],
             "p_over25": mk["OU2.5"][0], "p_btts": mk["BTTS"][0],
+            **{f"active__{g}": bool(f[k]) for g, f in flags.items()},
             **metrics.score_markets(mk, int(hg), int(ag)),
         })  # fmt: skip
     return out
@@ -252,6 +269,7 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
         else:
             draws, diag = fitter(fd, spec.seed)
             store.put(key, encode(draws, diag))
+        coefs = coefficient_summary(draws, spec.groups)
         targets = df[tgt]
         if target_context is not None:
             targets = context_table.attach(targets.select(base_cols), target_context)
@@ -282,7 +300,8 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
                 "model": spec.model_name, "bundle": bundle, "config_hash": h,
                 **({"ctx_horizon_h": target_horizon.total_seconds() / 3600,
                     "context": spec.context} if spec.groups else {}),
-                "cached": cached is not None, **{f"refit_{k}": v for k, v in diag.items()}, **s,
+                "cached": cached is not None, **{f"refit_{k}": v for k, v in diag.items()},
+                **coefs, **s,
             })  # fmt: skip
         log(f"  refit {i + 1}/{len(plan)} as of {as_of:%Y-%m-%d}: {len(tgt)} targets, "
             f"{'cached' if cached is not None else f'fitted in {diag.get("fit_s", 0):.0f} s'}, "
@@ -522,6 +541,12 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
                 f"{r['base']:.4f} | {r['challenger']:.4f} | {100 * r['rel']:+.2f}% | "
                 f"[{100 * r['rel_lo']:+.2f}%, {100 * r['rel_hi']:+.2f}%] |"
             )
+    for c in challengers:  # Phase 2: each context-group model against the 1b reference
+        if reference is None or "_ctx-" not in c:
+            continue
+        p2 = phase2.group_report(pred, c, reference)
+        (out / f"phase2_{c}.json").write_text(json.dumps(p2, indent=2, default=str))
+        lines += [""] + phase2.markdown(p2)
     if "mover_home" in pred.columns and pred["mover_home"].null_count() == 0:
         mb = mover_bias(pred)
         mb.write_csv(out / "mover_bias.csv")
@@ -757,12 +782,16 @@ def main() -> None:
     df = _load(leagues, spec.xg, spec.manager)
     target_ctx, target_h = None, timedelta(hours=args.target_horizon_hours)
     if spec.groups:  # training rows at kickoff - 1 h; targets at the chosen horizon
-        ctx, digest = context_table.load(_store(args.cache), cv.HEADLINE_HORIZON, args.context)
-        spec = replace(spec, context=digest)
+        ctx, snapshot = context_table.load(_store(args.cache), cv.HEADLINE_HORIZON, args.context)
         df = context_table.attach(df, ctx)
+        # the draws are keyed by the columns the groups read, over the seasons the plan uses,
+        # so a rebuilt snapshot that changes nothing they read reuses the fitted draws
+        used = df.filter(pl.col("season") <= max(args.season)).select(cv.input_columns(spec.groups))
+        digest = context_table.digest(used)
+        spec = replace(spec, context=digest)
+        print(f"context snapshot {snapshot}, group digest {digest}")
         if target_h != cv.HEADLINE_HORIZON:
             target_ctx, _ = context_table.load(_store(args.cache), target_h)
-        print(f"context snapshot {digest} ({ctx.height} rows)")
     t0 = time.time()
     key = ho.unlock(_store(args.cache), args.holdout, spec.model_name) if args.holdout else None
     pred = run(df, leagues, args.bundle, cfg, args.season, spec, _store(args.cache),

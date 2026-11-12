@@ -194,6 +194,27 @@ def design(df: pl.DataFrame, groups: Sequence[str]) -> Design:
     return tuple(blocks)
 
 
+def input_columns(groups: Sequence[str]) -> list[str]:
+    """The context columns `groups` read, with match_id and ctx_as_of (for the digest that
+    keys a run's fitted draws: other columns may change without refitting)."""
+    cols = ["match_id", "ctx_as_of"]
+    for name in resolve(groups):
+        for c in GROUPS[name].inputs:
+            for col in [c.format(side="home"), c.format(side="away")] if "{side}" in c else [c]:
+                if col not in cols:
+                    cols.append(col)
+    return cols
+
+
+def active(blocks: Design) -> dict[str, NDArray[np.bool_]]:
+    """Per group: the rows where any of its covariates is non-zero for either side (the
+    group's "active" matches, Phase 2 acceptance item 2)."""
+    return {
+        b.group.name: (np.abs(b.x_home).sum(axis=1) + np.abs(b.x_away).sum(axis=1)) > 0
+        for b in blocks
+    }
+
+
 def beta_name(group: Group) -> str:
     return f"beta_{group.name}"
 

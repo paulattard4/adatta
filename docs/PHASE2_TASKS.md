@@ -327,5 +327,20 @@ Model (after the Phase 1b audit closes):
       the prior, so there is no detectable referee effect on goals. Reading: referee pace
       adds nothing to goal totals once team strength is known. Recorded as failed; the
       group stays off by default.
+      **G6 kickoff: fail (2026-11-13, run 43305718628, commit b184317, snapshot
+      e9feb71c1fce2b40, reference run 42359964241; grid identical).** 18,591 warm dev
+      matches, 6,656 active (early or late kickoff). Primary total-goals CRPS.
+      (1) mixing **fail: divergences in 41 refits** (limit 4); R-hat > 1.01 in 4, ESS < 400
+      in 0. The regularised horseshoe's funnel between the global scale and near-zero
+      coefficients is the usual cause; G7 uses a Normal prior and is not affected.
+      (2) active total CRPS **+0.02% [−0.02%, +0.06%]: fail**, no gain. (3) all warm 1X2
+      log loss −0.02%, RPS −0.00%, OU2.5 log loss +0.00%, total CRPS +0.02%, all within
+      limits; bundles −0.12% (Italy) to +0.06% (England). (4) **ECE draw +0.0080 (0.0187 vs
+      0.0107): fail** (limit +0.005); home +0.0018, away −0.0005, over 2.5 −0.0009.
+      (5) early −0.002 to +0.011 and late −0.008 to +0.002, sd 0.013–0.031: the horseshoe
+      shrinks both to 0 (sd / prior not defined for the horseshoe). Reading: kickoff hour
+      has no detectable effect on goals. Recorded as failed; the group stays off by default.
+      A non-centred horseshoe would remove the divergences but would not change this
+      verdict, since the primary metric shows no gain.
 - [ ] M4 Combined model: gate, weekly dev run, feasibility.
 - [ ] M5 Promotion per D30.

@@ -572,39 +572,43 @@ def importance_report() -> None:
 @app.command("context-build")
 def context_build(
     horizon_hours: float = typer.Option(1.0, help="as_of = kickoff - this many hours"),
-    out: str = typer.Option("data/features/context.parquet", help="parquet output"),
+    from_season: int = typer.Option(2016, help="first season (dev training reaches 2016/17)"),
+    out: str = typer.Option("data/features/context.parquet", help="local parquet copy"),
+    upload: bool = typer.Option(False, help="store it as a snapshot for the backtest (F3)"),
 ) -> None:
-    """Build the match context table (adatta/features/context.py) for bundle league matches
-    from 2019 (not cancelled, postponed or walked over) and report coverage by league and
-    season (no requests)."""
+    """Build the match context table with team style (adatta/features/context_table.py) for
+    bundle league matches (not cancelled, postponed or walked over), report coverage by league
+    and season, and optionally store it as a snapshot (no requests)."""
     from datetime import timedelta
     from pathlib import Path
 
     from sqlalchemy import select
 
     from adatta.db import models
-    from adatta.features.context import NOT_PLAYED, context_features
+    from adatta.features import context_table
     from adatta.features.league_rules import load_rules
 
-    M, S, C = models.Match, models.Season, models.Competition
+    horizon = timedelta(hours=horizon_hours)
+    store = make_store(get_settings())
     with get_session() as session:
         leagues, _ = _bundle_competition_ids(session)
-        rows = session.execute(
-            select(M, C.name, S.year)
-            .join(S, S.season_id == M.season_id)
-            .join(C, C.competition_id == S.competition_id)
-            .where(S.competition_id.in_(leagues), S.year >= 2019, M.status.not_in(NOT_PLAYED))
-        ).all()
-        ctx = context_features(
-            session, make_store(get_settings()), [r[0] for r in rows], load_rules(),
-            timedelta(hours=horizon_hours),
-        )  # fmt: skip
-    keys = pl.DataFrame(
-        {"match_id": [r[0].match_id for r in rows], "league": [r[1] for r in rows],
-         "season": [r[2] for r in rows],
-         "playoff": [not (r[0].round or "").startswith("Regular Season") for r in rows]}
-    )  # fmt: skip
-    df = keys.join(ctx, on="match_id")
+        ms = context_table.matches(session, leagues, from_season)
+        S, C = models.Season, models.Competition
+        season_of = {
+            sid: (name, year)
+            for sid, name, year in session.execute(
+                select(S.season_id, C.name, S.year).join(C, C.competition_id == S.competition_id)
+            )
+        }
+        keys = pl.DataFrame({
+            "match_id": [m.match_id for m in ms],
+            "league": [season_of[m.season_id][0] for m in ms],
+            "season": [season_of[m.season_id][1] for m in ms],
+            "playoff": [not (m.round or "").startswith("Regular Season") for m in ms],
+        })  # fmt: skip
+        table = context_table.build(session, store, ms, load_rules(), horizon)
+        session.rollback()
+    df = keys.join(table, on="match_id")
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     df.write_parquet(out)
 
@@ -623,12 +627,19 @@ def context_build(
             pl.col("home_importance").filter(~pl.col("playoff")).is_not_null().mean().round(3)
             .alias("importance"),
             share("has_var").alias("var"),
+            (pl.col("home_tempo_rel").is_not_null() & pl.col("away_tempo_rel").is_not_null())
+            .mean().round(3).alias("style"),
         )
         .sort("league", "season")
     )  # fmt: skip
-    with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=160):
+    with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=180):
         typer.echo(cov)
-    typer.echo(f"{df.height} matches written to {out}")
+    typer.echo(f"{df.height} matches at kickoff - {horizon_hours:g} h written to {out}")
+    if upload:
+        from adatta.eval.baseline import _git_sha
+
+        d = context_table.save(store, table, horizon, _git_sha())
+        typer.echo(f"snapshot {d} stored at {context_table.key(horizon, d)}")
 
 
 @app.command("referees-report")

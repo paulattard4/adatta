@@ -34,6 +34,7 @@ from numpy.typing import NDArray
 from adatta.adapters.storage import LocalStore, RawStore, make_store, try_get
 from adatta.eval import harness, metrics
 from adatta.eval import holdout as ho
+from adatta.features import context_table
 from adatta.model import covariates as cv
 from adatta.model import dixon_coles as dc
 from adatta.model import team_strength as ts
@@ -66,6 +67,8 @@ class RunSpec:
     manager: bool = False  # manager-change widening (§5.2, D12)
     # Phase 2 context groups (covariates.GROUPS, canonical order); () is the 1b model
     groups: tuple[str, ...] = ()
+    # digest of the context snapshot the groups were fitted on (features.context_table)
+    context: str = ""
 
     @property
     def model_name(self) -> str:
@@ -96,8 +99,9 @@ def config_hash(spec: RunSpec) -> str:
     """Changes whenever the model code, sampler settings, evaluation config or locked
     libraries change, so stale cached draws are never reused."""
     fields = asdict(spec)
-    if not spec.groups:  # a spec without context hashes as it did before groups existed
-        del fields["groups"]
+    for name in ("groups", "context"):  # a spec without context hashes as it did before
+        if not fields[name]:
+            del fields[name]
     blob = json.dumps({"spec": fields, "files": {f: _file_hash(f) for f in HASHED_FILES}},
                       sort_keys=True)  # fmt: skip
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
@@ -216,11 +220,15 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
 def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConfig,
         seasons: list[int], spec: RunSpec, store: RawStore, fitter: Fitter | None = None,
         log: Callable[[str], None] = print, limit: int | None = None,
-        holdout: harness.HoldoutKey | None = None) -> pl.DataFrame:  # fmt: skip
+        holdout: harness.HoldoutKey | None = None,
+        target_context: pl.DataFrame | None = None,
+        target_horizon: timedelta = cv.HEADLINE_HORIZON) -> pl.DataFrame:  # fmt: skip
     """Score `seasons` of one bundle on the shared refit plan. Holdout seasons raise
     HoldoutLocked (inside refit_plan) unless `holdout` is given, and then only for the
     production spec. Returns one row per target match. `limit` keeps only the first N
-    refits (smoke tests)."""
+    refits (smoke tests). With context groups, training rows use df's context (kickoff -
+    1 h); targets use `target_context` instead when given (the T - 48 h report), checked
+    against `target_horizon`."""
     if holdout is not None and (spec != production_spec(cfg) or limit is not None):
         raise harness.HoldoutLocked(f"the holdout scores the production spec only, not {spec}")
     fitter = fitter or nuts_fitter(spec)
@@ -229,6 +237,8 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
     log(f"{bundle} seasons {seasons}: {len(plan)} refits, model {spec.model_name}, config {h}")
     lag = cfg.result_available_after_hours
     mh, ma = harness.mover_codes(df, leagues)  # leak-free: season s and s - 1 only
+    base_cols = [c for c in df.columns if target_context is None or c == "match_id"
+                 or c not in target_context.columns] + ["mover_home", "mover_away"]  # fmt: skip
     df = df.with_columns(mover_home=pl.Series(mh), mover_away=pl.Series(ma))
     rows: list[dict[str, Any]] = []
     for i, (as_of, tgt, train) in enumerate(plan):
@@ -243,6 +253,8 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
             draws, diag = fitter(fd, spec.seed)
             store.put(key, encode(draws, diag))
         targets = df[tgt]
+        if target_context is not None:
+            targets = context_table.attach(targets.select(base_cols), target_context)
         counts = np.bincount(np.concatenate([fd.home, fd.away]), minlength=len(fd.team_ids))
         n_of = {int(t): int(counts[j]) for j, t in enumerate(fd.team_ids)}
         n_xg = np.bincount(fd.league[fd.xg_rows], minlength=len(fd.leagues))
@@ -253,8 +265,8 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
         }  # fmt: skip
 
         for r, s in zip(targets.iter_rows(named=True),
-                        score_targets(draws, fd, targets, cfg.max_goals, spec.groups),
-                        strict=True):  # fmt: skip
+                        score_targets(draws, fd, targets, cfg.max_goals, spec.groups,
+                                      target_horizon), strict=True):  # fmt: skip
             n_h, n_a = n_of.get(int(r["home"]), 0), n_of.get(int(r["away"]), 0)
             rows.append({
                 "match_id": int(r["match_id"]), "league_id": int(r["league_id"]),
@@ -268,6 +280,8 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
                    if fd.mgr is not None else {}),
                 "cold_start": min(n_h, n_a) < cfg.min_warmup_matches,
                 "model": spec.model_name, "bundle": bundle, "config_hash": h,
+                **({"ctx_horizon_h": target_horizon.total_seconds() / 3600,
+                    "context": spec.context} if spec.groups else {}),
                 "cached": cached is not None, **{f"refit_{k}": v for k, v in diag.items()}, **s,
             })  # fmt: skip
         log(f"  refit {i + 1}/{len(plan)} as of {as_of:%Y-%m-%d}: {len(tgt)} targets, "
@@ -641,8 +655,19 @@ def main() -> None:
         help="xG auxiliary likelihood (§5.2); default on for strength_open",
     )
     r.add_argument("--manager", action="store_true", help="manager-change widening (§5.2)")
-    r.add_argument("--group", action="append", default=[],
-                   help="Phase 2 context group (G1-G7 or its name); repeatable")  # fmt: skip
+    r.add_argument(
+        "--group",
+        action="append",
+        default=[],
+        help="Phase 2 context group (G1-G7 or its name); repeatable",
+    )
+    r.add_argument(
+        "--context",
+        default="latest",
+        help="context snapshot digest (with --group), default the latest",
+    )
+    r.add_argument("--target-horizon-hours", type=float, default=1.0,
+                   help="score targets with context at kickoff - this (1 or 48)")  # fmt: skip
     r.add_argument("--every-days", type=int, default=None, help="default: D14 dev cadence")
     r.add_argument("--draws", type=int, default=2000)
     r.add_argument("--chains", type=int, default=4)
@@ -729,14 +754,20 @@ def main() -> None:
                    xg=args.structure == "strength_open" if args.xg is None else args.xg,
                    manager=args.manager, groups=cv.resolve(args.group))  # fmt: skip
     leagues = cfg.bundles[args.bundle]
-    if spec.groups:
-        # every row needs its context at kickoff - 1 h (task F3), joined with ctx_as_of
-        raise SystemExit("context groups need the F3 context table, which is not built yet")
     df = _load(leagues, spec.xg, spec.manager)
+    target_ctx, target_h = None, timedelta(hours=args.target_horizon_hours)
+    if spec.groups:  # training rows at kickoff - 1 h; targets at the chosen horizon
+        ctx, digest = context_table.load(_store(args.cache), cv.HEADLINE_HORIZON, args.context)
+        spec = replace(spec, context=digest)
+        df = context_table.attach(df, ctx)
+        if target_h != cv.HEADLINE_HORIZON:
+            target_ctx, _ = context_table.load(_store(args.cache), target_h)
+        print(f"context snapshot {digest} ({ctx.height} rows)")
     t0 = time.time()
     key = ho.unlock(_store(args.cache), args.holdout, spec.model_name) if args.holdout else None
     pred = run(df, leagues, args.bundle, cfg, args.season, spec, _store(args.cache),
-               limit=args.limit, holdout=key)  # fmt: skip
+               limit=args.limit, holdout=key, target_context=target_ctx,
+               target_horizon=target_h)  # fmt: skip
     pred = pred.with_columns(
         refit_every_days=pl.lit(every),
         plan_seasons=pl.lit("-".join(str(s) for s in sorted(args.season))),

@@ -185,6 +185,29 @@ Features (outside `adatta/model/`, can start now):
 - [ ] F3 Context rows for every training and target match at kickoff − 1 h and − 48 h,
       written once per data snapshot (`context-build --horizon-hours`), hashed into the
       reproducibility manifest.
+      Acceptance (stated 2026-11-12, before building): (1) every finished league match the
+      backtest loads for the five bundles, from 2016/17 (the dev training windows reach
+      back that far), has a row at both horizons, and a missing row stops the backtest;
+      (2) every row's `ctx_as_of` is kickoff − horizon; (3) snapshots are named by a digest
+      of their content, and the digest enters the backtest config hash, so draws fitted on
+      one snapshot are never reused for another; (4) `--group` loads a snapshot and scores
+      targets at − 1 h or − 48 h, tested end to end; (5) coverage reported by league-season.
+      **Code and coverage pass 2026-11-12; ticked when the final snapshots are stored
+      after F2.** `adatta/features/context_table.py` (context + F1 style, `ctx_as_of`;
+      content digest; `features/context/h<hours>/<digest>.parquet` and `latest.json` in
+      the private store, never git); `adatta context-build --horizon-hours 1|48 --upload`
+      (now from 2016, with style coverage); backtest `--context <digest|latest>`,
+      `--target-horizon-hours 48`, `RunSpec.context` in the config hash, predictions carry
+      `ctx_horizon_h` and `context`. `tests/test_context_table.py` (5 tests). Live, both
+      horizons: 42,624 bundle league matches 2016–2026 in 3.8 min each; every one of the
+      39,749 matches the backtest loads has a row with `ctx_as_of` exactly kickoff −
+      horizon (items 1, 2). Not yet uploaded: the F2 weather download is still running
+      (as-issued forecasts so far reach La Liga, Serie A, Segunda and Serie B from 2024,
+      Ligue 1 and 2 in part, England not yet), so a snapshot now would be superseded.
+      **Gap for G5:** importance is null for every 2016–2018 match, because
+      `config/league_rules.yml` has zone rules from 2019 only. Dev training windows reach
+      into 2016–2018, so dead rubbers there would be fitted as live and pull the
+      importance coefficient toward 0. Add the 2016–2018 zone rules before G5's backtest.
 
 Model (after the Phase 1b audit closes):
 - [x] M1 Harness: prediction-time scoring (latest refit's draws + the target's context

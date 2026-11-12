@@ -139,10 +139,21 @@ non-zero).
 ## Tasks
 
 Features (outside `adatta/model/`, can start now):
-- [ ] F1 Style features: `adatta/features/style.py`, as-of rolling team style per §5.3
+- [x] F1 Style features: `adatta/features/style.py`, as-of rolling team style per §5.3
       (365 days, matches final by as_of, league-normalised tempo: shots for and against,
       on target, possession). Acceptance: leakage test as for context; coverage ≥ 99% of
       2019–2025 league matches with at least 5 prior matches in the window; null otherwise.
+      **Pass, 2026-11-12.** League matches only (cup statistics are patchy, and tempo
+      needs a league); each match's tempo is divided by its own league's mean over the
+      same window, so a promoted side's earlier season is measured against the league it
+      was played in. `tests/test_style.py` (6 tests: window means, the minimum, the
+      365-day window, leakage at as_of − result lag, league normalisation incl. a promoted
+      side, the loader's filters). Live, the 26,969 bundle league matches 2019–2025 at
+      kickoff − 1 h (3 s to load, 1 s to build): 98.93% of the 53,938 sides have at least
+      5 prior matches, and every one of those has all values (100%). The other 578 sides
+      are null: 118 side-seasons entering the loaded leagues (promoted from an unloaded
+      third tier, all in the five second divisions) during their first 4 matches.
+      `tempo_rel` ranges −0.30 to +0.51, sd 0.063.
 - [ ] F2 Weather history per D29 (c), free tier, in the background.
       Design: (1) as-issued forecasts for every bundle league match from 2024-02-01 (the
       previous-runs API has values from late January 2024: probed 2026-11-11, Manchester

@@ -57,6 +57,7 @@ def at_ref(ref: str, tmp: Path) -> ModuleType:
     spec = importlib.util.spec_from_file_location("team_strength_ref", path)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod  # dataclasses look their module up while it loads
     spec.loader.exec_module(mod)
     return mod
 

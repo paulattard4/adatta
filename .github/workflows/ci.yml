@@ -1,5 +1,12 @@
 name: ci
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      identical_ref:
+        description: "commit to compare the default model's draws with"
+        required: true
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -39,6 +46,10 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --frozen --group model
       - run: uv run --frozen --group model pytest -q tests/test_covariate_model.py tests/test_xg_model.py tests/test_manager_model.py tests/test_form_model.py
-      - name: Default model draws unchanged since the previous push
-        if: github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000'
-        run: uv run --frozen --group model python -m adatta.model.identical --ref ${{ github.event.before }}
+      - name: Default model draws unchanged (since the previous push, or the given commit)
+        if: >-
+          github.event_name == 'workflow_dispatch' || (github.event_name == 'push' &&
+          github.event.before != '0000000000000000000000000000000000000000')
+        env:
+          REF: ${{ inputs.identical_ref || github.event.before }}
+        run: uv run --frozen --group model python -m adatta.model.identical --ref "$REF"

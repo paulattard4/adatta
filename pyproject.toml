@@ -21,6 +21,10 @@ dependencies = [
 ]
 
 [dependency-groups]
+api = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
 dev = [
   "pytest>=8.2",
   "ruff>=0.5",
@@ -78,3 +82,6 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv]
+default-groups = ["dev", "api"]  # dashboard API (docs/DASHBOARD_TASKS.md); model stays opt-in

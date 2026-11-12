@@ -205,7 +205,9 @@ sensitivity check must report.
 - [ ] Hierarchical home advantage: h_team ~ Normal(h_league, sigma_home_adv). Regular season
       only, so no neutral venues yet (play-offs and cups come later, with the neutral flag).
 - [ ] Dixon-Coles rho with a weak prior, per bundle (§8.1).
-- [ ] Draws stored as ArviZ netCDF in R2 (§12.1); trace retention per §12.3.
+- [x] Draws stored in R2 (§12.1); trace retention per §12.3. Superseded by the
+      draw-storage decision of 2026-11-11 (section 7): 400 thinned draws as .npz; full
+      traces as netCDF only for gate runs.
 
 ### 3. Diagnostics and simulation
 - [ ] `adatta/model/diagnostics.py`: every check in acceptance item 1, as a report.
@@ -803,9 +805,18 @@ Tasks:
       (18:07 UTC) wrote projection_run 1: initial projections for all 128 upcoming bundle
       fixtures (1,408 rows), none outside its interval; the whole capture step took 46 s
       (27–52 s on the three ticks before).
-- Spec deviation, raised 2026-11-11 for the owner: §12.1 stores posterior draws as ArviZ
-  netCDF; serving stores the 400 thinned draws prediction reads (npz, a few MB per bundle),
-  as the backtest cache does, because a full trace is about 0.7 GB per bundle per week.
+- **Decision 2026-11-11 (owner), amends §12.1 draw storage.** Serving and the backtest cache
+  store the 400 thinned draws prediction reads, as .npz (a few MB per bundle-week), not the
+  full ArviZ netCDF trace (about 0.7 GB per bundle-week, ~3.5 GB a week for five bundles,
+  which would fill R2's free 10 GB in three weeks). Why this loses nothing that is used:
+  - served probabilities equal the backtest's to 1e-9 (tests/test_serve.py);
+  - the inference gates (R-hat, bulk/tail ESS, divergences) are computed on the full
+    trace before thinning and kept in each refit's model_run manifest;
+  - any full trace can be regenerated: the row records code SHA, uv.lock hash, data
+    snapshot hash, config hash and seed (§14.8), and a refit takes 5-10 min;
+  - .npz keeps serving numpy-only (no ArviZ/xarray/PyMC; enforced by a test).
+  Full traces stay netCDF where they are inspected: the inference-gate runs
+  (`adatta/model/gate.py`) and any one-off diagnostic run.
 
 ## Out of scope for 1b (spec places them later)
 Global cross-league layer / Q_league (§10.1; needs continental bridging data), neutral and host

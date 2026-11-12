@@ -46,6 +46,13 @@ Not in Phase 2, with the reason:
   dispersion parameter (D20 found the data under-dispersed), so style enters the mean only
   in Phase 2, as the register's degrade rule allows. A variance term is a later challenger.
 - **Altitude in continental play**: cups and continental matches are not modelled yet.
+  When they are (knockout logic §9, cross-league strength Q_league §10.1), retest G2 on
+  cross-nation matches only (European cups, internationals). The G2 fail (2026-11-12) is
+  domestic only: there tz_shift was not identified (sd / prior about 1), climbs are small
+  and distance is absorbed by home advantage. Cross-nation trips vary far more (shifts of
+  up to +5 h within UEFA, climbs to 3,600 m in CONMEBOL), so the result does not carry
+  over. Pool the coefficients across teams (few continental matches per team). The
+  features need no rebuild.
 
 ## Prediction time (the backtest must replicate production, §5.3)
 

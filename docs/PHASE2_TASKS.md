@@ -314,5 +314,18 @@ Model (after the Phase 1b audit closes):
       failed; the group stays off by default. A total-goals version (one term on both
       sides' rates, judged on CRPS and OU2.5) is a candidate for a later dev iteration, as
       a new pre-stated test, not a rescue of this one.
+      **G4 referee: fail (2026-11-12, run 43274251776, commit 7681b82, snapshot
+      e9feb71c1fce2b40, reference run 42359964241; grid identical).** 18,591 warm dev
+      matches, 18,531 active (a referee with a pace estimate). Primary total-goals CRPS.
+      (1) mixing pass: R-hat > 1.01 in 1 refit, ESS < 400 in 0, divergences in 0.
+      (2) active total CRPS **+0.02% [−0.00%, +0.04%]: fail**, no gain. (3) all warm 1X2
+      log loss −0.01%, **RPS +0.00% (fail, limit 0)**, OU2.5 log loss +0.01%, total CRPS
+      +0.02%; bundles −0.11% (Italy) to +0.04% (England, Germany). (4) ECE pass (home
+      −0.0007, draw −0.0041, away +0.0002, over 2.5 +0.0036). D25/D26 leagues +0.00%
+      [−0.03%, +0.04%], others +0.02% [−0.00%, +0.05%]: the late-appointment optimism is
+      moot. (5) referee_pace −0.036 to +0.002, sd / prior 0.89–0.92: the data barely move
+      the prior, so there is no detectable referee effect on goals. Reading: referee pace
+      adds nothing to goal totals once team strength is known. Recorded as failed; the
+      group stays off by default.
 - [ ] M4 Combined model: gate, weekly dev run, feasibility.
 - [ ] M5 Promotion per D30.

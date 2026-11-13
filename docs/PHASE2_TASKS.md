@@ -267,7 +267,7 @@ Model (after the Phase 1b audit closes):
       refit's coefficient mean and sd. A run's draws are keyed by a digest of only the
       columns its group reads, over the seasons its plan uses, so the weather rebuild does
       not invalidate G1, G2 and G4–G7 runs. Reference: `phase1b_strength_open_xg`, 28-day
-      dev grid, run 42359964241. Snapshot at − 1 h stored 2026-11-12: `e9feb71c1fce2b40`
+      dev grid, run 42359964241 (43419004255 from 2026-11-13, see below). Snapshot at − 1 h stored 2026-11-12: `e9feb71c1fce2b40`
       (with the 2016–2018 importance labels; weather still partial, which only G3 reads).
       Order: G1, G2, G5, G4, G6, G7, then G3 after the weather download.
       `tests/test_phase2_report.py` (6 tests).
@@ -355,5 +355,17 @@ Model (after the Phase 1b audit closes):
       more goals than their strengths alone say. Reading: the first group to pass; it
       sharpens the total-goals distribution and leaves 1X2 about where it was. Carried to
       M4 (combined model); the 1X2 gate there (D18 form) is a separate, harder test.
+      **Re-read against a clean reference (2026-11-13).** Reference 42359964241 was fitted
+      on older code: its predictions differ from the current code's by up to 0.039 in
+      p_home (found by D34, PHASE1B_TASKS.md 7c). It was rerun on commit 9765e73 as run
+      43419004255 (`phase1b_strength_open_xg`, 28-day grid, the same refits), and each
+      group run's parts were assembled locally against it (`assemble --vs`). Every verdict
+      stands. Primary metric now: G1 rest +0.01% [−0.03%, +0.05%] (and mixing now fails,
+      R-hat in 4 refits against a limit of 3); G2 travel +0.01% [−0.01%, +0.03%];
+      G5 importance +0.32% [+0.09%, +0.55%]; G4 referee −0.00% [−0.01%, +0.01%];
+      G6 kickoff −0.01% [−0.03%, +0.02%] (its ECE draw failure was drift: now −0.0012;
+      it still fails on mixing and the primary metric); **G7 style −0.14% [−0.20%, −0.08%],
+      pass**, all warm 1X2 log loss −0.01%, RPS −0.01%, OU2.5 −0.13%, ECE within limits.
+      Reference for G3 and M4: run 43419004255.
 - [ ] M4 Combined model: gate, weekly dev run, feasibility.
 - [ ] M5 Promotion per D30.

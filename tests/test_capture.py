@@ -36,6 +36,7 @@ class FakeApi:
         self.lineups_published = True
         self.odds_offered = True
         self.n_fixtures = 1
+        self.season_dates: tuple[str, str] | None = None  # (start, end) on /leagues
 
     def fixture(self, fid: int, kickoff: datetime) -> dict[str, Any]:
         return {
@@ -52,9 +53,10 @@ class FakeApi:
         q = req.url.params
         body: Any
         if req.url.path == "/leagues":
-            body = [
-                {"seasons": [{"year": 2025, "current": False}, {"year": 2026, "current": True}]}
-            ]
+            cur: dict[str, Any] = {"year": 2026, "current": True}
+            if self.season_dates:
+                cur |= {"start": self.season_dates[0], "end": self.season_dates[1]}
+            body = [{"seasons": [{"year": 2025, "current": False}, cur]}]
         elif req.url.path == "/fixtures" and "ids" in q:
             body = []
             for fid in q["ids"].split("-"):
@@ -109,7 +111,7 @@ class Harness:
         self.daily_limit = 7500
         self.fetch_delay = timedelta(0)  # how long after the tick's start each response arrives
 
-    def tick(self, now: datetime, **kwargs: Any) -> Any:
+    def tick(self, now: datetime, comps: list[Competition] | None = None, **kwargs: Any) -> Any:
         self.now = now
         http = httpx.Client(
             base_url="https://example.test",
@@ -120,7 +122,7 @@ class Harness:
             clock=lambda: self.now + self.fetch_delay,
         )  # fmt: skip
         with Session(self.engine) as s:
-            return run_capture(s, client, [COMP], now=now, **kwargs)
+            return run_capture(s, client, comps or [COMP], now=now, **kwargs)
 
     def captures(self) -> dict[str, str]:
         with Session(self.engine) as s:
@@ -363,3 +365,48 @@ def test_odds_are_never_imported_by_model_feature_or_sim_code() -> None:
             if names & forbidden or text_hits:
                 offenders.append(str(path))
     assert offenders == []
+
+
+NATIONAL = Competition(
+    name="Nations", country="World", league_id=999, level="senior", tier="national",
+    priority=5, seasons=[2026], national=True,
+)  # fmt: skip
+
+
+def test_national_competition_outside_its_window_costs_one_request(tmp_path: Path) -> None:
+    h = Harness(tmp_path)
+    h.api.season_dates = ("2026-06-01", "2026-07-01")  # ended months before T0
+    report = h.tick(T0, comps=[NATIONAL])
+    assert not report.errors
+    assert [c.split("?")[0] for c in h.api.calls] == ["/leagues"]
+    assert h.count(models.Match) == 0
+
+
+def test_national_competition_in_its_window_is_captured_as_national(tmp_path: Path) -> None:
+    h = Harness(tmp_path)
+    h.api.season_dates = ("2026-11-05", "2026-11-18")  # T0 is within the 30-day lead
+    report = h.tick(T0, comps=[NATIONAL])
+    assert not report.errors
+    assert any(c.startswith("/fixtures") for c in h.api.calls)
+    with Session(h.engine) as s:
+        comp = s.scalars(select(models.Competition)).one()
+        teams = s.scalars(select(models.Team)).all()
+    assert comp.is_national
+    assert teams and all(t.is_national and t.country == t.name for t in teams)
+
+
+def test_national_window_bounds() -> None:
+    from adatta.capture.jobs import national_active
+
+    seasons: list[dict[str, Any]] = [
+        {"year": 2026, "current": True, "start": "2026-09-24", "end": "2026-11-17"}
+    ]
+
+    def at(d: str) -> datetime:
+        return datetime.fromisoformat(d).replace(tzinfo=UTC)
+
+    assert national_active(seasons, 2026, at("2026-08-26"))  # 29 days before the start
+    assert not national_active(seasons, 2026, at("2026-08-24"))
+    assert national_active(seasons, 2026, at("2026-12-01"))  # 13 days after the end
+    assert not national_active(seasons, 2026, at("2026-12-03"))
+    assert national_active([{"year": 2026, "current": True}], 2026, at("2030-01-01"))

@@ -1,7 +1,10 @@
 # Senior men's national-team competitions (D35 Stage 0; docs/BEYOND_LEAGUES_PLAN.md, Stage D).
-# Not yet loaded or captured: used by the capability audit first
+# Audited 2026-11-13 (docs/SOURCE_FEASIBILITY.md section 7):
 #   uv run adatta audit --config config/national_competitions.yml
-# then by the backfill and live capture once the feasibility rows are verified.
+# Live capture from 2026-11-13: the capture tick loads this file next to competitions.yml. A
+# competition is captured from 30 days before its current season's start to 14 days after
+# its end (adatta/capture/jobs.py national_active); outside that, one /leagues request a day.
+# Its teams are stored with is_national. History not loaded yet; never modelled until Stage D.
 # league_id values and seasons are from API-Football /leagues?country=World (2026-11-13).
 # Season years are the provider's: a qualifying competition is keyed by its finals' year or
 # by its start year, whichever the provider uses (the World Cup 2018 qualifiers run 2015-17

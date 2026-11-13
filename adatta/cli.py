@@ -239,8 +239,9 @@ def capture() -> None:
     client = _client()
     with get_session() as session:
         weather = OpenMeteoClient(make_store(settings))
+        comps = load_competitions() + load_competitions("config/national_competitions.yml")
         report = run_capture(
-            session, client, load_competitions(), weather=weather,
+            session, client, comps, weather=weather,
             projector=_projector(session, settings), refits_due=_refits_due(session),
             dispatch=_serve_dispatcher(),
         )  # fmt: skip

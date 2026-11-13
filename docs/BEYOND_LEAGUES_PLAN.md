@@ -65,8 +65,14 @@ Progress:
       2016; the Euro 2016 qualifiers are absent); results everywhere; lineups about 100% in
       competitive matches but only 35-38% of friendlies in 2025-26; xG only from 2024 in the
       top competitions, so v0 stays results-only as planned.
-- [ ] National teams: live capture before the March 2027 window (move the competitions into
-      the capture list), then the history load, then the host flag (venue country).
+- [x] 2026-11-13: national-team live capture, in time for the November window (Nations
+      League, CONCACAF Nations League, friendlies to 17-19 Nov). The capture tick loads
+      `config/national_competitions.yml` with the club list; a competition is captured from
+      30 days before its current season's start to 14 days after its end, otherwise one
+      `/leagues` request a day. Teams of these competitions are stored with `is_national`.
+      Expected cost in a window week: about 130 matches at about 12 requests each.
+- [ ] National teams: check the first window's capture (odds, lineups, requests), then the
+      history load, then the host flag (venue country).
 - [ ] UEFA detail backfill 2016-2025 (`adatta backfill-run`, by hand).
 - [x] 2026-11-13: neutral venue flag for club matches, `adatta venues-neutral`
       (`adatta/features/neutral.py`, `config/neutral_venues.yml`): venue identity against

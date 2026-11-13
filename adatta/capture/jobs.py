@@ -57,6 +57,10 @@ DAILY_BUDGET_S = 480.0  # no new competition's daily jobs after this much of a r
 RESULT_WAIT = timedelta(hours=2)  # a result is first asked for this long after kickoff
 RESULT_WINDOW = timedelta(days=3)  # and asked for again each tick until final, this long
 DISPATCH_EVERY = timedelta(hours=1)  # a due refit is dispatched again after this long
+# A national-team competition is captured from this long before its current season's start
+# to this long after its end; outside that, only the daily /leagues check is made (D35).
+NATIONAL_LEAD = timedelta(days=30)
+NATIONAL_TAIL = timedelta(days=14)
 
 
 @dataclass
@@ -168,10 +172,14 @@ def _alert_once(session: Session, job: str, problems: list[str], now: datetime) 
 def capture_calendar(
     session: Session, client: ApiFootballClient, comp: Competition, now: datetime
 ) -> int:
-    """Refresh the current season's calendar; return fixture_snapshot rows added."""
-    year = afc.current_season(client.league_seasons(session, comp.league_id, live=True))
+    """Refresh the current season's calendar; return fixture_snapshot rows added. A
+    national-team competition outside its season's window is skipped (one request)."""
+    seasons = client.league_seasons(session, comp.league_id, live=True)
+    year = afc.current_season(seasons)
     if year is None:
         raise RuntimeError(f"/leagues reports no current season for league {comp.league_id}")
+    if comp.national and not national_active(seasons, year, now):
+        return 0
     fixtures = client.fixtures(session, comp.league_id, year, live=True)
     observed = _observed(client)
     season = _season(session, comp, year)
@@ -218,11 +226,34 @@ def capture_calendar(
     return added
 
 
+def national_active(seasons: list[dict[str, Any]], year: int, now: datetime) -> bool:
+    """The current season of a national-team competition is within its capture window."""
+    cur = next((x for x in seasons if int(x["year"]) == year), None)
+    if cur is None or not cur.get("start") or not cur.get("end"):
+        return True  # no dates given: capture rather than miss it
+    start = datetime.fromisoformat(cur["start"]).replace(tzinfo=UTC)
+    end = datetime.fromisoformat(cur["end"]).replace(tzinfo=UTC) + timedelta(days=1)
+    return start - NATIONAL_LEAD <= now <= end + NATIONAL_TAIL
+
+
+def _nothing_ahead(session: Session, season: models.Season, now: datetime) -> bool:
+    M = models.Match
+    return (
+        session.scalar(
+            select(M.match_id).where(M.season_id == season.season_id, M.kickoff_time > now)
+        )
+        is None
+    )
+
+
 def capture_status(
     session: Session, client: ApiFootballClient, comp: Competition, now: datetime
 ) -> Counter[str]:
-    """Daily availability snapshot for unplayed fixtures of the current season."""
+    """Daily availability snapshot for unplayed fixtures of the current season. A
+    national-team competition with no season loaded or nothing ahead is skipped."""
     season = _current_season_row(session, comp)
+    if comp.national and (season is None or _nothing_ahead(session, season, now)):
+        return Counter()
     if season is None:
         raise RuntimeError("no season row yet: calendar must run first")
     # The feed can list the same player and fixture more than once; keep the last entry so
@@ -286,6 +317,8 @@ def capture_detail(session: Session, client: ApiFootballClient, comp: Competitio
     """Daily: post-match detail (lineups, events, statistics incl. xG) for finished matches of
     the current season that lack it, 20 per request; team stats are parsed as they arrive."""
     season = _current_season_row(session, comp)
+    if season is None and comp.national:
+        return 0  # not in its capture window yet
     if season is None:
         raise RuntimeError("no season row yet: calendar must run first")
     return backfill.fetch_detail(session, client, season, lambda: None)

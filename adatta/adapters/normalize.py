@@ -175,9 +175,11 @@ def chunks(xs: list[Any], n: int = 500) -> Iterator[list[Any]]:
 
 
 def teams_by_ref(
-    session: Session, teams: dict[str, str], country: str = ""
+    session: Session, teams: dict[str, str], country: str = "", national: bool = False
 ) -> dict[str, models.Team]:
-    """Bulk get-or-create teams from {source_ref: name}: one SELECT per 500 refs, one flush."""
+    """Bulk get-or-create teams from {source_ref: name}: one SELECT per 500 refs, one flush.
+    National sides (teams of a national-team competition) are stored with is_national and
+    their own name as country; an existing row is upgraded, never downgraded."""
     T = models.Team
     out: dict[str, models.Team] = {}
     for part in chunks(sorted(teams)):
@@ -187,11 +189,16 @@ def teams_by_ref(
                 select(T).where(T.source_id == SOURCE_ID, T.source_ref.in_(part))
             )
         )
+    if national:
+        for t in out.values():
+            if not t.is_national:
+                t.is_national, t.country = True, t.name
     new = [
-        T(source_id=SOURCE_ID, source_ref=ref, name=name, country=country)
+        T(source_id=SOURCE_ID, source_ref=ref, name=name,
+          country=name if national else country, is_national=national)
         for ref, name in teams.items()
         if ref not in out
-    ]
+    ]  # fmt: skip
     if new:
         session.add_all(new)
         session.flush()
@@ -295,11 +302,13 @@ def ingest_fixtures(
     database, per-row round trips made a 380-fixture season take minutes.
     """
     now = datetime.now(UTC)
+    national = bool(session.scalar(select(models.Competition.is_national).where(
+        models.Competition.competition_id == season.competition_id)))  # fmt: skip
     teams = teams_by_ref(
         session,
         {str(fx["teams"][side]["id"]): fx["teams"][side]["name"] for fx in fixtures
          for side in ("home", "away")},
-        country,
+        country, national,
     )  # fmt: skip
     matches = matches_by_ref(session, (str(fx["fixture"]["id"]) for fx in fixtures))
     keys = {str(fx["fixture"]["id"]): venue_key(fx) for fx in fixtures}

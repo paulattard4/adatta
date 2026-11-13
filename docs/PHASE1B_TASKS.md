@@ -887,6 +887,12 @@ Tasks:
 - [ ] Item 3: two backtests, one at a time after the Phase 2 group runs: the production
       spec at `every_days` 7 on the weekly grid (fits the Mondays), then `grid` results
       with `vs` = that run (fits only the triggers).
+      - Step 1 done 2026-11-13: run 43421580602 (commit 548ba33), production spec,
+        weekly grid, 2,000 draws. 928 Monday refits: R-hat > 1.01 in 7 (worst 1.016),
+        ESS < 400 in 0, divergences in 0. Four jobs (Spain 2019, 2022, 2023; England
+        2019) hit the 6-hour runner limit and were rerun from the fit cache (8-51 min).
+        At weekly cadence the biggest bundle-seasons do not fit one job, so the M4 weekly
+        run needs its jobs split (Phase 2 combined item 4). Step 2 after G3.
 - [ ] Set `RESULTS_REFITS=on`, then item 4 on the first midweek round.
 
 ### 7c. Strength uncertainty ahead of the refit (D34)

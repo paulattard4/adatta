@@ -78,8 +78,9 @@ Progress:
       (`adatta/features/neutral.py`, `config/neutral_venues.yml`): venue identity against
       each team's league grounds at kickoff, then round rules, then per-fixture overrides.
       Bundle league matches 99.1% home (the rest: 342 with no venue, 42 temporary grounds);
-      all 250 rule-covered finals and semis decided. 25 review cases still need overrides
-      before Stage A uses the flag; `--write` sets `match.neutral`.
+      all 250 rule-covered finals and semis decided. The 25 review cases were settled by hand
+      the same day (22 overrides in `config/neutral_venues.yml`, a rule for the Championship
+      play-off final; one left unresolved). `--write` set `match.neutral` on 362 matches.
 - [ ] Third tiers.
 
 ## Stage A: domestic cup ties, 90-minute forecasts

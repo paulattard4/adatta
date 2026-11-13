@@ -21,4 +21,36 @@ rules:
   - league_ids: [15]
     round: ".*"
     note: "FIFA Club World Cup: a tournament in a host country"
-overrides: []
+  - league_ids: [40]
+    round: "Promotion Play-offs - Final"
+    note: "Championship play-off final at Wembley"
+# Reviewed 2026-11-13 from the `adatta venues-neutral` review list (venue in the away side's
+# city, or a city both share). Unresolved and left as review (not neutral):
+#   1316060 Bobigny v Red Star at Stade Auguste Delaune: whose ground is not clear.
+overrides:
+  # a lower-league or smaller club at its own ground near the visitor
+  - {fixture: 293363, role: home, note: "Sestao River at Las Llanas, their ground"}
+  - {fixture: 973570, role: home, note: "Sestao River at Las Llanas, their ground"}
+  - {fixture: 656695, role: home, note: "Cornella at their municipal ground"}
+  - {fixture: 1644353, role: home, note: "Deportiva Minera hosting in Cartagena municipality"}
+  - {fixture: 121677, role: home, note: "Saint-Gratien at their ground"}
+  - {fixture: 121534, role: home, note: "Chauray at their ground"}
+  - {fixture: 1141259, role: home, note: "Villejuif at their ground"}
+  - {fixture: 1647976, role: home, note: "Gobelins (Paris 13e) at Charlety, their district"}
+  - {fixture: 716598, role: home, note: "Stevenage at their ground (Lamex Stadium)"}
+  - {fixture: 716597, role: home, note: "Leyton Orient at Brisbane Road (sponsor name)"}
+  - {fixture: 629206, role: home, note: "Leyton Orient at Brisbane Road (sponsor name)"}
+  - {fixture: 1141470, role: home, note: "Cray Valley PM at their ground"}
+  - {fixture: 209848, role: home, note: "AFC Wimbledon at Kingsmeadow, their ground then"}
+  - {fixture: 209825, role: home, note: "AFC Wimbledon at Kingsmeadow, their ground then"}
+  - {fixture: 209851, role: home, note: "Barnet at The Hive, their ground"}
+  # the home side's own ground under a name variant the league fixtures don't use
+  - {fixture: 210011, role: home, note: "Liverpool at Anfield"}
+  - {fixture: 27987, role: home, note: "AC Milan at San Siro (shared with Inter)"}
+  # the smaller club gave up home advantage: played at the visitor's ground
+  - {fixture: 169044, role: swapped, note: "at Werder Bremen's Weserstadion (sponsor name)"}
+  - {fixture: 609063, role: swapped, note: "at Wolfsburg's AOK Stadion"}
+  - {fixture: 1036594, role: swapped, note: "at Freiburg's former ground, Dreisamstadion"}
+  # league matches at a ground that is neither team's (temporary relocation per the provider)
+  - {fixture: 1038132, role: neutral, note: "Getafe v Rayo listed at the Metropolitano"}
+  - {fixture: 1391055, role: neutral, note: "Rayo v Atletico listed at Leganes' Butarque"}

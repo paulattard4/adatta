@@ -44,6 +44,9 @@ class Competition(BaseModel):
     # False: fixture calendar only (no post-match detail), for competitions loaded as context,
     # e.g. European and League Cup games for congestion (§6.2). Never modelled.
     detail: bool = True
+    # National-team competition (spec §10.4, D35 Stage D): its teams are national sides and it
+    # is fitted apart from the club model. Sets competition.is_national.
+    national: bool = False
 
 
 def load_competitions(path: Path | str = "config/competitions.yml") -> list[Competition]:

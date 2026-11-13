@@ -57,10 +57,24 @@ Progress:
       until Stage C; the projector serves bundle leagues only.
 - [ ] Check the first ticks: 2026/27 UEFA fixtures loaded, odds and lineups captured on
       the next matchday (24-27 Nov), requests as estimated.
-- [ ] National-team competitions: feasibility rows, then live capture before the March
-      2027 window, then the history from 2014.
+- [x] 2026-11-13: national-team feasibility. `config/national_competitions.yml` (22 senior
+      men's competitions, `national: true`, which sets `competition.is_national`), audited
+      with `adatta audit --config config/national_competitions.yml` (78 seasons, 245
+      requests). Rows in `docs/SOURCE_FEASIBILITY.md` section 7. Findings: history starts
+      2015-17 for most competitions, not 2014 (friendlies 2017, European WC qualifiers Sept
+      2016; the Euro 2016 qualifiers are absent); results everywhere; lineups about 100% in
+      competitive matches but only 35-38% of friendlies in 2025-26; xG only from 2024 in the
+      top competitions, so v0 stays results-only as planned.
+- [ ] National teams: live capture before the March 2027 window (move the competitions into
+      the capture list), then the history load, then the host flag (venue country).
 - [ ] UEFA detail backfill 2016-2025 (`adatta backfill-run`, by hand).
-- [ ] Neutral venue flag; third tiers.
+- [x] 2026-11-13: neutral venue flag for club matches, `adatta venues-neutral`
+      (`adatta/features/neutral.py`, `config/neutral_venues.yml`): venue identity against
+      each team's league grounds at kickoff, then round rules, then per-fixture overrides.
+      Bundle league matches 99.1% home (the rest: 342 with no venue, 42 temporary grounds);
+      all 250 rule-covered finals and semis decided. 25 review cases still need overrides
+      before Stage A uses the flag; `--write` sets `match.neutral`.
+- [ ] Third tiers.
 
 ## Stage A: domestic cup ties, 90-minute forecasts
 

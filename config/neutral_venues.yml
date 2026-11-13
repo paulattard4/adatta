@@ -1,0 +1,24 @@
+# Neutral venues (adatta/features/neutral.py; D35 Stage 0). API-Football has no neutral
+# field, so the role is derived from venue identity (the teams' league home grounds) and,
+# where that can't decide, from these rules. Ground identity wins over a rule: a final at a
+# finalist's own ground (the DFL Supercup at the champion's, a Coppa Italia final at the
+# Olimpico with Lazio or Roma) stays home.
+#
+# rules: league_ids are API-Football ids; round is a full-match regex on the provider's round
+# label (checked against the stored fixtures on 2026-11-13).
+# overrides: one row per fixture (the provider's fixture id), role home | swapped | neutral,
+# with a note saying why. Added after hand review of `adatta venues-neutral` review cases.
+rules:
+  - league_ids: [45, 48, 143, 137, 81, 66, 65, 2, 3, 848, 531, 528, 529, 556, 547, 526, 15]
+    round: "Final"
+    note: "single-match cup, continental and super cup finals at a chosen stadium"
+  - league_ids: [45]
+    round: "Semi-finals"
+    note: "FA Cup semi-finals at Wembley"
+  - league_ids: [556, 547]
+    round: "Semi-finals"
+    note: "Supercopa and Supercoppa semi-finals at a host stadium, often abroad"
+  - league_ids: [15]
+    round: ".*"
+    note: "FIFA Club World Cup: a tournament in a host country"
+overrides: []

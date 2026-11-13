@@ -116,13 +116,14 @@ def audit(
     league: int | None = typer.Option(None, help="only this API-Football league id"),
     season: int | None = typer.Option(None, help="only this season start year"),
     out: str = typer.Option("reports/capability_audit", help="report folder"),
+    config: str = typer.Option("config/competitions.yml", help="competition list to audit"),
 ) -> None:
     """Audit API-Football coverage per competition x season; fill the capability table."""
-    comps = load_competitions()
+    comps = load_competitions(config)
     if league is not None:
         comps = [c for c in comps if c.league_id == league]
         if not comps:
-            raise typer.BadParameter(f"league {league} is not in config/competitions.yml")
+            raise typer.BadParameter(f"league {league} is not in {config}")
     client = _client()
     started = datetime.now(UTC)
     with get_session() as session:
@@ -352,6 +353,73 @@ def venues_home() -> None:
     with get_session() as session:
         leagues, _ = _bundle_competition_ids(session)
         typer.echo(dict(build_home_venues(session, leagues)))
+
+
+@app.command("venues-neutral")
+def venues_neutral(
+    write: bool = typer.Option(False, help="set match.neutral from the roles"),
+    review: bool = typer.Option(True, help="list the review and swapped matches"),
+) -> None:
+    """Venue role of every loaded match (home, swapped, neutral, review, unknown) from the
+    teams' league grounds and config/neutral_venues.yml (no requests). Prints counts by
+    competition and round type, and the matches that need a look."""
+    from sqlalchemy import select
+
+    from adatta.db import models
+    from adatta.features import neutral
+
+    M, S, C = models.Match, models.Season, models.Competition
+    rules = neutral.load_rules()
+    with get_session() as session:
+        leagues, _ = _bundle_competition_ids(session)
+        rows = session.execute(
+            select(M, C.source_ref, C.name, C.tier).join(S, S.season_id == M.season_id)
+            .join(C, C.competition_id == S.competition_id)
+        ).all()  # fmt: skip
+        matches = [r[0] for r in rows]
+        league_of = {r[0].season_id: int(r[1]) for r in rows}
+        roles = neutral.venue_roles(session, matches, leagues, rules, league_of)
+        keys = pl.DataFrame(
+            {"match_id": [m.match_id for m in matches], "competition": [r[2] for r in rows],
+             "tier": [str(r[3]) for r in rows],
+             "stage": [neutral.stage(m.round) for m in matches]}
+        )  # fmt: skip
+        out = keys.join(roles, on="match_id")
+        table = (
+            out.group_by("tier", "competition", "stage")
+            .agg([pl.len().alias("matches")]
+                 + [(pl.col("role") == r).sum().alias(r) for r in neutral.ROLES]
+                 + [(pl.col("basis") == "rule").sum().alias("by_rule")])
+            .sort("tier", "competition", "stage")
+        )  # fmt: skip
+        with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=160):
+            typer.echo(table)
+        ruled = out.filter(pl.col("basis") == "rule")
+        decided = ruled.filter(pl.col("derived") == "neutral").height
+        typer.echo(
+            f"rule-covered matches: {ruled.height}; derivation alone said neutral for "
+            f"{decided}, review {ruled.filter(pl.col('derived') == 'review').height}, "
+            f"unknown {ruled.filter(pl.col('derived') == 'unknown').height}"
+        )
+        if review:
+            names = dict(session.execute(select(models.Team.team_id, models.Team.name)).all())
+            vnames = dict(session.execute(select(models.Venue.venue_id, models.Venue.name)).all())
+            by_id = {m.match_id: m for m in matches}
+            look = out.filter(
+                pl.col("role").is_in(["review", "swapped"])
+                | ((pl.col("role") == "neutral") & (pl.col("basis") == "derived"))
+            )
+            for r in look.sort("competition").iter_rows(named=True):  # fmt: skip
+                m = by_id[r["match_id"]]
+                typer.echo(
+                    f"{r['role']:8} fixture {m.source_ref} {m.kickoff_time:%Y-%m-%d} "
+                    f"{r['competition']} / {m.round}: {names.get(m.home_team_id)} v "
+                    f"{names.get(m.away_team_id)} at {vnames.get(m.venue_id or 0)}"
+                )
+        if write:
+            changed = neutral.write_flags(session, matches, roles)
+            session.commit()
+            typer.echo(f"match.neutral changed on {changed} matches")
 
 
 @app.command("venues-coverage")

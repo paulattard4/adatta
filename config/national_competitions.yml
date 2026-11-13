@@ -1,0 +1,35 @@
+# Senior men's national-team competitions (D35 Stage 0; docs/BEYOND_LEAGUES_PLAN.md, Stage D).
+# Not yet loaded or captured: used by the capability audit first
+#   uv run adatta audit --config config/national_competitions.yml
+# then by the backfill and live capture once the feasibility rows are verified.
+# league_id values and seasons are from API-Football /leagues?country=World (2026-11-13).
+# Season years are the provider's: a qualifying competition is keyed by its finals' year or
+# by its start year, whichever the provider uses (the World Cup 2018 qualifiers run 2015-17
+# as season 2018; the Euro 2020 season includes its 2019 qualifiers). History starts where
+# the provider's does: friendlies from 2017, the European World Cup qualifiers from Sept 2016;
+# the Euro 2016 qualifiers (2014-15) are not in the source.
+# Youth, women's, Olympic and regional invitational cups are out of scope (CLAUDE.md rule 10
+# for youth levels; the others later, by review).
+competitions:
+  - {name: World Cup,                         country: World, league_id: 1,   level: senior, tier: national, priority: 5, national: true, seasons: [2014, 2018, 2022, 2026]}
+  - {name: Euro Championship,                 country: World, league_id: 4,   level: senior, tier: national, priority: 5, national: true, seasons: [2016, 2020, 2024]}
+  - {name: Euro Championship - Qualification, country: World, league_id: 960, level: senior, tier: national, priority: 5, national: true, seasons: [2023]}
+  - {name: UEFA Nations League,               country: World, league_id: 5,   level: senior, tier: national, priority: 5, national: true, seasons: [2018, 2020, 2022, 2024, 2026]}
+  - {name: World Cup - Qualification Europe,  country: World, league_id: 32,  level: senior, tier: national, priority: 5, national: true, seasons: [2018, 2020, 2024]}
+  - {name: World Cup - Qualification South America, country: World, league_id: 34, level: senior, tier: national, priority: 5, national: true, seasons: [2018, 2022, 2026]}
+  - {name: World Cup - Qualification Africa,  country: World, league_id: 29,  level: senior, tier: national, priority: 5, national: true, seasons: [2018, 2022, 2023]}
+  - {name: World Cup - Qualification Asia,    country: World, league_id: 30,  level: senior, tier: national, priority: 5, national: true, seasons: [2018, 2022, 2026]}
+  - {name: World Cup - Qualification CONCACAF, country: World, league_id: 31, level: senior, tier: national, priority: 5, national: true, seasons: [2018, 2022, 2026]}
+  - {name: World Cup - Qualification Oceania, country: World, league_id: 33,  level: senior, tier: national, priority: 5, national: true, seasons: [2018, 2022, 2026]}
+  - {name: World Cup - Qualification Intercontinental Play-offs, country: World, league_id: 37, level: senior, tier: national, priority: 5, national: true, seasons: [2018, 2022, 2026]}
+  - {name: Copa America,                      country: World, league_id: 9,   level: senior, tier: national, priority: 5, national: true, seasons: [2016, 2019, 2021, 2024]}
+  - {name: Africa Cup of Nations,             country: World, league_id: 6,   level: senior, tier: national, priority: 5, national: true, seasons: [2017, 2019, 2021, 2023, 2025]}
+  - {name: Africa Cup of Nations - Qualification, country: World, league_id: 36, level: senior, tier: national, priority: 5, national: true, seasons: [2021, 2023, 2025, 2027]}
+  - {name: Asian Cup,                         country: World, league_id: 7,   level: senior, tier: national, priority: 5, national: true, seasons: [2019, 2023]}
+  - {name: Asian Cup - Qualification,         country: World, league_id: 35,  level: senior, tier: national, priority: 5, national: true, seasons: [2019, 2022, 2024]}
+  - {name: CONCACAF Gold Cup,                 country: World, league_id: 22,  level: senior, tier: national, priority: 5, national: true, seasons: [2017, 2019, 2021, 2023, 2025]}
+  - {name: CONCACAF Gold Cup - Qualification, country: World, league_id: 858, level: senior, tier: national, priority: 5, national: true, seasons: [2021, 2023, 2025]}
+  - {name: CONCACAF Nations League,           country: World, league_id: 536, level: senior, tier: national, priority: 5, national: true, seasons: [2020, 2022, 2023, 2024, 2025]}
+  - {name: CONCACAF Nations League - Qualification, country: World, league_id: 808, level: senior, tier: national, priority: 5, national: true, seasons: [2018]}
+  - {name: CONMEBOL - UEFA Finalissima,       country: World, league_id: 913, level: senior, tier: national, priority: 5, national: true, seasons: [2022, 2026]}
+  - {name: Friendlies,                        country: World, league_id: 10,  level: senior, tier: national, priority: 5, national: true, seasons: [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]}

@@ -44,7 +44,7 @@ everywhere · `unavailable` = verified absent from the source · `unverified` = 
 | Final score, kickoff, teams | verified | API-Football `/fixtures?league&season` | All audited seasons | Every finished fixture in all 51 seasons | not measured | Yes. Results are final facts; corrections are versioned in `match_result` | [verify] | none needed | 1a |
 | Normal-time / ET / shootout split | partial | `/fixtures` `score.fulltime/extratime/penalty` | All audited seasons | FA Cup 2024 proper rounds: 31/31 ET/PEN matches reconcile. **Qualifying rounds: 19/60 inconsistent** (zeroed `extratime`, non-level 90' score) | not measured | Yes | [verify] | Store NULL where it doesn't reconcile (implemented); restrict cups to proper rounds (open decision) | 1a (NT only), 3d (ET, shootouts) |
 | Half-time score | verified | `/fixtures?ids` `score.halftime` | All audited seasons | Top-5 and Tier-2 100%; Cups 45–100% | not measured | Yes | [verify] | Half-split off where absent (§4.4) | 3b |
-| Neutral venue flag | unavailable (direct) | No field in `/fixtures` | – | No `neutral` key in any payload. `match.neutral` is currently always False | – | Derivable from history | – | Derive: venue ≠ home team's usual venue, plus a per-competition rule (finals) | 1b |
+| Neutral venue flag | partial (derived, 2026-11-13) | No field in `/fixtures`; derived by `adatta venues-neutral` (`adatta/features/neutral.py`, rules in `config/neutral_venues.yml`) | All loaded seasons | Venue identity against each team's league grounds at kickoff, then round rules (finals, FA Cup semis, super cups, Club World Cup), then per-fixture overrides. Bundle league matches: 42,187 of 42,574 home, 42 neutral (temporary grounds such as Chambly at Charléty, Atalanta at Parma 2019), 1 swapped, 2 review, 342 unknown (no venue listed). All 250 rule-covered finals and semis decided (244 neutral; 3 home and 3 swapped at a finalist's own ground, e.g. the Coppa Italia finals with Lazio at the Olimpico). Other cup and UEFA ties: mostly unknown, because one side is a lower-tier or foreign club with no league grounds | – | Yes (venue published pre-match; grounds from league fixture lists) | – | Unknown stays unknown (principle 8); review cases (25) need overrides before cup modelling | 1b, Stage A–C |
 | Stage / round | verified | `/fixtures` `league.round` | All audited seasons | Present on every fixture | not measured | Yes | [verify] | – | 3d, cup stage gating |
 | Referee name | verified | `/fixtures` `fixture.referee` | All audited seasons | Top-5 and Tier-2 100%; Cups 10–100% (Copa del Rey 2025 48%) | Assignment timing not measured | Name: yes. **Pre-match assignment time: no** (needs live capture) | [verify] | Pool prior by competition and tier (§6.2) | 2 |
 | VAR in use (`has_var`) | partial | `/fixtures?ids` events `type=Var` | All audited seasons | VAR events seen (goal/penalty/card reviews); per-competition rate not yet tabulated | – | Yes | [verify] | Competition-level manual fact | 2 |
@@ -114,7 +114,7 @@ everywhere · `unavailable` = verified absent from the source · `unverified` = 
 | Random walk, AR(1), home advantage | 1b | Results only, verified | Go |
 | xG auxiliary likelihood | 1b | Top-5 2023+, Championship 2023+; Top-5 2022 partial; other Tier-2 not before 2025 | Gated per season |
 | Manager-change widening | 1b | Coach per match from lineups, ≥99% in leagues | Go (App. C said "verify") |
-| Neutral / host flag | 1b | No direct field | Needs derivation rule before 1b |
+| Neutral / host flag | 1b | Derived for club matches (2026-11-13); national-team host flag not yet | Club: go once the 25 review cases have overrides; national: Stage D |
 | Style covariates | 2 | Shots, possession, passes verified in leagues | Reduced set, as planned |
 | PPDA, directness | – | Unavailable | Stays not planned |
 | Weather, altitude | 2 | Needs venue coordinates, which API-Football doesn't provide | **Blocked on geocoding**: App. C says "available" |
@@ -129,6 +129,28 @@ everywhere · `unavailable` = verified absent from the source · `unverified` = 
 | Workload injury risk | backlog | Physical load unavailable | Blocked (confirmed) |
 | Attendance home advantage | backlog | Attendance unavailable | Blocked (confirmed; App. C said "unknown") |
 | CLV | 7 | No odds history | Capture-only: task 5 is time-critical |
+
+## 7. National teams (D35 Stage 0, for Stage D)
+
+Evidence: `/leagues?country=World` (1 request, 181 competitions, 2026-11-13) and the capability
+audit of `config/national_competitions.yml`, 22 senior men's competitions x 78 seasons, 40
+sampled finished fixtures per season (seed 20261105), 245 requests:
+`reports/capability_audit/20261113T074231Z.csv` (+ `.manifest.json`). Rows are in
+`competition_source_capability`; the competitions are stored with `is_national = true`.
+Youth, women's and Olympic competitions are out of scope (CLAUDE.md rule 10 for youth).
+
+| Field | Status | Source, endpoint | Historical availability | Coverage (from payloads) | Update cadence | As-of reconstructable | Licensing | Fallback | Required phase |
+|---|---|---|---|---|---|---|---|---|---|
+| Fixtures and results | verified | `/fixtures?league&season` | World Cup 2014 on; Euro 2016 on (the Euro 2016 qualifiers of 2014-15 are absent; the Euro 2020 season includes its 2019 qualifiers); World Cup qualifiers from 2015 (Europe from Sept 2016); Nations League 2018 on; Friendlies 2017 on; Copa America 2016 on; AFCON 2017 on; Asian Cup 2019 on; Gold Cup 2017 on. The Euro 2028 and World Cup 2030 qualifiers are not listed yet | Every finished fixture | not measured | Yes | [verify] | – | D v0 |
+| Lineups | verified (competitive), partial (friendlies) | `/fixtures?ids` | as above | Competitive competitions about 100% from 2018, except AFCON 2019 (23%) and AFCON qualifiers 2021 (28%). Friendlies 50-82% to 2024, **35-38% in 2025-26** (many minor nations) | not measured | Final XI: yes; release timing needs live capture | [verify] | D v1 squad offset falls back to team-only | D v1 |
+| Team statistics (shots etc.) | partial | statistics | as above | Euro, World Cup and Copa America from 2016-18, Nations League and European qualifiers from 2020: 100%. African, Asian and CONCACAF qualifiers 0-72% (rising); Oceania 0%; Friendlies at most 28% | not measured | Yes | [verify] | v0 is results-only | D v1 |
+| xG | partial (recent only) | statistics `expected_goals` | 2024 on, top competitions only | Euro 2024, Copa America 2024, World Cup 2026: 100%; Nations League 2026 82%; European WC qualifiers 2024 65%; elsewhere about 0 | not measured | Yes | [verify] | v0 results-only, as the spec says | later |
+| Referee | verified (from 2019) | `fixture.referee` | as above | 90-100% in competitive competitions from 2019; 0% for World Cup 2014, AFCON 2017, Gold Cup 2017, African qualifiers 2018; Friendlies 23-82% | – | Name yes; assignment time needs capture | [verify] | – | – |
+| Host / neutral (national) | unverified | venue name and city on `/fixtures`; venue country not given | – | Not measured. Needs the venue's country (geocoding returns one) compared with each team's country | – | Yes (published pre-match) | – | Host flag by venue country; travel from the capital or the national stadium | D v0 |
+
+Gate (Stage 0 national): results and lineups verified, capability table filled. Still open:
+the host flag, live capture before the March 2027 window, and the history load (about
+1,000-1,500 requests).
 
 ## Open items
 

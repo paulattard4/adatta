@@ -1,0 +1,1249 @@
+league_id,competition,season,n_finished,capability,declared,n_sampled,n_with,coverage_ratio,status,mismatch
+1,World Cup,2014,64,has_lineups,true,40,40,1.0,available,false
+1,World Cup,2014,64,has_player_match_stats,false,40,0,0.0,absent,false
+1,World Cup,2014,64,has_shot_stats,false,40,0,0.0,absent,false
+1,World Cup,2014,64,has_xg,,40,0,0.0,absent,false
+1,World Cup,2014,64,has_corners_data,false,40,0,0.0,absent,false
+1,World Cup,2014,64,has_cards_data,true,40,0,0.0,absent,true
+1,World Cup,2014,64,has_half_split_stats,,40,40,1.0,available,false
+1,World Cup,2014,64,has_substitution_timestamps,true,40,40,1.0,available,false
+1,World Cup,2014,64,has_referee_history,,40,0,0.0,absent,false
+1,World Cup,2014,64,has_event_coordinates,,40,0,0.0,absent,false
+1,World Cup,2014,64,has_physical_load_data,,40,0,0.0,absent,false
+1,World Cup,2014,64,has_attendance_data,,40,0,0.0,absent,false
+1,World Cup,2014,64,supports_lineup_strength_adjustment,,0,0,,unknown,false
+1,World Cup,2014,64,supports_player_goal_props,,0,0,,unknown,false
+1,World Cup,2014,64,supports_player_shot_props,,0,0,,unknown,false
+1,World Cup,2014,64,supports_player_discipline_props,,0,0,,unknown,false
+1,World Cup,2018,64,has_lineups,true,40,40,1.0,available,false
+1,World Cup,2018,64,has_player_match_stats,true,40,40,1.0,available,false
+1,World Cup,2018,64,has_shot_stats,true,40,40,1.0,available,false
+1,World Cup,2018,64,has_xg,,40,0,0.0,absent,false
+1,World Cup,2018,64,has_corners_data,true,40,40,1.0,available,false
+1,World Cup,2018,64,has_cards_data,true,40,40,1.0,available,false
+1,World Cup,2018,64,has_half_split_stats,,40,40,1.0,available,false
+1,World Cup,2018,64,has_substitution_timestamps,true,40,40,1.0,available,false
+1,World Cup,2018,64,has_referee_history,,40,40,1.0,available,false
+1,World Cup,2018,64,has_event_coordinates,,40,0,0.0,absent,false
+1,World Cup,2018,64,has_physical_load_data,,40,0,0.0,absent,false
+1,World Cup,2018,64,has_attendance_data,,40,0,0.0,absent,false
+1,World Cup,2018,64,supports_lineup_strength_adjustment,,0,0,,unknown,false
+1,World Cup,2018,64,supports_player_goal_props,,0,0,,unknown,false
+1,World Cup,2018,64,supports_player_shot_props,,0,0,,unknown,false
+1,World Cup,2018,64,supports_player_discipline_props,,0,0,,unknown,false
+1,World Cup,2022,64,has_lineups,true,40,40,1.0,available,false
+1,World Cup,2022,64,has_player_match_stats,true,40,40,1.0,available,false
+1,World Cup,2022,64,has_shot_stats,true,40,40,1.0,available,false
+1,World Cup,2022,64,has_xg,,40,0,0.0,absent,false
+1,World Cup,2022,64,has_corners_data,true,40,40,1.0,available,false
+1,World Cup,2022,64,has_cards_data,true,40,40,1.0,available,false
+1,World Cup,2022,64,has_half_split_stats,,40,40,1.0,available,false
+1,World Cup,2022,64,has_substitution_timestamps,true,40,40,1.0,available,false
+1,World Cup,2022,64,has_referee_history,,40,40,1.0,available,false
+1,World Cup,2022,64,has_event_coordinates,,40,0,0.0,absent,false
+1,World Cup,2022,64,has_physical_load_data,,40,0,0.0,absent,false
+1,World Cup,2022,64,has_attendance_data,,40,0,0.0,absent,false
+1,World Cup,2022,64,supports_lineup_strength_adjustment,,0,0,,unknown,false
+1,World Cup,2022,64,supports_player_goal_props,,0,0,,unknown,false
+1,World Cup,2022,64,supports_player_shot_props,,0,0,,unknown,false
+1,World Cup,2022,64,supports_player_discipline_props,,0,0,,unknown,false
+1,World Cup,2026,104,has_lineups,true,40,40,1.0,available,false
+1,World Cup,2026,104,has_player_match_stats,true,40,40,1.0,available,false
+1,World Cup,2026,104,has_shot_stats,true,40,40,1.0,available,false
+1,World Cup,2026,104,has_xg,,40,40,1.0,available,false
+1,World Cup,2026,104,has_corners_data,true,40,40,1.0,available,false
+1,World Cup,2026,104,has_cards_data,true,40,40,1.0,available,false
+1,World Cup,2026,104,has_half_split_stats,,40,40,1.0,available,false
+1,World Cup,2026,104,has_substitution_timestamps,true,40,40,1.0,available,false
+1,World Cup,2026,104,has_referee_history,,40,40,1.0,available,false
+1,World Cup,2026,104,has_event_coordinates,,40,0,0.0,absent,false
+1,World Cup,2026,104,has_physical_load_data,,40,0,0.0,absent,false
+1,World Cup,2026,104,has_attendance_data,,40,0,0.0,absent,false
+1,World Cup,2026,104,supports_lineup_strength_adjustment,,0,0,,unknown,false
+1,World Cup,2026,104,supports_player_goal_props,,0,0,,unknown,false
+1,World Cup,2026,104,supports_player_shot_props,,0,0,,unknown,false
+1,World Cup,2026,104,supports_player_discipline_props,,0,0,,unknown,false
+4,Euro Championship,2016,51,has_lineups,true,40,40,1.0,available,false
+4,Euro Championship,2016,51,has_player_match_stats,true,40,40,1.0,available,false
+4,Euro Championship,2016,51,has_shot_stats,true,40,40,1.0,available,false
+4,Euro Championship,2016,51,has_xg,,40,0,0.0,absent,false
+4,Euro Championship,2016,51,has_corners_data,true,40,40,1.0,available,false
+4,Euro Championship,2016,51,has_cards_data,true,40,40,1.0,available,false
+4,Euro Championship,2016,51,has_half_split_stats,,40,40,1.0,available,false
+4,Euro Championship,2016,51,has_substitution_timestamps,true,40,40,1.0,available,false
+4,Euro Championship,2016,51,has_referee_history,,40,40,1.0,available,false
+4,Euro Championship,2016,51,has_event_coordinates,,40,0,0.0,absent,false
+4,Euro Championship,2016,51,has_physical_load_data,,40,0,0.0,absent,false
+4,Euro Championship,2016,51,has_attendance_data,,40,0,0.0,absent,false
+4,Euro Championship,2016,51,supports_lineup_strength_adjustment,,0,0,,unknown,false
+4,Euro Championship,2016,51,supports_player_goal_props,,0,0,,unknown,false
+4,Euro Championship,2016,51,supports_player_shot_props,,0,0,,unknown,false
+4,Euro Championship,2016,51,supports_player_discipline_props,,0,0,,unknown,false
+4,Euro Championship,2020,313,has_lineups,true,40,40,1.0,available,false
+4,Euro Championship,2020,313,has_player_match_stats,true,40,40,1.0,available,false
+4,Euro Championship,2020,313,has_shot_stats,true,40,40,1.0,available,false
+4,Euro Championship,2020,313,has_xg,,40,0,0.0,absent,false
+4,Euro Championship,2020,313,has_corners_data,true,40,40,1.0,available,false
+4,Euro Championship,2020,313,has_cards_data,true,40,40,1.0,available,false
+4,Euro Championship,2020,313,has_half_split_stats,,40,40,1.0,available,false
+4,Euro Championship,2020,313,has_substitution_timestamps,true,40,40,1.0,available,false
+4,Euro Championship,2020,313,has_referee_history,,40,40,1.0,available,false
+4,Euro Championship,2020,313,has_event_coordinates,,40,0,0.0,absent,false
+4,Euro Championship,2020,313,has_physical_load_data,,40,0,0.0,absent,false
+4,Euro Championship,2020,313,has_attendance_data,,40,0,0.0,absent,false
+4,Euro Championship,2020,313,supports_lineup_strength_adjustment,,0,0,,unknown,false
+4,Euro Championship,2020,313,supports_player_goal_props,,0,0,,unknown,false
+4,Euro Championship,2020,313,supports_player_shot_props,,0,0,,unknown,false
+4,Euro Championship,2020,313,supports_player_discipline_props,,0,0,,unknown,false
+4,Euro Championship,2024,51,has_lineups,true,40,40,1.0,available,false
+4,Euro Championship,2024,51,has_player_match_stats,true,40,40,1.0,available,false
+4,Euro Championship,2024,51,has_shot_stats,true,40,40,1.0,available,false
+4,Euro Championship,2024,51,has_xg,,40,40,1.0,available,false
+4,Euro Championship,2024,51,has_corners_data,true,40,40,1.0,available,false
+4,Euro Championship,2024,51,has_cards_data,true,40,40,1.0,available,false
+4,Euro Championship,2024,51,has_half_split_stats,,40,40,1.0,available,false
+4,Euro Championship,2024,51,has_substitution_timestamps,true,40,40,1.0,available,false
+4,Euro Championship,2024,51,has_referee_history,,40,40,1.0,available,false
+4,Euro Championship,2024,51,has_event_coordinates,,40,0,0.0,absent,false
+4,Euro Championship,2024,51,has_physical_load_data,,40,0,0.0,absent,false
+4,Euro Championship,2024,51,has_attendance_data,,40,0,0.0,absent,false
+4,Euro Championship,2024,51,supports_lineup_strength_adjustment,,0,0,,unknown,false
+4,Euro Championship,2024,51,supports_player_goal_props,,0,0,,unknown,false
+4,Euro Championship,2024,51,supports_player_shot_props,,0,0,,unknown,false
+4,Euro Championship,2024,51,supports_player_discipline_props,,0,0,,unknown,false
+5,UEFA Nations League,2018,142,has_lineups,true,40,40,1.0,available,false
+5,UEFA Nations League,2018,142,has_player_match_stats,true,40,1,0.025,partial,false
+5,UEFA Nations League,2018,142,has_shot_stats,true,40,26,0.65,partial,false
+5,UEFA Nations League,2018,142,has_xg,,40,0,0.0,absent,false
+5,UEFA Nations League,2018,142,has_corners_data,true,40,26,0.65,partial,false
+5,UEFA Nations League,2018,142,has_cards_data,true,40,38,0.95,available,false
+5,UEFA Nations League,2018,142,has_half_split_stats,,40,40,1.0,available,false
+5,UEFA Nations League,2018,142,has_substitution_timestamps,true,40,40,1.0,available,false
+5,UEFA Nations League,2018,142,has_referee_history,,40,30,0.75,partial,false
+5,UEFA Nations League,2018,142,has_event_coordinates,,40,0,0.0,absent,false
+5,UEFA Nations League,2018,142,has_physical_load_data,,40,0,0.0,absent,false
+5,UEFA Nations League,2018,142,has_attendance_data,,40,0,0.0,absent,false
+5,UEFA Nations League,2018,142,supports_lineup_strength_adjustment,,0,0,,unknown,false
+5,UEFA Nations League,2018,142,supports_player_goal_props,,0,0,,unknown,false
+5,UEFA Nations League,2018,142,supports_player_shot_props,,0,0,,unknown,false
+5,UEFA Nations League,2018,142,supports_player_discipline_props,,0,0,,unknown,false
+5,UEFA Nations League,2020,170,has_lineups,true,40,40,1.0,available,false
+5,UEFA Nations League,2020,170,has_player_match_stats,true,40,40,1.0,available,false
+5,UEFA Nations League,2020,170,has_shot_stats,true,40,40,1.0,available,false
+5,UEFA Nations League,2020,170,has_xg,,40,0,0.0,absent,false
+5,UEFA Nations League,2020,170,has_corners_data,true,40,40,1.0,available,false
+5,UEFA Nations League,2020,170,has_cards_data,true,40,40,1.0,available,false
+5,UEFA Nations League,2020,170,has_half_split_stats,,40,40,1.0,available,false
+5,UEFA Nations League,2020,170,has_substitution_timestamps,true,40,40,1.0,available,false
+5,UEFA Nations League,2020,170,has_referee_history,,40,40,1.0,available,false
+5,UEFA Nations League,2020,170,has_event_coordinates,,40,0,0.0,absent,false
+5,UEFA Nations League,2020,170,has_physical_load_data,,40,0,0.0,absent,false
+5,UEFA Nations League,2020,170,has_attendance_data,,40,0,0.0,absent,false
+5,UEFA Nations League,2020,170,supports_lineup_strength_adjustment,,0,0,,unknown,false
+5,UEFA Nations League,2020,170,supports_player_goal_props,,0,0,,unknown,false
+5,UEFA Nations League,2020,170,supports_player_shot_props,,0,0,,unknown,false
+5,UEFA Nations League,2020,170,supports_player_discipline_props,,0,0,,unknown,false
+5,UEFA Nations League,2022,162,has_lineups,true,40,40,1.0,available,false
+5,UEFA Nations League,2022,162,has_player_match_stats,true,40,40,1.0,available,false
+5,UEFA Nations League,2022,162,has_shot_stats,true,40,40,1.0,available,false
+5,UEFA Nations League,2022,162,has_xg,,40,0,0.0,absent,false
+5,UEFA Nations League,2022,162,has_corners_data,true,40,40,1.0,available,false
+5,UEFA Nations League,2022,162,has_cards_data,true,40,40,1.0,available,false
+5,UEFA Nations League,2022,162,has_half_split_stats,,40,40,1.0,available,false
+5,UEFA Nations League,2022,162,has_substitution_timestamps,true,40,40,1.0,available,false
+5,UEFA Nations League,2022,162,has_referee_history,,40,40,1.0,available,false
+5,UEFA Nations League,2022,162,has_event_coordinates,,40,0,0.0,absent,false
+5,UEFA Nations League,2022,162,has_physical_load_data,,40,0,0.0,absent,false
+5,UEFA Nations League,2022,162,has_attendance_data,,40,0,0.0,absent,false
+5,UEFA Nations League,2022,162,supports_lineup_strength_adjustment,,0,0,,unknown,false
+5,UEFA Nations League,2022,162,supports_player_goal_props,,0,0,,unknown,false
+5,UEFA Nations League,2022,162,supports_player_shot_props,,0,0,,unknown,false
+5,UEFA Nations League,2022,162,supports_player_discipline_props,,0,0,,unknown,false
+5,UEFA Nations League,2024,188,has_lineups,true,40,40,1.0,available,false
+5,UEFA Nations League,2024,188,has_player_match_stats,true,40,40,1.0,available,false
+5,UEFA Nations League,2024,188,has_shot_stats,true,40,40,1.0,available,false
+5,UEFA Nations League,2024,188,has_xg,,40,0,0.0,absent,false
+5,UEFA Nations League,2024,188,has_corners_data,true,40,40,1.0,available,false
+5,UEFA Nations League,2024,188,has_cards_data,true,40,40,1.0,available,false
+5,UEFA Nations League,2024,188,has_half_split_stats,,40,40,1.0,available,false
+5,UEFA Nations League,2024,188,has_substitution_timestamps,true,40,40,1.0,available,false
+5,UEFA Nations League,2024,188,has_referee_history,,40,40,1.0,available,false
+5,UEFA Nations League,2024,188,has_event_coordinates,,40,0,0.0,absent,false
+5,UEFA Nations League,2024,188,has_physical_load_data,,40,0,0.0,absent,false
+5,UEFA Nations League,2024,188,has_attendance_data,,40,0,0.0,absent,false
+5,UEFA Nations League,2024,188,supports_lineup_strength_adjustment,,0,0,,unknown,false
+5,UEFA Nations League,2024,188,supports_player_goal_props,,0,0,,unknown,false
+5,UEFA Nations League,2024,188,supports_player_shot_props,,0,0,,unknown,false
+5,UEFA Nations League,2024,188,supports_player_discipline_props,,0,0,,unknown,false
+5,UEFA Nations League,2026,112,has_lineups,true,40,40,1.0,available,false
+5,UEFA Nations League,2026,112,has_player_match_stats,true,40,40,1.0,available,false
+5,UEFA Nations League,2026,112,has_shot_stats,true,40,40,1.0,available,false
+5,UEFA Nations League,2026,112,has_xg,,40,33,0.825,partial,false
+5,UEFA Nations League,2026,112,has_corners_data,true,40,40,1.0,available,false
+5,UEFA Nations League,2026,112,has_cards_data,true,40,40,1.0,available,false
+5,UEFA Nations League,2026,112,has_half_split_stats,,40,40,1.0,available,false
+5,UEFA Nations League,2026,112,has_substitution_timestamps,true,40,40,1.0,available,false
+5,UEFA Nations League,2026,112,has_referee_history,,40,40,1.0,available,false
+5,UEFA Nations League,2026,112,has_event_coordinates,,40,0,0.0,absent,false
+5,UEFA Nations League,2026,112,has_physical_load_data,,40,0,0.0,absent,false
+5,UEFA Nations League,2026,112,has_attendance_data,,40,0,0.0,absent,false
+5,UEFA Nations League,2026,112,supports_lineup_strength_adjustment,,0,0,,unknown,false
+5,UEFA Nations League,2026,112,supports_player_goal_props,,0,0,,unknown,false
+5,UEFA Nations League,2026,112,supports_player_shot_props,,0,0,,unknown,false
+5,UEFA Nations League,2026,112,supports_player_discipline_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2017,32,has_lineups,true,32,32,1.0,available,false
+6,Africa Cup of Nations,2017,32,has_player_match_stats,false,32,0,0.0,absent,false
+6,Africa Cup of Nations,2017,32,has_shot_stats,false,32,0,0.0,absent,false
+6,Africa Cup of Nations,2017,32,has_xg,,32,0,0.0,absent,false
+6,Africa Cup of Nations,2017,32,has_corners_data,false,32,0,0.0,absent,false
+6,Africa Cup of Nations,2017,32,has_cards_data,true,32,0,0.0,absent,true
+6,Africa Cup of Nations,2017,32,has_half_split_stats,,32,32,1.0,available,false
+6,Africa Cup of Nations,2017,32,has_substitution_timestamps,true,32,32,1.0,available,false
+6,Africa Cup of Nations,2017,32,has_referee_history,,32,0,0.0,absent,false
+6,Africa Cup of Nations,2017,32,has_event_coordinates,,32,0,0.0,absent,false
+6,Africa Cup of Nations,2017,32,has_physical_load_data,,32,0,0.0,absent,false
+6,Africa Cup of Nations,2017,32,has_attendance_data,,32,0,0.0,absent,false
+6,Africa Cup of Nations,2017,32,supports_lineup_strength_adjustment,,0,0,,unknown,false
+6,Africa Cup of Nations,2017,32,supports_player_goal_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2017,32,supports_player_shot_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2017,32,supports_player_discipline_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2019,198,has_lineups,true,40,9,0.225,partial,false
+6,Africa Cup of Nations,2019,198,has_player_match_stats,true,40,9,0.225,partial,false
+6,Africa Cup of Nations,2019,198,has_shot_stats,true,40,8,0.2,partial,false
+6,Africa Cup of Nations,2019,198,has_xg,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2019,198,has_corners_data,true,40,8,0.2,partial,false
+6,Africa Cup of Nations,2019,198,has_cards_data,true,40,9,0.225,partial,false
+6,Africa Cup of Nations,2019,198,has_half_split_stats,,40,28,0.7,partial,false
+6,Africa Cup of Nations,2019,198,has_substitution_timestamps,true,40,9,0.225,partial,false
+6,Africa Cup of Nations,2019,198,has_referee_history,,40,9,0.225,partial,false
+6,Africa Cup of Nations,2019,198,has_event_coordinates,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2019,198,has_physical_load_data,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2019,198,has_attendance_data,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2019,198,supports_lineup_strength_adjustment,,0,0,,unknown,false
+6,Africa Cup of Nations,2019,198,supports_player_goal_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2019,198,supports_player_shot_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2019,198,supports_player_discipline_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2021,52,has_lineups,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2021,52,has_player_match_stats,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2021,52,has_shot_stats,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2021,52,has_xg,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2021,52,has_corners_data,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2021,52,has_cards_data,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2021,52,has_half_split_stats,,40,40,1.0,available,false
+6,Africa Cup of Nations,2021,52,has_substitution_timestamps,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2021,52,has_referee_history,,40,40,1.0,available,false
+6,Africa Cup of Nations,2021,52,has_event_coordinates,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2021,52,has_physical_load_data,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2021,52,has_attendance_data,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2021,52,supports_lineup_strength_adjustment,,0,0,,unknown,false
+6,Africa Cup of Nations,2021,52,supports_player_goal_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2021,52,supports_player_shot_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2021,52,supports_player_discipline_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2023,52,has_lineups,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2023,52,has_player_match_stats,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2023,52,has_shot_stats,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2023,52,has_xg,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2023,52,has_corners_data,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2023,52,has_cards_data,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2023,52,has_half_split_stats,,40,40,1.0,available,false
+6,Africa Cup of Nations,2023,52,has_substitution_timestamps,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2023,52,has_referee_history,,40,40,1.0,available,false
+6,Africa Cup of Nations,2023,52,has_event_coordinates,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2023,52,has_physical_load_data,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2023,52,has_attendance_data,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2023,52,supports_lineup_strength_adjustment,,0,0,,unknown,false
+6,Africa Cup of Nations,2023,52,supports_player_goal_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2023,52,supports_player_shot_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2023,52,supports_player_discipline_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2025,51,has_lineups,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2025,51,has_player_match_stats,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2025,51,has_shot_stats,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2025,51,has_xg,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2025,51,has_corners_data,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2025,51,has_cards_data,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2025,51,has_half_split_stats,,40,40,1.0,available,false
+6,Africa Cup of Nations,2025,51,has_substitution_timestamps,true,40,40,1.0,available,false
+6,Africa Cup of Nations,2025,51,has_referee_history,,40,40,1.0,available,false
+6,Africa Cup of Nations,2025,51,has_event_coordinates,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2025,51,has_physical_load_data,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2025,51,has_attendance_data,,40,0,0.0,absent,false
+6,Africa Cup of Nations,2025,51,supports_lineup_strength_adjustment,,0,0,,unknown,false
+6,Africa Cup of Nations,2025,51,supports_player_goal_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2025,51,supports_player_shot_props,,0,0,,unknown,false
+6,Africa Cup of Nations,2025,51,supports_player_discipline_props,,0,0,,unknown,false
+7,Asian Cup,2019,51,has_lineups,true,40,40,1.0,available,false
+7,Asian Cup,2019,51,has_player_match_stats,false,40,0,0.0,absent,false
+7,Asian Cup,2019,51,has_shot_stats,true,40,33,0.825,partial,false
+7,Asian Cup,2019,51,has_xg,,40,0,0.0,absent,false
+7,Asian Cup,2019,51,has_corners_data,true,40,33,0.825,partial,false
+7,Asian Cup,2019,51,has_cards_data,true,40,33,0.825,partial,false
+7,Asian Cup,2019,51,has_half_split_stats,,40,40,1.0,available,false
+7,Asian Cup,2019,51,has_substitution_timestamps,true,40,40,1.0,available,false
+7,Asian Cup,2019,51,has_referee_history,,40,40,1.0,available,false
+7,Asian Cup,2019,51,has_event_coordinates,,40,0,0.0,absent,false
+7,Asian Cup,2019,51,has_physical_load_data,,40,0,0.0,absent,false
+7,Asian Cup,2019,51,has_attendance_data,,40,0,0.0,absent,false
+7,Asian Cup,2019,51,supports_lineup_strength_adjustment,,0,0,,unknown,false
+7,Asian Cup,2019,51,supports_player_goal_props,,0,0,,unknown,false
+7,Asian Cup,2019,51,supports_player_shot_props,,0,0,,unknown,false
+7,Asian Cup,2019,51,supports_player_discipline_props,,0,0,,unknown,false
+7,Asian Cup,2023,51,has_lineups,true,40,40,1.0,available,false
+7,Asian Cup,2023,51,has_player_match_stats,true,40,40,1.0,available,false
+7,Asian Cup,2023,51,has_shot_stats,true,40,40,1.0,available,false
+7,Asian Cup,2023,51,has_xg,,40,0,0.0,absent,false
+7,Asian Cup,2023,51,has_corners_data,true,40,40,1.0,available,false
+7,Asian Cup,2023,51,has_cards_data,true,40,40,1.0,available,false
+7,Asian Cup,2023,51,has_half_split_stats,,40,40,1.0,available,false
+7,Asian Cup,2023,51,has_substitution_timestamps,true,40,40,1.0,available,false
+7,Asian Cup,2023,51,has_referee_history,,40,40,1.0,available,false
+7,Asian Cup,2023,51,has_event_coordinates,,40,0,0.0,absent,false
+7,Asian Cup,2023,51,has_physical_load_data,,40,0,0.0,absent,false
+7,Asian Cup,2023,51,has_attendance_data,,40,0,0.0,absent,false
+7,Asian Cup,2023,51,supports_lineup_strength_adjustment,,0,0,,unknown,false
+7,Asian Cup,2023,51,supports_player_goal_props,,0,0,,unknown,false
+7,Asian Cup,2023,51,supports_player_shot_props,,0,0,,unknown,false
+7,Asian Cup,2023,51,supports_player_discipline_props,,0,0,,unknown,false
+9,Copa America,2016,32,has_lineups,true,32,32,1.0,available,false
+9,Copa America,2016,32,has_player_match_stats,true,32,32,1.0,available,false
+9,Copa America,2016,32,has_shot_stats,true,32,32,1.0,available,false
+9,Copa America,2016,32,has_xg,,32,0,0.0,absent,false
+9,Copa America,2016,32,has_corners_data,true,32,32,1.0,available,false
+9,Copa America,2016,32,has_cards_data,true,32,32,1.0,available,false
+9,Copa America,2016,32,has_half_split_stats,,32,32,1.0,available,false
+9,Copa America,2016,32,has_substitution_timestamps,true,32,32,1.0,available,false
+9,Copa America,2016,32,has_referee_history,,32,32,1.0,available,false
+9,Copa America,2016,32,has_event_coordinates,,32,0,0.0,absent,false
+9,Copa America,2016,32,has_physical_load_data,,32,0,0.0,absent,false
+9,Copa America,2016,32,has_attendance_data,,32,0,0.0,absent,false
+9,Copa America,2016,32,supports_lineup_strength_adjustment,,0,0,,unknown,false
+9,Copa America,2016,32,supports_player_goal_props,,0,0,,unknown,false
+9,Copa America,2016,32,supports_player_shot_props,,0,0,,unknown,false
+9,Copa America,2016,32,supports_player_discipline_props,,0,0,,unknown,false
+9,Copa America,2019,26,has_lineups,true,26,26,1.0,available,false
+9,Copa America,2019,26,has_player_match_stats,true,26,26,1.0,available,false
+9,Copa America,2019,26,has_shot_stats,true,26,23,0.8846153846153846,partial,false
+9,Copa America,2019,26,has_xg,,26,0,0.0,absent,false
+9,Copa America,2019,26,has_corners_data,true,26,23,0.8846153846153846,partial,false
+9,Copa America,2019,26,has_cards_data,true,26,26,1.0,available,false
+9,Copa America,2019,26,has_half_split_stats,,26,26,1.0,available,false
+9,Copa America,2019,26,has_substitution_timestamps,true,26,26,1.0,available,false
+9,Copa America,2019,26,has_referee_history,,26,26,1.0,available,false
+9,Copa America,2019,26,has_event_coordinates,,26,0,0.0,absent,false
+9,Copa America,2019,26,has_physical_load_data,,26,0,0.0,absent,false
+9,Copa America,2019,26,has_attendance_data,,26,0,0.0,absent,false
+9,Copa America,2019,26,supports_lineup_strength_adjustment,,0,0,,unknown,false
+9,Copa America,2019,26,supports_player_goal_props,,0,0,,unknown,false
+9,Copa America,2019,26,supports_player_shot_props,,0,0,,unknown,false
+9,Copa America,2019,26,supports_player_discipline_props,,0,0,,unknown,false
+9,Copa America,2021,28,has_lineups,true,28,28,1.0,available,false
+9,Copa America,2021,28,has_player_match_stats,true,28,28,1.0,available,false
+9,Copa America,2021,28,has_shot_stats,true,28,28,1.0,available,false
+9,Copa America,2021,28,has_xg,,28,0,0.0,absent,false
+9,Copa America,2021,28,has_corners_data,true,28,28,1.0,available,false
+9,Copa America,2021,28,has_cards_data,true,28,28,1.0,available,false
+9,Copa America,2021,28,has_half_split_stats,,28,28,1.0,available,false
+9,Copa America,2021,28,has_substitution_timestamps,true,28,28,1.0,available,false
+9,Copa America,2021,28,has_referee_history,,28,28,1.0,available,false
+9,Copa America,2021,28,has_event_coordinates,,28,0,0.0,absent,false
+9,Copa America,2021,28,has_physical_load_data,,28,0,0.0,absent,false
+9,Copa America,2021,28,has_attendance_data,,28,0,0.0,absent,false
+9,Copa America,2021,28,supports_lineup_strength_adjustment,,0,0,,unknown,false
+9,Copa America,2021,28,supports_player_goal_props,,0,0,,unknown,false
+9,Copa America,2021,28,supports_player_shot_props,,0,0,,unknown,false
+9,Copa America,2021,28,supports_player_discipline_props,,0,0,,unknown,false
+9,Copa America,2024,32,has_lineups,true,32,32,1.0,available,false
+9,Copa America,2024,32,has_player_match_stats,true,32,32,1.0,available,false
+9,Copa America,2024,32,has_shot_stats,true,32,32,1.0,available,false
+9,Copa America,2024,32,has_xg,,32,32,1.0,available,false
+9,Copa America,2024,32,has_corners_data,true,32,32,1.0,available,false
+9,Copa America,2024,32,has_cards_data,true,32,32,1.0,available,false
+9,Copa America,2024,32,has_half_split_stats,,32,32,1.0,available,false
+9,Copa America,2024,32,has_substitution_timestamps,true,32,32,1.0,available,false
+9,Copa America,2024,32,has_referee_history,,32,32,1.0,available,false
+9,Copa America,2024,32,has_event_coordinates,,32,0,0.0,absent,false
+9,Copa America,2024,32,has_physical_load_data,,32,0,0.0,absent,false
+9,Copa America,2024,32,has_attendance_data,,32,0,0.0,absent,false
+9,Copa America,2024,32,supports_lineup_strength_adjustment,,0,0,,unknown,false
+9,Copa America,2024,32,supports_player_goal_props,,0,0,,unknown,false
+9,Copa America,2024,32,supports_player_shot_props,,0,0,,unknown,false
+9,Copa America,2024,32,supports_player_discipline_props,,0,0,,unknown,false
+10,Friendlies,2017,306,has_lineups,true,40,25,0.625,partial,false
+10,Friendlies,2017,306,has_player_match_stats,false,40,0,0.0,absent,false
+10,Friendlies,2017,306,has_shot_stats,false,40,0,0.0,absent,false
+10,Friendlies,2017,306,has_xg,,40,0,0.0,absent,false
+10,Friendlies,2017,306,has_corners_data,false,40,0,0.0,absent,false
+10,Friendlies,2017,306,has_cards_data,true,40,0,0.0,absent,true
+10,Friendlies,2017,306,has_half_split_stats,,40,31,0.775,partial,false
+10,Friendlies,2017,306,has_substitution_timestamps,true,40,26,0.65,partial,false
+10,Friendlies,2017,306,has_referee_history,,40,0,0.0,absent,false
+10,Friendlies,2017,306,has_event_coordinates,,40,0,0.0,absent,false
+10,Friendlies,2017,306,has_physical_load_data,,40,0,0.0,absent,false
+10,Friendlies,2017,306,has_attendance_data,,40,0,0.0,absent,false
+10,Friendlies,2017,306,supports_lineup_strength_adjustment,,0,0,,unknown,false
+10,Friendlies,2017,306,supports_player_goal_props,,0,0,,unknown,false
+10,Friendlies,2017,306,supports_player_shot_props,,0,0,,unknown,false
+10,Friendlies,2017,306,supports_player_discipline_props,,0,0,,unknown,false
+10,Friendlies,2018,389,has_lineups,true,40,32,0.8,partial,false
+10,Friendlies,2018,389,has_player_match_stats,false,40,0,0.0,absent,false
+10,Friendlies,2018,389,has_shot_stats,true,40,9,0.225,partial,false
+10,Friendlies,2018,389,has_xg,,40,0,0.0,absent,false
+10,Friendlies,2018,389,has_corners_data,true,40,9,0.225,partial,false
+10,Friendlies,2018,389,has_cards_data,true,40,20,0.5,partial,false
+10,Friendlies,2018,389,has_half_split_stats,,40,32,0.8,partial,false
+10,Friendlies,2018,389,has_substitution_timestamps,true,40,31,0.775,partial,false
+10,Friendlies,2018,389,has_referee_history,,40,9,0.225,partial,false
+10,Friendlies,2018,389,has_event_coordinates,,40,0,0.0,absent,false
+10,Friendlies,2018,389,has_physical_load_data,,40,0,0.0,absent,false
+10,Friendlies,2018,389,has_attendance_data,,40,0,0.0,absent,false
+10,Friendlies,2018,389,supports_lineup_strength_adjustment,,0,0,,unknown,false
+10,Friendlies,2018,389,supports_player_goal_props,,0,0,,unknown,false
+10,Friendlies,2018,389,supports_player_shot_props,,0,0,,unknown,false
+10,Friendlies,2018,389,supports_player_discipline_props,,0,0,,unknown,false
+10,Friendlies,2019,226,has_lineups,true,40,22,0.55,partial,false
+10,Friendlies,2019,226,has_player_match_stats,false,40,0,0.0,absent,false
+10,Friendlies,2019,226,has_shot_stats,true,40,2,0.05,partial,false
+10,Friendlies,2019,226,has_xg,,40,0,0.0,absent,false
+10,Friendlies,2019,226,has_corners_data,true,40,2,0.05,partial,false
+10,Friendlies,2019,226,has_cards_data,true,40,19,0.475,partial,false
+10,Friendlies,2019,226,has_half_split_stats,,40,25,0.625,partial,false
+10,Friendlies,2019,226,has_substitution_timestamps,true,40,22,0.55,partial,false
+10,Friendlies,2019,226,has_referee_history,,40,1,0.025,partial,false
+10,Friendlies,2019,226,has_event_coordinates,,40,0,0.0,absent,false
+10,Friendlies,2019,226,has_physical_load_data,,40,0,0.0,absent,false
+10,Friendlies,2019,226,has_attendance_data,,40,0,0.0,absent,false
+10,Friendlies,2019,226,supports_lineup_strength_adjustment,,0,0,,unknown,false
+10,Friendlies,2019,226,supports_player_goal_props,,0,0,,unknown,false
+10,Friendlies,2019,226,supports_player_shot_props,,0,0,,unknown,false
+10,Friendlies,2019,226,supports_player_discipline_props,,0,0,,unknown,false
+10,Friendlies,2020,112,has_lineups,true,40,32,0.8,partial,false
+10,Friendlies,2020,112,has_player_match_stats,false,40,0,0.0,absent,false
+10,Friendlies,2020,112,has_shot_stats,false,40,0,0.0,absent,false
+10,Friendlies,2020,112,has_xg,,40,0,0.0,absent,false
+10,Friendlies,2020,112,has_corners_data,false,40,0,0.0,absent,false
+10,Friendlies,2020,112,has_cards_data,true,40,28,0.7,partial,false
+10,Friendlies,2020,112,has_half_split_stats,,40,33,0.825,partial,false
+10,Friendlies,2020,112,has_substitution_timestamps,true,40,36,0.9,partial,false
+10,Friendlies,2020,112,has_referee_history,,40,29,0.725,partial,false
+10,Friendlies,2020,112,has_event_coordinates,,40,0,0.0,absent,false
+10,Friendlies,2020,112,has_physical_load_data,,40,0,0.0,absent,false
+10,Friendlies,2020,112,has_attendance_data,,40,0,0.0,absent,false
+10,Friendlies,2020,112,supports_lineup_strength_adjustment,,0,0,,unknown,false
+10,Friendlies,2020,112,supports_player_goal_props,,0,0,,unknown,false
+10,Friendlies,2020,112,supports_player_shot_props,,0,0,,unknown,false
+10,Friendlies,2020,112,supports_player_discipline_props,,0,0,,unknown,false
+10,Friendlies,2021,210,has_lineups,true,40,33,0.825,partial,false
+10,Friendlies,2021,210,has_player_match_stats,false,40,0,0.0,absent,false
+10,Friendlies,2021,210,has_shot_stats,true,40,7,0.175,partial,false
+10,Friendlies,2021,210,has_xg,,40,0,0.0,absent,false
+10,Friendlies,2021,210,has_corners_data,true,40,7,0.175,partial,false
+10,Friendlies,2021,210,has_cards_data,true,40,26,0.65,partial,false
+10,Friendlies,2021,210,has_half_split_stats,,40,35,0.875,partial,false
+10,Friendlies,2021,210,has_substitution_timestamps,true,40,34,0.85,partial,false
+10,Friendlies,2021,210,has_referee_history,,40,33,0.825,partial,false
+10,Friendlies,2021,210,has_event_coordinates,,40,0,0.0,absent,false
+10,Friendlies,2021,210,has_physical_load_data,,40,0,0.0,absent,false
+10,Friendlies,2021,210,has_attendance_data,,40,0,0.0,absent,false
+10,Friendlies,2021,210,supports_lineup_strength_adjustment,,0,0,,unknown,false
+10,Friendlies,2021,210,supports_player_goal_props,,0,0,,unknown,false
+10,Friendlies,2021,210,supports_player_shot_props,,0,0,,unknown,false
+10,Friendlies,2021,210,supports_player_discipline_props,,0,0,,unknown,false
+10,Friendlies,2022,350,has_lineups,true,40,28,0.7,partial,false
+10,Friendlies,2022,350,has_player_match_stats,true,40,3,0.075,partial,false
+10,Friendlies,2022,350,has_shot_stats,true,40,10,0.25,partial,false
+10,Friendlies,2022,350,has_xg,,40,0,0.0,absent,false
+10,Friendlies,2022,350,has_corners_data,true,40,11,0.275,partial,false
+10,Friendlies,2022,350,has_cards_data,true,40,31,0.775,partial,false
+10,Friendlies,2022,350,has_half_split_stats,,40,37,0.925,partial,false
+10,Friendlies,2022,350,has_substitution_timestamps,true,40,30,0.75,partial,false
+10,Friendlies,2022,350,has_referee_history,,40,25,0.625,partial,false
+10,Friendlies,2022,350,has_event_coordinates,,40,0,0.0,absent,false
+10,Friendlies,2022,350,has_physical_load_data,,40,0,0.0,absent,false
+10,Friendlies,2022,350,has_attendance_data,,40,0,0.0,absent,false
+10,Friendlies,2022,350,supports_lineup_strength_adjustment,,0,0,,unknown,false
+10,Friendlies,2022,350,supports_player_goal_props,,0,0,,unknown,false
+10,Friendlies,2022,350,supports_player_shot_props,,0,0,,unknown,false
+10,Friendlies,2022,350,supports_player_discipline_props,,0,0,,unknown,false
+10,Friendlies,2023,378,has_lineups,true,40,21,0.525,partial,false
+10,Friendlies,2023,378,has_player_match_stats,true,40,10,0.25,partial,false
+10,Friendlies,2023,378,has_shot_stats,true,40,11,0.275,partial,false
+10,Friendlies,2023,378,has_xg,,40,0,0.0,absent,false
+10,Friendlies,2023,378,has_corners_data,true,40,17,0.425,partial,false
+10,Friendlies,2023,378,has_cards_data,true,40,26,0.65,partial,false
+10,Friendlies,2023,378,has_half_split_stats,,40,39,0.975,available,false
+10,Friendlies,2023,378,has_substitution_timestamps,true,40,26,0.65,partial,false
+10,Friendlies,2023,378,has_referee_history,,40,19,0.475,partial,false
+10,Friendlies,2023,378,has_event_coordinates,,40,0,0.0,absent,false
+10,Friendlies,2023,378,has_physical_load_data,,40,0,0.0,absent,false
+10,Friendlies,2023,378,has_attendance_data,,40,0,0.0,absent,false
+10,Friendlies,2023,378,supports_lineup_strength_adjustment,,0,0,,unknown,false
+10,Friendlies,2023,378,supports_player_goal_props,,0,0,,unknown,false
+10,Friendlies,2023,378,supports_player_shot_props,,0,0,,unknown,false
+10,Friendlies,2023,378,supports_player_discipline_props,,0,0,,unknown,false
+10,Friendlies,2024,379,has_lineups,true,40,20,0.5,partial,false
+10,Friendlies,2024,379,has_player_match_stats,true,40,9,0.225,partial,false
+10,Friendlies,2024,379,has_shot_stats,true,40,9,0.225,partial,false
+10,Friendlies,2024,379,has_xg,,40,0,0.0,absent,false
+10,Friendlies,2024,379,has_corners_data,true,40,9,0.225,partial,false
+10,Friendlies,2024,379,has_cards_data,true,40,20,0.5,partial,false
+10,Friendlies,2024,379,has_half_split_stats,,40,32,0.8,partial,false
+10,Friendlies,2024,379,has_substitution_timestamps,true,40,21,0.525,partial,false
+10,Friendlies,2024,379,has_referee_history,,40,19,0.475,partial,false
+10,Friendlies,2024,379,has_event_coordinates,,40,0,0.0,absent,false
+10,Friendlies,2024,379,has_physical_load_data,,40,0,0.0,absent,false
+10,Friendlies,2024,379,has_attendance_data,,40,0,0.0,absent,false
+10,Friendlies,2024,379,supports_lineup_strength_adjustment,,0,0,,unknown,false
+10,Friendlies,2024,379,supports_player_goal_props,,0,0,,unknown,false
+10,Friendlies,2024,379,supports_player_shot_props,,0,0,,unknown,false
+10,Friendlies,2024,379,supports_player_discipline_props,,0,0,,unknown,false
+10,Friendlies,2025,633,has_lineups,true,40,14,0.35,partial,false
+10,Friendlies,2025,633,has_player_match_stats,true,40,7,0.175,partial,false
+10,Friendlies,2025,633,has_shot_stats,true,40,7,0.175,partial,false
+10,Friendlies,2025,633,has_xg,,40,0,0.0,absent,false
+10,Friendlies,2025,633,has_corners_data,true,40,8,0.2,partial,false
+10,Friendlies,2025,633,has_cards_data,true,40,12,0.3,partial,false
+10,Friendlies,2025,633,has_half_split_stats,,40,38,0.95,available,false
+10,Friendlies,2025,633,has_substitution_timestamps,true,40,14,0.35,partial,false
+10,Friendlies,2025,633,has_referee_history,,40,13,0.325,partial,false
+10,Friendlies,2025,633,has_event_coordinates,,40,0,0.0,absent,false
+10,Friendlies,2025,633,has_physical_load_data,,40,0,0.0,absent,false
+10,Friendlies,2025,633,has_attendance_data,,40,0,0.0,absent,false
+10,Friendlies,2025,633,supports_lineup_strength_adjustment,,0,0,,unknown,false
+10,Friendlies,2025,633,supports_player_goal_props,,0,0,,unknown,false
+10,Friendlies,2025,633,supports_player_shot_props,,0,0,,unknown,false
+10,Friendlies,2025,633,supports_player_discipline_props,,0,0,,unknown,false
+10,Friendlies,2026,818,has_lineups,true,40,15,0.375,partial,false
+10,Friendlies,2026,818,has_player_match_stats,true,40,7,0.175,partial,false
+10,Friendlies,2026,818,has_shot_stats,true,40,7,0.175,partial,false
+10,Friendlies,2026,818,has_xg,,40,1,0.025,partial,false
+10,Friendlies,2026,818,has_corners_data,true,40,8,0.2,partial,false
+10,Friendlies,2026,818,has_cards_data,true,40,15,0.375,partial,false
+10,Friendlies,2026,818,has_half_split_stats,,40,40,1.0,available,false
+10,Friendlies,2026,818,has_substitution_timestamps,true,40,13,0.325,partial,false
+10,Friendlies,2026,818,has_referee_history,,40,9,0.225,partial,false
+10,Friendlies,2026,818,has_event_coordinates,,40,0,0.0,absent,false
+10,Friendlies,2026,818,has_physical_load_data,,40,0,0.0,absent,false
+10,Friendlies,2026,818,has_attendance_data,,40,0,0.0,absent,false
+10,Friendlies,2026,818,supports_lineup_strength_adjustment,,0,0,,unknown,false
+10,Friendlies,2026,818,supports_player_goal_props,,0,0,,unknown,false
+10,Friendlies,2026,818,supports_player_shot_props,,0,0,,unknown,false
+10,Friendlies,2026,818,supports_player_discipline_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2017,25,has_lineups,true,25,25,1.0,available,false
+22,CONCACAF Gold Cup,2017,25,has_player_match_stats,false,25,0,0.0,absent,false
+22,CONCACAF Gold Cup,2017,25,has_shot_stats,false,25,0,0.0,absent,false
+22,CONCACAF Gold Cup,2017,25,has_xg,,25,0,0.0,absent,false
+22,CONCACAF Gold Cup,2017,25,has_corners_data,false,25,0,0.0,absent,false
+22,CONCACAF Gold Cup,2017,25,has_cards_data,true,25,0,0.0,absent,true
+22,CONCACAF Gold Cup,2017,25,has_half_split_stats,,25,25,1.0,available,false
+22,CONCACAF Gold Cup,2017,25,has_substitution_timestamps,true,25,25,1.0,available,false
+22,CONCACAF Gold Cup,2017,25,has_referee_history,,25,0,0.0,absent,false
+22,CONCACAF Gold Cup,2017,25,has_event_coordinates,,25,0,0.0,absent,false
+22,CONCACAF Gold Cup,2017,25,has_physical_load_data,,25,0,0.0,absent,false
+22,CONCACAF Gold Cup,2017,25,has_attendance_data,,25,0,0.0,absent,false
+22,CONCACAF Gold Cup,2017,25,supports_lineup_strength_adjustment,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2017,25,supports_player_goal_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2017,25,supports_player_shot_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2017,25,supports_player_discipline_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2019,31,has_lineups,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2019,31,has_player_match_stats,false,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2019,31,has_shot_stats,false,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2019,31,has_xg,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2019,31,has_corners_data,false,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2019,31,has_cards_data,true,31,0,0.0,absent,true
+22,CONCACAF Gold Cup,2019,31,has_half_split_stats,,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2019,31,has_substitution_timestamps,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2019,31,has_referee_history,,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2019,31,has_event_coordinates,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2019,31,has_physical_load_data,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2019,31,has_attendance_data,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2019,31,supports_lineup_strength_adjustment,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2019,31,supports_player_goal_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2019,31,supports_player_shot_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2019,31,supports_player_discipline_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2021,31,has_lineups,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2021,31,has_player_match_stats,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2021,31,has_shot_stats,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2021,31,has_xg,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2021,31,has_corners_data,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2021,31,has_cards_data,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2021,31,has_half_split_stats,,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2021,31,has_substitution_timestamps,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2021,31,has_referee_history,,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2021,31,has_event_coordinates,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2021,31,has_physical_load_data,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2021,31,has_attendance_data,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2021,31,supports_lineup_strength_adjustment,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2021,31,supports_player_goal_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2021,31,supports_player_shot_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2021,31,supports_player_discipline_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2023,31,has_lineups,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2023,31,has_player_match_stats,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2023,31,has_shot_stats,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2023,31,has_xg,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2023,31,has_corners_data,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2023,31,has_cards_data,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2023,31,has_half_split_stats,,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2023,31,has_substitution_timestamps,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2023,31,has_referee_history,,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2023,31,has_event_coordinates,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2023,31,has_physical_load_data,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2023,31,has_attendance_data,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2023,31,supports_lineup_strength_adjustment,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2023,31,supports_player_goal_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2023,31,supports_player_shot_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2023,31,supports_player_discipline_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2025,31,has_lineups,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2025,31,has_player_match_stats,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2025,31,has_shot_stats,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2025,31,has_xg,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2025,31,has_corners_data,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2025,31,has_cards_data,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2025,31,has_half_split_stats,,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2025,31,has_substitution_timestamps,true,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2025,31,has_referee_history,,31,31,1.0,available,false
+22,CONCACAF Gold Cup,2025,31,has_event_coordinates,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2025,31,has_physical_load_data,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2025,31,has_attendance_data,,31,0,0.0,absent,false
+22,CONCACAF Gold Cup,2025,31,supports_lineup_strength_adjustment,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2025,31,supports_player_goal_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2025,31,supports_player_shot_props,,0,0,,unknown,false
+22,CONCACAF Gold Cup,2025,31,supports_player_discipline_props,,0,0,,unknown,false
+29,World Cup - Qualification Africa,2018,126,has_lineups,true,40,40,1.0,available,false
+29,World Cup - Qualification Africa,2018,126,has_player_match_stats,false,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2018,126,has_shot_stats,false,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2018,126,has_xg,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2018,126,has_corners_data,false,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2018,126,has_cards_data,true,40,0,0.0,absent,true
+29,World Cup - Qualification Africa,2018,126,has_half_split_stats,,40,40,1.0,available,false
+29,World Cup - Qualification Africa,2018,126,has_substitution_timestamps,true,40,40,1.0,available,false
+29,World Cup - Qualification Africa,2018,126,has_referee_history,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2018,126,has_event_coordinates,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2018,126,has_physical_load_data,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2018,126,has_attendance_data,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2018,126,supports_lineup_strength_adjustment,,0,0,,unknown,false
+29,World Cup - Qualification Africa,2018,126,supports_player_goal_props,,0,0,,unknown,false
+29,World Cup - Qualification Africa,2018,126,supports_player_shot_props,,0,0,,unknown,false
+29,World Cup - Qualification Africa,2018,126,supports_player_discipline_props,,0,0,,unknown,false
+29,World Cup - Qualification Africa,2022,158,has_lineups,true,40,40,1.0,available,false
+29,World Cup - Qualification Africa,2022,158,has_player_match_stats,true,40,4,0.1,partial,false
+29,World Cup - Qualification Africa,2022,158,has_shot_stats,true,40,4,0.1,partial,false
+29,World Cup - Qualification Africa,2022,158,has_xg,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2022,158,has_corners_data,true,40,4,0.1,partial,false
+29,World Cup - Qualification Africa,2022,158,has_cards_data,true,40,30,0.75,partial,false
+29,World Cup - Qualification Africa,2022,158,has_half_split_stats,,40,40,1.0,available,false
+29,World Cup - Qualification Africa,2022,158,has_substitution_timestamps,true,40,40,1.0,available,false
+29,World Cup - Qualification Africa,2022,158,has_referee_history,,40,40,1.0,available,false
+29,World Cup - Qualification Africa,2022,158,has_event_coordinates,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2022,158,has_physical_load_data,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2022,158,has_attendance_data,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2022,158,supports_lineup_strength_adjustment,,0,0,,unknown,false
+29,World Cup - Qualification Africa,2022,158,supports_player_goal_props,,0,0,,unknown,false
+29,World Cup - Qualification Africa,2022,158,supports_player_shot_props,,0,0,,unknown,false
+29,World Cup - Qualification Africa,2022,158,supports_player_discipline_props,,0,0,,unknown,false
+29,World Cup - Qualification Africa,2023,256,has_lineups,true,40,40,1.0,available,false
+29,World Cup - Qualification Africa,2023,256,has_player_match_stats,true,40,1,0.025,partial,false
+29,World Cup - Qualification Africa,2023,256,has_shot_stats,true,40,1,0.025,partial,false
+29,World Cup - Qualification Africa,2023,256,has_xg,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2023,256,has_corners_data,true,40,1,0.025,partial,false
+29,World Cup - Qualification Africa,2023,256,has_cards_data,true,40,38,0.95,available,false
+29,World Cup - Qualification Africa,2023,256,has_half_split_stats,,40,40,1.0,available,false
+29,World Cup - Qualification Africa,2023,256,has_substitution_timestamps,true,40,40,1.0,available,false
+29,World Cup - Qualification Africa,2023,256,has_referee_history,,40,37,0.925,partial,false
+29,World Cup - Qualification Africa,2023,256,has_event_coordinates,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2023,256,has_physical_load_data,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2023,256,has_attendance_data,,40,0,0.0,absent,false
+29,World Cup - Qualification Africa,2023,256,supports_lineup_strength_adjustment,,0,0,,unknown,false
+29,World Cup - Qualification Africa,2023,256,supports_player_goal_props,,0,0,,unknown,false
+29,World Cup - Qualification Africa,2023,256,supports_player_shot_props,,0,0,,unknown,false
+29,World Cup - Qualification Africa,2023,256,supports_player_discipline_props,,0,0,,unknown,false
+30,World Cup - Qualification Asia,2018,226,has_lineups,true,40,39,0.975,available,false
+30,World Cup - Qualification Asia,2018,226,has_player_match_stats,true,40,4,0.1,partial,false
+30,World Cup - Qualification Asia,2018,226,has_shot_stats,true,40,13,0.325,partial,false
+30,World Cup - Qualification Asia,2018,226,has_xg,,40,0,0.0,absent,false
+30,World Cup - Qualification Asia,2018,226,has_corners_data,true,40,13,0.325,partial,false
+30,World Cup - Qualification Asia,2018,226,has_cards_data,true,40,16,0.4,partial,false
+30,World Cup - Qualification Asia,2018,226,has_half_split_stats,,40,38,0.95,available,false
+30,World Cup - Qualification Asia,2018,226,has_substitution_timestamps,true,40,39,0.975,available,false
+30,World Cup - Qualification Asia,2018,226,has_referee_history,,40,13,0.325,partial,false
+30,World Cup - Qualification Asia,2018,226,has_event_coordinates,,40,0,0.0,absent,false
+30,World Cup - Qualification Asia,2018,226,has_physical_load_data,,40,0,0.0,absent,false
+30,World Cup - Qualification Asia,2018,226,has_attendance_data,,40,0,0.0,absent,false
+30,World Cup - Qualification Asia,2018,226,supports_lineup_strength_adjustment,,0,0,,unknown,false
+30,World Cup - Qualification Asia,2018,226,supports_player_goal_props,,0,0,,unknown,false
+30,World Cup - Qualification Asia,2018,226,supports_player_shot_props,,0,0,,unknown,false
+30,World Cup - Qualification Asia,2018,226,supports_player_discipline_props,,0,0,,unknown,false
+30,World Cup - Qualification Asia,2022,230,has_lineups,true,40,40,1.0,available,false
+30,World Cup - Qualification Asia,2022,230,has_player_match_stats,true,40,17,0.425,partial,false
+30,World Cup - Qualification Asia,2022,230,has_shot_stats,true,40,17,0.425,partial,false
+30,World Cup - Qualification Asia,2022,230,has_xg,,40,0,0.0,absent,false
+30,World Cup - Qualification Asia,2022,230,has_corners_data,true,40,17,0.425,partial,false
+30,World Cup - Qualification Asia,2022,230,has_cards_data,true,40,25,0.625,partial,false
+30,World Cup - Qualification Asia,2022,230,has_half_split_stats,,40,40,1.0,available,false
+30,World Cup - Qualification Asia,2022,230,has_substitution_timestamps,true,40,40,1.0,available,false
+30,World Cup - Qualification Asia,2022,230,has_referee_history,,40,40,1.0,available,false
+30,World Cup - Qualification Asia,2022,230,has_event_coordinates,,40,0,0.0,absent,false
+30,World Cup - Qualification Asia,2022,230,has_physical_load_data,,40,0,0.0,absent,false
+30,World Cup - Qualification Asia,2022,230,has_attendance_data,,40,0,0.0,absent,false
+30,World Cup - Qualification Asia,2022,230,supports_lineup_strength_adjustment,,0,0,,unknown,false
+30,World Cup - Qualification Asia,2022,230,supports_player_goal_props,,0,0,,unknown,false
+30,World Cup - Qualification Asia,2022,230,supports_player_shot_props,,0,0,,unknown,false
+30,World Cup - Qualification Asia,2022,230,supports_player_discipline_props,,0,0,,unknown,false
+30,World Cup - Qualification Asia,2026,225,has_lineups,true,40,40,1.0,available,false
+30,World Cup - Qualification Asia,2026,225,has_player_match_stats,true,40,25,0.625,partial,false
+30,World Cup - Qualification Asia,2026,225,has_shot_stats,true,40,29,0.725,partial,false
+30,World Cup - Qualification Asia,2026,225,has_xg,,40,0,0.0,absent,false
+30,World Cup - Qualification Asia,2026,225,has_corners_data,true,40,30,0.75,partial,false
+30,World Cup - Qualification Asia,2026,225,has_cards_data,true,40,39,0.975,available,false
+30,World Cup - Qualification Asia,2026,225,has_half_split_stats,,40,40,1.0,available,false
+30,World Cup - Qualification Asia,2026,225,has_substitution_timestamps,true,40,40,1.0,available,false
+30,World Cup - Qualification Asia,2026,225,has_referee_history,,40,40,1.0,available,false
+30,World Cup - Qualification Asia,2026,225,has_event_coordinates,,40,0,0.0,absent,false
+30,World Cup - Qualification Asia,2026,225,has_physical_load_data,,40,0,0.0,absent,false
+30,World Cup - Qualification Asia,2026,225,has_attendance_data,,40,0,0.0,absent,false
+30,World Cup - Qualification Asia,2026,225,supports_lineup_strength_adjustment,,0,0,,unknown,false
+30,World Cup - Qualification Asia,2026,225,supports_player_goal_props,,0,0,,unknown,false
+30,World Cup - Qualification Asia,2026,225,supports_player_shot_props,,0,0,,unknown,false
+30,World Cup - Qualification Asia,2026,225,supports_player_discipline_props,,0,0,,unknown,false
+31,World Cup - Qualification CONCACAF,2018,112,has_lineups,true,40,40,1.0,available,false
+31,World Cup - Qualification CONCACAF,2018,112,has_player_match_stats,true,40,8,0.2,partial,false
+31,World Cup - Qualification CONCACAF,2018,112,has_shot_stats,true,40,11,0.275,partial,false
+31,World Cup - Qualification CONCACAF,2018,112,has_xg,,40,0,0.0,absent,false
+31,World Cup - Qualification CONCACAF,2018,112,has_corners_data,true,40,11,0.275,partial,false
+31,World Cup - Qualification CONCACAF,2018,112,has_cards_data,true,40,11,0.275,partial,false
+31,World Cup - Qualification CONCACAF,2018,112,has_half_split_stats,,40,40,1.0,available,false
+31,World Cup - Qualification CONCACAF,2018,112,has_substitution_timestamps,true,40,40,1.0,available,false
+31,World Cup - Qualification CONCACAF,2018,112,has_referee_history,,40,40,1.0,available,false
+31,World Cup - Qualification CONCACAF,2018,112,has_event_coordinates,,40,0,0.0,absent,false
+31,World Cup - Qualification CONCACAF,2018,112,has_physical_load_data,,40,0,0.0,absent,false
+31,World Cup - Qualification CONCACAF,2018,112,has_attendance_data,,40,0,0.0,absent,false
+31,World Cup - Qualification CONCACAF,2018,112,supports_lineup_strength_adjustment,,0,0,,unknown,false
+31,World Cup - Qualification CONCACAF,2018,112,supports_player_goal_props,,0,0,,unknown,false
+31,World Cup - Qualification CONCACAF,2018,112,supports_player_shot_props,,0,0,,unknown,false
+31,World Cup - Qualification CONCACAF,2018,112,supports_player_discipline_props,,0,0,,unknown,false
+31,World Cup - Qualification CONCACAF,2022,118,has_lineups,true,40,40,1.0,available,false
+31,World Cup - Qualification CONCACAF,2022,118,has_player_match_stats,true,40,22,0.55,partial,false
+31,World Cup - Qualification CONCACAF,2022,118,has_shot_stats,true,40,22,0.55,partial,false
+31,World Cup - Qualification CONCACAF,2022,118,has_xg,,40,0,0.0,absent,false
+31,World Cup - Qualification CONCACAF,2022,118,has_corners_data,true,40,22,0.55,partial,false
+31,World Cup - Qualification CONCACAF,2022,118,has_cards_data,true,40,37,0.925,partial,false
+31,World Cup - Qualification CONCACAF,2022,118,has_half_split_stats,,40,40,1.0,available,false
+31,World Cup - Qualification CONCACAF,2022,118,has_substitution_timestamps,true,40,40,1.0,available,false
+31,World Cup - Qualification CONCACAF,2022,118,has_referee_history,,40,40,1.0,available,false
+31,World Cup - Qualification CONCACAF,2022,118,has_event_coordinates,,40,0,0.0,absent,false
+31,World Cup - Qualification CONCACAF,2022,118,has_physical_load_data,,40,0,0.0,absent,false
+31,World Cup - Qualification CONCACAF,2022,118,has_attendance_data,,40,0,0.0,absent,false
+31,World Cup - Qualification CONCACAF,2022,118,supports_lineup_strength_adjustment,,0,0,,unknown,false
+31,World Cup - Qualification CONCACAF,2022,118,supports_player_goal_props,,0,0,,unknown,false
+31,World Cup - Qualification CONCACAF,2022,118,supports_player_shot_props,,0,0,,unknown,false
+31,World Cup - Qualification CONCACAF,2022,118,supports_player_discipline_props,,0,0,,unknown,false
+31,World Cup - Qualification CONCACAF,2026,100,has_lineups,true,40,40,1.0,available,false
+31,World Cup - Qualification CONCACAF,2026,100,has_player_match_stats,true,40,38,0.95,available,false
+31,World Cup - Qualification CONCACAF,2026,100,has_shot_stats,true,40,38,0.95,available,false
+31,World Cup - Qualification CONCACAF,2026,100,has_xg,,40,0,0.0,absent,false
+31,World Cup - Qualification CONCACAF,2026,100,has_corners_data,true,40,37,0.925,partial,false
+31,World Cup - Qualification CONCACAF,2026,100,has_cards_data,true,40,40,1.0,available,false
+31,World Cup - Qualification CONCACAF,2026,100,has_half_split_stats,,40,40,1.0,available,false
+31,World Cup - Qualification CONCACAF,2026,100,has_substitution_timestamps,true,40,40,1.0,available,false
+31,World Cup - Qualification CONCACAF,2026,100,has_referee_history,,40,36,0.9,partial,false
+31,World Cup - Qualification CONCACAF,2026,100,has_event_coordinates,,40,0,0.0,absent,false
+31,World Cup - Qualification CONCACAF,2026,100,has_physical_load_data,,40,0,0.0,absent,false
+31,World Cup - Qualification CONCACAF,2026,100,has_attendance_data,,40,0,0.0,absent,false
+31,World Cup - Qualification CONCACAF,2026,100,supports_lineup_strength_adjustment,,0,0,,unknown,false
+31,World Cup - Qualification CONCACAF,2026,100,supports_player_goal_props,,0,0,,unknown,false
+31,World Cup - Qualification CONCACAF,2026,100,supports_player_shot_props,,0,0,,unknown,false
+31,World Cup - Qualification CONCACAF,2026,100,supports_player_discipline_props,,0,0,,unknown,false
+32,World Cup - Qualification Europe,2018,278,has_lineups,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2018,278,has_player_match_stats,true,40,23,0.575,partial,false
+32,World Cup - Qualification Europe,2018,278,has_shot_stats,true,40,36,0.9,partial,false
+32,World Cup - Qualification Europe,2018,278,has_xg,,40,0,0.0,absent,false
+32,World Cup - Qualification Europe,2018,278,has_corners_data,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2018,278,has_cards_data,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2018,278,has_half_split_stats,,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2018,278,has_substitution_timestamps,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2018,278,has_referee_history,,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2018,278,has_event_coordinates,,40,0,0.0,absent,false
+32,World Cup - Qualification Europe,2018,278,has_physical_load_data,,40,0,0.0,absent,false
+32,World Cup - Qualification Europe,2018,278,has_attendance_data,,40,0,0.0,absent,false
+32,World Cup - Qualification Europe,2018,278,supports_lineup_strength_adjustment,,0,0,,unknown,false
+32,World Cup - Qualification Europe,2018,278,supports_player_goal_props,,0,0,,unknown,false
+32,World Cup - Qualification Europe,2018,278,supports_player_shot_props,,0,0,,unknown,false
+32,World Cup - Qualification Europe,2018,278,supports_player_discipline_props,,0,0,,unknown,false
+32,World Cup - Qualification Europe,2020,258,has_lineups,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2020,258,has_player_match_stats,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2020,258,has_shot_stats,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2020,258,has_xg,,40,0,0.0,absent,false
+32,World Cup - Qualification Europe,2020,258,has_corners_data,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2020,258,has_cards_data,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2020,258,has_half_split_stats,,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2020,258,has_substitution_timestamps,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2020,258,has_referee_history,,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2020,258,has_event_coordinates,,40,0,0.0,absent,false
+32,World Cup - Qualification Europe,2020,258,has_physical_load_data,,40,0,0.0,absent,false
+32,World Cup - Qualification Europe,2020,258,has_attendance_data,,40,0,0.0,absent,false
+32,World Cup - Qualification Europe,2020,258,supports_lineup_strength_adjustment,,0,0,,unknown,false
+32,World Cup - Qualification Europe,2020,258,supports_player_goal_props,,0,0,,unknown,false
+32,World Cup - Qualification Europe,2020,258,supports_player_shot_props,,0,0,,unknown,false
+32,World Cup - Qualification Europe,2020,258,supports_player_discipline_props,,0,0,,unknown,false
+32,World Cup - Qualification Europe,2024,204,has_lineups,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2024,204,has_player_match_stats,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2024,204,has_shot_stats,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2024,204,has_xg,,40,26,0.65,partial,false
+32,World Cup - Qualification Europe,2024,204,has_corners_data,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2024,204,has_cards_data,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2024,204,has_half_split_stats,,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2024,204,has_substitution_timestamps,true,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2024,204,has_referee_history,,40,40,1.0,available,false
+32,World Cup - Qualification Europe,2024,204,has_event_coordinates,,40,0,0.0,absent,false
+32,World Cup - Qualification Europe,2024,204,has_physical_load_data,,40,0,0.0,absent,false
+32,World Cup - Qualification Europe,2024,204,has_attendance_data,,40,0,0.0,absent,false
+32,World Cup - Qualification Europe,2024,204,supports_lineup_strength_adjustment,,0,0,,unknown,false
+32,World Cup - Qualification Europe,2024,204,supports_player_goal_props,,0,0,,unknown,false
+32,World Cup - Qualification Europe,2024,204,supports_player_shot_props,,0,0,,unknown,false
+32,World Cup - Qualification Europe,2024,204,supports_player_discipline_props,,0,0,,unknown,false
+33,World Cup - Qualification Oceania,2018,32,has_lineups,true,32,32,1.0,available,false
+33,World Cup - Qualification Oceania,2018,32,has_player_match_stats,false,32,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2018,32,has_shot_stats,false,32,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2018,32,has_xg,,32,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2018,32,has_corners_data,false,32,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2018,32,has_cards_data,true,32,0,0.0,absent,true
+33,World Cup - Qualification Oceania,2018,32,has_half_split_stats,,32,31,0.96875,available,false
+33,World Cup - Qualification Oceania,2018,32,has_substitution_timestamps,true,32,32,1.0,available,false
+33,World Cup - Qualification Oceania,2018,32,has_referee_history,,32,32,1.0,available,false
+33,World Cup - Qualification Oceania,2018,32,has_event_coordinates,,32,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2018,32,has_physical_load_data,,32,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2018,32,has_attendance_data,,32,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2018,32,supports_lineup_strength_adjustment,,0,0,,unknown,false
+33,World Cup - Qualification Oceania,2018,32,supports_player_goal_props,,0,0,,unknown,false
+33,World Cup - Qualification Oceania,2018,32,supports_player_shot_props,,0,0,,unknown,false
+33,World Cup - Qualification Oceania,2018,32,supports_player_discipline_props,,0,0,,unknown,false
+33,World Cup - Qualification Oceania,2022,11,has_lineups,true,11,11,1.0,available,false
+33,World Cup - Qualification Oceania,2022,11,has_player_match_stats,false,11,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2022,11,has_shot_stats,false,11,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2022,11,has_xg,,11,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2022,11,has_corners_data,false,11,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2022,11,has_cards_data,true,11,9,0.8181818181818182,partial,false
+33,World Cup - Qualification Oceania,2022,11,has_half_split_stats,,11,11,1.0,available,false
+33,World Cup - Qualification Oceania,2022,11,has_substitution_timestamps,true,11,11,1.0,available,false
+33,World Cup - Qualification Oceania,2022,11,has_referee_history,,11,11,1.0,available,false
+33,World Cup - Qualification Oceania,2022,11,has_event_coordinates,,11,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2022,11,has_physical_load_data,,11,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2022,11,has_attendance_data,,11,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2022,11,supports_lineup_strength_adjustment,,0,0,,unknown,false
+33,World Cup - Qualification Oceania,2022,11,supports_player_goal_props,,0,0,,unknown,false
+33,World Cup - Qualification Oceania,2022,11,supports_player_shot_props,,0,0,,unknown,false
+33,World Cup - Qualification Oceania,2022,11,supports_player_discipline_props,,0,0,,unknown,false
+33,World Cup - Qualification Oceania,2026,18,has_lineups,true,18,18,1.0,available,false
+33,World Cup - Qualification Oceania,2026,18,has_player_match_stats,false,18,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2026,18,has_shot_stats,false,18,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2026,18,has_xg,,18,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2026,18,has_corners_data,false,18,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2026,18,has_cards_data,true,18,16,0.8888888888888888,partial,false
+33,World Cup - Qualification Oceania,2026,18,has_half_split_stats,,18,18,1.0,available,false
+33,World Cup - Qualification Oceania,2026,18,has_substitution_timestamps,true,18,18,1.0,available,false
+33,World Cup - Qualification Oceania,2026,18,has_referee_history,,18,18,1.0,available,false
+33,World Cup - Qualification Oceania,2026,18,has_event_coordinates,,18,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2026,18,has_physical_load_data,,18,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2026,18,has_attendance_data,,18,0,0.0,absent,false
+33,World Cup - Qualification Oceania,2026,18,supports_lineup_strength_adjustment,,0,0,,unknown,false
+33,World Cup - Qualification Oceania,2026,18,supports_player_goal_props,,0,0,,unknown,false
+33,World Cup - Qualification Oceania,2026,18,supports_player_shot_props,,0,0,,unknown,false
+33,World Cup - Qualification Oceania,2026,18,supports_player_discipline_props,,0,0,,unknown,false
+34,World Cup - Qualification South America,2018,90,has_lineups,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2018,90,has_player_match_stats,true,40,14,0.35,partial,false
+34,World Cup - Qualification South America,2018,90,has_shot_stats,true,40,39,0.975,available,false
+34,World Cup - Qualification South America,2018,90,has_xg,,40,0,0.0,absent,false
+34,World Cup - Qualification South America,2018,90,has_corners_data,true,40,39,0.975,available,false
+34,World Cup - Qualification South America,2018,90,has_cards_data,true,40,39,0.975,available,false
+34,World Cup - Qualification South America,2018,90,has_half_split_stats,,40,40,1.0,available,false
+34,World Cup - Qualification South America,2018,90,has_substitution_timestamps,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2018,90,has_referee_history,,40,39,0.975,available,false
+34,World Cup - Qualification South America,2018,90,has_event_coordinates,,40,0,0.0,absent,false
+34,World Cup - Qualification South America,2018,90,has_physical_load_data,,40,0,0.0,absent,false
+34,World Cup - Qualification South America,2018,90,has_attendance_data,,40,0,0.0,absent,false
+34,World Cup - Qualification South America,2018,90,supports_lineup_strength_adjustment,,0,0,,unknown,false
+34,World Cup - Qualification South America,2018,90,supports_player_goal_props,,0,0,,unknown,false
+34,World Cup - Qualification South America,2018,90,supports_player_shot_props,,0,0,,unknown,false
+34,World Cup - Qualification South America,2018,90,supports_player_discipline_props,,0,0,,unknown,false
+34,World Cup - Qualification South America,2022,89,has_lineups,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2022,89,has_player_match_stats,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2022,89,has_shot_stats,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2022,89,has_xg,,40,0,0.0,absent,false
+34,World Cup - Qualification South America,2022,89,has_corners_data,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2022,89,has_cards_data,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2022,89,has_half_split_stats,,40,40,1.0,available,false
+34,World Cup - Qualification South America,2022,89,has_substitution_timestamps,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2022,89,has_referee_history,,40,40,1.0,available,false
+34,World Cup - Qualification South America,2022,89,has_event_coordinates,,40,0,0.0,absent,false
+34,World Cup - Qualification South America,2022,89,has_physical_load_data,,40,0,0.0,absent,false
+34,World Cup - Qualification South America,2022,89,has_attendance_data,,40,0,0.0,absent,false
+34,World Cup - Qualification South America,2022,89,supports_lineup_strength_adjustment,,0,0,,unknown,false
+34,World Cup - Qualification South America,2022,89,supports_player_goal_props,,0,0,,unknown,false
+34,World Cup - Qualification South America,2022,89,supports_player_shot_props,,0,0,,unknown,false
+34,World Cup - Qualification South America,2022,89,supports_player_discipline_props,,0,0,,unknown,false
+34,World Cup - Qualification South America,2026,90,has_lineups,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2026,90,has_player_match_stats,true,40,39,0.975,available,false
+34,World Cup - Qualification South America,2026,90,has_shot_stats,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2026,90,has_xg,,40,0,0.0,absent,false
+34,World Cup - Qualification South America,2026,90,has_corners_data,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2026,90,has_cards_data,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2026,90,has_half_split_stats,,40,40,1.0,available,false
+34,World Cup - Qualification South America,2026,90,has_substitution_timestamps,true,40,40,1.0,available,false
+34,World Cup - Qualification South America,2026,90,has_referee_history,,40,40,1.0,available,false
+34,World Cup - Qualification South America,2026,90,has_event_coordinates,,40,0,0.0,absent,false
+34,World Cup - Qualification South America,2026,90,has_physical_load_data,,40,0,0.0,absent,false
+34,World Cup - Qualification South America,2026,90,has_attendance_data,,40,0,0.0,absent,false
+34,World Cup - Qualification South America,2026,90,supports_lineup_strength_adjustment,,0,0,,unknown,false
+34,World Cup - Qualification South America,2026,90,supports_player_goal_props,,0,0,,unknown,false
+34,World Cup - Qualification South America,2026,90,supports_player_shot_props,,0,0,,unknown,false
+34,World Cup - Qualification South America,2026,90,supports_player_discipline_props,,0,0,,unknown,false
+35,Asian Cup - Qualification,2019,88,has_lineups,true,40,40,1.0,available,false
+35,Asian Cup - Qualification,2019,88,has_player_match_stats,false,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2019,88,has_shot_stats,false,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2019,88,has_xg,,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2019,88,has_corners_data,false,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2019,88,has_cards_data,true,40,0,0.0,absent,true
+35,Asian Cup - Qualification,2019,88,has_half_split_stats,,40,40,1.0,available,false
+35,Asian Cup - Qualification,2019,88,has_substitution_timestamps,true,40,40,1.0,available,false
+35,Asian Cup - Qualification,2019,88,has_referee_history,,40,40,1.0,available,false
+35,Asian Cup - Qualification,2019,88,has_event_coordinates,,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2019,88,has_physical_load_data,,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2019,88,has_attendance_data,,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2019,88,supports_lineup_strength_adjustment,,0,0,,unknown,false
+35,Asian Cup - Qualification,2019,88,supports_player_goal_props,,0,0,,unknown,false
+35,Asian Cup - Qualification,2019,88,supports_player_shot_props,,0,0,,unknown,false
+35,Asian Cup - Qualification,2019,88,supports_player_discipline_props,,0,0,,unknown,false
+35,Asian Cup - Qualification,2022,40,has_lineups,true,40,40,1.0,available,false
+35,Asian Cup - Qualification,2022,40,has_player_match_stats,false,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2022,40,has_shot_stats,false,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2022,40,has_xg,,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2022,40,has_corners_data,false,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2022,40,has_cards_data,true,40,33,0.825,partial,false
+35,Asian Cup - Qualification,2022,40,has_half_split_stats,,40,40,1.0,available,false
+35,Asian Cup - Qualification,2022,40,has_substitution_timestamps,true,40,40,1.0,available,false
+35,Asian Cup - Qualification,2022,40,has_referee_history,,40,40,1.0,available,false
+35,Asian Cup - Qualification,2022,40,has_event_coordinates,,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2022,40,has_physical_load_data,,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2022,40,has_attendance_data,,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2022,40,supports_lineup_strength_adjustment,,0,0,,unknown,false
+35,Asian Cup - Qualification,2022,40,supports_player_goal_props,,0,0,,unknown,false
+35,Asian Cup - Qualification,2022,40,supports_player_shot_props,,0,0,,unknown,false
+35,Asian Cup - Qualification,2022,40,supports_player_discipline_props,,0,0,,unknown,false
+35,Asian Cup - Qualification,2024,78,has_lineups,true,40,39,0.975,available,false
+35,Asian Cup - Qualification,2024,78,has_player_match_stats,false,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2024,78,has_shot_stats,false,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2024,78,has_xg,,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2024,78,has_corners_data,false,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2024,78,has_cards_data,true,40,39,0.975,available,false
+35,Asian Cup - Qualification,2024,78,has_half_split_stats,,40,40,1.0,available,false
+35,Asian Cup - Qualification,2024,78,has_substitution_timestamps,true,40,40,1.0,available,false
+35,Asian Cup - Qualification,2024,78,has_referee_history,,40,7,0.175,partial,false
+35,Asian Cup - Qualification,2024,78,has_event_coordinates,,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2024,78,has_physical_load_data,,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2024,78,has_attendance_data,,40,0,0.0,absent,false
+35,Asian Cup - Qualification,2024,78,supports_lineup_strength_adjustment,,0,0,,unknown,false
+35,Asian Cup - Qualification,2024,78,supports_player_goal_props,,0,0,,unknown,false
+35,Asian Cup - Qualification,2024,78,supports_player_shot_props,,0,0,,unknown,false
+35,Asian Cup - Qualification,2024,78,supports_player_discipline_props,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2021,152,has_lineups,true,40,11,0.275,partial,false
+36,Africa Cup of Nations - Qualification,2021,152,has_player_match_stats,false,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2021,152,has_shot_stats,false,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2021,152,has_xg,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2021,152,has_corners_data,false,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2021,152,has_cards_data,true,40,29,0.725,partial,false
+36,Africa Cup of Nations - Qualification,2021,152,has_half_split_stats,,40,40,1.0,available,false
+36,Africa Cup of Nations - Qualification,2021,152,has_substitution_timestamps,true,40,4,0.1,partial,false
+36,Africa Cup of Nations - Qualification,2021,152,has_referee_history,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2021,152,has_event_coordinates,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2021,152,has_physical_load_data,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2021,152,has_attendance_data,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2021,152,supports_lineup_strength_adjustment,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2021,152,supports_player_goal_props,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2021,152,supports_player_shot_props,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2021,152,supports_player_discipline_props,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2023,142,has_lineups,true,40,36,0.9,partial,false
+36,Africa Cup of Nations - Qualification,2023,142,has_player_match_stats,false,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2023,142,has_shot_stats,false,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2023,142,has_xg,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2023,142,has_corners_data,false,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2023,142,has_cards_data,true,40,35,0.875,partial,false
+36,Africa Cup of Nations - Qualification,2023,142,has_half_split_stats,,40,40,1.0,available,false
+36,Africa Cup of Nations - Qualification,2023,142,has_substitution_timestamps,true,40,37,0.925,partial,false
+36,Africa Cup of Nations - Qualification,2023,142,has_referee_history,,40,37,0.925,partial,false
+36,Africa Cup of Nations - Qualification,2023,142,has_event_coordinates,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2023,142,has_physical_load_data,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2023,142,has_attendance_data,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2023,142,supports_lineup_strength_adjustment,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2023,142,supports_player_goal_props,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2023,142,supports_player_shot_props,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2023,142,supports_player_discipline_props,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2025,151,has_lineups,true,40,39,0.975,available,false
+36,Africa Cup of Nations - Qualification,2025,151,has_player_match_stats,false,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2025,151,has_shot_stats,false,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2025,151,has_xg,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2025,151,has_corners_data,false,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2025,151,has_cards_data,true,40,38,0.95,available,false
+36,Africa Cup of Nations - Qualification,2025,151,has_half_split_stats,,40,40,1.0,available,false
+36,Africa Cup of Nations - Qualification,2025,151,has_substitution_timestamps,true,40,39,0.975,available,false
+36,Africa Cup of Nations - Qualification,2025,151,has_referee_history,,40,39,0.975,available,false
+36,Africa Cup of Nations - Qualification,2025,151,has_event_coordinates,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2025,151,has_physical_load_data,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2025,151,has_attendance_data,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2025,151,supports_lineup_strength_adjustment,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2025,151,supports_player_goal_props,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2025,151,supports_player_shot_props,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2025,151,supports_player_discipline_props,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2027,69,has_lineups,true,40,30,0.75,partial,false
+36,Africa Cup of Nations - Qualification,2027,69,has_player_match_stats,true,40,32,0.8,partial,false
+36,Africa Cup of Nations - Qualification,2027,69,has_shot_stats,true,40,32,0.8,partial,false
+36,Africa Cup of Nations - Qualification,2027,69,has_xg,,40,5,0.125,partial,false
+36,Africa Cup of Nations - Qualification,2027,69,has_corners_data,true,40,35,0.875,partial,false
+36,Africa Cup of Nations - Qualification,2027,69,has_cards_data,true,40,35,0.875,partial,false
+36,Africa Cup of Nations - Qualification,2027,69,has_half_split_stats,,40,40,1.0,available,false
+36,Africa Cup of Nations - Qualification,2027,69,has_substitution_timestamps,true,40,32,0.8,partial,false
+36,Africa Cup of Nations - Qualification,2027,69,has_referee_history,,40,32,0.8,partial,false
+36,Africa Cup of Nations - Qualification,2027,69,has_event_coordinates,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2027,69,has_physical_load_data,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2027,69,has_attendance_data,,40,0,0.0,absent,false
+36,Africa Cup of Nations - Qualification,2027,69,supports_lineup_strength_adjustment,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2027,69,supports_player_goal_props,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2027,69,supports_player_shot_props,,0,0,,unknown,false
+36,Africa Cup of Nations - Qualification,2027,69,supports_player_discipline_props,,0,0,,unknown,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,has_lineups,true,4,4,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,has_player_match_stats,true,4,4,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,has_shot_stats,true,4,4,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,has_xg,,4,0,0.0,absent,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,has_corners_data,true,4,4,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,has_cards_data,true,4,4,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,has_half_split_stats,,4,4,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,has_substitution_timestamps,true,4,4,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,has_referee_history,,4,4,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,has_event_coordinates,,4,0,0.0,absent,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,has_physical_load_data,,4,0,0.0,absent,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,has_attendance_data,,4,0,0.0,absent,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,supports_lineup_strength_adjustment,,0,0,,unknown,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,supports_player_goal_props,,0,0,,unknown,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,supports_player_shot_props,,0,0,,unknown,false
+37,World Cup - Qualification Intercontinental Play-offs,2018,4,supports_player_discipline_props,,0,0,,unknown,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,has_lineups,true,2,2,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,has_player_match_stats,true,2,2,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,has_shot_stats,true,2,2,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,has_xg,,2,0,0.0,absent,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,has_corners_data,true,2,2,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,has_cards_data,true,2,2,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,has_half_split_stats,,2,2,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,has_substitution_timestamps,true,2,2,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,has_referee_history,,2,2,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,has_event_coordinates,,2,0,0.0,absent,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,has_physical_load_data,,2,0,0.0,absent,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,has_attendance_data,,2,0,0.0,absent,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,supports_lineup_strength_adjustment,,0,0,,unknown,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,supports_player_goal_props,,0,0,,unknown,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,supports_player_shot_props,,0,0,,unknown,false
+37,World Cup - Qualification Intercontinental Play-offs,2022,2,supports_player_discipline_props,,0,0,,unknown,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,has_lineups,true,4,4,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,has_player_match_stats,true,4,1,0.25,partial,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,has_shot_stats,true,4,1,0.25,partial,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,has_xg,,4,0,0.0,absent,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,has_corners_data,true,4,1,0.25,partial,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,has_cards_data,true,4,3,0.75,partial,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,has_half_split_stats,,4,4,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,has_substitution_timestamps,true,4,4,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,has_referee_history,,4,4,1.0,available,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,has_event_coordinates,,4,0,0.0,absent,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,has_physical_load_data,,4,0,0.0,absent,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,has_attendance_data,,4,0,0.0,absent,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,supports_lineup_strength_adjustment,,0,0,,unknown,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,supports_player_goal_props,,0,0,,unknown,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,supports_player_shot_props,,0,0,,unknown,false
+37,World Cup - Qualification Intercontinental Play-offs,2026,4,supports_player_discipline_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2020,106,has_lineups,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2020,106,has_player_match_stats,false,40,0,0.0,absent,false
+536,CONCACAF Nations League,2020,106,has_shot_stats,false,40,0,0.0,absent,false
+536,CONCACAF Nations League,2020,106,has_xg,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2020,106,has_corners_data,false,40,0,0.0,absent,false
+536,CONCACAF Nations League,2020,106,has_cards_data,true,40,1,0.025,partial,false
+536,CONCACAF Nations League,2020,106,has_half_split_stats,,40,40,1.0,available,false
+536,CONCACAF Nations League,2020,106,has_substitution_timestamps,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2020,106,has_referee_history,,40,40,1.0,available,false
+536,CONCACAF Nations League,2020,106,has_event_coordinates,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2020,106,has_physical_load_data,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2020,106,has_attendance_data,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2020,106,supports_lineup_strength_adjustment,,0,0,,unknown,false
+536,CONCACAF Nations League,2020,106,supports_player_goal_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2020,106,supports_player_shot_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2020,106,supports_player_discipline_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2022,105,has_lineups,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2022,105,has_player_match_stats,true,40,1,0.025,partial,false
+536,CONCACAF Nations League,2022,105,has_shot_stats,true,40,2,0.05,partial,false
+536,CONCACAF Nations League,2022,105,has_xg,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2022,105,has_corners_data,true,40,13,0.325,partial,false
+536,CONCACAF Nations League,2022,105,has_cards_data,true,40,34,0.85,partial,false
+536,CONCACAF Nations League,2022,105,has_half_split_stats,,40,40,1.0,available,false
+536,CONCACAF Nations League,2022,105,has_substitution_timestamps,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2022,105,has_referee_history,,40,40,1.0,available,false
+536,CONCACAF Nations League,2022,105,has_event_coordinates,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2022,105,has_physical_load_data,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2022,105,has_attendance_data,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2022,105,supports_lineup_strength_adjustment,,0,0,,unknown,false
+536,CONCACAF Nations League,2022,105,supports_player_goal_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2022,105,supports_player_shot_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2022,105,supports_player_discipline_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2023,103,has_lineups,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2023,103,has_player_match_stats,true,40,29,0.725,partial,false
+536,CONCACAF Nations League,2023,103,has_shot_stats,true,40,29,0.725,partial,false
+536,CONCACAF Nations League,2023,103,has_xg,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2023,103,has_corners_data,true,40,38,0.95,available,false
+536,CONCACAF Nations League,2023,103,has_cards_data,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2023,103,has_half_split_stats,,40,40,1.0,available,false
+536,CONCACAF Nations League,2023,103,has_substitution_timestamps,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2023,103,has_referee_history,,40,40,1.0,available,false
+536,CONCACAF Nations League,2023,103,has_event_coordinates,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2023,103,has_physical_load_data,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2023,103,has_attendance_data,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2023,103,supports_lineup_strength_adjustment,,0,0,,unknown,false
+536,CONCACAF Nations League,2023,103,supports_player_goal_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2023,103,supports_player_shot_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2023,103,supports_player_discipline_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2024,110,has_lineups,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2024,110,has_player_match_stats,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2024,110,has_shot_stats,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2024,110,has_xg,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2024,110,has_corners_data,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2024,110,has_cards_data,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2024,110,has_half_split_stats,,40,40,1.0,available,false
+536,CONCACAF Nations League,2024,110,has_substitution_timestamps,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2024,110,has_referee_history,,40,40,1.0,available,false
+536,CONCACAF Nations League,2024,110,has_event_coordinates,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2024,110,has_physical_load_data,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2024,110,has_attendance_data,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2024,110,supports_lineup_strength_adjustment,,0,0,,unknown,false
+536,CONCACAF Nations League,2024,110,supports_player_goal_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2024,110,supports_player_shot_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2024,110,supports_player_discipline_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2025,79,has_lineups,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2025,79,has_player_match_stats,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2025,79,has_shot_stats,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2025,79,has_xg,,40,9,0.225,partial,false
+536,CONCACAF Nations League,2025,79,has_corners_data,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2025,79,has_cards_data,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2025,79,has_half_split_stats,,40,40,1.0,available,false
+536,CONCACAF Nations League,2025,79,has_substitution_timestamps,true,40,40,1.0,available,false
+536,CONCACAF Nations League,2025,79,has_referee_history,,40,39,0.975,available,false
+536,CONCACAF Nations League,2025,79,has_event_coordinates,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2025,79,has_physical_load_data,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2025,79,has_attendance_data,,40,0,0.0,absent,false
+536,CONCACAF Nations League,2025,79,supports_lineup_strength_adjustment,,0,0,,unknown,false
+536,CONCACAF Nations League,2025,79,supports_player_goal_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2025,79,supports_player_shot_props,,0,0,,unknown,false
+536,CONCACAF Nations League,2025,79,supports_player_discipline_props,,0,0,,unknown,false
+808,CONCACAF Nations League - Qualification,2018,68,has_lineups,true,40,40,1.0,available,false
+808,CONCACAF Nations League - Qualification,2018,68,has_player_match_stats,false,40,0,0.0,absent,false
+808,CONCACAF Nations League - Qualification,2018,68,has_shot_stats,false,40,0,0.0,absent,false
+808,CONCACAF Nations League - Qualification,2018,68,has_xg,,40,0,0.0,absent,false
+808,CONCACAF Nations League - Qualification,2018,68,has_corners_data,false,40,0,0.0,absent,false
+808,CONCACAF Nations League - Qualification,2018,68,has_cards_data,true,40,0,0.0,absent,true
+808,CONCACAF Nations League - Qualification,2018,68,has_half_split_stats,,40,40,1.0,available,false
+808,CONCACAF Nations League - Qualification,2018,68,has_substitution_timestamps,true,40,40,1.0,available,false
+808,CONCACAF Nations League - Qualification,2018,68,has_referee_history,,40,40,1.0,available,false
+808,CONCACAF Nations League - Qualification,2018,68,has_event_coordinates,,40,0,0.0,absent,false
+808,CONCACAF Nations League - Qualification,2018,68,has_physical_load_data,,40,0,0.0,absent,false
+808,CONCACAF Nations League - Qualification,2018,68,has_attendance_data,,40,0,0.0,absent,false
+808,CONCACAF Nations League - Qualification,2018,68,supports_lineup_strength_adjustment,,0,0,,unknown,false
+808,CONCACAF Nations League - Qualification,2018,68,supports_player_goal_props,,0,0,,unknown,false
+808,CONCACAF Nations League - Qualification,2018,68,supports_player_shot_props,,0,0,,unknown,false
+808,CONCACAF Nations League - Qualification,2018,68,supports_player_discipline_props,,0,0,,unknown,false
+858,CONCACAF Gold Cup - Qualification,2021,8,has_lineups,true,8,8,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2021,8,has_player_match_stats,false,8,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2021,8,has_shot_stats,false,8,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2021,8,has_xg,,8,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2021,8,has_corners_data,false,8,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2021,8,has_cards_data,true,8,0,0.0,absent,true
+858,CONCACAF Gold Cup - Qualification,2021,8,has_half_split_stats,,8,8,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2021,8,has_substitution_timestamps,true,8,8,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2021,8,has_referee_history,,8,8,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2021,8,has_event_coordinates,,8,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2021,8,has_physical_load_data,,8,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2021,8,has_attendance_data,,8,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2021,8,supports_lineup_strength_adjustment,,0,0,,unknown,false
+858,CONCACAF Gold Cup - Qualification,2021,8,supports_player_goal_props,,0,0,,unknown,false
+858,CONCACAF Gold Cup - Qualification,2021,8,supports_player_shot_props,,0,0,,unknown,false
+858,CONCACAF Gold Cup - Qualification,2021,8,supports_player_discipline_props,,0,0,,unknown,false
+858,CONCACAF Gold Cup - Qualification,2023,9,has_lineups,true,9,9,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2023,9,has_player_match_stats,false,9,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2023,9,has_shot_stats,false,9,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2023,9,has_xg,,9,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2023,9,has_corners_data,false,9,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2023,9,has_cards_data,true,9,9,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2023,9,has_half_split_stats,,9,9,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2023,9,has_substitution_timestamps,true,9,9,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2023,9,has_referee_history,,9,9,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2023,9,has_event_coordinates,,9,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2023,9,has_physical_load_data,,9,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2023,9,has_attendance_data,,9,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2023,9,supports_lineup_strength_adjustment,,0,0,,unknown,false
+858,CONCACAF Gold Cup - Qualification,2023,9,supports_player_goal_props,,0,0,,unknown,false
+858,CONCACAF Gold Cup - Qualification,2023,9,supports_player_shot_props,,0,0,,unknown,false
+858,CONCACAF Gold Cup - Qualification,2023,9,supports_player_discipline_props,,0,0,,unknown,false
+858,CONCACAF Gold Cup - Qualification,2025,14,has_lineups,true,14,14,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2025,14,has_player_match_stats,false,14,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2025,14,has_shot_stats,false,14,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2025,14,has_xg,,14,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2025,14,has_corners_data,false,14,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2025,14,has_cards_data,true,14,12,0.8571428571428571,partial,false
+858,CONCACAF Gold Cup - Qualification,2025,14,has_half_split_stats,,14,14,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2025,14,has_substitution_timestamps,true,14,14,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2025,14,has_referee_history,,14,14,1.0,available,false
+858,CONCACAF Gold Cup - Qualification,2025,14,has_event_coordinates,,14,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2025,14,has_physical_load_data,,14,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2025,14,has_attendance_data,,14,0,0.0,absent,false
+858,CONCACAF Gold Cup - Qualification,2025,14,supports_lineup_strength_adjustment,,0,0,,unknown,false
+858,CONCACAF Gold Cup - Qualification,2025,14,supports_player_goal_props,,0,0,,unknown,false
+858,CONCACAF Gold Cup - Qualification,2025,14,supports_player_shot_props,,0,0,,unknown,false
+858,CONCACAF Gold Cup - Qualification,2025,14,supports_player_discipline_props,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2022,1,has_lineups,true,1,1,1.0,available,false
+913,CONMEBOL - UEFA Finalissima,2022,1,has_player_match_stats,false,1,0,0.0,absent,false
+913,CONMEBOL - UEFA Finalissima,2022,1,has_shot_stats,false,1,0,0.0,absent,false
+913,CONMEBOL - UEFA Finalissima,2022,1,has_xg,,1,0,0.0,absent,false
+913,CONMEBOL - UEFA Finalissima,2022,1,has_corners_data,false,1,0,0.0,absent,false
+913,CONMEBOL - UEFA Finalissima,2022,1,has_cards_data,true,1,1,1.0,available,false
+913,CONMEBOL - UEFA Finalissima,2022,1,has_half_split_stats,,1,1,1.0,available,false
+913,CONMEBOL - UEFA Finalissima,2022,1,has_substitution_timestamps,true,1,1,1.0,available,false
+913,CONMEBOL - UEFA Finalissima,2022,1,has_referee_history,,1,1,1.0,available,false
+913,CONMEBOL - UEFA Finalissima,2022,1,has_event_coordinates,,1,0,0.0,absent,false
+913,CONMEBOL - UEFA Finalissima,2022,1,has_physical_load_data,,1,0,0.0,absent,false
+913,CONMEBOL - UEFA Finalissima,2022,1,has_attendance_data,,1,0,0.0,absent,false
+913,CONMEBOL - UEFA Finalissima,2022,1,supports_lineup_strength_adjustment,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2022,1,supports_player_goal_props,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2022,1,supports_player_shot_props,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2022,1,supports_player_discipline_props,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,has_lineups,false,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,has_player_match_stats,false,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,has_shot_stats,false,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,has_xg,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,has_corners_data,false,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,has_cards_data,false,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,has_half_split_stats,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,has_substitution_timestamps,false,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,has_referee_history,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,has_event_coordinates,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,has_physical_load_data,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,has_attendance_data,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,supports_lineup_strength_adjustment,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,supports_player_goal_props,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,supports_player_shot_props,,0,0,,unknown,false
+913,CONMEBOL - UEFA Finalissima,2026,0,supports_player_discipline_props,,0,0,,unknown,false
+960,Euro Championship - Qualification,2023,239,has_lineups,true,40,40,1.0,available,false
+960,Euro Championship - Qualification,2023,239,has_player_match_stats,true,40,40,1.0,available,false
+960,Euro Championship - Qualification,2023,239,has_shot_stats,true,40,40,1.0,available,false
+960,Euro Championship - Qualification,2023,239,has_xg,,40,0,0.0,absent,false
+960,Euro Championship - Qualification,2023,239,has_corners_data,true,40,40,1.0,available,false
+960,Euro Championship - Qualification,2023,239,has_cards_data,true,40,40,1.0,available,false
+960,Euro Championship - Qualification,2023,239,has_half_split_stats,,40,40,1.0,available,false
+960,Euro Championship - Qualification,2023,239,has_substitution_timestamps,true,40,39,0.975,available,false
+960,Euro Championship - Qualification,2023,239,has_referee_history,,40,40,1.0,available,false
+960,Euro Championship - Qualification,2023,239,has_event_coordinates,,40,0,0.0,absent,false
+960,Euro Championship - Qualification,2023,239,has_physical_load_data,,40,0,0.0,absent,false
+960,Euro Championship - Qualification,2023,239,has_attendance_data,,40,0,0.0,absent,false
+960,Euro Championship - Qualification,2023,239,supports_lineup_strength_adjustment,,0,0,,unknown,false
+960,Euro Championship - Qualification,2023,239,supports_player_goal_props,,0,0,,unknown,false
+960,Euro Championship - Qualification,2023,239,supports_player_shot_props,,0,0,,unknown,false
+960,Euro Championship - Qualification,2023,239,supports_player_discipline_props,,0,0,,unknown,false

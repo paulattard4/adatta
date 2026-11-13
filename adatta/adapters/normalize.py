@@ -23,8 +23,9 @@ def ensure_source(session: Session) -> None:
 
 
 def ensure_competition(
-    session: Session, *, league_id: int, name: str, country: str, level: str, tier: str
-) -> models.Competition:
+    session: Session, *, league_id: int, name: str, country: str, level: str, tier: str,
+    is_national: bool = False,
+) -> models.Competition:  # fmt: skip
     comp = session.scalar(
         select(models.Competition).where(
             models.Competition.source_id == SOURCE_ID,
@@ -39,9 +40,12 @@ def ensure_competition(
             country=country,
             level=level,
             tier=tier,
+            is_national=is_national,
         )
         session.add(comp)
         session.flush()
+    elif is_national and not comp.is_national:
+        comp.is_national = True
     return comp
 
 

@@ -70,7 +70,7 @@ def enqueue(session: Session, comps: list[Competition]) -> int:
 def _season(session: Session, comp: Competition, year: int) -> models.Season:
     db_comp = normalize.ensure_competition(
         session, league_id=comp.league_id, name=comp.name, country=comp.country,
-        level=comp.level, tier=str(comp.tier),
+        level=comp.level, tier=str(comp.tier), is_national=comp.national,
     )  # fmt: skip
     return normalize.ensure_season(session, db_comp.competition_id, year)
 

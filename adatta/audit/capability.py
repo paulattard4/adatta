@@ -149,6 +149,7 @@ def write_capabilities(
         country=comp.country,
         level=comp.level,
         tier=str(comp.tier),
+        is_national=comp.national,
     )
     db_season = normalize.ensure_season(session, db_comp.competition_id, audit.season)
     counts = {"inserted": 0, "confirmed": 0, "superseded": 0}

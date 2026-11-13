@@ -945,7 +945,15 @@ Tasks:
         -0.0014/-0.0011/-0.0013 (pass); new-season log loss -0.07% [-0.26%, +0.11%],
         1-3 weeks ahead +0.00%. Next: rerun the reference (production spec, widen off,
         28-day grid) on current code, then compare this run's predictions with it.
-- [ ] Item 3 if item 2 passes.
+      - 2026-11-13, reference rerun 43419004255 (commit 9765e73, same code, fits shared
+        from the cache), compared locally with `assemble --vs phase1b_strength_open_xg`:
+        **fail.** w = 0 unchanged (max |p_home| difference 1.7e-16). Widened (14168 of
+        18591 warm): 1X2 log loss +0.00% [-0.00%, +0.01%] (fail), RPS +0.00%
+        [-0.00%, +0.01%] (fail), OU2.5 -0.00% (pass), ECE home/draw/away
+        -0.0000/-0.0008/+0.0008 (pass); new season +0.03% [-0.00%, +0.07%], 1-3 weeks
+        ahead +0.00%. Widening is neutral to slightly worse; the gains read against
+        42359964241 were code drift, not widening. Not promoted; `widen` stays off.
+- [x] Item 3: not applicable (item 2 failed).
 
 ## Out of scope for 1b (spec places them later)
 Global cross-league layer / Q_league (§10.1; needs continental bridging data), neutral and host

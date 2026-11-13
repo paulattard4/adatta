@@ -342,5 +342,18 @@ Model (after the Phase 1b audit closes):
       has no detectable effect on goals. Recorded as failed; the group stays off by default.
       A non-centred horseshoe would remove the divergences but would not change this
       verdict, since the primary metric shows no gain.
+      **G7 style: pass (2026-11-13, run 43372042130, commit ec8c54c, snapshot
+      e9feb71c1fce2b40, reference run 42359964241; grid identical).** 18,591 warm dev
+      matches, 18,487 active (both sides' tempo known). Primary total-goals CRPS.
+      (1) mixing pass: R-hat > 1.01 in 1 refit, ESS < 400 in 0, divergences in 0.
+      (2) active total CRPS **−0.12% [−0.18%, −0.05%]: pass**, the interval excludes 0.
+      (3) all warm 1X2 log loss −0.03%, RPS −0.01%, OU2.5 log loss −0.12%, total CRPS
+      −0.12%, all within limits; bundles −0.10% (Italy) to +0.07% (England). (4) ECE pass
+      (home +0.0002, draw −0.0029, away +0.0003, over 2.5 +0.0003). (5) tempo **positive in
+      every bundle**, +0.163 (Italy) to +0.437 (Spain), 1.4 to 3.4 sd from 0, sd / prior
+      0.59–0.68: two high-tempo sides (more shots for and against than the league) produce
+      more goals than their strengths alone say. Reading: the first group to pass; it
+      sharpens the total-goals distribution and leaves 1X2 about where it was. Carried to
+      M4 (combined model); the 1X2 gate there (D18 form) is a separate, harder test.
 - [ ] M4 Combined model: gate, weekly dev run, feasibility.
 - [ ] M5 Promotion per D30.

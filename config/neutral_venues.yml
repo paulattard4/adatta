@@ -25,8 +25,7 @@ rules:
     round: "Promotion Play-offs - Final"
     note: "Championship play-off final at Wembley"
 # Reviewed 2026-11-13 from the `adatta venues-neutral` review list (venue in the away side's
-# city, or a city both share). Unresolved and left as review (not neutral):
-#   1316060 Bobigny v Red Star at Stade Auguste Delaune: whose ground is not clear.
+# city, or a city both share).
 overrides:
   # a lower-league or smaller club at its own ground near the visitor
   - {fixture: 293363, role: home, note: "Sestao River at Las Llanas, their ground"}
@@ -44,6 +43,7 @@ overrides:
   - {fixture: 209848, role: home, note: "AFC Wimbledon at Kingsmeadow, their ground then"}
   - {fixture: 209825, role: home, note: "AFC Wimbledon at Kingsmeadow, their ground then"}
   - {fixture: 209851, role: home, note: "Barnet at The Hive, their ground"}
+  - {fixture: 1316060, role: home, note: "Bobigny at Stade Auguste-Delaune, their ground (owner, 2026-11-13)"}
   # the home side's own ground under a name variant the league fixtures don't use
   - {fixture: 210011, role: home, note: "Liverpool at Anfield"}
   - {fixture: 27987, role: home, note: "AC Milan at San Siro (shared with Inter)"}

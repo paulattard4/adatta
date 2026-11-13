@@ -128,10 +128,17 @@ non-zero).
 1. **Gate (§14.5)** on the fixed 25-fit audit sample of Phase 1b (same dates and seed),
    every gating check, with the kept coefficients in the prior-sensitivity headline (x0.5
    and x2, parameter and predictive parts).
-2. **Dev, weekly cadence (D11):** 1X2 log loss and RPS improve on the 1b reference with the
-   paired 95% interval excluding 0, overall; and no league worse than 1.0% on any D28 gate
-   metric. Also reported, not gated: by weather_source, by referee_basis, by bundle, and the
-   T − 48 h horizon.
+2. **Dev, weekly cadence (D11):** passes if either route passes, both judged on all warm
+   matches against the 1b reference on the same grid, paired by match (D36):
+   - **Route A, 1X2 (D18 form):** 1X2 log loss and RPS improve with the paired 95%
+     interval excluding 0, overall.
+   - **Route B, total goals (D36, stated 2026-11-13 before any M4 run):** total-goals CRPS
+     and OU2.5 log loss each improve with the paired 95% interval excluding 0, overall;
+     1X2 log loss and RPS no worse (point estimate <= 0); ECE of each 1X2 outcome and of
+     OU2.5 no worse than the reference's by more than 0.005.
+   - Both routes: no league worse than 1.0% on any D28 gate metric.
+   The report states which route passed. Also reported, not gated: by weather_source, by
+   referee_basis, by bundle, and the T − 48 h horizon.
 3. **Leakage:** the context-table test (`tests/test_context.py`) still passes. A new
    harness test checks that every target's context row has as_of ≤ its prediction time and
    every training row's has as_of ≤ the refit's as-of, and that a context value changed
@@ -139,9 +146,12 @@ non-zero).
 4. **Feasible:** median refit time per bundle at most 1.25 times the 1b reference's, and
    every job inside the 6-hour runner limit (D9).
 5. **Promotion (D30):** the pre-registered gate, written into `config/evaluation.yml`
-   before the window is opened, in D18 form: any improvement on 1X2 log loss and RPS
-   with the paired 95% interval excluding 0, no league x market segment worse than 1.0%.
-   Outcome recorded in `model_run` as champion or rejected (§14.6).
+   before the window is opened, with the same two routes as item 2 (D36): route A in D18
+   form (any improvement on 1X2 log loss and RPS, paired 95% interval excluding 0), or
+   route B (CRPS and OU2.5 log loss improve with the interval excluding 0, 1X2 log loss and
+   RPS point estimates <= 0, ECE within +0.005); either way no league x market segment
+   worse than 1.0%. Outcome recorded in `model_run` as champion or rejected (§14.6), with
+   the route.
 
 ## Tasks
 

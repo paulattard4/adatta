@@ -936,6 +936,15 @@ Tasks:
       Monday hash D33 item 2 refers to; D33 itself still leaves it unchanged).
 - [ ] Item 2: 28-day dev backtest, production spec + `widen`, `vs` 42359964241, after the
       Phase 2 group runs (one backtest at a time).
+      - 2026-11-13, run 43395856862 (commit 9765e73): **not judged, the reference is not
+        clean.** Matches with w = 0 differ from 42359964241 by up to 0.039 in p_home
+        (limit 1e-12), so the reference was fitted on code that differs from today's
+        (before the Python 3.12 upgrade and `sigma_walk` storage). As read against it:
+        warm 18591, widened 14168; widened 1X2 log loss -0.00% [-0.06%, +0.06%] (pass),
+        RPS +0.01% [-0.04%, +0.06%] (fail), OU2.5 -0.00% (pass), ECE home/draw/away
+        -0.0014/-0.0011/-0.0013 (pass); new-season log loss -0.07% [-0.26%, +0.11%],
+        1-3 weeks ahead +0.00%. Next: rerun the reference (production spec, widen off,
+        28-day grid) on current code, then compare this run's predictions with it.
 - [ ] Item 3 if item 2 passes.
 
 ## Out of scope for 1b (spec places them later)

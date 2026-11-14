@@ -183,6 +183,8 @@ class MatchRow:
     competition: str
     country: str
     level: str
+    tier: str  # competition tier: "1", "2", "cup", "national" (config/competitions.yml)
+    source_ref: str  # the provider's fixture id
     season_id: int
     home_id: int
     away_id: int
@@ -192,6 +194,14 @@ class MatchRow:
     venue_id: int | None
 
 
+def competition_order(country: str, tier: str, name: str) -> tuple[str, int, int, str]:
+    """Lists of competitions: by country, then numbered tiers in order (1 before 2), then
+    cups, then national-team competitions, then anything else; name breaks ties."""
+    if tier.isdigit():
+        return (country, 0, int(tier), name)
+    return (country, {"cup": 1, "national": 2}.get(tier, 3), 0, name)
+
+
 def _matches(session: Session, ctx: Context, where: list[Any]) -> list[MatchRow]:
     M, S, C, T = models.Match, models.Season, models.Competition, models.Team
     H, A = T.__table__.alias("h"), T.__table__.alias("a")
@@ -199,7 +209,7 @@ def _matches(session: Session, ctx: Context, where: list[Any]) -> list[MatchRow]
     rows = session.execute(
         select(M.match_id, M.kickoff_time, M.status, M.round, C.source_ref, C.competition_id,
                C.name, C.country, C.level, M.season_id, M.home_team_id, M.away_team_id,
-               H.c.name, A.c.name, H.c.team_level, M.venue_id)
+               H.c.name, A.c.name, H.c.team_level, M.venue_id, C.tier, M.source_ref)
         .join(S, S.season_id == M.season_id)
         .join(C, C.competition_id == S.competition_id)
         .join(H, H.c.team_id == M.home_team_id)
@@ -210,7 +220,9 @@ def _matches(session: Session, ctx: Context, where: list[Any]) -> list[MatchRow]
     return [MatchRow(match_id=r[0], kickoff=_utc(r[1]), status=r[2], round=r[3],
                      league_id=int(r[4]), competition_id=r[5], competition=r[6], country=r[7],
                      level=r[8], season_id=r[9], home_id=r[10], away_id=r[11], home=r[12],
-                     away=r[13], team_level=r[14], venue_id=r[15]) for r in rows]  # fmt: skip
+                     away=r[13], team_level=r[14], venue_id=r[15], tier=r[16],
+                     source_ref=r[17])
+            for r in rows]  # fmt: skip
 
 
 def _projections(session: Session, ids: list[int]
@@ -388,8 +400,8 @@ def fixture_list(session: Session, ctx: Context, now: datetime, start: datetime 
         if g is None:
             g = groups[r.competition_id] = sc.CompetitionGroup(
                 competition_id=r.competition_id, name=r.competition, country=r.country,
-                level=r.level, capabilities=_cap_view(caps[r.season_id]), freshness=fresh,
-                fixtures=[],
+                level=r.level, tier=r.tier, capabilities=_cap_view(caps[r.season_id]),
+                freshness=fresh, fixtures=[],
             )  # fmt: skip
         by_ms = proj.get(r.match_id)
         reason = None
@@ -404,7 +416,7 @@ def fixture_list(session: Session, ctx: Context, now: datetime, start: datetime 
             confidence=confidence(r, ctx.refit(run) if run else None, fresh, caps[r.season_id],
                                   champ, now),
         ))  # fmt: skip
-    order = sorted(groups.values(), key=lambda g: (g.country, g.name))
+    order = sorted(groups.values(), key=lambda g: competition_order(g.country, g.tier, g.name))
     return sc.FixtureList(generated_at=now, start=start, end=end, competitions=order)
 
 
@@ -434,6 +446,7 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
                               .order_by(FS.observed_at.desc()).limit(1)).first()  # fmt: skip
     header = sc.Header(
         match_id=m.match_id, competition=m.competition, competition_id=m.competition_id,
+        competition_tier=m.tier,
         round=m.round, kickoff=m.kickoff, status=m.status, home=m.home, away=m.away,
         team_level=m.team_level,
         venue=f"{venue.name}, {venue.city}" if venue else None,
@@ -549,13 +562,15 @@ def _mean_score(metric: str, xs: list[float]) -> sc.MeanScore:
 PLAYED_METRICS = ("log_loss_1x2", "rps_1x2", "brier_1x2", "log_loss_ou25", "log_loss_btts")
 
 
-def _summary(segment: str, cid: int | None, ms: list[sc.PlayedMatch]) -> sc.ScoreSummary:
+def _summary(
+    segment: str, cid: int | None, ms: list[sc.PlayedMatch], tier: str | None = None
+) -> sc.ScoreSummary:
     scores = []
     for metric in PLAYED_METRICS:
         xs = [v for m in ms if (v := getattr(m.scores, metric)) is not None]
         if xs:
             scores.append(_mean_score(metric, xs))
-    return sc.ScoreSummary(segment=segment, competition_id=cid, n=len(ms), scores=scores)
+    return sc.ScoreSummary(segment=segment, competition_id=cid, tier=tier, n=len(ms), scores=scores)
 
 
 def played(
@@ -608,7 +623,8 @@ def played(
         )  # fmt: skip
         out.append(sc.PlayedMatch(
             match_id=r.match_id, kickoff=r.kickoff, competition_id=r.competition_id,
-            competition=r.competition, home=r.home, away=r.away, home_goals=hg, away_goals=ag,
+            competition=r.competition, competition_tier=r.tier, home=r.home, away=r.away,
+            home_goals=hg, away_goals=ag,
             outcome=("home", "draw", "away")[k["1X2"]], milestone=ms, generated_at=gen,
             home_p=_p(x[0]), draw_p=_p(x[1]), away_p=_p(x[2]),
             over25=None if over is None else _p(over), btts=None if btts is None else _p(btts),
@@ -619,10 +635,12 @@ def played(
     comps: dict[int, list[sc.PlayedMatch]] = {}
     for m in out:
         comps.setdefault(m.competition_id, []).append(m)
+    country = {r.competition_id: r.country for r in rows}
     summary += [
-        _summary(v[0].competition, cid, v)
-        for cid, v in sorted(comps.items(), key=lambda kv: kv[1][0].competition)
-    ]
+        _summary(v[0].competition, cid, v, v[0].competition_tier)
+        for cid, v in sorted(comps.items(), key=lambda kv: competition_order(
+            country[kv[0]], kv[1][0].competition_tier, kv[1][0].competition))
+    ]  # fmt: skip
     return sc.PlayedList(
         generated_at=now,
         forecasts_since=since,
@@ -632,3 +650,44 @@ def played(
         summary=summary,
         matches=out,
     )
+
+
+def live(session: Session, ctx: Context, now: datetime, feed: Any | None) -> sc.LiveList:
+    """Bundle matches in play: the provider's live score beside the latest projection
+    published before kickoff (docs/DASHBOARD_TASKS.md, in play; no in-play recalculation).
+    The provider is not asked unless a bundle match is in the live window."""
+    from adatta.adapters.api_football_capture import NO_MATCH
+    from adatta.adapters.normalize import FINISHED
+    from adatta.api import live as lv
+
+    M = models.Match
+    window = [M.kickoff_time >= now - lv.WINDOW_BEFORE, M.kickoff_time <= now + lv.WINDOW_AHEAD]
+    rows = [r for r in _matches(session, ctx, window) if r.status not in FINISHED | NO_MATCH]
+    if not rows:
+        return sc.LiveList(generated_at=now, fetched_at=None, note=None, matches=[])
+    if feed is None:
+        return sc.LiveList(generated_at=now, fetched_at=None, note="live feed not configured",
+                           matches=[])  # fmt: skip
+    snap = feed.get(now, sorted({r.league_id for r in rows}))
+    by_ref = {str(s.fixture_id): s for s in snap.states}
+    playing = [(r, by_ref[r.source_ref]) for r in rows if r.source_ref in by_ref]
+    forecasts = _pre_kickoff_forecasts(session, {r.match_id: r.kickoff for r, _ in playing})
+    out = []
+    for r, s in playing:
+        forecast = None
+        if r.match_id in forecasts:
+            ms, gen, prs = forecasts[r.match_id]
+            x = {p.selection: p for p in prs if p.market_type == "1X2"}
+            if {"home", "draw", "away"} <= x.keys():
+                forecast = sc.LiveForecast(milestone=ms, generated_at=gen, home=_p(x["home"]),
+                                           draw=_p(x["draw"]), away=_p(x["away"]))  # fmt: skip
+        out.append((r, sc.LiveMatch(
+            match_id=r.match_id, kickoff=r.kickoff, competition_id=r.competition_id,
+            competition=r.competition, competition_tier=r.tier, home=r.home, away=r.away,
+            status=s.status, elapsed=s.elapsed, extra=s.extra, home_goals=s.home_goals,
+            away_goals=s.away_goals, forecast=forecast,
+        )))  # fmt: skip
+    out.sort(key=lambda t: (competition_order(t[0].country, t[0].tier, t[0].competition),
+                            t[0].kickoff, t[0].match_id))  # fmt: skip
+    return sc.LiveList(generated_at=now, fetched_at=snap.fetched_at, note=snap.note,
+                       matches=[m for _, m in out])  # fmt: skip

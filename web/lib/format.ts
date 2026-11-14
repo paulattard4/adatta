@@ -2,6 +2,21 @@ export const pct = (p: number, digits = 1) => (100 * p).toFixed(digits);
 
 export const interval = (lo: number, hi: number, digits = 1) => `${pct(lo, digits)}–${pct(hi, digits)}`;
 
+/** A competition's tier as shown beside its name: "1" -> "tier 1", "cup", "national teams". */
+export const tierLabel = (tier: string | null | undefined) =>
+  !tier ? "" : /^\d+$/.test(tier) ? `tier ${tier}` : tier === "national" ? "national teams" : tier;
+
+/** The match clock from the provider's live status: 63', 45+2', HT, Pens... */
+export function liveClock(status: string, elapsed: number | null, extra: number | null): string {
+  const named: Record<string, string> = { HT: "HT", BT: "Break", P: "Pens", SUSP: "Susp.", INT: "Int." };
+  if (named[status]) return named[status];
+  if (elapsed == null) return status;
+  return extra ? `${elapsed}+${extra}'` : `${elapsed}'`;
+}
+
+export const timeLocal = (iso: string) =>
+  new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
 /** Fair decimal odds 1/p, no margin. Below p = 0.001 the price says little, so ">1000". */
 export const fairOdds = (p: number) => (p < 0.001 ? ">1000" : (1 / p).toFixed(2));
 

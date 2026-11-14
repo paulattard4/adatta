@@ -1,10 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
 
-export function useJson<T>(url: string | null) {
+/** GET JSON from the API; with refreshMs, fetch again on that interval (keeping the last data). */
+export function useJson<T>(url: string | null, refreshMs?: number) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!refreshMs) return;
+    const t = setInterval(() => setTick((n) => n + 1), refreshMs);
+    return () => clearInterval(t);
+  }, [refreshMs]);
   useEffect(() => {
     if (!url) return;
     let live = true;
@@ -19,7 +26,7 @@ export function useJson<T>(url: string | null) {
       .catch((e: Error) => live && setError(e.message))
       .finally(() => live && setLoading(false));
     return () => { live = false; };
-  }, [url]);
+  }, [url, tick]);
   return { data, error, loading };
 }
 

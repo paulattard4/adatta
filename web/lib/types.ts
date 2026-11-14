@@ -24,7 +24,7 @@ export interface FixtureRow {
 }
 
 export interface CompetitionGroup {
-  competition_id: number; name: string; country: string; level: string;
+  competition_id: number; name: string; country: string; level: string; tier: string;
   capabilities: Capability[]; freshness: Freshness; fixtures: FixtureRow[];
 }
 
@@ -36,7 +36,7 @@ export interface Weather {
 }
 
 export interface Header {
-  match_id: number; competition: string; competition_id: number; round: string | null;
+  match_id: number; competition: string; competition_id: number; competition_tier: string; round: string | null;
   kickoff: string; status: string; home: string; away: string; team_level: string; venue: string | null;
   weather: Weather | null; referee: string | null; capabilities: Capability[];
 }
@@ -70,7 +70,7 @@ export interface PlayedScores {
 }
 
 export interface PlayedMatch {
-  match_id: number; kickoff: string; competition_id: number; competition: string;
+  match_id: number; kickoff: string; competition_id: number; competition: string; competition_tier: string;
   home: string; away: string; home_goals: number; away_goals: number;
   outcome: "home" | "draw" | "away"; milestone: string; generated_at: string;
   home_p: Prob; draw_p: Prob; away_p: Prob; over25: Prob | null; btts: Prob | null;
@@ -79,9 +79,18 @@ export interface PlayedMatch {
 
 export interface MeanScore { metric: string; n: number; mean: number; lo: number | null; hi: number | null } // no interval below two matches
 
-export interface ScoreSummary { segment: string; competition_id: number | null; n: number; scores: MeanScore[] }
+export interface ScoreSummary { segment: string; competition_id: number | null; tier: string | null; n: number; scores: MeanScore[] }
 
 export interface PlayedList {
   generated_at: string; forecasts_since: string | null; start: string | null; end: string;
   uniform_log_loss_1x2: number; summary: ScoreSummary[]; matches: PlayedMatch[];
 }
+
+// In play (docs/DASHBOARD_TASKS.md, option 1): live score beside the pre-match projection.
+export interface LiveForecast { milestone: string; generated_at: string; home: Prob; draw: Prob; away: Prob }
+export interface LiveMatch {
+  match_id: number; kickoff: string; competition_id: number; competition: string; competition_tier: string;
+  home: string; away: string; status: string; elapsed: number | null; extra: number | null;
+  home_goals: number | null; away_goals: number | null; forecast: LiveForecast | null;
+}
+export interface LiveList { generated_at: string; fetched_at: string | null; note: string | null; matches: LiveMatch[] }

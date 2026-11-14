@@ -46,6 +46,7 @@ class FakeApi:
         self.id_requests: list[int] = []
         self.withheld = 5  # provider omits fixture #5 of each season from /fixtures?ids
         self.broken_league: int | None = None
+        self.detail_errors: Any = None  # body `errors` returned on /fixtures?ids (a 200)
 
     def season(self, league: int, year: int) -> list[dict[str, Any]]:
         base = league * 10_000_000 + year * 1000
@@ -63,6 +64,8 @@ class FakeApi:
         if req.url.path != "/fixtures":
             return httpx.Response(404)
         if "ids" in q:
+            if self.detail_errors is not None:
+                return httpx.Response(200, json={"errors": self.detail_errors, "response": []})
             ids = [int(x) for x in q["ids"].split("-")]
             self.id_requests += ids
             body = []
@@ -185,3 +188,26 @@ def test_calendar_competitions_file_is_valid() -> None:
     assert comps and all(not c.detail and c.tier == "cup" for c in comps)
     main = {c.league_id for c in load_competitions()}
     assert main.isdisjoint(c.league_id for c in comps)  # never a modelled competition
+
+
+def test_a_provider_error_in_the_body_is_not_a_gap(tmp_path: Path) -> None:
+    """A 200 whose body reports an error must not record every fixture as "not returned"."""
+    h = Harness(tmp_path)
+    h.api.detail_errors = {"ids": "The Ids field must contain at most 20 ids."}
+    result = h.run([CUP])
+    assert result["failed"] == 1 and h.count(models.MatchDetail) == 0
+    assert h.count(models.RawPayload) == 1  # the fixture list only: the error is not kept
+    cup = h.report([CUP])[0]
+    assert cup["job_status"] == "failed" and "ProviderError" in cup["flags"]
+    assert "The Ids field" in cup["flags"]
+    h.api.detail_errors = []  # an empty `errors` is a normal answer
+    assert h.run([CUP])["done"] == 1 and h.count(models.MatchDetail) == 4
+
+
+def test_the_provider_request_limit_stops_backfill_like_the_quota(tmp_path: Path) -> None:
+    h = Harness(tmp_path)
+    h.api.detail_errors = {"requests": "You have reached the request limit for the day"}
+    result = h.run([LEAGUE, CUP])
+    assert result["stopped_by_quota"] == 1 and "failed" not in result
+    assert h.count(models.MatchDetail) == 0
+    assert sum("ids=" in c for c in h.api.calls) == 1  # stopped at the first refusal

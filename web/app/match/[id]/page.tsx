@@ -4,11 +4,12 @@ import { useParams } from "next/navigation";
 import { CapabilityBadge, FreshnessBadge } from "@/components/Badges";
 import { ConfidencePanel } from "@/components/Confidence";
 import { Heatmap } from "@/components/Heatmap";
+import { LIVE_REFRESH_MS, score } from "@/components/Live";
 import { ProbCell } from "@/components/Prob";
 import { Waterfall } from "@/components/Waterfall";
 import { useJson, useNow } from "@/lib/fetch";
-import { countdown, dateLocal, interval, kickoffLocal, MARKET_LABEL, pct, showsOdds } from "@/lib/format";
-import type { MatchView, Milestone, Selection } from "@/lib/types";
+import { countdown, dateLocal, interval, kickoffLocal, liveClock, MARKET_LABEL, pct, showsOdds, tierLabel } from "@/lib/format";
+import type { LiveList, MatchView, Milestone, Selection } from "@/lib/types";
 
 const SEL_LABEL: Record<string, string> = { home: "Home", draw: "Draw", away: "Away", over: "Over", under: "Under", yes: "Yes", no: "No" };
 
@@ -59,6 +60,9 @@ export default function MatchPage() {
   const { id } = useParams<{ id: string }>();
   const { data: v, error } = useJson<MatchView>(`/api/matches/${id}`);
   const now = useNow();
+  const started = v ? new Date(v.header.kickoff).getTime() <= now : false;
+  const live = useJson<LiveList>(started ? "/api/live" : null, LIVE_REFRESH_MS);
+  const inPlay = live.data?.matches.find((m) => String(m.match_id) === id) ?? null;
   if (error) return <div className="panel error">Could not load match {id}: {error}</div>;
   if (!v) return <div className="panel dim">Loading match…</div>;
   const h = v.header;
@@ -73,9 +77,13 @@ export default function MatchPage() {
           <span className="team">{h.home}</span><span className="dim">v</span><span className="team">{h.away}</span>
         </div>
         <div className="strip-meta">
-          <span>{h.competition}{h.round && <span className="dim"> · {h.round}</span>}</span>
+          <span>{h.competition} <span className="tier">{tierLabel(h.competition_tier)}</span>{h.round && <span className="dim"> · {h.round}</span>}</span>
           <span className="num">{kickoffLocal(h.kickoff)}</span>
-          <span className="num countdown">{countdown(h.kickoff, now)}</span>
+          {inPlay ? (
+            <span className="live-state"><span className="live-dot" aria-hidden />
+              <span className="num live-clock">{liveClock(inPlay.status, inPlay.elapsed, inPlay.extra)}</span>
+              <span className="num live-score">{score(inPlay)}</span></span>
+          ) : <span className="num countdown">{countdown(h.kickoff, now)}</span>}
           <span>{h.venue ?? <span className="dim">venue not listed</span>}</span>
           <span>{w ? (
             <span title={`Open-Meteo forecast issued ${kickoffLocal(w.observed_at)}, ${w.lead_hours.toFixed(0)} h before kickoff`}>
@@ -95,8 +103,8 @@ export default function MatchPage() {
 
       {last ? (
         <section className="panel">
-          <h3>Markets <span className="dim">· {last.milestone} projection, posterior mean and 90% interval{showsOdds(h.team_level) && ", @ fair decimal odds 1/p"}</span></h3>
-          <Markets m={last} odds={showsOdds(h.team_level)} />
+          <h3>Markets <span className="dim">· {last.milestone} projection, posterior mean and 90% interval{inPlay ? " · pre-match, not updated in play" : showsOdds(h.team_level) && ", @ fair decimal odds 1/p"}</span></h3>
+          <Markets m={last} odds={showsOdds(h.team_level) && !inPlay} />
           <h4>Milestone history</h4>
           <div className="history-wrap"><History ms={v.milestones} /></div>
         </section>

@@ -156,3 +156,75 @@ Acceptance test (stated 2026-11-14, before building):
       sideways scroll; 68.7% shows @1.46. ruff, mypy, API tests, lint and typecheck pass;
       `npm run build` not run while the dev server was up (CI runs it). Only senior fixtures
       exist today, so the youth path (no odds) is untested in the browser.
+
+## Competition tier beside league names (requested 2026-11-14)
+
+Every league name in the dashboard carries its tier from `competition.tier`
+(config/competitions.yml): "tier 1", "tier 2", "cup" or "national teams" (`tierLabel` in
+`web/lib/format.ts`). The API adds `tier` to `CompetitionGroup` and `ScoreSummary`, and
+`competition_tier` to the match `Header` and `PlayedMatch` (asserted in
+`test_dashboard_api.py` and `test_played_view.py`). Shown as a small chip in the fixture
+headers, the match header and the played view, and in brackets in the competition filters.
+Checked live on all three pages.
+Competition lists (fixture sections, both filters, the played summary) are ordered by
+country, then tier 1 before tier 2 (then cups, then national teams), by
+`views.competition_order` (tested).
+
+## In play: live matches with their pre-match projection (requested 2026-11-14)
+
+Owner decision 2026-11-14: option 1 only. In-play **recalculation** stays out of scope (spec
+§1.1, §12.2, §20.1); this shows the live score beside the last projection published before
+kickoff, labelled as such. No new model output.
+
+Design: `ApiFootballClient.live_fixtures` reads `/fixtures?live=<bundle league ids>` (one
+request covers every live match) through the quota planner (live budget). It is a display
+feed only: nothing is normalised from it, so no raw payload is kept and the dashboard API
+stays read-only (principle 4 covers payloads that build tables). `adatta/api/live.py`
+caches it for 60 s, calls the provider only when a bundle match kicked off in the last
+4 hours or kicks off within 5 minutes, and stops at 500 dashboard requests per UTC day
+(under 7% of the 7,500 quota). Pre-match fair odds are hidden for live matches: a stale
+pre-kickoff price must not look like an in-play price.
+
+Acceptance test (stated 2026-11-14, before building):
+1. **Pre-match only.** A live match shows the latest milestone generated before kickoff
+   (the played view's rule and function), never a run generated at or after kickoff; the
+   label says it is the pre-match projection and not updated in play.
+2. **Live state from the feed.** Score, status (1H, HT, 2H, ET, P, ...) and minute come from
+   the provider's live response, matched on the fixture id; matches not in the feed are not
+   shown as live. Parsing lives in the adapter (principle 3). Unit-tested on a synthetic
+   payload.
+3. **Quota-bounded.** At most one provider request per 60 s however many viewers poll; no
+   request when no bundle match is in the live window; none after the daily cap; every
+   request goes through `QuotaPlanner.acquire(live=True)`. Unit-tested with a fake clock.
+4. **Degrades, never invents.** A failed or capped feed returns the last good state with
+   its time and a note, or an empty list with the reason; the page says so.
+5. **Shown** in an "In play" section at the top of the fixture browser (refreshing every
+   60 s) and in the match header; no fair odds while live. Checked in the browser.
+6. Read-only and no odds (existing tests); ruff, mypy, pytest, lint and typecheck pass.
+
+- [x] Built 2026-11-14: `ApiFootballClient.live_fixtures` + `parse_live`, `adatta/api/live.py`
+      (`LiveFeed`), `views.live`, `GET /api/live`, `web/components/Live.tsx`, match header
+      live state. **Pass:** `tests/test_live_view.py` (7 tests: items 1-4 and the endpoint);
+      full suite, ruff, mypy, lint and typecheck pass. Checked live on 2026-11-14 against a
+      real Segunda Division match (Valladolid v Castellón, HT 0-0) on the fixture browser and
+      the match view, desktop and phone width (no sideways scroll); fair odds hidden while live.
+      Found while checking: the provider rejects `live=<one id>` (only `all` or `id-id...`),
+      reporting it in a 200 body, so the feed asks for `all` and filters to the bundle
+      leagues, and a body `errors` field now raises (`ProviderError`) instead of reading as
+      "nothing in play".
+
+### Follow-up: provider errors on the main fetch path
+The same 200-with-`errors` body on `ApiFootballClient.fetch` (capture, backfill, audit) would
+read as an empty answer: detail backfill would record every fixture in the batch as "not
+returned", a fake gap.
+- **Acceptance:** (1) a body with a non-empty `errors` field raises `ProviderError` from
+  `fetch`, stores no raw payload and no index row, and the quota still syncs from the header;
+  (2) a request-limit error (`requests` / `rateLimit` keys) raises `ProviderQuotaExceeded`, a
+  `QuotaExceeded`, so backfill stops as on its own budget and capture reports it as quota;
+  (3) in backfill, a detail batch answered with an error records no `match_detail` rows and
+  the season job is `failed` with the provider's message, retried next run; (4) an empty
+  `errors` (`[]` or `{}`) is a normal answer.
+- **Built, passes (1–4):** `check_errors` in the adapter, shared by `fetch` and the live feed;
+  the message names the endpoint and parameter names only (no ids, since capture errors reach
+  CI logs and email). Tests: `test_backfill.py` (error body is not a gap; request limit stops
+  like the quota), `test_live_view.py` (fetch raises, keeps nothing, syncs quota).

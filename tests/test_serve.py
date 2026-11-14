@@ -127,7 +127,7 @@ class World:
         self.season: dict[int, int] = {}
         for lg in LEAGUES:
             c = models.Competition(source_id="api_football", source_ref=str(lg), name=f"L{lg}",
-                                   country="X")  # fmt: skip
+                                   country="X", tier="1")  # fmt: skip
             s.add(c)
             s.flush()
             se = models.Season(competition_id=c.competition_id, year=2026)

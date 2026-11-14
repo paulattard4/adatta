@@ -74,6 +74,7 @@ class CompetitionGroup(BaseModel):
     name: str
     country: str
     level: str
+    tier: str  # "1", "2", "cup", "national" (config/competitions.yml)
     capabilities: list[Capability]
     freshness: Freshness
     fixtures: list[FixtureRow]
@@ -98,6 +99,7 @@ class Header(BaseModel):
     match_id: int
     competition: str
     competition_id: int
+    competition_tier: str
     round: str | None
     kickoff: datetime
     status: str
@@ -186,6 +188,7 @@ class PlayedMatch(BaseModel):
     kickoff: datetime
     competition_id: int
     competition: str
+    competition_tier: str
     home: str
     away: str
     home_goals: int
@@ -212,6 +215,7 @@ class MeanScore(BaseModel):
 class ScoreSummary(BaseModel):
     segment: str  # "all" or a competition name
     competition_id: int | None
+    tier: str | None  # the competition's tier; None for "all"
     n: int
     scores: list[MeanScore]
 
@@ -224,3 +228,36 @@ class PlayedList(BaseModel):
     uniform_log_loss_1x2: float  # ln 3: a forecast of 1/3 each
     summary: list[ScoreSummary]
     matches: list[PlayedMatch]  # newest first
+
+
+class LiveForecast(BaseModel):
+    """The latest projection published before kickoff: not updated in play (spec §20.1)."""
+
+    milestone: str
+    generated_at: datetime
+    home: Prob
+    draw: Prob
+    away: Prob
+
+
+class LiveMatch(BaseModel):
+    match_id: int
+    kickoff: datetime
+    competition_id: int
+    competition: str
+    competition_tier: str
+    home: str
+    away: str
+    status: str  # provider short status: 1H, HT, 2H, ET, BT, P, ...
+    elapsed: int | None
+    extra: int | None
+    home_goals: int | None
+    away_goals: int | None
+    forecast: LiveForecast | None  # None: no projection was published before kickoff
+
+
+class LiveList(BaseModel):
+    generated_at: datetime
+    fetched_at: datetime | None  # when the live state was read from the provider
+    note: str | None  # why it may be stale or missing
+    matches: list[LiveMatch]

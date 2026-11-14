@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -12,13 +13,70 @@ from sqlalchemy.orm import Session
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from adatta.adapters.normalize import ensure_source
-from adatta.adapters.quota import QuotaPlanner
+from adatta.adapters.quota import QuotaExceeded, QuotaPlanner
 from adatta.adapters.storage import RawStore, encode_payload, storage_key
 from adatta.config import Settings
 from adatta.db import models
 
 SOURCE_ID = "api_football"
 IDS_BATCH_MAX = 20
+
+
+@dataclass(frozen=True)
+class LiveState:
+    """One match in the provider's live feed: display only, never normalised into a table."""
+
+    fixture_id: int
+    status: str  # provider short status: 1H, HT, 2H, ET, BT, P, SUSP, INT, LIVE, ...
+    elapsed: int | None  # minutes played
+    extra: int | None  # added-time minutes, when the provider sends them
+    home_goals: int | None
+    away_goals: int | None
+
+
+class ProviderError(RuntimeError):
+    """The provider answered 200 but reported an error in the body (its `errors` field)."""
+
+
+class ProviderQuotaExceeded(QuotaExceeded, ProviderError):
+    """The provider's own request limit (daily or per minute), reported in the body: callers
+    stop as they do on the planner's budget."""
+
+
+# Keys of the body `errors` object that mean the account's request limit, not a bad request.
+LIMIT_ERRORS = frozenset({"requests", "rateLimit"})
+
+
+def check_errors(payload: dict[str, Any], what: str) -> None:
+    """Raise if the body reports an error: a 200 with `errors` must never read as an empty
+    answer (no fixtures, no detail, nothing in play). An empty `[]` or `{}` is normal."""
+    errors = payload.get("errors")
+    if not errors:
+        return
+    if isinstance(errors, dict) and LIMIT_ERRORS & errors.keys():
+        raise ProviderQuotaExceeded(f"{what}: {errors}")
+    raise ProviderError(f"{what}: {errors}")
+
+
+def parse_live(payload: dict[str, Any], league_ids: Iterable[int]) -> list[LiveState]:
+    """/fixtures?live=all response -> one LiveState per fixture in these leagues. A reported
+    error raises: it must not read as "nothing in play"."""
+    check_errors(payload, "live feed")
+    leagues = set(league_ids)
+    out = []
+    for item in payload.get("response") or []:
+        fx = item.get("fixture") or {}
+        if fx.get("id") is None or (item.get("league") or {}).get("id") not in leagues:
+            continue
+        st, goals = fx.get("status") or {}, item.get("goals") or {}
+        out.append(
+            LiveState(
+                fixture_id=int(fx["id"]), status=str(st.get("short") or ""),
+                elapsed=st.get("elapsed"), extra=st.get("extra"),
+                home_goals=goals.get("home"), away_goals=goals.get("away"),
+            )
+        )  # fmt: skip
+    return out
 
 
 class ApiFootballClient:
@@ -63,7 +121,10 @@ class ApiFootballClient:
     def fetch(
         self, session: Session, endpoint: str, params: dict[str, Any], *, live: bool = False
     ) -> dict[str, Any]:
-        """Fetch, persist the raw payload (object store + index row), return parsed JSON."""
+        """Fetch, persist the raw payload (object store + index row), return parsed JSON.
+
+        A body that reports an error raises before anything is stored: it builds no table,
+        and a replay must not read it as an empty answer."""
         self._quota.acquire(live=live)
         self._requests_made += 1
         resp = self._get(endpoint, params)
@@ -72,6 +133,7 @@ class ApiFootballClient:
         if remaining is not None:
             self._quota.sync_from_header(int(remaining))
         payload: dict[str, Any] = resp.json()
+        check_errors(payload, f"{endpoint} ({', '.join(sorted(params))})")  # names, not ids
         blob, digest = encode_payload(payload)
         key = storage_key(SOURCE_ID, endpoint, self.last_response_at.strftime("%Y-%m-%d"), digest)
         self.last_storage_key = key
@@ -92,6 +154,22 @@ class ApiFootballClient:
             )
             session.flush()
         return payload
+
+    def live_fixtures(self, league_ids: Iterable[int]) -> list[LiveState]:
+        """/fixtures?live=all, kept to these leagues: every match in play, in one request (the
+        provider rejects a single league id, so it is asked for all and filtered here). A
+        display feed for the dashboard: through the quota planner like every request, but one
+        attempt (the caller shows the last good state) and no raw payload kept, because
+        nothing is normalised from it (principle 4 keeps the payloads that build tables)."""
+        self._quota.acquire(live=True)
+        self._requests_made += 1
+        resp = self._http.get("/fixtures", params={"live": "all"})
+        resp.raise_for_status()
+        self.last_response_at = self._clock()
+        remaining = resp.headers.get("x-ratelimit-requests-remaining")
+        if remaining is not None:
+            self._quota.sync_from_header(int(remaining))
+        return parse_live(resp.json(), league_ids)
 
     def status(self, session: Session) -> dict[str, Any]:
         """Cheap connectivity/plan check (/status)."""

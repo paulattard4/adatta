@@ -70,6 +70,7 @@ def test_match_view_reproduces_the_published_milestone(tmp_path: Path) -> None:
     v = views.match_view(w.s, ctx(w), mid, NOW)
     assert [m.milestone for m in v.milestones] == ["initial"]
     assert v.header.team_level == "senior"  # gates the fair odds (principle 10)
+    assert v.header.competition_tier == "1"  # shown beside the league name
     assert v.coherence is not None and v.coherence.coherent
     assert v.coherence.max_abs_diff <= 1e-9
     assert v.matrix is not None
@@ -111,6 +112,7 @@ def test_fixture_list_groups_and_carries_components(tmp_path: Path) -> None:
     fl = views.fixture_list(w.s, ctx(w), NOW)
     assert len(fl.competitions) == 1
     g = fl.competitions[0]
+    assert g.tier == "1"
     assert g.freshness.tier == "weekly" and g.freshness.gates_pass and not g.freshness.stale
     rows = {f.match_id: f for f in g.fixtures}
     h = rows[mid].headline
@@ -170,3 +172,13 @@ def test_read_only_and_never_reads_odds() -> None:
         names = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
         names |= {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
         assert not {x for x in names if "Odds" in x}, f
+
+
+def test_competitions_list_tier_1_before_tier_2_within_a_country() -> None:
+    comps = [("Spain", "2", "Segunda Division"), ("England", "cup", "FA Cup"),
+             ("Spain", "1", "La Liga"), ("England", "2", "Championship"),
+             ("World", "national", "World Cup"), ("England", "1", "Premier League"),
+             ("England", "10", "Tenth")]  # fmt: skip
+    got = [c[2] for c in sorted(comps, key=lambda c: views.competition_order(*c))]
+    assert got == ["Premier League", "Championship", "Tenth", "FA Cup", "La Liga",
+                   "Segunda Division", "World Cup"]  # fmt: skip

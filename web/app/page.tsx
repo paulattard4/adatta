@@ -3,10 +3,11 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CapabilityBadge, FreshnessBadge } from "@/components/Badges";
 import { ConfidenceBadge } from "@/components/Confidence";
+import { InPlay, LIVE_REFRESH_MS } from "@/components/Live";
 import { ProbCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
-import { kickoffLocal, showsOdds } from "@/lib/format";
-import type { FixtureList } from "@/lib/types";
+import { kickoffLocal, showsOdds, tierLabel } from "@/lib/format";
+import type { FixtureList, LiveList } from "@/lib/types";
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -25,6 +26,7 @@ export default function Browser() {
   if (comp) q.set("competition_id", comp);
   if (level) q.set("team_level", level);
   const { data, error, loading } = useJson<FixtureList>(`/api/fixtures?${q}`);
+  const live = useJson<LiveList>("/api/live", LIVE_REFRESH_MS);
   const comps = all.data?.competitions ?? [];
   const levels = [...new Set(comps.flatMap((c) => c.fixtures.map((f) => f.team_level)))];
 
@@ -34,7 +36,7 @@ export default function Browser() {
         <label>Competition
           <select value={comp} onChange={(e) => setComp(e.target.value)}>
             <option value="">All</option>
-            {comps.map((c) => <option key={c.competition_id} value={c.competition_id}>{c.country} · {c.name}</option>)}
+            {comps.map((c) => <option key={c.competition_id} value={c.competition_id}>{c.country} · {c.name} ({tierLabel(c.tier)})</option>)}
           </select>
         </label>
         <label>From <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
@@ -49,13 +51,14 @@ export default function Browser() {
           Confidence-tier and “has edge” filters: not yet available
         </span>
       </div>
+      {live.data && <InPlay live={live.data} />}
       {error && <div className="panel error">Could not load fixtures: {error}. Is the API running on 127.0.0.1:8000?</div>}
       {loading && !data && <div className="panel dim">Loading fixtures…</div>}
       {data && data.competitions.length === 0 && <div className="panel dim">No projected-bundle fixtures in this range.</div>}
       {data?.competitions.map((g) => (
         <section key={g.competition_id} className="panel comp">
           <div className="comp-head">
-            <h2>{g.name} <span className="dim">{g.country}</span></h2>
+            <h2>{g.name} <span className="dim">{g.country}</span> <span className="tier">{tierLabel(g.tier)}</span></h2>
             <FreshnessBadge f={g.freshness} />
             <CapabilityBadge caps={g.capabilities} />
           </div>

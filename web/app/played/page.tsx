@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ProbCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
-import { dateLocal, kickoffLocal, pct } from "@/lib/format";
+import { dateLocal, kickoffLocal, pct, tierLabel } from "@/lib/format";
 import type { MeanScore, PlayedList, PlayedMatch } from "@/lib/types";
 
 const METRIC_LABEL: Record<string, string> = {
@@ -50,7 +50,7 @@ export default function Played() {
         <label>Competition
           <select value={comp} onChange={(e) => setComp(e.target.value)}>
             <option value="">All</option>
-            {comps.map((c) => <option key={c.competition_id} value={c.competition_id ?? ""}>{c.segment}</option>)}
+            {comps.map((c) => <option key={c.competition_id} value={c.competition_id ?? ""}>{c.segment} ({tierLabel(c.tier)})</option>)}
           </select>
         </label>
         <label>From <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
@@ -83,7 +83,7 @@ export default function Played() {
               <tbody>
                 {data.summary.map((s) => (
                   <tr key={s.segment}>
-                    <td>{s.segment === "all" ? "All" : s.segment}</td><td className="num">{s.n}</td>
+                    <td>{s.segment === "all" ? "All" : <>{s.segment} <span className="tier">{tierLabel(s.tier)}</span></>}</td><td className="num">{s.n}</td>
                     {Object.keys(METRIC_LABEL).map((k) => <td key={k}>{score(s.scores.find((x) => x.metric === k))}</td>)}
                   </tr>
                 ))}
@@ -101,9 +101,9 @@ export default function Played() {
           </div>
           {data.matches.map((m) => (
             <Link key={m.match_id} href={`/match/${m.match_id}`} className="played-row"
-                  title={`${m.competition} · forecast ${m.milestone}, published ${kickoffLocal(m.generated_at)}`}>
+                  title={`${m.competition} (${tierLabel(m.competition_tier)}) · forecast ${m.milestone}, published ${kickoffLocal(m.generated_at)}`}>
               <span className="num kickoff">{kickoffLocal(m.kickoff)}</span>
-              <span className="teams">{m.home} <span className="dim">v</span> {m.away}<span className="dim played-comp"> · {m.competition}</span></span>
+              <span className="teams">{m.home} <span className="dim">v</span> {m.away}<span className="dim played-comp"> · {m.competition} <span className="tier">{tierLabel(m.competition_tier)}</span></span></span>
               <span className="num c result">{m.home_goals}–{m.away_goals}</span>
               <Outcome m={m} />
               <span className="num c ll">{m.scores.log_loss_1x2.toFixed(3)}

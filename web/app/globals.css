@@ -47,6 +47,11 @@ h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
 .tag { font-size: 11px; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--c); color: var(--c); white-space: nowrap; }
 
+/* competition tier beside a league name */
+.tier { display: inline-block; font-family: var(--mono); font-size: 10px; font-weight: 500;
+  letter-spacing: .04em; text-transform: uppercase; color: var(--dim); border: 1px solid var(--line);
+  border-radius: 3px; padding: 0 4px; vertical-align: middle; line-height: 16px; white-space: nowrap; }
+
 /* probability cell */
 .prob { display: grid; grid-template-columns: auto 1fr; grid-template-areas: "label label" "value interval" "odds odds" "bar bar"; column-gap: 8px; align-items: baseline; min-width: 112px; }
 .prob-label { grid-area: label; font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
@@ -193,3 +198,15 @@ table.scores th { color: var(--dim); font-weight: 500; font-size: 11px; }
   .played-row .teams, .played-row .ll { grid-column: 1 / -1; }
   .played-row .ll { text-align: left; }
 }
+
+/* in play */
+.in-play { border-color: rgba(60, 207, 145, .45); }
+.live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 6px;
+  vertical-align: middle; animation: live-pulse 1.6s ease-in-out infinite; }
+@keyframes live-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+.live-clock { color: var(--ok); font-weight: 600; }
+.live-score { font-weight: 700; padding: 0 6px; }
+.live-note { font-size: 12px; color: var(--stale); }
+.live-state { display: inline-flex; align-items: center; gap: 4px; }
+.small { font-size: 12px; }

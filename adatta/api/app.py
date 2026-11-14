@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from adatta.api import schemas as sc
 from adatta.api import views
+from adatta.api.live import LiveFeed
 
 HOST = "127.0.0.1"
 PORT = 8000
@@ -27,7 +28,8 @@ def readonly_engine(url: str) -> Engine:
 
 
 def create_app(sessions: Callable[[], Session], ctx: views.Context,
-               clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> FastAPI:  # fmt: skip
+               clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+               live_feed: LiveFeed | None = None) -> FastAPI:  # fmt: skip
     app = FastAPI(title="adatta dashboard API", docs_url=None, redoc_url=None)
 
     def session() -> Iterator[Session]:
@@ -59,10 +61,16 @@ def create_app(sessions: Callable[[], Session], ctx: views.Context,
                competition_id: int | None = None) -> sc.PlayedList:  # fmt: skip
         return views.played(db, ctx, clock(), start, end, competition_id)
 
+    @app.get("/api/live", response_model=sc.LiveList)
+    def live(db: Db) -> sc.LiveList:
+        return views.live(db, ctx, clock(), live_feed)
+
     return app
 
 
 def production_app() -> FastAPI:
+    from adatta.adapters.api_football import ApiFootballClient
+    from adatta.adapters.quota import QuotaPlanner
     from adatta.adapters.storage import make_store
     from adatta.config import get_settings
     from adatta.eval import harness
@@ -73,4 +81,6 @@ def production_app() -> FastAPI:
     ctx = views.Context(bundles=cfg.bundles, model_name=production_spec(cfg).model_name,
                         max_goals=cfg.max_goals, store=make_store(settings))  # fmt: skip
     factory = sessionmaker(readonly_engine(settings.database_url), expire_on_commit=False)
-    return create_app(factory, ctx)
+    quota = QuotaPlanner(settings.api_football_daily_limit, settings.api_football_per_minute_limit)
+    client = ApiFootballClient(settings, ctx.store, quota)
+    return create_app(factory, ctx, live_feed=LiveFeed(client.live_fixtures))

@@ -37,7 +37,7 @@ export interface Weather {
 
 export interface Header {
   match_id: number; competition: string; competition_id: number; round: string | null;
-  kickoff: string; status: string; home: string; away: string; venue: string | null;
+  kickoff: string; status: string; home: string; away: string; team_level: string; venue: string | null;
   weather: Weather | null; referee: string | null; capabilities: Capability[];
 }
 
@@ -77,7 +77,7 @@ export interface PlayedMatch {
   scores: PlayedScores;
 }
 
-export interface MeanScore { metric: string; n: number; mean: number; lo: number; hi: number }
+export interface MeanScore { metric: string; n: number; mean: number; lo: number | null; hi: number | null } // no interval below two matches
 
 export interface ScoreSummary { segment: string; competition_id: number | null; n: number; scores: MeanScore[] }
 

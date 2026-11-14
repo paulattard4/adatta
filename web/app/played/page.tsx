@@ -13,7 +13,7 @@ const METRIC_LABEL: Record<string, string> = {
 const FEW = 200; // below this, a mean score says little
 
 const score = (s: MeanScore | undefined) =>
-  s ? <><span className="num">{s.mean.toFixed(3)}</span> <span className="num dim">[{s.lo.toFixed(3)}, {s.hi.toFixed(3)}]</span></> : <span className="dim">—</span>;
+  s ? <><span className="num">{s.mean.toFixed(3)}</span>{s.lo !== null && s.hi !== null && <> <span className="num dim">[{s.lo.toFixed(3)}, {s.hi.toFixed(3)}]</span></>}</> : <span className="dim">—</span>;
 
 function Outcome({ m }: { m: PlayedMatch }) {
   const cells: [string, "home" | "draw" | "away", PlayedMatch["home_p"]][] = [

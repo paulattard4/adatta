@@ -2,6 +2,15 @@ export const pct = (p: number, digits = 1) => (100 * p).toFixed(digits);
 
 export const interval = (lo: number, hi: number, digits = 1) => `${pct(lo, digits)}–${pct(hi, digits)}`;
 
+/** Fair decimal odds 1/p, no margin. Below p = 0.001 the price says little, so ">1000". */
+export const fairOdds = (p: number) => (p < 0.001 ? ">1000" : (1 / p).toFixed(2));
+
+/** The odds interval of a probability interval: 1/p is decreasing, so 1/hi to 1/lo. */
+export const oddsInterval = (lo: number, hi: number) => `${fairOdds(hi)}–${fairOdds(lo)}`;
+
+/** Principle 10: no betting-facing output for youth levels without review. */
+export const showsOdds = (teamLevel: string) => teamLevel === "senior";
+
 const CAP_LABELS: Record<string, string> = {
   has_lineups: "Lineups", has_player_match_stats: "Player stats", has_xg: "xG",
   has_corners_data: "Corners", has_cards_data: "Cards", has_half_split_stats: "Half-split",

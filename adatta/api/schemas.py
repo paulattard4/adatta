@@ -103,6 +103,7 @@ class Header(BaseModel):
     status: str
     home: str
     away: str
+    team_level: str  # fair odds are shown for senior only (principle 10)
     venue: str | None
     weather: Weather | None
     referee: str | None  # None = not announced yet
@@ -204,8 +205,8 @@ class MeanScore(BaseModel):
     metric: str
     n: int
     mean: float
-    lo: float  # 95% interval of the mean
-    hi: float
+    lo: float | None  # 95% interval of the mean; None with fewer than two matches
+    hi: float | None
 
 
 class ScoreSummary(BaseModel):

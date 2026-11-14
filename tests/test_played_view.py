@@ -124,4 +124,7 @@ def test_played_endpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     assert r.status_code == 200
     body = r.json()
     assert body["matches"][0]["match_id"] == mid and body["matches"][0]["home_p"]["lo"] is not None
+    # One played match: a mean but no interval, sent as null rather than NaN.
+    one = body["summary"][0]["scores"][0]
+    assert one["n"] == 1 and one["mean"] > 0 and one["lo"] is None and one["hi"] is None
     assert client.get("/api/played", params={"competition_id": 999}).json()["matches"] == []

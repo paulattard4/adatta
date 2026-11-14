@@ -435,6 +435,7 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
     header = sc.Header(
         match_id=m.match_id, competition=m.competition, competition_id=m.competition_id,
         round=m.round, kickoff=m.kickoff, status=m.status, home=m.home, away=m.away,
+        team_level=m.team_level,
         venue=f"{venue.name}, {venue.city}" if venue else None,
         weather=sc.Weather(observed_at=_utc(ws.observed_at), lead_hours=ws.lead_hours,
                            temperature_c=ws.temperature_c, precipitation_mm=ws.precipitation_mm,
@@ -538,8 +539,10 @@ def _results(session: Session, ids: list[int]) -> dict[int, tuple[int, int]]:
 
 def _mean_score(metric: str, xs: list[float]) -> sc.MeanScore:
     a = np.asarray(xs, dtype=float)
-    se = float(a.std(ddof=1) / np.sqrt(len(a))) if len(a) > 1 else float("nan")
     m = float(a.mean())
+    if len(a) < 2:  # one match has no interval (JSON has no NaN; the page shows the mean)
+        return sc.MeanScore(metric=metric, n=len(a), mean=m, lo=None, hi=None)
+    se = float(a.std(ddof=1) / np.sqrt(len(a)))
     return sc.MeanScore(metric=metric, n=len(a), mean=m, lo=m - 1.96 * se, hi=m + 1.96 * se)
 
 

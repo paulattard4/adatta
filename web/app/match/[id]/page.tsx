@@ -7,12 +7,12 @@ import { Heatmap } from "@/components/Heatmap";
 import { ProbCell } from "@/components/Prob";
 import { Waterfall } from "@/components/Waterfall";
 import { useJson, useNow } from "@/lib/fetch";
-import { countdown, dateLocal, interval, kickoffLocal, MARKET_LABEL, pct } from "@/lib/format";
+import { countdown, dateLocal, interval, kickoffLocal, MARKET_LABEL, pct, showsOdds } from "@/lib/format";
 import type { MatchView, Milestone, Selection } from "@/lib/types";
 
 const SEL_LABEL: Record<string, string> = { home: "Home", draw: "Draw", away: "Away", over: "Over", under: "Under", yes: "Yes", no: "No" };
 
-function Markets({ m }: { m: Milestone }) {
+function Markets({ m, odds }: { m: Milestone; odds: boolean }) {
   const groups = new Map<string, Selection[]>();
   for (const s of m.selections) {
     const k = s.line == null ? s.market : `${s.market} ${s.line}`;
@@ -25,7 +25,7 @@ function Markets({ m }: { m: Milestone }) {
         <div key={k} className="market">
           <div className="market-name">{MARKET_LABEL[sels[0].market] ?? sels[0].market}{sels[0].line != null && <span className="num"> {sels[0].line}</span>}</div>
           <div className="market-sels">
-            {sels.map((s) => <ProbCell key={s.selection} prob={s.prob} label={SEL_LABEL[s.selection] ?? s.selection} />)}
+            {sels.map((s) => <ProbCell key={s.selection} prob={s.prob} label={SEL_LABEL[s.selection] ?? s.selection} odds={odds} />)}
           </div>
         </div>
       ))}
@@ -95,8 +95,8 @@ export default function MatchPage() {
 
       {last ? (
         <section className="panel">
-          <h3>Markets <span className="dim">· {last.milestone} projection, posterior mean and 90% interval</span></h3>
-          <Markets m={last} />
+          <h3>Markets <span className="dim">· {last.milestone} projection, posterior mean and 90% interval{showsOdds(h.team_level) && ", @ fair decimal odds 1/p"}</span></h3>
+          <Markets m={last} odds={showsOdds(h.team_level)} />
           <h4>Milestone history</h4>
           <div className="history-wrap"><History ms={v.milestones} /></div>
         </section>

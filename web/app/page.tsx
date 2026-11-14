@@ -5,7 +5,7 @@ import { CapabilityBadge, FreshnessBadge } from "@/components/Badges";
 import { ConfidenceBadge } from "@/components/Confidence";
 import { ProbCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
-import { kickoffLocal } from "@/lib/format";
+import { kickoffLocal, showsOdds } from "@/lib/format";
 import type { FixtureList } from "@/lib/types";
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
@@ -69,9 +69,9 @@ export default function Browser() {
               <span className="teams">{f.home} <span className="dim">v</span> {f.away}</span>
               {f.headline ? (
                 <>
-                  <ProbCell prob={f.headline.home} label="Home" compact />
-                  <ProbCell prob={f.headline.draw} label="Draw" compact />
-                  <ProbCell prob={f.headline.away} label="Away" compact />
+                  <ProbCell prob={f.headline.home} label="Home" compact odds={showsOdds(f.team_level)} />
+                  <ProbCell prob={f.headline.draw} label="Draw" compact odds={showsOdds(f.team_level)} />
+                  <ProbCell prob={f.headline.away} label="Away" compact odds={showsOdds(f.team_level)} />
                 </>
               ) : (
                 <span className="no-proj dim">{f.no_projection_reason}</span>
@@ -83,6 +83,7 @@ export default function Browser() {
       ))}
       <p className="note">
         Probabilities are posterior means with 90% credible intervals (small numbers, and the band in each bar).
+        The @ figure is the fair decimal price 1/p, with no margin (senior football only); hover for its interval.
         Kickoffs in your local time. Each dot is one named confidence component; hover for its value.
       </p>
     </div>

@@ -48,11 +48,14 @@ h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 .tag { font-size: 11px; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--c); color: var(--c); white-space: nowrap; }
 
 /* probability cell */
-.prob { display: grid; grid-template-columns: auto 1fr; grid-template-areas: "label label" "value interval" "bar bar"; column-gap: 8px; align-items: baseline; min-width: 112px; }
+.prob { display: grid; grid-template-columns: auto 1fr; grid-template-areas: "label label" "value interval" "odds odds" "bar bar"; column-gap: 8px; align-items: baseline; min-width: 112px; }
 .prob-label { grid-area: label; font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
 .prob-value { grid-area: value; font-size: 18px; }
 .prob-value .unit { font-size: 11px; color: var(--dim); margin-left: 1px; }
 .prob-interval { grid-area: interval; font-size: 11px; color: var(--dim); }
+.prob-odds { grid-area: odds; font-size: 12px; white-space: nowrap; }
+.prob-odds-at { color: var(--dim); margin-right: 2px; }
+.prob-compact .prob-odds .dim { display: none; } /* the interval is in the tooltip */
 .prob-bar { grid-area: bar; position: relative; height: 4px; margin-top: 4px; background: var(--panel-2); border-radius: 2px; }
 .prob-band { position: absolute; top: 0; bottom: 0; background: rgba(var(--home), .35); border-radius: 2px; }
 .prob-tick { position: absolute; top: -2px; width: 2px; height: 8px; margin-left: -1px; background: var(--text); }
@@ -163,7 +166,7 @@ h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
   .market-sels { gap: 8px; }
   .market-sels .prob { min-width: 0; }
   .market-sels .prob-value { font-size: 15px; }
-  .prob { grid-template-areas: "label label" "value value" "interval interval" "bar bar"; }
+  .prob { grid-template-areas: "label label" "value value" "interval interval" "odds odds" "bar bar"; }
 }
 
 /* nav and played view */

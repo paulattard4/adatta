@@ -129,3 +129,30 @@ Acceptance test (stated 2026-11-12, before building):
       sideways scroll). Live it shows the empty state (forecasting began 2026-11-11,
       0 forecast matches played). **To confirm after 21 November:** the first real rows
       match their match views and the stored projections.
+
+## Fair odds (requested 2026-11-14)
+
+The model's own price beside each probability: decimal odds of 1/p, with no margin. Derived
+from the published probabilities in the browser; no bookmaker odds are read (principle 1;
+market comparison stays with the wave 2 edge view).
+
+Acceptance test (stated 2026-11-14, before building):
+1. **Exact transform of what is shown.** Fair odds are 1/p of the posterior-mean probability,
+   and their 90% interval is 1/hi to 1/lo of the probability's interval (1/p is monotone, so
+   it maps the interval exactly). Decimal, two places; a bound with p below 0.001 shows as
+   ">1000". Not the posterior mean of 1/p, which is larger and not the break-even price.
+2. **Where.** Every probability cell in the fixture browser (1X2 headline) and the match view
+   markets (1X2, OU, BTTS). The milestone history and correct-score heatmap stay as
+   probabilities.
+3. **Senior only (principle 10).** Shown only when the fixture's team level is `senior`; the
+   match header carries `team_level` for this. Other levels show probabilities only until
+   reviewed.
+4. **Read-only and no odds** (the AST test still passes); ruff, mypy, pytest, lint,
+   typecheck and build pass; checked in the browser at desktop and phone width.
+
+- [x] Built 2026-11-14: `fairOdds`/`oddsInterval`/`showsOdds` in `web/lib/format.ts`,
+      `ProbCell odds`, `Header.team_level` (asserted in `test_dashboard_api.py`). Checked live:
+      fixture list and match view (1X2, OU 1.5/2.5/3.5, BTTS) at desktop and phone width, no
+      sideways scroll; 68.7% shows @1.46. ruff, mypy, API tests, lint and typecheck pass;
+      `npm run build` not run while the dev server was up (CI runs it). Only senior fixtures
+      exist today, so the youth path (no odds) is untested in the browser.

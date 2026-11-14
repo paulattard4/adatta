@@ -8,12 +8,12 @@ import { LIVE_REFRESH_MS, score } from "@/components/Live";
 import { ProbCell } from "@/components/Prob";
 import { Waterfall } from "@/components/Waterfall";
 import { useJson, useNow } from "@/lib/fetch";
-import { countdown, dateLocal, interval, kickoffLocal, liveClock, MARKET_LABEL, pct, showsOdds, tierLabel } from "@/lib/format";
-import type { LiveList, MatchView, Milestone, Selection } from "@/lib/types";
+import { cameIn, countdown, dateLocal, fairOdds, interval, kickoffLocal, liveClock, MARKET_LABEL, oddsInterval, pct, showsOdds, tierLabel } from "@/lib/format";
+import type { LiveList, MatchView, Milestone, Result, Selection } from "@/lib/types";
 
 const SEL_LABEL: Record<string, string> = { home: "Home", draw: "Draw", away: "Away", over: "Over", under: "Under", yes: "Yes", no: "No" };
 
-function Markets({ m, odds }: { m: Milestone; odds: boolean }) {
+function Markets({ m, odds, result }: { m: Milestone; odds: boolean; result: Result | null }) {
   const groups = new Map<string, Selection[]>();
   for (const s of m.selections) {
     const k = s.line == null ? s.market : `${s.market} ${s.line}`;
@@ -23,10 +23,11 @@ function Markets({ m, odds }: { m: Milestone; odds: boolean }) {
   return (
     <div className="markets">
       {[...groups.entries()].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([k, sels]) => (
-        <div key={k} className="market">
+        <div key={k} className={sels.length > 2 ? "market wide" : "market"}>
           <div className="market-name">{MARKET_LABEL[sels[0].market] ?? sels[0].market}{sels[0].line != null && <span className="num"> {sels[0].line}</span>}</div>
           <div className="market-sels">
-            {sels.map((s) => <ProbCell key={s.selection} prob={s.prob} label={SEL_LABEL[s.selection] ?? s.selection} odds={odds} />)}
+            {sels.map((s) => <ProbCell key={s.selection} prob={s.prob} label={SEL_LABEL[s.selection] ?? s.selection} odds={odds}
+                                    cameIn={result !== null && cameIn(s, result.home_goals, result.away_goals)} />)}
           </div>
         </div>
       ))}
@@ -34,7 +35,7 @@ function Markets({ m, odds }: { m: Milestone; odds: boolean }) {
   );
 }
 
-function History({ ms }: { ms: Milestone[] }) {
+function History({ ms, odds }: { ms: Milestone[]; odds: boolean }) {
   const p = (m: Milestone, sel: string) => m.selections.find((s) => s.market === "1X2" && s.selection === sel)!.prob;
   return (
     <table className="history">
@@ -46,7 +47,10 @@ function History({ ms }: { ms: Milestone[] }) {
             <td className="num">{kickoffLocal(m.generated_at)}</td>
             <td className="num">{m.refit_as_of ? `${dateLocal(m.refit_as_of)} · run ${m.model_run_id}` : "—"}</td>
             {["home", "draw", "away"].map((s) => (
-              <td key={s} className="num r">{pct(p(m, s).p)} <span className="dim">{interval(p(m, s).lo, p(m, s).hi)}</span></td>
+              <td key={s} className="num r" title={odds ? `fair odds ${fairOdds(p(m, s).p)} (${oddsInterval(p(m, s).lo, p(m, s).hi)})` : undefined}>
+                {pct(p(m, s).p)} <span className="dim">{interval(p(m, s).lo, p(m, s).hi)}</span>
+                {odds && <span className="hist-odds"><span className="prob-odds-at">@</span>{fairOdds(p(m, s).p)}</span>}
+              </td>
             ))}
           </tr>
         ))}
@@ -79,7 +83,9 @@ export default function MatchPage() {
         <div className="strip-meta">
           <span>{h.competition} <span className="tier">{tierLabel(h.competition_tier)}</span>{h.round && <span className="dim"> · {h.round}</span>}</span>
           <span className="num">{kickoffLocal(h.kickoff)}</span>
-          {inPlay ? (
+          {h.result ? (
+            <span className="num final-score" title="90-minute score">FT {h.result.home_goals}–{h.result.away_goals}</span>
+          ) : inPlay ? (
             <span className="live-state"><span className="live-dot" aria-hidden />
               <span className="num live-clock">{liveClock(inPlay.status, inPlay.elapsed, inPlay.extra)}</span>
               <span className="num live-score">{score(inPlay)}</span></span>
@@ -103,10 +109,10 @@ export default function MatchPage() {
 
       {last ? (
         <section className="panel">
-          <h3>Markets <span className="dim">· {last.milestone} projection, posterior mean and 90% interval{inPlay ? " · pre-match, not updated in play" : showsOdds(h.team_level) && ", @ fair decimal odds 1/p"}</span></h3>
-          <Markets m={last} odds={showsOdds(h.team_level) && !inPlay} />
+          <h3>Markets <span className="dim">· {last.milestone} projection, posterior mean and 90% interval{showsOdds(h.team_level) && ", @ fair decimal odds 1/p"}{inPlay && !h.result && " · pre-match, not updated in play"}{h.result && " · outlined: came in"}</span></h3>
+          <Markets m={last} odds={showsOdds(h.team_level)} result={h.result} />
           <h4>Milestone history</h4>
-          <div className="history-wrap"><History ms={v.milestones} /></div>
+          <div className="history-wrap"><History ms={v.milestones} odds={showsOdds(h.team_level)} /></div>
         </section>
       ) : (
         <section className="panel dim">{v.no_projection_reason}</section>
@@ -122,7 +128,7 @@ export default function MatchPage() {
       {v.matrix && (
         <section className="panel">
           <h3>Correct score</h3>
-          <Heatmap m={v.matrix} home={h.home} away={h.away} />
+          <Heatmap m={v.matrix} home={h.home} away={h.away} odds={showsOdds(h.team_level)} />
         </section>
       )}
 

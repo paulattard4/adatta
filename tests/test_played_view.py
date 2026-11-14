@@ -51,6 +51,7 @@ def test_a_finished_match_shows_its_pre_kickoff_forecast_and_scores(tmp_path: Pa
     assert [m.match_id for m in v.matches] == [mid]
     m = v.matches[0]
     assert (m.home_goals, m.away_goals, m.outcome, m.milestone) == (2, 1, "home", "initial")
+    assert m.team_level == "senior"  # the page shows fair odds for senior only
     p = stored(w, mid)
     assert (m.home_p.p, m.draw_p.p, m.away_p.p) == (p[("1X2", None, "home")],
                                                     p[("1X2", None, "draw")],
@@ -130,3 +131,36 @@ def test_played_endpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     assert body["matches"][0]["competition_tier"] == "1"
     assert one["n"] == 1 and one["mean"] > 0 and one["lo"] is None and one["hi"] is None
     assert client.get("/api/played", params={"competition_id": 999}).json()["matches"] == []
+
+
+def test_match_page_carries_the_90_minute_result_of_a_finished_match(tmp_path: Path) -> None:
+    w, mid = played_world(tmp_path, (0, 1))
+    r = views.match_view(w.s, ctx(w), mid, AFTER).header.result
+    assert r is not None and (r.home_goals, r.away_goals) == (0, 1)
+    # a corrected result supersedes the first; only the current one is shown
+    first = w.s.scalars(select(models.MatchResult).where(models.MatchResult.match_id == mid)).one()
+    fixed = AFTER + timedelta(hours=1)
+    first.superseded_at = fixed
+    w.s.add(models.MatchResult(match_id=mid, source_id=SOURCE_ID, home_goals_nt=1,
+                               away_goals_nt=1, observed_at=fixed))  # fmt: skip
+    w.s.commit()
+    r = views.match_view(w.s, ctx(w), mid, AFTER).header.result
+    assert r is not None and (r.home_goals, r.away_goals) == (1, 1)
+    m = w.s.get(models.Match, mid)
+    assert m is not None
+    m.status = "2H"  # not finished: no result shown, whatever the table holds
+    w.s.commit()
+    assert views.match_view(w.s, ctx(w), mid, AFTER).header.result is None
+
+
+def test_no_result_before_the_match_or_without_a_result_row(tmp_path: Path) -> None:
+    w = World(tmp_path)
+    w.refit(AS_OF)
+    mid = w.fixture(K)
+    w.tick(NOW)
+    assert views.match_view(w.s, ctx(w), mid, NOW).header.result is None
+    m = w.s.get(models.Match, mid)
+    assert m is not None
+    m.status = "FT"  # finished, result not ingested yet
+    w.s.commit()
+    assert views.match_view(w.s, ctx(w), mid, AFTER).header.result is None

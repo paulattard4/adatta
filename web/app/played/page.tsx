@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ProbCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
-import { dateLocal, kickoffLocal, pct, tierLabel } from "@/lib/format";
+import { complement, dateLocal, fairOdds, kickoffLocal, pct, showsOdds, tierLabel } from "@/lib/format";
 import type { MeanScore, PlayedList, PlayedMatch } from "@/lib/types";
 
 const METRIC_LABEL: Record<string, string> = {
@@ -15,6 +15,9 @@ const FEW = 200; // below this, a mean score says little
 const score = (s: MeanScore | undefined) =>
   s ? <><span className="num">{s.mean.toFixed(3)}</span>{s.lo !== null && s.hi !== null && <> <span className="num dim">[{s.lo.toFixed(3)}, {s.hi.toFixed(3)}]</span></>}</> : <span className="dim">—</span>;
 
+/** The probability the forecast gave the 1X2 outcome that came in. */
+const hitP = (m: PlayedMatch) => (m.outcome === "home" ? m.home_p : m.outcome === "draw" ? m.draw_p : m.away_p).p;
+
 function Outcome({ m }: { m: PlayedMatch }) {
   const cells: [string, "home" | "draw" | "away", PlayedMatch["home_p"]][] = [
     ["Home", "home", m.home_p], ["Draw", "draw", m.draw_p], ["Away", "away", m.away_p],
@@ -23,10 +26,21 @@ function Outcome({ m }: { m: PlayedMatch }) {
     <>
       {cells.map(([label, key, p]) => (
         <div key={key} className={m.outcome === key ? "played-cell hit" : "played-cell"}>
-          <ProbCell prob={p} label={label} compact />
+          <ProbCell prob={p} label={label} compact odds={showsOdds(m.team_level)} />
         </div>
       ))}
     </>
+  );
+}
+
+/** A two-way side market: the selection that came in and the probability it was given. */
+function Side({ prob, hit, yes, no, market, ll, odds }:
+  { prob: PlayedMatch["over25"]; hit: boolean; yes: string; no: string; market: string; ll: number | null; odds: boolean }) {
+  if (!prob) return <span className="c dim played-side">—</span>;
+  return (
+    <div className="played-cell hit played-side" title={`${market}: log loss ${ll?.toFixed(3) ?? "—"}`}>
+      <ProbCell prob={hit ? prob : complement(prob)} label={hit ? yes : no} compact odds={odds} />
+    </div>
   );
 }
 
@@ -55,7 +69,7 @@ export default function Played() {
         </label>
         <label>From <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
         <label>To <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
-        <span className="filter-note">Only forecasts published before kickoff. Lower scores are better.</span>
+        <span className="filter-note">Only forecasts published before kickoff. Lower scores are better. @ fair decimal odds 1/p (senior).</span>
       </div>
       {error && <div className="panel error">Could not load played matches: {error}. Is the API running on 127.0.0.1:8000?</div>}
       {loading && !data && <div className="panel dim">Loading played matches…</div>}
@@ -96,8 +110,9 @@ export default function Played() {
         <section className="panel">
           <h2>Matches</h2>
           <div className="played-head">
-            <span>Kickoff</span><span>Match</span><span className="c">Result</span><span className="c">Home</span>
-            <span className="c">Draw</span><span className="c">Away</span><span className="c">1X2 log loss</span>
+            <span>Kickoff</span><span>Match</span><span className="c">Result</span><span className="pc">Home</span>
+            <span className="pc">Draw</span><span className="pc">Away</span><span className="pc">Goals 2.5</span>
+            <span className="pc">BTTS</span><span className="c">1X2 log loss</span>
           </div>
           {data.matches.map((m) => (
             <Link key={m.match_id} href={`/match/${m.match_id}`} className="played-row"
@@ -106,8 +121,12 @@ export default function Played() {
               <span className="teams">{m.home} <span className="dim">v</span> {m.away}<span className="dim played-comp"> · {m.competition} <span className="tier">{tierLabel(m.competition_tier)}</span></span></span>
               <span className="num c result">{m.home_goals}–{m.away_goals}</span>
               <Outcome m={m} />
+              <Side prob={m.over25} hit={m.home_goals + m.away_goals > 2.5} yes="Over 2.5" no="Under 2.5"
+                    market="Over/under 2.5" ll={m.scores.log_loss_ou25} odds={showsOdds(m.team_level)} />
+              <Side prob={m.btts} hit={m.home_goals > 0 && m.away_goals > 0} yes="BTTS Yes" no="BTTS No"
+                    market="Both teams score" ll={m.scores.log_loss_btts} odds={showsOdds(m.team_level)} />
               <span className="num c ll">{m.scores.log_loss_1x2.toFixed(3)}
-                <span className="dim played-pp"> p {pct(m.outcome === "home" ? m.home_p.p : m.outcome === "draw" ? m.draw_p.p : m.away_p.p)}%</span>
+                <span className="dim played-pp"> p {pct(hitP(m))}%{showsOdds(m.team_level) && <> · @{fairOdds(hitP(m))}</>}</span>
               </span>
             </Link>
           ))}

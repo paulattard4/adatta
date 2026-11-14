@@ -893,7 +893,21 @@ Tasks:
         2019) hit the 6-hour runner limit and were rerun from the fit cache (8-51 min).
         At weekly cadence the biggest bundle-seasons do not fit one job, so the M4 weekly
         run needs its jobs split (Phase 2 combined item 4). Step 2 after G3.
-- [ ] Set `RESULTS_REFITS=on`, then item 4 on the first midweek round.
+      - Step 2 done 2026-11-14: run 43587864763 (commit ecd2eab), `grid` results, `vs`
+        43421580602, 2,000 draws, jobs split in two parts. **Item 3 passes.** 928 Monday
+        refits (cached from step 1) + 699 trigger refits; 18,682 warm matches paired, 11,074
+        predicted from a trigger refit. Affected matches: 1X2 log loss -0.02% [-0.06%,
+        +0.01%], RPS -0.03% [-0.09%, +0.03%]; all matches: log loss -0.01% [-0.03%, +0.01%],
+        RPS -0.02% [-0.05%, +0.02%] (all point estimates <= 0, as required; no interval
+        excludes 0, not required). ECE on affected matches: home +0.0001, draw -0.0003,
+        away +0.0012 (limit +0.005). Trigger refits failing the inference gates 1.0% against
+        Monday 0.8% (limit 2.8%): R-hat > 1.01 in 5, divergences in 2, worst R-hat 1.016.
+        Forecasts on matches not predicted from a trigger are unchanged (largest p_home
+        difference 2.2e-16). "Grid identical to 1a: NO" is expected (the trigger refits are
+        not on 1a's weekly grid) and only matters to a holdout verdict; the holdout stays
+        weekly.
+- [ ] Set `RESULTS_REFITS=on`, then item 4 on the first midweek round. Switched on
+      2026-11-14 18:05 UTC by the project owner after item 3 passed; item 4 pending.
 
 ### 7c. Strength uncertainty ahead of the refit (D34)
 

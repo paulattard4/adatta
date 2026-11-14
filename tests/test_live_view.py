@@ -132,6 +132,7 @@ def test_live_view_shows_the_pre_match_projection_beside_the_live_score(
     assert m.forecast is not None and m.forecast.generated_at < K  # published before kickoff
     assert abs(m.forecast.home.p + m.forecast.draw.p + m.forecast.away.p - 1) < 1e-9
     assert m.competition_tier == "1" and v.fetched_at == IN_PLAY and v.note is None
+    assert m.team_level == "senior"  # the page shows pre-match fair odds for senior only
 
 
 def test_no_request_when_no_bundle_match_can_be_live(tmp_path: Path) -> None:

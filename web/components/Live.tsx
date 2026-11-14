@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ProbCell } from "@/components/Prob";
-import { liveClock, timeLocal, tierLabel } from "@/lib/format";
+import { liveClock, showsOdds, timeLocal, tierLabel } from "@/lib/format";
 import type { LiveList, LiveMatch } from "@/lib/types";
 
 export const LIVE_REFRESH_MS = 60_000; // the API asks the provider at most once a minute anyway
@@ -8,8 +8,8 @@ export const LIVE_REFRESH_MS = 60_000; // the API asks the provider at most once
 export const score = (m: LiveMatch) =>
   m.home_goals == null || m.away_goals == null ? "–" : `${m.home_goals}–${m.away_goals}`;
 
-/** "In play" at the top of the fixture browser: live score beside the pre-match projection.
- * No fair odds here: a pre-kickoff price is stale once the match has started. */
+/** "In play" at the top of the fixture browser: live score beside the pre-match projection
+ * and its fair odds (senior only), both labelled pre-match: neither is updated in play. */
 export function InPlay({ live }: { live: LiveList }) {
   if (live.matches.length === 0 && !live.note) return null;
   return (
@@ -17,7 +17,7 @@ export function InPlay({ live }: { live: LiveList }) {
       <div className="comp-head">
         <h2><span className="live-dot" aria-hidden /> In play</h2>
         <span className="dim small">
-          Pre-match projection, not updated in play.
+          Pre-match projection and fair odds, not updated in play.
           {live.fetched_at && <> Scores as of <span className="num">{timeLocal(live.fetched_at)}</span>.</>}
         </span>
         {live.note && <span className="live-note">{live.note}</span>}
@@ -37,9 +37,9 @@ export function InPlay({ live }: { live: LiveList }) {
           </span>
           {m.forecast ? (
             <>
-              <ProbCell prob={m.forecast.home} label="Home" compact />
-              <ProbCell prob={m.forecast.draw} label="Draw" compact />
-              <ProbCell prob={m.forecast.away} label="Away" compact />
+              <ProbCell prob={m.forecast.home} label="Home" compact odds={showsOdds(m.team_level)} />
+              <ProbCell prob={m.forecast.draw} label="Draw" compact odds={showsOdds(m.team_level)} />
+              <ProbCell prob={m.forecast.away} label="Away" compact odds={showsOdds(m.team_level)} />
               <span className="dim small" title={`published ${timeLocal(m.forecast.generated_at)}`}>pre-match · {m.forecast.milestone}</span>
             </>
           ) : (

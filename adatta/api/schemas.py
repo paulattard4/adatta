@@ -95,6 +95,13 @@ class Weather(BaseModel):
     wind_speed_kmh: float | None
 
 
+class Result(BaseModel):
+    """A finished match's 90-minute score (the model's target), from the current result."""
+
+    home_goals: int
+    away_goals: int
+
+
 class Header(BaseModel):
     match_id: int
     competition: str
@@ -110,6 +117,7 @@ class Header(BaseModel):
     weather: Weather | None
     referee: str | None  # None = not announced yet
     capabilities: list[Capability]
+    result: Result | None = None  # finished matches only
 
 
 class Milestone(BaseModel):
@@ -189,6 +197,7 @@ class PlayedMatch(BaseModel):
     competition_id: int
     competition: str
     competition_tier: str
+    team_level: str  # fair odds are shown for senior only (principle 10)
     home: str
     away: str
     home_goals: int
@@ -246,6 +255,7 @@ class LiveMatch(BaseModel):
     competition_id: int
     competition: str
     competition_tier: str
+    team_level: str  # fair odds are shown for senior only (principle 10)
     home: str
     away: str
     status: str  # provider short status: 1H, HT, 2H, ET, BT, P, ...

@@ -39,7 +39,10 @@ export interface Header {
   match_id: number; competition: string; competition_id: number; competition_tier: string; round: string | null;
   kickoff: string; status: string; home: string; away: string; team_level: string; venue: string | null;
   weather: Weather | null; referee: string | null; capabilities: Capability[];
+  result: Result | null; // finished matches: the 90-minute score
 }
+
+export interface Result { home_goals: number; away_goals: number }
 
 export interface Milestone {
   milestone: string; generated_at: string; projection_run_id: number;
@@ -70,7 +73,7 @@ export interface PlayedScores {
 }
 
 export interface PlayedMatch {
-  match_id: number; kickoff: string; competition_id: number; competition: string; competition_tier: string;
+  match_id: number; kickoff: string; competition_id: number; competition: string; competition_tier: string; team_level: string;
   home: string; away: string; home_goals: number; away_goals: number;
   outcome: "home" | "draw" | "away"; milestone: string; generated_at: string;
   home_p: Prob; draw_p: Prob; away_p: Prob; over25: Prob | null; btts: Prob | null;
@@ -89,6 +92,7 @@ export interface PlayedList {
 // In play (docs/DASHBOARD_TASKS.md, option 1): live score beside the pre-match projection.
 export interface LiveForecast { milestone: string; generated_at: string; home: Prob; draw: Prob; away: Prob }
 export interface LiveMatch {
+  team_level: string;
   match_id: number; kickoff: string; competition_id: number; competition: string; competition_tier: string;
   home: string; away: string; status: string; elapsed: number | null; extra: number | null;
   home_goals: number | null; away_goals: number | null; forecast: LiveForecast | null;

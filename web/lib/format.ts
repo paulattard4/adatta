@@ -52,3 +52,14 @@ export function countdown(iso: string, now: number): string {
 export const MARKET_LABEL: Record<string, string> = {
   "1X2": "Match result", OU: "Total goals", BTTS: "Both teams score",
 };
+
+/** Whether a selection came in at this 90-minute score (1X2, over/under a line, BTTS). */
+export function cameIn(s: { market: string; line: number | null; selection: string }, h: number, a: number): boolean {
+  if (s.market === "1X2") return s.selection === (h > a ? "home" : h < a ? "away" : "draw");
+  if (s.market === "OU" && s.line != null) return (h + a > s.line) === (s.selection === "over");
+  if (s.market === "BTTS") return (h > 0 && a > 0) === (s.selection === "yes");
+  return false;
+}
+
+/** The other side of a two-way market: 1 − p, the interval flipped. */
+export const complement = (x: { p: number; lo: number; hi: number }) => ({ p: 1 - x.p, lo: 1 - x.hi, hi: 1 - x.lo });

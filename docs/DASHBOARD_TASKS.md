@@ -228,3 +228,80 @@ returned", a fake gap.
   the message names the endpoint and parameter names only (no ids, since capture errors reach
   CI logs and email). Tests: `test_backfill.py` (error body is not a gap; request limit stops
   like the quota), `test_live_view.py` (fetch raises, keeps nothing, syncs quota).
+
+## Played matches: side markets and the result on the match page (requested 2026-11-14)
+Owner: "show props for played matches too". The Played rows show 1X2 only, although the
+API already carries the pre-kickoff Over/Under 2.5 and BTTS projections; a finished match's
+page still shows a countdown and no result.
+
+Design: on each Played row, one cell per side market showing the selection that came in
+(Over or Under 2.5; BTTS Yes or No) with the probability the forecast gave it and its 90%
+interval, and that market's log loss in the tooltip. The match page header shows the
+90-minute score of a finished match in place of the countdown, and the markets mark the
+selections that came in. Scores are 90-minute (the model's target), from the current
+`match_result` row; nothing is recalculated.
+
+Acceptance (stated 2026-11-14, before building):
+1. API: `/api/matches/{id}` carries `result` (home and away 90-minute goals) for a finished
+   match with a current result, and `null` otherwise (scheduled, in play, or a finished
+   match without a result row); a superseded result is never used.
+2. Played rows show the side-market cells: under 2.5 for a 0–1, BTTS Yes for a 2–2, the
+   probability equal to the API's (1 − p for Under/No, interval flipped); a match whose
+   forecast lacks the market shows "—".
+3. A finished match's page shows "FT h–a" instead of the countdown, and exactly one
+   selection per market is marked as came in, matching the score.
+4. Phone width (375 px): no sideways scroll on the Played page or the match page.
+- **Built, passes (1–4):** `Header.result` from the current `match_result` row of a
+  finished match (tests in `test_played_view.py`: shown, corrected result replaces it, none
+  while in play, before kickoff or without a row). Played rows add "Goals 2.5" and "Both
+  score" cells; checked on the three Segunda matches of 13–14 Nov against the API (Under 2.5
+  = 1 − P(over), BTTS No = 1 − P(yes)). Match 3960 (0–1) shows "FT 0–1" and exactly one
+  selection per market outlined (Away, Under 1.5/2.5/3.5, BTTS No). 375 px: no sideways
+  scroll on either page.
+
+### Follow-up: fair odds on played matches (requested 2026-11-14)
+The owner meant fair odds for played matches (the side markets stay).
+- **Acceptance:** (1) `/api/played` rows carry `team_level`; (2) on a senior match every
+  probability cell of a Played row (Home, Draw, Away, Goals 2.5, Both score) shows fair
+  decimal odds 1/p of the probability shown (for Under/No that is 1/(1 − p)), with the
+  interval in the tooltip, as on the fixtures page; (3) youth matches show none
+  (principle 10); (4) 375 px: no sideways scroll.
+- **Built, passes (1–4):** `PlayedMatch.team_level`; every cell passes `showsOdds(team_level)`,
+  the same senior-only rule as the fixtures and match pages. On the three Segunda matches
+  all 15 prices equal 1/p from the API (e.g. Valladolid–Castellón 3.80 / 3.91 / 2.08, Under
+  2.5 2.08, BTTS No 2.18). 375 px: no sideways scroll.
+
+## Fair odds everywhere a probability is shown; spacing pass (requested 2026-11-14)
+Owner: show fair odds wherever the dashboard shows a probability, and make spacing and
+borders consistent. Audit before building: odds were missing from the In play rows, the
+match page markets while live (hidden on purpose earlier, now the owner's call: every price
+there is labelled pre-match), the milestone history, the correct-score heatmap and the
+Played row's "p" figure. Spacing: the probability bar's track was the same colour as the
+market boxes (invisible), the match page's came-in outline sat outside its cell, last rows
+kept a bottom border in some tables and not others, and list rows used different padding.
+
+Acceptance (stated 2026-11-14, before building):
+1. Every probability shown for a senior match has its fair odds 1/p beside it or one toggle
+   away: fixtures rows, In play rows (`/api/live` rows carry `team_level`), match page markets
+   (also while live, labelled pre-match), milestone history, correct-score heatmap (a
+   % / odds switch; "Any side above" line too), Played rows including the "p" figure.
+2. Youth: no odds anywhere (one rule, `showsOdds`).
+3. Spacing: list rows (fixtures, in play, played) share padding and gaps, and their headers
+   line up with the cell content; no table or list ends on a bottom border inside its panel;
+   came-in and hit marks are drawn inside their cell without shifting it; the probability
+   bar track is visible on both panel backgrounds.
+4. 375 px: no sideways scroll on any page (the heatmap and score tables scroll inside their
+   own box, as before).
+- **Built, passes (1–4):** odds added to In play rows (`LiveMatch.team_level`, test in
+  `test_live_view.py`), match page markets while live (heading says pre-match), milestone
+  history, the heatmap (% / Fair odds switch; tooltips carry both; "Any side above" line) and
+  the Played "p" figure; all through `showsOdds`. Spacing: one row padding, column gap and
+  marked-cell padding (CSS variables); headers line up with cell content; no trailing border
+  in any list or table; came-in / hit marks are borders on every cell (transparent when
+  unmarked), so nothing shifts; bar track visible on both backgrounds; three-way markets span
+  two columns so their odds ranges fit; Played cells all labelled so values line up. Widths:
+  rows that need more room than the window now stack (fixtures and in play below 960 px,
+  played below 1040 px) — before this, 761–960 px windows scrolled sideways on the fixtures
+  and match pages. Checked at 375, 800, 960, 1024 and 1280 px on the fixtures, played and
+  three match pages (scheduled, live, finished): page width equals window width and no cell
+  overflows.

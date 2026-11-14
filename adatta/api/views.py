@@ -431,6 +431,8 @@ def _kickoff_then(session: Session, m: MatchRow, at: datetime) -> datetime:
 
 
 def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> sc.MatchView:
+    from adatta.adapters.normalize import FINISHED
+
     rows = _matches(session, ctx, [models.Match.match_id == match_id])
     if not rows:
         raise KeyError(match_id)
@@ -455,6 +457,9 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
                            wind_speed_kmh=ws.wind_speed_kmh) if ws else None,
         referee=referee, capabilities=_cap_view(caps),
     )  # fmt: skip
+    score = _results(session, [match_id]).get(match_id) if m.status in FINISHED else None
+    if score is not None:
+        header.result = sc.Result(home_goals=score[0], away_goals=score[1])
     by_ms = _projections(session, [match_id]).get(match_id, {})
     runs = _serving(session, ctx, now)
     champ = _champion(session, ctx.model_name)
@@ -623,8 +628,8 @@ def played(
         )  # fmt: skip
         out.append(sc.PlayedMatch(
             match_id=r.match_id, kickoff=r.kickoff, competition_id=r.competition_id,
-            competition=r.competition, competition_tier=r.tier, home=r.home, away=r.away,
-            home_goals=hg, away_goals=ag,
+            competition=r.competition, competition_tier=r.tier, team_level=r.team_level,
+            home=r.home, away=r.away, home_goals=hg, away_goals=ag,
             outcome=("home", "draw", "away")[k["1X2"]], milestone=ms, generated_at=gen,
             home_p=_p(x[0]), draw_p=_p(x[1]), away_p=_p(x[2]),
             over25=None if over is None else _p(over), btts=None if btts is None else _p(btts),
@@ -683,9 +688,9 @@ def live(session: Session, ctx: Context, now: datetime, feed: Any | None) -> sc.
                                            draw=_p(x["draw"]), away=_p(x["away"]))  # fmt: skip
         out.append((r, sc.LiveMatch(
             match_id=r.match_id, kickoff=r.kickoff, competition_id=r.competition_id,
-            competition=r.competition, competition_tier=r.tier, home=r.home, away=r.away,
-            status=s.status, elapsed=s.elapsed, extra=s.extra, home_goals=s.home_goals,
-            away_goals=s.away_goals, forecast=forecast,
+            competition=r.competition, competition_tier=r.tier, team_level=r.team_level,
+            home=r.home, away=r.away, status=s.status, elapsed=s.elapsed, extra=s.extra,
+            home_goals=s.home_goals, away_goals=s.away_goals, forecast=forecast,
         )))  # fmt: skip
     out.sort(key=lambda t: (competition_order(t[0].country, t[0].tier, t[0].competition),
                             t[0].kickoff, t[0].match_id))  # fmt: skip

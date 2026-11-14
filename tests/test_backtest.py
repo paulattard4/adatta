@@ -323,3 +323,50 @@ def test_gate_audit_date_is_the_first_weekly_refit_from_january() -> None:
     assert all(a < datetime(2019, 1, 1, tzinfo=UTC) for a in plan if a < d)
     with pytest.raises(harness.HoldoutLocked):
         audit_date(matches((2023, 2024)), cfg, 2024)
+
+
+def test_parts_split_the_plan_and_reassemble(tmp_path: Path) -> None:
+    """A bundle-season split into N jobs scores the same refits, once each (6-hour limit)."""
+    df, cfg = matches(), config()
+    spec, store = bt.RunSpec(every_days=28), LocalStore(tmp_path / "c")
+    whole = bt.run(df, LEAGUES, "england", cfg, [2019], spec, store, FakeFitter(),
+                   log=lambda _: None)  # fmt: skip
+    pieces = [bt.run(df, LEAGUES, "england", cfg, [2019], spec, store, FakeFitter(),
+                     log=lambda _: None, part=(k, 2)) for k in range(2)]  # fmt: skip
+    a0, a1 = (set(p["as_of"].to_list()) for p in pieces)
+    assert a0 and a1 and not a0 & a1 and a0 | a1 == set(whole["as_of"].to_list())
+    assert all(p["cached"].all() for p in pieces)  # the pieces reuse the whole run's fits
+    joined = pl.concat(pieces).drop("part", "cached").sort("match_id", "as_of")
+    assert joined.equals(whole.drop("part", "cached").sort("match_id", "as_of"))
+    assert set(whole["part"]) == {"0/1"} and set(pieces[1]["part"]) == {"1/2"}
+    with pytest.raises(ValueError, match="part"):
+        bt.run(df, LEAGUES, "england", cfg, [2019], spec, store, FakeFitter(),
+               log=lambda _: None, part=(2, 2))  # fmt: skip
+
+    # assemble accepts the complete set and refuses a missing or repeated piece
+    parts = tmp_path / "parts"
+    parts.mkdir()
+    for k, p in enumerate(pieces):
+        p.with_columns(refit_every_days=pl.lit(28)).write_parquet(parts / f"{k}.parquet")
+    out = bt.assemble(parts, tmp_path / "out", cfg, lambda _: df)
+    assert "grid identical to 1a: **yes**" in (out / "summary.md").read_text()
+    (parts / "1.parquet").unlink()
+    with pytest.raises(SystemExit, match="incomplete"):
+        bt.assemble(parts, tmp_path / "out", cfg, lambda _: df)
+    for k, p in ((1, pieces[1]), (2, pieces[0])):  # complete, plus piece 0 a second time
+        p.with_columns(refit_every_days=pl.lit(28)).write_parquet(parts / f"{k}.parquet")
+    with pytest.raises(SystemExit, match="more than one part"):
+        bt.assemble(parts, tmp_path / "out", cfg, lambda _: df)
+
+
+def test_fetch_part_finds_the_pieces_of_a_split_run(tmp_path: Path) -> None:
+    store = LocalStore(tmp_path)
+    assert bt.part_suffix((0, 1)) == "" and bt.part_suffix((1, 2)) == "_s1of2"
+    store.put("backtest/parts/9/m_england_2019.parquet", b"whole")
+    for k in range(3):
+        store.put(f"backtest/parts/9/m_spain_2019_s{k}of3.parquet", bytes([k]))
+    assert bt.fetch_part(store, "9/m_england_2019.parquet") == [("m_england_2019.parquet",
+                                                                  b"whole")]  # fmt: skip
+    got = bt.fetch_part(store, "9/m_spain_2019.parquet")
+    assert [n for n, _ in got] == [f"m_spain_2019_s{k}of3.parquet" for k in range(3)]
+    assert bt.fetch_part(store, "9/m_italy_2019.parquet") == []

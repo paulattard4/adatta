@@ -378,4 +378,17 @@ Model (after the Phase 1b audit closes):
       pass**, all warm 1X2 log loss −0.01%, RPS −0.01%, OU2.5 −0.13%, ECE within limits.
       Reference for G3 and M4: run 43419004255.
 - [ ] M4 Combined model: gate, weekly dev run, feasibility.
+      - Prerequisites done 2026-11-14 (before G3 and any M4 run). Acceptance stated first:
+        (a) `config/phase2_gate.yml` holds the gate with routes A and B exactly as D36 (not `evaluation.yml`: it is in every fit's cache hash, so editing it would discard the cached refits D33 step 2 reuses); `load_config` merges it;
+        (b) the verdict passes on route A, on route B, on both, and fails when 1X2 is a
+        hair worse (route B), when a league segment is over 1.0%, and when route B's ECE is
+        over +0.005; the report names the passing route and holds metrics only; (c) a
+        bundle-season split into N jobs scores the same refits once each, with predictions
+        equal to the whole run's, and assemble refuses a missing or repeated piece.
+        All pass: `adatta/eval/phase2.py` `combined_report` (applied by `assemble --vs` to
+        every context model, a single kept group included, next to the per-group report),
+        `tests/test_phase2_report.py` (+8); `backtest run --part K/N` and the workflow's
+        `parts` input (`["0/2","1/2"]` halves each bundle-season), `fetch_part` finds a
+        split run's pieces, `check_parts` in assemble, `tests/test_backtest.py` (+2).
+        `holdout.yml` is not split yet: the Phase 2 holdout run (M5) needs the same input.
 - [ ] M5 Promotion per D30.

@@ -1,0 +1,20 @@
+# Pre-registered Phase 2 combined-model gate (D36, D30; docs/PHASE2_TASKS.md "Combined
+# model" items 2 and 5), recorded 2026-11-14 before any M4 run and before the holdout is
+# opened a second time. Changing it after use invalidates it.
+# Against the 1b reference on the same grid, all warm matches, paired by match: the model
+# passes if either route passes, and both need no league x market segment worse than
+# max_segment_rel_worse. Used for the weekly dev run and the promotion.
+# Kept apart from evaluation.yml because that file is part of every fit's cache hash
+# (backtest.HASHED_FILES): editing it would invalidate every cached refit. Loaded into
+# EvalConfig.phase2_gate by harness.load_config.
+phase2_gate:
+  paired_interval: 0.95
+  max_segment_rel_worse: 0.010
+  segment_metrics: ["1X2:log_loss", "1X2:rps", "OU2.5:log_loss", "BTTS:log_loss", "total:crps"]
+  routes:
+    - name: "A 1X2"                       # D18 form
+      improve: ["1X2:log_loss", "1X2:rps"]
+    - name: "B total goals"               # D36
+      improve: ["total:crps", "OU2.5:log_loss"]
+      no_worse: ["1X2:log_loss", "1X2:rps"]
+      ece_limit: 0.005                    # each of home, draw, away and over 2.5

@@ -3,6 +3,8 @@
 # (python -m adatta.model.backtest run); each refit's prediction draws are cached in R2 under
 # its config hash, so a rerun or re-dispatch only fits what is missing. A final job scores
 # Phase 1a on the same plan and writes the comparison.
+# `parts` splits each bundle-season into N jobs (every N-th refit): a weekly run's biggest
+# bundle-seasons outlast the 6-hour job limit. Assemble finds a split run's pieces itself.
 # The repo is public: logs and artifacts carry metrics only. Match-level predictions (parts
 # and the full report) go to R2, never to workflow artifacts. Holdout seasons are refused by
 # the code (HoldoutLocked), whatever is typed here.
@@ -54,6 +56,9 @@ on:
       seasons:
         description: "JSON list of dev seasons"
         default: "[2019,2020,2021,2022,2023]"
+      parts:
+        description: 'JSON list of pieces per bundle-season, K/N: ["0/1"] = whole; ["0/2","1/2"] halves each (weekly runs: the biggest outlast 6 h)'
+        default: '["0/1"]'
       draws:
         description: "NUTS draws per chain (tuning steps match)"
         default: "2000"
@@ -89,6 +94,7 @@ jobs:
       matrix:
         bundle: ${{ fromJSON(inputs.bundles) }}
         season: ${{ fromJSON(inputs.seasons) }}
+        part: ${{ fromJSON(inputs.parts) }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -104,7 +110,7 @@ jobs:
           for g in "${gs[@]}"; do g="${g// /}"; [ -n "$g" ] && group_args+=(--group "$g"); done;
           uv run --frozen --group model python -m adatta.model.backtest run
           "${group_args[@]}" --context "$CONTEXT"
-          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }}
+          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }} --part ${{ matrix.part }}
           --structure ${{ inputs.structure }} --prior-scale ${{ inputs.prior_scale }}
           --every-days ${{ inputs.every_days }} --draws ${{ inputs.draws }}
           --grid ${{ inputs.grid }}

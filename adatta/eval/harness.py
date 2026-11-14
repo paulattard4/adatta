@@ -58,6 +58,25 @@ class Phase1bGate(BaseModel):
     segment_metrics: list[str]
 
 
+class Phase2Route(BaseModel):
+    """One way through the Phase 2 combined-model gate (D36), on all warm matches against
+    the 1b reference: every `improve` metric's paired interval excludes 0 on the better
+    side, every `no_worse` metric's point estimate is <= 0, and (if set) the ECE of each
+    1X2 outcome and of OU2.5 is no worse than the reference's by more than `ece_limit`."""
+
+    name: str
+    improve: list[str]
+    no_worse: list[str] = []
+    ece_limit: float | None = None
+
+
+class Phase2Gate(BaseModel):
+    paired_interval: float
+    max_segment_rel_worse: float
+    segment_metrics: list[str]
+    routes: list[Phase2Route]
+
+
 class Phase1aSelected(BaseModel):
     half_life_days: float | None
     team_prior_sd: float | None
@@ -81,11 +100,16 @@ class EvalConfig(BaseModel):
     bundles: dict[str, list[int]]
     headline_bundle: str
     phase1b_gate: Phase1bGate
+    phase2_gate: Phase2Gate
     phase1a_selected: Phase1aSelected
 
 
 def load_config(path: Path | str = "config/evaluation.yml") -> EvalConfig:
-    return EvalConfig(**yaml.safe_load(Path(path).read_text()))
+    """evaluation.yml plus the Phase 2 gate from phase2_gate.yml beside it (kept apart
+    because evaluation.yml is part of every fit's cache hash)."""
+    raw = yaml.safe_load(Path(path).read_text())
+    gate = Path(path).parent / "phase2_gate.yml"
+    return EvalConfig(**raw, **yaml.safe_load(gate.read_text()))
 
 
 # --------------------------------------------------------------------------- data

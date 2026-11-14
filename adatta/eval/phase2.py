@@ -46,6 +46,13 @@ EXPECTED = {
 }  # fmt: skip
 
 
+def groups_of(model: str) -> tuple[str, ...]:
+    """The context groups in a model name (`..._ctx-style-weather_hz` -> style, weather)."""
+    if "_ctx-" not in model:
+        return ()
+    return tuple(model.split("_ctx-", 1)[1].split("_", 1)[0].split("-"))
+
+
 def primary_metric(group: str) -> str:
     return "1X2:log_loss" if group in PER_SIDE else "total:crps"
 
@@ -120,9 +127,10 @@ def sense(pred: pl.DataFrame, challenger: str, group: str) -> list[dict[str, Any
 
 def group_report(pred: pl.DataFrame, challenger: str, reference: str) -> dict[str, Any]:
     """The acceptance test for the challenger's single context group (see the docstring)."""
-    group = challenger.split("_ctx-", 1)[1]
-    if group not in cv.GROUPS:
-        raise ValueError(f"{challenger}: one group per challenger, got {group!r}")
+    groups = groups_of(challenger)
+    if len(groups) != 1 or groups[0] not in cv.GROUPS:
+        raise ValueError(f"{challenger}: one group per challenger, got {groups!r}")
+    group = groups[0]
     both = pred.filter(pl.col("model").is_in([challenger, reference]) & ~pl.col("cold_start"))
     mine = both.filter(pl.col("model") == challenger)
     theirs = both.filter(pl.col("model") == reference)
@@ -231,4 +239,96 @@ def markdown(rep: dict[str, Any]) -> list[str]:
     if uninformed:
         lines += ["", f"Uninformed (sd / prior over {UNINFORMED} in every bundle): "
                   + ", ".join(uninformed)]  # fmt: skip
+    return lines
+
+
+# ------------------------------------------------------- the combined-model gate (D36)
+
+
+def combined_report(pred: pl.DataFrame, cmp: pl.DataFrame, challenger: str, reference: str,
+                    gate: harness.Phase2Gate) -> dict[str, Any]:  # fmt: skip
+    """The pre-registered Phase 2 combined-model gate (`config/evaluation.yml` phase2_gate;
+    D36 routes, D28 segments) for `challenger` against the 1b `reference`. `cmp` is
+    `backtest.compare(pred, challenger, reference)`: rel < 0 means the challenger is
+    better. Passes if any route passes; every route also needs the league segments."""
+    if gate.paired_interval != 0.95:
+        raise ValueError("compare() reports 95% intervals; the gate asks for another level")
+    overall = cmp.filter(pl.col("segment_type") == "all")
+
+    def row(metric: str) -> dict[str, Any]:
+        r = overall.filter(pl.col("metric") == metric)
+        if r.height != 1:
+            raise ValueError(f"no overall row for {metric}")
+        return r.row(0, named=True)
+
+    seg = cmp.filter(
+        (pl.col("segment_type") == "league_id") & pl.col("metric").is_in(gate.segment_metrics)
+    )
+    leagues = seg["seg"].unique().to_list()
+    have = set(zip(seg["seg"].to_list(), seg["metric"].to_list(), strict=True))
+    missing = [(lg, m) for lg in leagues for m in gate.segment_metrics if (lg, m) not in have]
+    if not leagues or missing:
+        raise ValueError(f"segment table incomplete: {missing or 'no league segments'}")
+    segments = [{"name": f"league {r['seg']} {r['metric']}", "value": r["rel"],
+                 "limit": gate.max_segment_rel_worse,
+                 "passed": r["rel"] <= gate.max_segment_rel_worse}
+                for r in seg.sort("seg", "metric").iter_rows(named=True)]  # fmt: skip
+    warm = pred.filter(pl.col("model").is_in([challenger, reference]) & ~pl.col("cold_start"))
+    ec, er = (_ece_table(warm.filter(pl.col("model") == m).sort("match_id", "as_of"))
+              for m in (challenger, reference))  # fmt: skip
+    routes = []
+    for route in gate.routes:
+        checks: list[dict[str, Any]] = []
+        for m in route.improve:
+            r = row(m)
+            checks.append({"name": f"{m} improves", "value": r["rel"],
+                           "interval": [r["rel_lo"], r["rel_hi"]], "limit": 0.0,
+                           "passed": r["rel_hi"] < 0})  # fmt: skip
+        for m in route.no_worse:
+            r = row(m)
+            checks.append({"name": f"{m} no worse", "value": r["rel"], "limit": 0.0,
+                           "passed": r["rel"] <= 0})  # fmt: skip
+        if route.ece_limit is not None:
+            for k in ec:
+                checks.append({"name": f"ECE {k}", "value": ec[k] - er[k],
+                               "challenger": ec[k], "reference": er[k],
+                               "limit": route.ece_limit,
+                               "passed": ec[k] - er[k] <= route.ece_limit})  # fmt: skip
+        ok = all(c["passed"] for c in checks) and all(s["passed"] for s in segments)
+        routes.append({"route": route.name, "checks": checks, "passed": ok})
+    passed = [r["route"] for r in routes if r["passed"]]
+    return {"challenger": challenger, "reference": reference, "groups": list(groups_of(challenger)),
+            "warm_matches": int(row("1X2:log_loss")["n"]), "routes": routes,
+            "segments": segments, "passed_routes": passed,
+            "verdict": "pass" if passed else "fail",
+            "gate": gate.model_dump()}  # fmt: skip
+
+
+def combined_markdown(rep: dict[str, Any]) -> list[str]:
+    def pct(x: float) -> str:
+        return f"{100 * x:+.2f}%"
+
+    via = f" via route {', '.join(rep['passed_routes'])}" if rep["passed_routes"] else ""
+    lines = [f"## Phase 2 combined-model gate (D36): {rep['challenger']} vs {rep['reference']} "
+             f"— **{rep['verdict']}**{via}", "",
+             f"All warm matches ({rep['warm_matches']}), paired by match; passes if any route "
+             "passes, and every route needs the league segments.", "",
+             "| route | check | value | limit | pass |", "|---|---|---|---|---|"]  # fmt: skip
+    for r in rep["routes"]:
+        for c in r["checks"]:
+            if "challenger" in c:
+                value = f"{c['value']:+.4f} ({c['challenger']:.4f} vs {c['reference']:.4f})"
+                limit = f"+{c['limit']:.3f}"
+            else:
+                value = pct(c["value"]) + (f" [{pct(c['interval'][0])}, {pct(c['interval'][1])}]"
+                                           if "interval" in c else "")  # fmt: skip
+                limit = pct(c["limit"])
+            lines.append(f"| {r['route']} | {c['name']} | {value} | {limit} | "
+                         f"{'yes' if c['passed'] else '**no**'} |")  # fmt: skip
+    bad = [s for s in rep["segments"] if not s["passed"]]
+    worst = max(rep["segments"], key=lambda s: s["value"])
+    failing = ", ".join(f"{s['name']} {pct(s['value'])}" for s in bad)
+    lines += ["", f"League segments: {len(rep['segments'])} checked, worst {worst['name']} "
+              f"{pct(worst['value'])} (limit {pct(rep['gate']['max_segment_rel_worse'])}); "
+              + (f"**failing: {failing}**" if bad else "all pass.")]  # fmt: skip
     return lines

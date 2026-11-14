@@ -262,20 +262,31 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
         log: Callable[[str], None] = print, limit: int | None = None,
         holdout: harness.HoldoutKey | None = None,
         target_context: pl.DataFrame | None = None,
-        target_horizon: timedelta = cv.HEADLINE_HORIZON) -> pl.DataFrame:  # fmt: skip
+        target_horizon: timedelta = cv.HEADLINE_HORIZON,
+        part: tuple[int, int] = (0, 1)) -> pl.DataFrame:  # fmt: skip
     """Score `seasons` of one bundle on the shared refit plan. Holdout seasons raise
     HoldoutLocked (inside refit_plan) unless `holdout` is given, and then only for the
     production spec. Returns one row per target match. `limit` keeps only the first N
     refits (smoke tests). With context groups, training rows use df's context (kickoff -
     1 h); targets use `target_context` instead when given (the T - 48 h report), checked
-    against `target_horizon`."""
+    against `target_horizon`. `part` = (k, n) keeps every n-th refit from the k-th, so n
+    jobs together score the plan (the refits are independent; a weekly bundle-season can
+    outlast one 6-hour job)."""
+    k_part, n_part = part
+    if not 0 <= k_part < n_part:
+        raise ValueError(f"part {k_part}/{n_part}: need 0 <= k < n")
     if holdout is not None and (spec != production_spec(cfg) or limit is not None):
         raise harness.HoldoutLocked(f"the holdout scores the production spec only, not {spec}")
     fitter = fitter or nuts_fitter(spec)
     walk = hz.Walk(spec.seed, spec.structure) if spec.widen else None
     plan = harness.refit_plan(df, cfg, seasons, spec.every_days, holdout, spec.grid)[:limit]
+    plan = plan[k_part::n_part]
     h = config_hash(spec)
-    log(f"{bundle} seasons {seasons}: {len(plan)} refits, model {spec.model_name}, config {h}")
+    log(
+        f"{bundle} seasons {seasons}"
+        + (f" part {k_part}/{n_part}" if n_part > 1 else "")
+        + f": {len(plan)} refits, model {spec.model_name}, config {h}"
+    )
     lag = cfg.result_available_after_hours
     mh, ma = harness.mover_codes(df, leagues)  # leak-free: season s and s - 1 only
     base_cols = [c for c in df.columns if target_context is None or c == "match_id"
@@ -326,6 +337,7 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
                    if fd.mgr is not None else {}),
                 "cold_start": min(n_h, n_a) < cfg.min_warmup_matches,
                 "model": spec.model_name, "bundle": bundle, "config_hash": h,
+                "part": f"{k_part}/{n_part}",
                 **({"ctx_horizon_h": target_horizon.total_seconds() / 3600,
                     "context": spec.context} if spec.groups else {}),
                 **({"walk_weeks": next(weeks)} if spec.widen else {}),
@@ -442,6 +454,54 @@ def predictive_sensitivity(pred: pl.DataFrame) -> list[dict[str, Any]]:
     return out
 
 
+def part_suffix(part: tuple[int, int]) -> str:
+    """File-name suffix of a part: none for a whole bundle-season, else _s{k}of{n}."""
+    return "" if part[1] == 1 else f"_s{part[0]}of{part[1]}"
+
+
+def fetch_part(store: RawStore, ref: str, max_parts: int = 8) -> list[tuple[str, bytes]]:
+    """A run's part RUN_ID/NAME.parquet from the store, or, if the run split it, all its
+    pieces NAME_s{k}of{n}.parquet (a missing piece is left out; assemble then refuses)."""
+    data = try_get(store, f"{CACHE_PREFIX}/parts/{ref}")
+    name = ref.split("/")[-1]
+    if data is not None:
+        return [(name, data)]
+    stem = ref.removesuffix(".parquet")
+    for n in range(2, max_parts + 1):
+        first = try_get(store, f"{CACHE_PREFIX}/parts/{stem}{part_suffix((0, n))}.parquet")
+        if first is None:
+            continue
+        got = [(name.removesuffix(".parquet") + part_suffix((0, n)) + ".parquet", first)]
+        for k in range(1, n):
+            piece = f"{stem}{part_suffix((k, n))}.parquet"
+            d = try_get(store, f"{CACHE_PREFIX}/parts/{piece}")
+            if d is None:
+                print(f"missing part {piece} (skipped)")
+            else:
+                got.append((piece.split("/")[-1], d))
+        return got
+    return []
+
+
+def check_parts(b1: pl.DataFrame) -> None:
+    """Every split bundle-season has all its pieces, once (SystemExit otherwise)."""
+    if "part" not in b1.columns:
+        return
+    plan = "plan_seasons" if "plan_seasons" in b1.columns else "season"
+    keys = (b1.with_columns(pl.col("part").fill_null("0/1"))
+            .group_by("model", "bundle", plan).agg(pl.col("part").unique()))  # fmt: skip
+    for r in keys.iter_rows(named=True):
+        have = set(r["part"])
+        ns = {p.split("/")[1] for p in have}
+        want = {f"{k}/{n}" for n in ns for k in range(int(n))}
+        if len(ns) != 1 or have != want:
+            raise SystemExit(f"parts of {r['model']} {r['bundle']} {r[plan]} incomplete or "
+                             f"mixed: have {sorted(have)}")  # fmt: skip
+    dup = b1.select("model", "bundle", "match_id", "as_of").is_duplicated().sum()
+    if dup:
+        raise SystemExit(f"{dup} predictions appear in more than one part")
+
+
 def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
              load: Callable[[list[int]], pl.DataFrame], reference: str | None = None,
              holdout: harness.HoldoutKey | None = None) -> Path:  # fmt: skip
@@ -454,6 +514,7 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
     if not parts:
         raise SystemExit(f"no parts in {parts_dir}")
     b1 = pl.concat([pl.read_parquet(p) for p in parts], how="diagonal_relaxed")
+    check_parts(b1)
     prod = production_spec(cfg).model_name
     if holdout is not None and (set(b1["model"].unique()) != {prod} or reference is not None):
         raise harness.HoldoutLocked(f"a holdout report holds {prod} only, with no reference")
@@ -573,9 +634,14 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
     for c in challengers:  # Phase 2: each context-group model against the 1b reference
         if reference is None or "_ctx-" not in c:
             continue
-        p2 = phase2.group_report(pred, c, reference)
-        (out / f"phase2_{c}.json").write_text(json.dumps(p2, indent=2, default=str))
-        lines += [""] + phase2.markdown(p2)
+        if len(phase2.groups_of(c)) == 1:  # the per-group acceptance test
+            p2 = phase2.group_report(pred, c, reference)
+            (out / f"phase2_{c}.json").write_text(json.dumps(p2, indent=2, default=str))
+            lines += [""] + phase2.markdown(p2)
+        # the combined-model gate (D36) for any context model, a single kept group included
+        cg = phase2.combined_report(pred, vs[c], c, reference, cfg.phase2_gate)
+        (out / f"phase2_gate_{c}.json").write_text(json.dumps(cg, indent=2, default=str))
+        lines += [""] + phase2.combined_markdown(cg)
     for c in challengers:  # D34: strength drift ahead of the refit against the plain model
         if reference is None or "_hz" not in c or c.replace("_hz", "") != reference:
             continue
@@ -745,6 +811,12 @@ def main() -> None:
     r.add_argument("--draws", type=int, default=2000)
     r.add_argument("--chains", type=int, default=4)
     r.add_argument("--limit", type=int, default=None, help="first N refits only (smoke test)")
+    r.add_argument(
+        "--part",
+        default="0/1",
+        metavar="K/N",
+        help="every N-th refit from the K-th (N jobs per bundle-season)",
+    )
     r.add_argument("--out", default="reports/phase1b/backtest/parts")
     r.add_argument("--cache", default="data/cache", help="local cache root (if not R2)")
     r.add_argument("--holdout", default=None, metavar="RUN_ID",
@@ -802,11 +874,11 @@ def main() -> None:
         store = _store(args.cache)
         parts.mkdir(parents=True, exist_ok=True)
         for ref in args.fetch:
-            data = try_get(store, f"{CACHE_PREFIX}/parts/{ref}")
-            if data is None:  # its refit job failed: report what exists, say what is missing
+            got = fetch_part(store, ref)
+            if not got:  # its refit job failed: report what exists, say what is missing
                 print(f"missing part {ref} (skipped)")
-                continue
-            (parts / ref.split("/")[-1]).write_bytes(data)
+            for name, data in got:
+                (parts / name).write_bytes(data)
         key = ho.unlock(store, args.holdout, prod) if args.holdout else None
         out = assemble(parts, Path(args.out), cfg, _load, args.vs, key)
         if args.record:
@@ -841,11 +913,13 @@ def main() -> None:
         print(f"context snapshot {snapshot}, group digest {digest}")
         if target_h != cv.HEADLINE_HORIZON:
             target_ctx, _ = context_table.load(_store(args.cache), target_h)
+    k_part, n_part = (int(x) for x in args.part.split("/"))
+    part = (k_part, n_part)
     t0 = time.time()
     key = ho.unlock(_store(args.cache), args.holdout, spec.model_name) if args.holdout else None
     pred = run(df, leagues, args.bundle, cfg, args.season, spec, _store(args.cache),
                limit=args.limit, holdout=key, target_context=target_ctx,
-               target_horizon=target_h)  # fmt: skip
+               target_horizon=target_h, part=part)  # fmt: skip
     pred = pred.with_columns(
         refit_every_days=pl.lit(every),
         plan_seasons=pl.lit("-".join(str(s) for s in sorted(args.season))),
@@ -853,7 +927,7 @@ def main() -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     seasons = "-".join(str(s) for s in args.season)
-    path = out / f"{spec.model_name}_{args.bundle}_{seasons}.parquet"
+    path = out / f"{spec.model_name}_{args.bundle}_{seasons}{part_suffix(part)}.parquet"
     pred.write_parquet(path)
     if args.upload:
         _store(args.cache).put(f"{CACHE_PREFIX}/parts/{args.upload}/{path.name}",

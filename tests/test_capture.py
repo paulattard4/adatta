@@ -410,3 +410,39 @@ def test_national_window_bounds() -> None:
     assert national_active(seasons, 2026, at("2026-12-01"))  # 13 days after the end
     assert not national_active(seasons, 2026, at("2026-12-03"))
     assert national_active([{"year": 2026, "current": True}], 2026, at("2030-01-01"))
+
+
+def test_network_blip_alerts_only_when_it_persists(tmp_path: Path) -> None:
+    """A transient network error is logged and retried by the next tick; it alerts once the
+    same step has failed on TRANSIENT_TICKS ticks in a row. Other errors alert at once."""
+    from adatta.capture.jobs import TRANSIENT_TICKS
+
+    def handshake_timeout(now: datetime) -> Any:
+        raise httpx.ConnectTimeout("The handshake operation timed out")
+
+    h = Harness(tmp_path)
+    tick = T0
+    for i in range(TRANSIENT_TICKS - 1):
+        tick += timedelta(minutes=15)
+        r = h.tick(tick, projector=handshake_timeout)
+        assert not r.errors and r.actions["project_transient"] == 1, i
+    tick += timedelta(minutes=15)
+    r = h.tick(tick, projector=handshake_timeout)  # third in a row: a real outage
+    assert len(r.errors) == 1 and "ConnectTimeout" in r.errors[0]
+    h.tick(tick + timedelta(minutes=15), projector=lambda now: None)  # recovers: streak resets
+    r = h.tick(tick + timedelta(minutes=30), projector=handshake_timeout)
+    assert not r.errors and r.actions["project_transient"] == 1
+
+    def server_error(now: datetime) -> Any:
+        req = httpx.Request("GET", "https://example.test")
+        raise httpx.HTTPStatusError("503", request=req, response=httpx.Response(503, request=req))
+
+    r = h.tick(tick + timedelta(minutes=45), projector=server_error)  # second failure in a row
+    assert not r.errors and r.actions["project_transient"] == 1
+
+    def bug(now: datetime) -> Any:
+        raise ValueError("not a network problem")
+
+    h2 = Harness(tmp_path / "b")
+    r = h2.tick(T0, projector=bug)
+    assert len(r.errors) == 1 and "ValueError" in r.errors[0]

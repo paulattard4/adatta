@@ -38,6 +38,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import httpx
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -59,6 +60,11 @@ RESULT_WINDOW = timedelta(days=3)  # and asked for again each tick until final, 
 DISPATCH_EVERY = timedelta(hours=1)  # a due refit is dispatched again after this long
 # A national-team competition is captured from this long before its current season's start
 # to this long after its end; outside that, only the daily /leagues check is made (D35).
+# A network failure (timeout, dropped connection, 5xx after the client's retries) alerts only
+# when the same step has failed on this many ticks in a row (~45 min at 15-minute ticks): a
+# lone blip is retried by the next tick, which re-plans what is due. Missed milestones still
+# alert through detect_missed, and any other error alerts at once.
+TRANSIENT_TICKS = 3
 NATIONAL_LEAD = timedelta(days=30)
 NATIONAL_TAIL = timedelta(days=14)
 
@@ -109,6 +115,29 @@ def _ran_recently(session: Session, job: str, scope: str, now: datetime) -> bool
         )
         is not None
     )
+
+
+def _transient(exc: BaseException) -> bool:
+    if isinstance(exc, httpx.TransportError):
+        return True
+    return isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code >= 500
+
+
+def _error_streak(session: Session, job: str, scope: str, now: datetime) -> int:
+    """How many of the step's runs just before `now` ended in an error, in a row."""
+    L = models.CaptureLog
+    last = session.scalars(
+        select(L.outcome)
+        .where(L.job == job, L.scope == scope, L.run_at < now)
+        .order_by(L.run_at.desc())
+        .limit(TRANSIENT_TICKS)
+    ).all()
+    n = 0
+    for outcome in last:
+        if outcome != "error":
+            break
+        n += 1
+    return n
 
 
 def _season(session: Session, comp: Competition, year: int) -> models.Season:
@@ -595,9 +624,13 @@ def run_capture(
             raise
         except Exception as exc:  # one failing competition must not stop the others
             session.rollback()
-            report.errors.append(f"{job} {scope}: {type(exc).__name__}: {exc}")
+            streak = _error_streak(session, job, scope, now) + 1
             _log(session, job, scope, now, "error", client.requests_made - before, str(exc))
             session.commit()
+            if _transient(exc) and streak < TRANSIENT_TICKS:
+                report.actions[f"{job}_transient"] += 1  # the next tick retries it
+            else:
+                report.errors.append(f"{job} {scope}: {type(exc).__name__}: {exc}")
             return None
 
     try:

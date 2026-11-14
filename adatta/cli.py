@@ -233,7 +233,8 @@ def capture() -> None:
     """Snapshot capture tick: run whatever is due (designed for a ~15-minute schedule).
 
     Exits non-zero when a milestone was missed or a job errored, so a scheduled CI run fails
-    visibly; the alert webhook (ALERT_WEBHOOK_URL) is notified as well.
+    visibly; the alert webhook (ALERT_WEBHOOK_URL) is notified as well. A network failure
+    alerts only once it repeats on capture.jobs.TRANSIENT_TICKS ticks in a row.
     """
     settings = get_settings()
     client = _client()

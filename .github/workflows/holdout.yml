@@ -6,6 +6,9 @@
 # Scores the production spec only (phase1b_strength_open_xg, prior scale 1, weekly cadence)
 # on 2024/25 and 2025/26, with Phase 1a on the same grid, then applies the pre-registered
 # gate from config/evaluation.yml and records champion / rejected in model_run.
+# opening phase2 (D30, the second opening; its own marker and confirm phrase): scores the
+# promotion spec pinned in config/phase2_promotion.yml and the production spec again on this
+# code as its reference, then applies the D36 gate (config/phase2_gate.yml).
 # The repo is public: logs carry metrics only; match-level parts and the report go to R2.
 # `parts` splits each bundle-season into jobs (assemble fetches every piece and refuses a
 # missing or repeated one).
@@ -14,8 +17,13 @@ name: holdout
 on:
   workflow_dispatch:
     inputs:
+      opening:
+        description: "phase1b (made 2026-11-11) or phase2 (D30)"
+        type: choice
+        options: [phase2, phase1b]
+        default: phase2
       confirm:
-        description: 'type "open the locked holdout once" to proceed'
+        description: 'type "open the locked holdout once" (phase1b) or "open the locked holdout for phase 2 once" (phase2)'
         required: true
       parts:
         description: 'JSON list of pieces per bundle-season, K/N: ["0/1"] = whole; ["0/2","1/2"] halves each (weekly fits of the biggest bundle-seasons outlast 6 h)'
@@ -34,7 +42,9 @@ env:
   STORAGE_BACKEND: r2
 jobs:
   claim:
-    if: ${{ inputs.confirm == 'open the locked holdout once' }}
+    if: >-
+      ${{ (inputs.opening == 'phase1b' && inputs.confirm == 'open the locked holdout once') ||
+          (inputs.opening == 'phase2' && inputs.confirm == 'open the locked holdout for phase 2 once') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -43,7 +53,9 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --frozen
-      - run: uv run python -m adatta.model.backtest claim-holdout --run-id ${{ github.run_id }}
+      - run: >-
+          uv run python -m adatta.model.backtest claim-holdout --run-id ${{ github.run_id }}
+          --opening ${{ inputs.opening }}
   refit:
     needs: claim
     runs-on: ubuntu-latest
@@ -56,6 +68,7 @@ jobs:
         bundle: ["england", "spain", "italy", "germany", "france"]
         season: [2024, 2025]
         part: ${{ fromJSON(inputs.parts) }}
+        spec: ${{ fromJSON(inputs.opening == 'phase2' && '["production","promotion"]' || '["production"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -67,6 +80,7 @@ jobs:
           uv run --frozen --group model python -m adatta.model.backtest run
           --bundle ${{ matrix.bundle }} --season ${{ matrix.season }} --part ${{ matrix.part }}
           --every-days 7 --holdout ${{ github.run_id }} --upload ${{ github.run_id }}
+          --opening ${{ inputs.opening }} ${{ matrix.spec == 'promotion' && '--promotion' || '' }}
   assemble:
     needs: refit
     if: ${{ !cancelled() && needs.refit.result == 'success' }}
@@ -82,9 +96,10 @@ jobs:
         run: |
           names=$(uv run python -c "
           from adatta.eval import harness
-          from adatta.model.backtest import production_spec
+          from adatta.model.backtest import production_spec, promotion_spec
           cfg = harness.load_config()
-          m = production_spec(cfg).model_name
-          print(' '.join(f'${{ github.run_id }}/{m}_{b}_{s}.parquet' for b in cfg.bundles for s in cfg.holdout_seasons))")
+          specs = [production_spec(cfg)] + ([promotion_spec(cfg)] if '${{ inputs.opening }}' == 'phase2' else [])
+          print(' '.join(f'${{ github.run_id }}/{sp.model_name}_{b}_{s}.parquet' for sp in specs for b in cfg.bundles for s in cfg.holdout_seasons))")
           uv run python -m adatta.model.backtest assemble --fetch $names \
-            --holdout ${{ github.run_id }} --upload-report --record | tee -a "$GITHUB_STEP_SUMMARY"
+            --holdout ${{ github.run_id }} --opening ${{ inputs.opening }} \
+            --upload-report --record | tee -a "$GITHUB_STEP_SUMMARY"

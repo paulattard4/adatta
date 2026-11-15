@@ -1,5 +1,6 @@
-"""Opening the locked holdout, once, and the pre-registered Phase 1b promotion gate
-(spec §14.3; D18, D28; `config/evaluation.yml` phase1b_gate).
+"""Opening the locked holdout, once per opening, and the pre-registered Phase 1b promotion
+gate (spec §14.3; D18, D28; `config/evaluation.yml` phase1b_gate). D30: a second opening for
+the Phase 2 promotion, its own marker, judged with the D36 gate (`config/phase2_gate.yml`).
 
 A holdout run first claims a marker in the store. Every later step of the same run (refit
 jobs, their reruns, assembly) checks the marker carries its run id; any other run is refused.
@@ -18,39 +19,55 @@ from adatta.adapters.storage import RawStore, try_get
 from adatta.eval import harness
 from adatta.eval.harness import HoldoutKey, HoldoutLocked, Phase1bGate
 
-MARKER = "backtest/holdout/opened.json"
+MARKER = "backtest/holdout/opened.json"  # the Phase 1b opening (2026-11-11)
+MARKERS = {"phase1b": MARKER, "phase2": "backtest/holdout/opened_phase2.json"}  # D30
 
 
-def claim(store: RawStore, run_id: str, model: str, commit: str) -> dict[str, Any]:
-    """Open the holdout for `run_id`. Refused if another run has opened it; the same run id
-    may claim again (a rerun of its first job)."""
-    raw = try_get(store, MARKER)
+def _marker(opening: str) -> str:
+    if opening not in MARKERS:
+        raise ValueError(f"unknown holdout opening {opening!r}; known: {sorted(MARKERS)}")
+    return MARKERS[opening]
+
+
+def claim(store: RawStore, run_id: str, model: str, commit: str, opening: str = "phase1b",
+          models: list[str] | None = None) -> dict[str, Any]:  # fmt: skip
+    """Open the holdout for `run_id`, once per opening. Refused if another run has made this
+    opening; the same run id may claim again (a rerun of its first job). The Phase 2 opening
+    (D30) needs the 1b opening first and never touches its marker; `models` are the specs
+    its run may score (the challenger `model` and the 1b reference)."""
+    key = _marker(opening)
+    raw = try_get(store, key)
     if raw is not None:
         marker: dict[str, Any] = json.loads(raw)
         if marker["run_id"] != run_id:
             raise HoldoutLocked(
-                f"the holdout was opened by run {marker['run_id']} ({marker['model']}, "
-                f"{marker['opened_at']}); it is opened once"
+                f"the holdout's {opening} opening was made by run {marker['run_id']} "
+                f"({marker['model']}, {marker['opened_at']}); it is made once"
             )
         return marker
-    marker = {"run_id": run_id, "model": model, "commit": commit,
+    if opening != "phase1b" and try_get(store, MARKER) is None:
+        raise HoldoutLocked("the Phase 1b opening comes first (D30)")
+    marker = {"run_id": run_id, "model": model, "commit": commit, "opening": opening,
+              "models": sorted(set(models or [model])),
               "opened_at": datetime.now(UTC).isoformat(timespec="seconds")}  # fmt: skip
-    store.put(MARKER, json.dumps(marker).encode())
+    store.put(key, json.dumps(marker).encode())
     return marker
 
 
-def unlock(store: RawStore, run_id: str, model: str) -> HoldoutKey:
-    """The key for a run that has claimed the holdout for this model."""
-    raw = try_get(store, MARKER)
+def unlock(store: RawStore, run_id: str, model: str, opening: str = "phase1b") -> HoldoutKey:
+    """The key for a run that has made this opening, for one of the specs it may score."""
+    raw = try_get(store, _marker(opening))
     if raw is None:
-        raise HoldoutLocked("the holdout has not been claimed; run the claim step first")
+        raise HoldoutLocked(f"the holdout's {opening} opening has not been claimed; run the "
+                            "claim step first")  # fmt: skip
     marker = json.loads(raw)
-    if marker["run_id"] != run_id or marker["model"] != model:
+    allowed = marker.get("models") or [marker["model"]]
+    if marker["run_id"] != run_id or model not in allowed:
         raise HoldoutLocked(
-            f"the holdout belongs to run {marker['run_id']} ({marker['model']}), "
-            f"not {run_id} ({model})"
+            f"the holdout's {opening} opening belongs to run {marker['run_id']} "
+            f"({', '.join(allowed)}), not {run_id} ({model})"
         )
-    return HoldoutKey(run_id)
+    return HoldoutKey(run_id, opening)
 
 
 def verdict(cmp: pl.DataFrame, gate: Phase1bGate) -> tuple[str, list[dict[str, Any]]]:

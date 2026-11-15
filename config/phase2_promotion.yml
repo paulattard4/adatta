@@ -1,0 +1,8 @@
+# Phase 2 promotion spec (M5, D30; docs/PHASE2_TASKS.md "Second opening"): the one challenger
+# the second opening of the 2024/25-2025/26 holdout may score, next to the 1b production spec
+# rescored on current code as its reference. Filled by the project owner after M4 passes and
+# before the opening; changing it after the opening invalidates the promotion. Kept apart
+# from evaluation.yml, which is part of every fit's cache hash. Empty groups = not set.
+promotion:
+  groups: []      # context groups, names or G1-G7, e.g. [style]
+  context: ""     # the kickoff - 1 h context snapshot digest the holdout run reads

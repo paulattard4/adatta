@@ -48,6 +48,7 @@ class HoldoutKey:
     after the opened-once marker is checked. `run_id` is the run that opened it."""
 
     run_id: str
+    opening: str = "phase1b"  # which opening's marker issued it (D30: phase2 is the second)
 
 
 class Phase1bGate(BaseModel):
@@ -77,6 +78,17 @@ class Phase2Gate(BaseModel):
     routes: list[Phase2Route]
 
 
+class Phase2Promotion(BaseModel):
+    """The challenger the second holdout opening may score (config/phase2_promotion.yml)."""
+
+    groups: list[str] = []
+    context: str = ""
+
+    @property
+    def is_set(self) -> bool:
+        return bool(self.groups) and bool(self.context) and self.context != "latest"
+
+
 class Phase1aSelected(BaseModel):
     half_life_days: float | None
     team_prior_sd: float | None
@@ -102,14 +114,18 @@ class EvalConfig(BaseModel):
     phase1b_gate: Phase1bGate
     phase2_gate: Phase2Gate
     phase1a_selected: Phase1aSelected
+    promotion: Phase2Promotion = Phase2Promotion()
 
 
 def load_config(path: Path | str = "config/evaluation.yml") -> EvalConfig:
-    """evaluation.yml plus the Phase 2 gate from phase2_gate.yml beside it (kept apart
-    because evaluation.yml is part of every fit's cache hash)."""
+    """evaluation.yml plus the Phase 2 gate (phase2_gate.yml) and promotion spec
+    (phase2_promotion.yml) beside it, kept apart because evaluation.yml is part of every
+    fit's cache hash."""
     raw = yaml.safe_load(Path(path).read_text())
     gate = Path(path).parent / "phase2_gate.yml"
-    return EvalConfig(**raw, **yaml.safe_load(gate.read_text()))
+    promo = Path(path).parent / "phase2_promotion.yml"
+    extra = yaml.safe_load(promo.read_text()) if promo.exists() else {}
+    return EvalConfig(**raw, **yaml.safe_load(gate.read_text()), **(extra or {}))
 
 
 # --------------------------------------------------------------------------- data

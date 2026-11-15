@@ -480,3 +480,37 @@ Model (after the Phase 1b audit closes):
         verdict and checks, values equal up to summation order; a missing piece refused).
         Still open for M5: the Phase 2 spec on the
         holdout (groups, context snapshot), the second claim (D30) and the D36 gate.
+      - Second opening, plumbing (2026-11-15, built before M4 is judged; nothing is run on
+        the holdout). Two facts shape it: the 1b holdout run (42983498620) used code f35b32c,
+        whose predictions differ from today's (D34: up to 0.039 in p_home), so the Phase 2
+        run scores the 1b production spec again on current code as its reference, paired by
+        match on the same grid; and item 5's "written into `config/evaluation.yml`" is met by
+        `config/phase2_gate.yml` (D36, recorded 2026-11-14), since evaluation.yml is part of
+        every fit's cache hash. Acceptance stated first: (a) `config/phase2_promotion.yml`
+        pins the challenger, its groups and its context snapshot digest; empty until the
+        owner fills it after M4; not in the fit cache hash; loaded with the evaluation
+        config. (b) The Phase 2 opening has its own marker (`backtest/holdout/
+        opened_phase2.json`), claimed once, only after the 1b opening, and never touching the
+        1b marker; a run that claimed it may score exactly two specs, the production spec
+        and the pinned promotion spec (its snapshot pinned too: `latest` refused), and
+        nothing else; the 1b opening behaves as before. (c) `assemble --holdout --opening
+        phase2` needs both models on every holdout bundle-season and the 1a grid, applies
+        the D36 gate (`phase2_gate.yml`, routes A and B, league segments) to the challenger
+        against the rescored 1b reference, writes gate.json with the verdict (champion or
+        rejected) and the passing route, and records the challenger's `model_run` row
+        (component phase2, window holdout) with that verdict. (d) `holdout.yml` takes an
+        `opening` input (phase1b or phase2, its own confirm phrase) and, for phase2, runs
+        both specs. Tests with fakes cover (a)-(c), including refusals.
+        **Built, passes (a)-(d).** `config/phase2_promotion.yml` (empty), `harness.
+        Phase2Promotion`; `holdout.MARKERS` and `claim` / `unlock` per opening
+        (`HoldoutKey.opening`); `backtest.promotion_spec` and `holdout_specs`, the run guard,
+        the phase2 branch of `assemble` (gate.json with verdict, routes and checks; the
+        report's "Phase 2 promotion (D30, D36)" line after the combined-model section;
+        manifest `phase2_holdout`), `record` component phase2 for context models; CLI
+        `--opening` on claim-holdout, run and assemble, `run --promotion` (groups and snapshot
+        from the config only). `holdout.yml`: `opening` input (default phase2), its confirm
+        phrase "open the locked holdout for phase 2 once", the `spec` matrix (production and
+        promotion). `tests/test_holdout.py` +3 (markers, spec guard, end to end with record).
+        Before the opening: M4 passes, the owner fills `phase2_promotion.yml` (G7 style,
+        snapshot 962f29fe719a9d58 unless rebuilt) and commits it, then dispatches with
+        `parts` halves (the weekly fits of the biggest bundle-seasons need them).

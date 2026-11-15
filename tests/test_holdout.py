@@ -5,6 +5,7 @@ data only; nothing here reads the real holdout."""
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import polars as pl
@@ -151,3 +152,105 @@ def test_a_split_holdout_run_assembles_like_the_whole_run(tmp_path: Path) -> Non
     (b / f"{name}{bt.part_suffix((1, 2))}.parquet").unlink()
     with pytest.raises(SystemExit, match="incomplete"):
         bt.assemble(b, tmp_path / "out_c", cfg, lambda _: df, holdout=key)
+
+
+# ------------------------------------------------------------------ Phase 2 opening (D30)
+
+
+def promo_cfg(groups: list[str] | None = None) -> harness.EvalConfig:
+    cfg = config().model_copy(update={"bundles": {"england": LEAGUES}, "holdout_seasons": [2024]})
+    promo = harness.Phase2Promotion(groups=groups if groups is not None else ["style"],
+                                    context="abc123")  # fmt: skip
+    return cfg.model_copy(update={"promotion": promo})
+
+
+def test_phase2_opening_has_its_own_marker_after_the_1b_opening(tmp_path: Path) -> None:
+    store = LocalStore(tmp_path)
+    ch = PROD + "_ctx-style"
+    with pytest.raises(harness.HoldoutLocked, match="1b opening comes first"):
+        ho.claim(store, "2", ch, "abc", "phase2", [ch, PROD])
+    ho.claim(store, "1", PROD, "abc")
+    first = (tmp_path / ho.MARKER).read_bytes()
+    marker = ho.claim(store, "2", ch, "def", "phase2", [ch, PROD])
+    assert marker["models"] == sorted([ch, PROD]) and marker["opening"] == "phase2"
+    assert (tmp_path / ho.MARKER).read_bytes() == first  # the 1b marker is never touched
+    assert ho.claim(store, "2", ch, "def", "phase2")["run_id"] == "2"  # a rerun of its job
+    with pytest.raises(harness.HoldoutLocked, match="made once"):
+        ho.claim(store, "3", ch, "def", "phase2", [ch, PROD])
+    for m in (ch, PROD):
+        assert ho.unlock(store, "2", m, "phase2") == harness.HoldoutKey("2", "phase2")
+    with pytest.raises(harness.HoldoutLocked):
+        ho.unlock(store, "2", PROD + "_ctx-weather", "phase2")
+    with pytest.raises(harness.HoldoutLocked):
+        ho.unlock(store, "2", PROD)  # the 1b opening belongs to run 1
+    assert ho.unlock(store, "1", PROD) == harness.HoldoutKey("1")
+
+
+def test_phase2_holdout_scores_only_the_pinned_specs(tmp_path: Path) -> None:
+    from test_covariates import CovFitter, with_context
+
+    cfg, df = promo_cfg(), with_context(matches((2022, 2023, 2024)))
+    assert bt.promotion_spec(config()) is None  # empty in the shipped config
+    promo = bt.promotion_spec(cfg)
+    assert promo is not None and promo.groups == ("style",) and promo.every_days == 7
+    store, key2 = LocalStore(tmp_path), harness.HoldoutKey("2", "phase2")
+    for spec in (bt.production_spec(cfg), replace(promo, context="digest-of-columns")):
+        out = bt.run(df, LEAGUES, "england", cfg, [2024], spec, store, CovFitter(),
+                     log=quiet, holdout=key2)  # fmt: skip
+        assert out.height > 0
+    wrong = replace(promo, groups=("weather",))
+    with pytest.raises(harness.HoldoutLocked, match="phase2 opening does not score"):
+        bt.run(df, LEAGUES, "england", cfg, [2024], wrong, store, CovFitter(), log=quiet,
+               holdout=key2)  # fmt: skip
+    with pytest.raises(harness.HoldoutLocked, match="phase1b opening does not score"):
+        bt.run(df, LEAGUES, "england", cfg, [2024], promo, store, CovFitter(), log=quiet,
+               holdout=harness.HoldoutKey("1"))  # fmt: skip
+
+
+def test_phase2_holdout_report_end_to_end(tmp_path: Path) -> None:
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from test_covariates import CovFitter, with_context
+
+    from adatta.db import models
+
+    cfg, df = promo_cfg(), with_context(matches((2022, 2023, 2024)))
+    promo = bt.promotion_spec(cfg)
+    assert promo is not None
+    store, key = LocalStore(tmp_path / "store"), harness.HoldoutKey("2", "phase2")
+    parts = tmp_path / "parts"
+    parts.mkdir()
+    for spec in (bt.production_spec(cfg), promo):
+        pred = bt.run(df, LEAGUES, "england", cfg, [2024], spec, store, CovFitter(beta=0.05),
+                      log=quiet, holdout=key)  # fmt: skip
+        pred.with_columns(refit_every_days=pl.lit(7), plan_seasons=pl.lit("2024")).write_parquet(
+            parts / f"{spec.model_name}_england_2024.parquet"
+        )
+    with pytest.raises(harness.HoldoutLocked):  # no other reference on the phase2 opening
+        bt.assemble(parts, tmp_path / "out", cfg, lambda _: df, PROD, key)
+    out = bt.assemble(parts, tmp_path / "out", cfg, lambda _: df, holdout=key)
+    gate = json.loads((out / "gate.json").read_text())
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert gate["model"] == promo.model_name and gate["reference"] == PROD
+    assert gate["verdict"] in ("champion", "rejected") and gate["opening"] == "phase2"
+    assert (gate["verdict"] == "champion") == bool(gate["routes"])
+    assert {c["route"] for c in gate["checks"]} == {"A 1X2", "B total goals"}
+    assert manifest["run"] == "phase2_holdout" and manifest["reference"] == PROD
+    summary = (out / "summary.md").read_text()
+    assert "Phase 2 promotion (D30, D36)" in summary and "combined-model gate" in summary
+
+    engine = create_engine("sqlite://")
+    models.Base.metadata.create_all(engine)
+    with Session(engine) as s:
+        assert bt.record(out, s) == 1  # the challenger; the rescored reference is not recorded
+        row = s.query(models.ModelRun).one()
+        assert (row.model_name, row.component, row.window, row.status) == (
+            promo.model_name,
+            "phase2",
+            "holdout",
+            gate["verdict"],
+        )
+
+    (parts / f"{promo.model_name}_england_2024.parquet").unlink()
+    with pytest.raises(harness.HoldoutLocked, match="holds exactly"):
+        bt.assemble(parts, tmp_path / "out2", cfg, lambda _: df, holdout=key)

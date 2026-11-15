@@ -94,6 +94,21 @@ def production_spec(cfg: harness.EvalConfig) -> RunSpec:
     return replace(RunSpec(), every_days=cfg.refit_every_days)
 
 
+def promotion_spec(cfg: harness.EvalConfig) -> RunSpec | None:
+    """The Phase 2 challenger pinned in config/phase2_promotion.yml (the production spec plus
+    its context groups), or None while it is not set. With the production spec, the only
+    specs the second holdout opening may score (D30)."""
+    if not cfg.promotion.is_set:
+        return None
+    return replace(production_spec(cfg), groups=cv.resolve(cfg.promotion.groups))
+
+
+def holdout_specs(cfg: harness.EvalConfig, key: harness.HoldoutKey) -> list[RunSpec]:
+    """The specs a holdout opening may score (their `context` digest aside)."""
+    promo = promotion_spec(cfg) if key.opening == "phase2" else None
+    return [production_spec(cfg)] + ([promo] if promo is not None else [])
+
+
 def _mean(s: pl.Series) -> float:
     return float(s.cast(pl.Float64).to_numpy().mean()) if len(s) else float("nan")
 
@@ -275,8 +290,11 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
     k_part, n_part = part
     if not 0 <= k_part < n_part:
         raise ValueError(f"part {k_part}/{n_part}: need 0 <= k < n")
-    if holdout is not None and (spec != production_spec(cfg) or limit is not None):
-        raise harness.HoldoutLocked(f"the holdout scores the production spec only, not {spec}")
+    if holdout is not None and (replace(spec, context="") not in holdout_specs(cfg, holdout)
+                                or limit is not None):  # fmt: skip
+        raise harness.HoldoutLocked(
+            f"the holdout's {holdout.opening} opening does not score {spec}"
+        )
     fitter = fitter or nuts_fitter(spec)
     walk = hz.Walk(spec.seed, spec.structure) if spec.widen else None
     plan = harness.refit_plan(df, cfg, seasons, spec.every_days, holdout, spec.grid)[:limit]
@@ -516,13 +534,27 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
     b1 = pl.concat([pl.read_parquet(p) for p in parts], how="diagonal_relaxed")
     check_parts(b1)
     prod = production_spec(cfg).model_name
-    if holdout is not None and (set(b1["model"].unique()) != {prod} or reference is not None):
-        raise harness.HoldoutLocked(f"a holdout report holds {prod} only, with no reference")
-    if holdout is not None:  # the gate is applied to the whole holdout or not at all
-        have = set(zip(b1["bundle"].to_list(), b1["season"].to_list(), strict=True))
+    phase2_challenger: str | None = None
+    if holdout is not None:
+        allowed = {sp.model_name for sp in holdout_specs(cfg, holdout)}
+        if holdout.opening == "phase2":  # D30: challenger against the 1b spec rescored
+            if len(allowed) != 2 or reference is not None:
+                raise harness.HoldoutLocked("the phase2 opening needs the pinned promotion "
+                                            "spec and takes no other reference")  # fmt: skip
+            phase2_challenger = next(m for m in allowed if m != prod)
+            reference = prod
+        elif reference is not None:
+            raise harness.HoldoutLocked(f"a holdout report holds {prod} only, with no reference")
+        if set(b1["model"].unique()) != allowed:
+            raise harness.HoldoutLocked(f"a {holdout.opening} holdout report holds exactly "
+                                        f"{sorted(allowed)}")  # fmt: skip
+        # the gate is applied to the whole holdout or not at all, every model on every part
         want = {(b, s) for b in cfg.bundles for s in cfg.holdout_seasons}
-        if have != want:
-            raise SystemExit(f"holdout parts incomplete: missing {sorted(want - have)}")
+        for (m,), g in b1.group_by("model"):
+            have = set(zip(g["bundle"].to_list(), g["season"].to_list(), strict=True))
+            if have != want:
+                raise SystemExit(f"holdout parts incomplete for {m}: missing "
+                                 f"{sorted(want - have)}")  # fmt: skip
     every = {int(x) for x in b1["refit_every_days"].unique()} if "refit_every_days" in b1.columns \
         else set()  # fmt: skip
     if len(every) > 1:
@@ -578,7 +610,20 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
         t.write_csv(out / f"vs_{c}__{reference}.csv")
     sens = predictive_sensitivity(pred)
     gate: dict[str, Any] | None = None
-    if holdout is not None:
+    if holdout is not None and phase2_challenger is not None:
+        cg = phase2.combined_report(pred, vs[phase2_challenger], phase2_challenger, prod,
+                                    cfg.phase2_gate)  # fmt: skip
+        checks = [{**c, "route": r["route"]} for r in cg["routes"] for c in r["checks"]]
+        gate = {"model": phase2_challenger, "reference": prod, "opening": "phase2",
+                "verdict": "champion" if cg["verdict"] == "pass" else "rejected",
+                "routes": cg["passed_routes"], "checks": checks, "segments": cg["segments"],
+                "failed": [f"{c['route']}: {c['name']}" for c in checks if not c["passed"]]
+                + [sg["name"] for sg in cg["segments"] if not sg["passed"]],
+                "gate": cfg.phase2_gate.model_dump(), "holdout_run": holdout.run_id}  # fmt: skip
+        (out / "gate.json").write_text(json.dumps(gate, indent=2))
+        rel = ho.reliability(pred)
+        rel.write_csv(out / "reliability.csv")
+    elif holdout is not None:
         status, checks = ho.verdict(comps[prod], cfg.phase1b_gate)
         gate = {"model": prod, "verdict": status, "checks": checks,
                 "failed": [c["name"] for c in checks if not c["passed"]],
@@ -599,8 +644,9 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
         )
         .sort("model")
     )
-    title = "locked holdout" if holdout is not None else "dev backtest"
-    lines = [f"# Phase 1b {title} — {stamp}", "",
+    title = ("locked holdout, Phase 2 opening (D30)" if phase2_challenger is not None
+             else "locked holdout" if holdout is not None else "dev backtest")  # fmt: skip
+    lines = [f"# Phase {'2' if phase2_challenger else '1b'} {title} — {stamp}", "",
              f"Refit every {cadence} days on the shared plan; grid identical to 1a: "
              f"**{'yes' if grid_ok else 'NO'}**. Matches with either team < "
              f"{cfg.min_warmup_matches} prior matches are cold start, reported apart.", "",
@@ -682,11 +728,19 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
         ]
         lines += [f"| {s['model']} | x{s['scale']} | {s['n']} | {100 * s['rel']:.3f}% | "
                   f"{'yes' if s['passed'] else '**no**'} |" for s in sens]  # fmt: skip
+    if gate is not None and phase2_challenger is not None:
+        via = f" via route {', '.join(gate['routes'])}" if gate["routes"] else ""
+        lines += ["", f"## Phase 2 promotion (D30, D36): {phase2_challenger} — "
+                  f"**{gate['verdict']}**{via}", "",
+                  f"Against {prod} rescored on this run's code; the gate's checks are in the "
+                  "combined-model section above."]  # fmt: skip
     if gate is not None:
-        lines += ["", f"## Pre-registered gate (D18, D28): **{gate['verdict']}**", "",
-                  "| check | value | limit | pass |", "|---|---|---|---|"]  # fmt: skip
-        lines += [f"| {c['name']} | {100 * c['value']:+.2f}% | {100 * c['limit']:+.2f}% | "
-                  f"{'yes' if c['passed'] else '**no**'} |" for c in gate["checks"]]  # fmt: skip
+        if phase2_challenger is None:
+            lines += ["", f"## Pre-registered gate (D18, D28): **{gate['verdict']}**", "",
+                      "| check | value | limit | pass |", "|---|---|---|---|"]  # fmt: skip
+            lines += [f"| {c['name']} | {100 * c['value']:+.2f}% | {100 * c['limit']:+.2f}% "
+                      f"| {'yes' if c['passed'] else '**no**'} |"
+                      for c in gate["checks"]]  # fmt: skip
         lines += [
             "",
             "## 1X2 reliability (warm matches)",
@@ -699,7 +753,9 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
                   for r in rel.iter_rows(named=True)]  # fmt: skip
     (out / "summary.md").write_text("\n".join(lines) + "\n")
     manifest = {
-        "run": "phase1b_holdout" if holdout is not None else "phase1b_dev_backtest",
+        "run": ("phase2_holdout" if phase2_challenger is not None else "phase1b_holdout"
+                if holdout is not None else "phase1b_dev_backtest"),
+        "opening": holdout.opening if holdout else None,
         "created_at": stamp, "parts": [p.name for p in parts],
         "config_hashes": sorted(b1["config_hash"].unique().to_list()),
         "evaluation_config_hash": _file_hash("config/evaluation.yml"),
@@ -738,7 +794,8 @@ def record(out: Path, session: Any, seed: int = RunSpec.seed) -> int:
         scores = {r["metric"]: {k: r[k] for k in keys} for r in c.iter_rows(named=True)}
         created = datetime.strptime(manifest["created_at"], "%Y%m%dT%H%M%SZ")
         s.add(models.ModelRun(
-            model_name=f.stem.removeprefix("compare_"), component="phase1b",
+            model_name=f.stem.removeprefix("compare_"),
+            component="phase2" if "_ctx-" in f.stem else "phase1b",
             status=manifest.get("verdict") or "ok", created_at=created.replace(tzinfo=UTC),
             window="holdout" if manifest.get("holdout_run") else "dev", git_commit=_git_sha(),
             config_hash=hashes, lockfile_hash=manifest["lockfile_hash"],
@@ -825,6 +882,11 @@ def main() -> None:
     r.add_argument("--holdout", default=None, metavar="RUN_ID",
                    help="score the locked holdout for the run that claimed it (production "
                         "spec, weekly cadence, holdout seasons only)")  # fmt: skip
+    r.add_argument("--opening", default="phase1b", choices=sorted(ho.MARKERS),
+                   help="which holdout opening --holdout belongs to (D30)")  # fmt: skip
+    r.add_argument("--promotion", action="store_true",
+                   help="score the Phase 2 promotion spec pinned in "
+                        "config/phase2_promotion.yml (groups and snapshot)")  # fmt: skip
     r.add_argument("--upload", default=None, metavar="RUN_ID",
                    help="also put the part in the store under backtest/parts/RUN_ID/ (CI: "
                         "match-level data stays out of public artifacts)")  # fmt: skip
@@ -840,6 +902,8 @@ def main() -> None:
         "combined, e.g. x1 with x0.5 and x2, or strength_open with independent)",
     )
     a.add_argument("--cache", default="data/cache")
+    a.add_argument("--opening", default="phase1b", choices=sorted(ho.MARKERS),
+                   help="which holdout opening --holdout belongs to (D30)")  # fmt: skip
     a.add_argument("--record", action="store_true", help="write model_run rows to the DB")
     a.add_argument(
         "--vs",
@@ -860,6 +924,7 @@ def main() -> None:
     )
     c = sub.add_parser("claim-holdout", help="open the locked holdout for one run, once")
     c.add_argument("--run-id", required=True)
+    c.add_argument("--opening", default="phase1b", choices=sorted(ho.MARKERS))
     c.add_argument("--cache", default="data/cache")
     args = ap.parse_args()
 
@@ -868,8 +933,16 @@ def main() -> None:
     if args.cmd == "claim-holdout":
         from adatta.eval.baseline import _git_sha
 
-        marker = ho.claim(_store(args.cache), args.run_id, prod, _git_sha())
-        print(f"holdout opened by run {marker['run_id']} for {marker['model']} "
+        if args.opening == "phase2":
+            promo = promotion_spec(cfg)
+            if promo is None:
+                raise SystemExit("config/phase2_promotion.yml is not set: nothing to open for")
+            marker = ho.claim(_store(args.cache), args.run_id, promo.model_name, _git_sha(),
+                              "phase2", [promo.model_name, prod])  # fmt: skip
+        else:
+            marker = ho.claim(_store(args.cache), args.run_id, prod, _git_sha())
+        print(f"holdout {args.opening} opening made by run {marker['run_id']} for "
+              f"{', '.join(marker.get('models') or [marker['model']])} "
               f"at {marker['opened_at']}")  # fmt: skip
         return
     if args.cmd == "assemble":
@@ -882,7 +955,7 @@ def main() -> None:
                 print(f"missing part {ref} (skipped)")
             for name, data in got:
                 (parts / name).write_bytes(data)
-        key = ho.unlock(store, args.holdout, prod) if args.holdout else None
+        key = ho.unlock(store, args.holdout, prod, args.opening) if args.holdout else None
         out = assemble(parts, Path(args.out), cfg, _load, args.vs, key)
         if args.record:
             from adatta.db.session import get_session
@@ -895,6 +968,13 @@ def main() -> None:
             for f in out.iterdir():
                 store.put(f"{CACHE_PREFIX}/reports/{out.name}/{f.name}", f.read_bytes())
         return
+    if args.promotion:  # the pinned challenger: its groups and its snapshot, nothing else
+        promo = promotion_spec(cfg)
+        if promo is None:
+            raise SystemExit("config/phase2_promotion.yml is not set")
+        if args.group or args.context not in ("latest", cfg.promotion.context):
+            raise SystemExit("--promotion takes its groups and snapshot from the config")
+        args.group, args.context = list(promo.groups), cfg.promotion.context
     every = args.every_days or cfg.dev_iteration_refit_every_days
     spec = RunSpec(structure=args.structure, prior_scale=args.prior_scale, draws=args.draws,
                    chains=args.chains, every_days=every, shifts=args.shifts,
@@ -919,7 +999,10 @@ def main() -> None:
     k_part, n_part = (int(x) for x in args.part.split("/"))
     part = (k_part, n_part)
     t0 = time.time()
-    key = ho.unlock(_store(args.cache), args.holdout, spec.model_name) if args.holdout else None
+    if args.holdout and spec.groups and args.context != cfg.promotion.context:
+        raise SystemExit("a holdout run reads the pinned snapshot only")
+    key = (ho.unlock(_store(args.cache), args.holdout, spec.model_name, args.opening)
+           if args.holdout else None)  # fmt: skip
     pred = run(df, leagues, args.bundle, cfg, args.season, spec, _store(args.cache),
                limit=args.limit, holdout=key, target_context=target_ctx,
                target_horizon=target_h, part=part)  # fmt: skip

@@ -453,4 +453,30 @@ Model (after the Phase 1b audit closes):
         since the local Docker engine stopped (2026-11-12), so the first real check is the
         audit-sample run: `gate.yml` with `groups` G7 and `context` 962f29fe719a9d58, after
         the weekly run (one at a time) and once this change is pushed.
+      - Item 4, feasibility tooling. Acceptance stated first: (a) `assemble --vs` reports,
+        for every context model, the median refit time per bundle (each distinct refit
+        once, `refit_fit_s`, cached refits at their original fit time) against the
+        reference's, and passes a bundle when the ratio is at most 1.25; the report names
+        the worst bundle and holds metrics only; (b) a model or reference without fit
+        times is reported as not measured, never as a pass. The 6-hour job limit is read
+        from the run's job durations (no job over 360 min, none rerun for a timeout).
+        **Built, passes:** `phase2.feasibility` and its markdown, written by `assemble --vs`
+        as `feasibility_<model>.json` next to the D36 gate; `tests/test_phase2_report.py`
+        (+2). Indicative, on the 28-day runs (G7 43372042130 against 43419004255, run on
+        different days): England 1.35 (fail), France 1.25, Germany 0.98, Italy 0.76, Spain
+        0.98. Italy 24% faster with one more coefficient points to runner-to-runner timing
+        noise of the order of the limit itself, so a fail on item 4 needs a look at whether
+        it is the model or the runners before it is read as infeasible (raised for the owner;
+        the criterion is not changed). Judged on the weekly run against 43421580602.
 - [ ] M5 Promotion per D30.
+      - Holdout jobs split (prerequisite, 2026-11-15). Acceptance stated first: (a)
+        `holdout.yml` takes a `parts` input (default `["0/1"]`, today's behaviour) and runs
+        each holdout bundle-season as that many jobs (`--part`), within the same 18-job
+        budget as `backtest.yml`; (b) a holdout run split in two assembles to the same
+        predictions, gate verdict and metrics as the whole run, and assemble refuses a
+        split holdout with a missing piece. **Built, passes:** `holdout.yml` `parts` input
+        and matrix (max-parallel 18, was 10); `tests/test_holdout.py`
+        `test_a_split_holdout_run_assembles_like_the_whole_run` (same predictions; same
+        verdict and checks, values equal up to summation order; a missing piece refused).
+        Still open for M5: the Phase 2 spec on the
+        holdout (groups, context snapshot), the second claim (D30) and the D36 gate.

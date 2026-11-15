@@ -116,3 +116,38 @@ def test_holdout_report_end_to_end(tmp_path: Path) -> None:
     two = cfg.model_copy(update={"bundles": {"england": LEAGUES, "spain": [140, 141]}})
     with pytest.raises(SystemExit, match="incomplete"):
         bt.assemble(parts, tmp_path / "out", two, lambda _: df, holdout=key)
+
+
+def test_a_split_holdout_run_assembles_like_the_whole_run(tmp_path: Path) -> None:
+    """Holdout jobs split in two (M5 prerequisite): same predictions, verdict and metrics."""
+    df = matches((2022, 2023, 2024))
+    cfg = config().model_copy(update={"bundles": {"england": LEAGUES}, "holdout_seasons": [2024]})
+    store, key = LocalStore(tmp_path / "store"), harness.HoldoutKey("1")
+    spec = bt.production_spec(cfg)
+    name = f"{spec.model_name}_england_2024"
+
+    def tag(p: pl.DataFrame) -> pl.DataFrame:
+        return p.with_columns(refit_every_days=pl.lit(7), plan_seasons=pl.lit("2024"))
+
+    whole = bt.run(df, LEAGUES, "england", cfg, [2024], spec, store, FakeFitter(), log=quiet,
+                   holdout=key)  # fmt: skip
+    pieces = [bt.run(df, LEAGUES, "england", cfg, [2024], spec, store, FakeFitter(), log=quiet,
+                     holdout=key, part=(k, 2)) for k in range(2)]  # fmt: skip
+    a, b = tmp_path / "whole", tmp_path / "split"
+    a.mkdir()
+    b.mkdir()
+    tag(whole).write_parquet(a / f"{name}.parquet")
+    for k, p in enumerate(pieces):
+        tag(p).write_parquet(b / f"{name}{bt.part_suffix((k, 2))}.parquet")
+    one = bt.assemble(a, tmp_path / "out_a", cfg, lambda _: df, holdout=key)
+    two = bt.assemble(b, tmp_path / "out_b", cfg, lambda _: df, holdout=key)
+    ga, gb = (json.loads((o / "gate.json").read_text()) for o in (one, two))
+    assert ga["verdict"] == gb["verdict"] and len(ga["checks"]) == len(gb["checks"])
+    for ca, cb in zip(ga["checks"], gb["checks"], strict=True):  # same up to summation order
+        assert (ca["name"], ca["passed"]) == (cb["name"], cb["passed"])
+        assert ca["value"] == pytest.approx(cb["value"], rel=1e-9, abs=1e-15)
+    joined = pl.concat(pieces).drop("part", "cached").sort("match_id", "as_of")
+    assert joined.equals(whole.drop("part", "cached").sort("match_id", "as_of"))
+    (b / f"{name}{bt.part_suffix((1, 2))}.parquet").unlink()
+    with pytest.raises(SystemExit, match="incomplete"):
+        bt.assemble(b, tmp_path / "out_c", cfg, lambda _: df, holdout=key)

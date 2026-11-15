@@ -1,0 +1,31 @@
+# National-team name -> API-Football country name, where the two differ (host flag, D35
+# Stage 0; adatta/features/host.py). A team's country is its name with a youth (U15-U23),
+# reserve (B) or women's (W) suffix removed, matched to the provider's /countries names
+# ignoring case, spaces and punctuation ("Costa Rica" == "Costa-Rica"); these are the rest.
+# Checked against /countries on 2026-11-15 (171 names). Nations the provider does not list
+# (Afghanistan, Bahamas, North Korea, ...) and clubs in national competitions have no
+# country, so their matches' host role is unknown, never guessed.
+aliases:
+  Bosnia & Herzegovina: Bosnia
+  Bosnia-Herzegovina: Bosnia
+  China PR: China
+  Czechia: Czech-Republic
+  "Côte d'Ivoire": Ivory-Coast
+  FYR Macedonia: Macedonia
+  North Macedonia: Macedonia
+  Hong Kong, China: Hong-Kong
+  Korea Republic: South-Korea
+  Kyrgyz Republic: Kyrgyzstan
+  Rep. Of Ireland: Ireland
+  Republic of Ireland: Ireland
+  Swaziland: Eswatini
+  Türkiye: Turkey
+  UAE: United-Arab-Emirates
+  United States: USA
+  # Open-Meteo's English country names (geocoding fallback) that differ from the provider's
+  Bosnia and Herzegovina: Bosnia
+  DR Congo: Congo-DR
+  Republic of the Congo: Congo
+  Taiwan: Chinese-Taipei
+  Macao: Macau
+  Palestinian Territory: Palestine

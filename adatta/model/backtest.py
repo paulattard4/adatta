@@ -642,6 +642,9 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
         cg = phase2.combined_report(pred, vs[c], c, reference, cfg.phase2_gate)
         (out / f"phase2_gate_{c}.json").write_text(json.dumps(cg, indent=2, default=str))
         lines += [""] + phase2.combined_markdown(cg)
+        fe = phase2.feasibility(pred, c, reference)  # item 4: refit time against the reference
+        (out / f"feasibility_{c}.json").write_text(json.dumps(fe, indent=2, default=str))
+        lines += [""] + phase2.feasibility_markdown(fe)
     for c in challengers:  # D34: strength drift ahead of the refit against the plain model
         if reference is None or "_hz" not in c or c.replace("_hz", "") != reference:
             continue

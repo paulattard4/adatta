@@ -73,7 +73,92 @@ Progress:
       Expected cost in a window week: about 130 matches at about 12 requests each.
 - [ ] National teams: check the first window's capture (odds, lineups, requests), then the
       history load, then the host flag (venue country).
-- [ ] UEFA detail backfill 2016-2025 (`adatta backfill-run`, by hand).
+      - 2026-11-15, first window so far (13-15 Nov, 75 finished matches): odds and results
+        on every competition (close odds 18/18 Nations League, 15/15 AFCON qualifiers, 10/11
+        CONCACAF Nations League, 26/31 friendlies); lineups captured 18/18, 14/15, 9/11 and
+        8/31 for friendlies, in line with the audit (35-38% of friendlies in 2025-26).
+        Requests 1,183 and 1,220 on 13-14 Nov, against about 480-620 before. Weather errors
+        were transient Open-Meteo TLS timeouts and one 429, retried on the next tick. Final
+        check after the window closes (17-19 Nov).
+      - Friendlies (league 10) include youth internationals: 546 of 942 stored friendlies
+        have a U17-U21 side, and 308 of 533 `is_national` teams are youth sides, all stored
+        with `team_level` senior; a few clubs that played national sides (LAFC, DC United,
+        FC Urartu) are tagged `is_national` too. The owner keeps youth sides in the data
+        (2026-11-15). Before any national-team model (Stage D): set `team_level` from the
+        name (U15-U23) and keep youth sides and clubs out of the senior fit.
+      - History load done 2026-11-15: `adatta backfill-run --config
+        config/national_competitions.yml`, 78 jobs (none failed), 572 requests (below the
+        1,000-1,500 estimate: detail goes 20 matches a call); 10,308 finished national
+        matches, every one with detail.
+      - Host flag, acceptance stated first (2026-11-15). (a) `venue.provider_country` (new,
+        nullable; migration 0010): the venue's country as API-Football's `/venues` gives it,
+        one request per country (`/venues?country=`), for the countries of the national teams
+        in stored matches, through the quota planner and resumable (a country already
+        fetched is skipped); a venue is matched by provider id, else by normalised name and
+        city within that country; the existing `venue.country` (the competition's country,
+        "England" for Cardiff City Stadium) is left as it is. (b) Host role per national
+        match from `adatta/features/host.py`: a team's country is its name with any youth
+        suffix (U15-U23, B, W) removed, matched to the provider's `/countries` names
+        (`config/national_countries.yml` for the 16 names that differ); `home` when the
+        venue's provider country is the home side's, `swapped` when it is the away side's
+        only (each needs only that side's country), `neutral` when both sides' countries are
+        known and the venue is in neither, `unknown` otherwise (no venue, no venue country,
+        or a side without a country: a club, or a nation the provider does not list), never
+        guessed (principle 8). (c) `adatta venues-host
+        --write` sets `match.neutral` on national-competition matches from the role (neutral
+        only), and `venues-neutral --write` no longer touches them. (d) Reported: share of
+        finished national matches with a known role, by competition; spot checks: World Cup
+        2018 matches with Russia home in Russia and the rest neutral; Nations League group
+        matches home; Euro 2020 matches neutral except the hosts' at home. Tests with fakes
+        cover (a) to (c).
+        **Built 2026-11-15; (a)-(c) pass, (d) partly.** `adatta venues-host [--fetch]
+        [--write]`, `tests/test_host.py` (5 tests), migration 0010 applied. Fetch: 169
+        countries, 170 requests with `/countries`; provider names and cities are also
+        matched before and inside a bracket ("Jassim Bin Hamad Stadium (Al-Sadd Stadium)",
+        "ad-Dōha (Doha)"). Of 9,881 finished national matches, **4,912 (50%) have a role**
+        (home, swapped or neutral); unknown: 4,001 with a venue the provider's country
+        listings don't place (English names against local ones: "Luzhniki Stadium" against
+        "Stadion Luzhniki"; DRV PNK Stadium is in no listing), 967 with no venue, 428 with a
+        side without a country. Coverage is highest in the European competitions (Euro
+        qualifiers 98%, European WC qualifiers 83%, Nations League 77%) and lowest at
+        tournaments (World Cup 32%, Copa America 27%, AFCON 15%). Every role derived in the
+        spot checks is right (World Cup 2018: Russia home in Russia, Spain v Russia swapped;
+        Euro 2024: Germany home, Switzerland v Germany swapped), but most World Cup 2018 and
+        Euro 2024 matches are unknown, so (d) is not met yet. `--write` set match.neutral on
+        1,144 national matches. Next: a geocoding fallback (Open-Meteo, no API-Football
+        quota) for venues the listings don't place.
+      - Geocoding fallback, acceptance stated first (2026-11-15). (a) `venue.geo_country`
+        (new, nullable; migration 0011): the country of the venue's city from an Open-Meteo
+        place search (worldwide, raw payload stored), for venues of national matches that
+        `/venues` does not place; kept apart from `provider_country` (its source), never
+        written over it, and no other venue field changes. (b) The country is set only
+        when the populated places of the city's name (exact name if any, else all) lie in one
+        country, or the most populous is at least 10 times the largest elsewhere; otherwise
+        none. Geocoder country names go through the same name matching and aliases as team
+        names; a place in the United Kingdom takes its `admin1` (England, Scotland, Wales,
+        Northern Ireland). (c) The host role reads `provider_country`, else `geo_country`.
+        (d) Reported as before: share with a role by competition, and the same spot checks
+        (World Cup 2018, Euro 2024) now mostly placed and right. Tests with fakes cover
+        (a)-(c), including Cardiff (Wales), Arlington (two US places: USA) and a name in two
+        countries (none).
+        **Built 2026-11-15; (a)-(d) pass.** `adatta venues-host --geocode`, migration 0011
+        applied, `tests/test_host.py` (7 tests). 948 Open-Meteo searches: 929 venues placed,
+        502 not (a name in two countries of similar size, such as Santa Clara in the US and
+        Cuba; transliterations the geocoder doesn't know, such as Moskva; a country with no
+        provider name). **7,287 of 10,308 finished national matches (71%) now have a role**,
+        up from 4,912: World Cup 267 of 296, Euro 403 of 415, Copa America 112 of 118, Euro
+        qualifiers 239 of 239, Nations League 745 of 792, AFCON 260 of 385; friendlies 2,155
+        of 3,832. Unknown: 1,472 venues not placed, 967 matches with no venue, 582 with a side
+        that has no country where it matters. Spot checks right: World Cup 2018 Russia home
+        or swapped (Uruguay v Russia in Samara, Spain v Russia in Moscow) and 55 neutral;
+        World Cup 2026 Mexico, USA and Canada home (Czech Republic v Mexico swapped) and 82
+        neutral; Euro 2024 Germany home (Spain v Germany swapped), 46 neutral, none unknown;
+        a random 15 of the geocoded matches all right. `--write` changed match.neutral on 889
+        more national matches.
+- [x] UEFA detail backfill 2016-2025, 2026-11-15: the 19 calendar-only jobs (2019-2025) set
+      back to the detail stage, then `adatta backfill-run`: 25 jobs, detail for 7,717
+      matches, 401 requests; every finished Champions, Europa and Conference League match
+      from 2016 (2021 for the Conference League) now has detail.
 - [x] 2026-11-13: neutral venue flag for club matches, `adatta venues-neutral`
       (`adatta/features/neutral.py`, `config/neutral_venues.yml`): venue identity against
       each team's league grounds at kickoff, then round rules, then per-fixture overrides.

@@ -362,9 +362,10 @@ def venues_neutral(
     write: bool = typer.Option(False, help="set match.neutral from the roles"),
     review: bool = typer.Option(True, help="list the review and swapped matches"),
 ) -> None:
-    """Venue role of every loaded match (home, swapped, neutral, review, unknown) from the
+    """Venue role of every loaded club match (home, swapped, neutral, review, unknown) from the
     teams' league grounds and config/neutral_venues.yml (no requests). Prints counts by
-    competition and round type, and the matches that need a look."""
+    competition and round type, and the matches that need a look. National-competition
+    matches are left to `venues-host`."""
     from sqlalchemy import select
 
     from adatta.db import models
@@ -376,7 +377,7 @@ def venues_neutral(
         leagues, _ = _bundle_competition_ids(session)
         rows = session.execute(
             select(M, C.source_ref, C.name, C.tier).join(S, S.season_id == M.season_id)
-            .join(C, C.competition_id == S.competition_id)
+            .join(C, C.competition_id == S.competition_id).where(~C.is_national)
         ).all()  # fmt: skip
         matches = [r[0] for r in rows]
         league_of = {r[0].season_id: int(r[1]) for r in rows}
@@ -422,6 +423,64 @@ def venues_neutral(
             changed = neutral.write_flags(session, matches, roles)
             session.commit()
             typer.echo(f"match.neutral changed on {changed} matches")
+
+
+@app.command("venues-host")
+def venues_host(
+    fetch: bool = typer.Option(
+        False, help="fetch /countries and /venues per country first (about 150 requests, resumable)"
+    ),
+    geocode: bool = typer.Option(
+        False,
+        help="place venues /venues does not list by an "
+        "Open-Meteo city search (no API-Football quota, resumable)",
+    ),
+    write: bool = typer.Option(False, help="set match.neutral on national matches"),
+) -> None:
+    """Host role of every national-competition match (home, swapped, neutral, unknown) from the
+    venue's own country (/venues) and each side's country (adatta/features/host.py). Without
+    --fetch no requests. Prints counts of finished matches by competition."""
+    from adatta.features import host
+
+    store = make_store(get_settings())
+    with get_session() as session:
+        rows = host.national_matches(session)
+        if fetch:
+            client = _client()
+            countries = host.Countries(client.countries(session), host.load_aliases())
+            session.commit()
+            wanted = host.countries_needed({t for _, _, h, a in rows for t in (h, a)}, countries)
+            n = host.fetch_venues(session, client, wanted)
+            typer.echo(f"fetched venues of {n} countries ({len(wanted)} needed); "
+                       f"account quota used today ~{client.quota_used_today}")  # fmt: skip
+        countries = host.Countries(host.stored_country_names(session, store), host.load_aliases())
+        if not countries.names:
+            raise typer.BadParameter("no stored /countries payload: run with --fetch")
+        applied = host.apply_countries(session, host.stored_venues(session, store))
+        typer.echo(f"venue countries: {applied}")
+        if geocode:
+            from adatta.adapters.open_meteo import OpenMeteoClient
+
+            om = OpenMeteoClient(store)
+            typer.echo(f"geocoded: {host.geocode_fallback(session, om, rows, countries)}; "
+                       f"{om.requests_made} Open-Meteo searches")  # fmt: skip
+        roles = host.host_roles(session, rows, countries)
+        fin = roles.filter(pl.col("status").is_in(["FT", "AET", "PEN"]))
+        table = (
+            fin.group_by("competition")
+            .agg([pl.len().alias("finished")] + [(pl.col("role") == r).sum().alias(r)
+                                                  for r in host.ROLES])
+            .sort("finished", descending=True)
+        )  # fmt: skip
+        with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=160):
+            typer.echo(table)
+            typer.echo(fin.group_by("basis").len().sort("len", descending=True))
+        if write:
+            changed = host.write_flags(rows, roles)
+            session.commit()
+            typer.echo(f"match.neutral changed on {changed} national matches")
+        else:
+            session.commit()  # the venue countries
 
 
 @app.command("venues-coverage")

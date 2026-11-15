@@ -332,3 +332,50 @@ def combined_markdown(rep: dict[str, Any]) -> list[str]:
               f"{pct(worst['value'])} (limit {pct(rep['gate']['max_segment_rel_worse'])}); "
               + (f"**failing: {failing}**" if bad else "all pass.")]  # fmt: skip
     return lines
+
+
+FEASIBLE_RATIO = 1.25  # Combined model item 4: median refit time per bundle vs the 1b reference
+
+
+def feasibility(pred: pl.DataFrame, challenger: str, reference: str,
+                limit: float = FEASIBLE_RATIO) -> dict[str, Any]:  # fmt: skip
+    """Median refit time per bundle (each distinct refit once; a cached refit keeps its
+    original fit time) of `challenger` against `reference`. A bundle without fit times on
+    either side is "not measured", which is never a pass."""
+    has = "refit_fit_s" in pred.columns
+    rows: list[dict[str, Any]] = []
+    for bundle in sorted(pred.filter(pl.col("model") == challenger)["bundle"].unique()):
+        med: dict[str, float | None] = {}
+        for m in (challenger, reference):
+            r = pred.filter((pl.col("model") == m) & (pl.col("bundle") == bundle))
+            s = r.unique(["as_of"])["refit_fit_s"].drop_nulls() if has else pl.Series([])
+            med[m] = float(s.median()) if s.len() else None  # type: ignore[arg-type]
+        c, b = med[challenger], med[reference]
+        ratio = c / b if c is not None and b else None
+        rows.append({"bundle": bundle, "challenger_s": c, "reference_s": b, "ratio": ratio,
+                     "passed": ratio is not None and ratio <= limit})  # fmt: skip
+    measured = [r for r in rows if r["ratio"] is not None]
+    return {"challenger": challenger, "reference": reference, "limit": limit, "bundles": rows,
+            "worst": max(measured, key=lambda r: r["ratio"])["bundle"] if measured else None,
+            "verdict": "pass" if rows and all(r["passed"] for r in rows) else
+            ("not measured" if len(measured) < len(rows) else "fail")}  # fmt: skip
+
+
+def feasibility_markdown(rep: dict[str, Any]) -> list[str]:
+    lines = [f"## Phase 2 feasibility (item 4): {rep['challenger']} vs {rep['reference']} — "
+             f"**{rep['verdict']}**", "",
+             f"Median refit time per bundle, limit {rep['limit']:.2f} x the reference's "
+             "(the 6-hour job limit is read from the run's job durations).", "",
+             "| bundle | challenger s | reference s | ratio | pass |",
+             "|---|---|---|---|---|"]  # fmt: skip
+
+    def num(x: float | None, f: str) -> str:
+        return "—" if x is None else format(x, f)
+
+    for r in rep["bundles"]:
+        lines.append(f"| {r['bundle']} | {num(r['challenger_s'], '.0f')} | "
+                     f"{num(r['reference_s'], '.0f')} | {num(r['ratio'], '.2f')} | "
+                     f"{'yes' if r['passed'] else '**no**'} |")  # fmt: skip
+    if rep["worst"] is not None:
+        lines.append(f"\nWorst bundle: {rep['worst']}.")
+    return lines

@@ -7,6 +7,8 @@
 # on 2024/25 and 2025/26, with Phase 1a on the same grid, then applies the pre-registered
 # gate from config/evaluation.yml and records champion / rejected in model_run.
 # The repo is public: logs carry metrics only; match-level parts and the report go to R2.
+# `parts` splits each bundle-season into jobs (assemble fetches every piece and refuses a
+# missing or repeated one).
 # One heavy workflow at a time: don't dispatch this while a backtest or gate run is going.
 name: holdout
 on:
@@ -15,6 +17,9 @@ on:
       confirm:
         description: 'type "open the locked holdout once" to proceed'
         required: true
+      parts:
+        description: 'JSON list of pieces per bundle-season, K/N: ["0/1"] = whole; ["0/2","1/2"] halves each (weekly fits of the biggest bundle-seasons outlast 6 h)'
+        default: '["0/1"]'
 permissions:
   contents: read
 concurrency:
@@ -45,10 +50,12 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 10
+      # Same budget as backtest.yml: 18 of the account's 20 concurrent jobs.
+      max-parallel: 18
       matrix:
         bundle: ["england", "spain", "italy", "germany", "france"]
         season: [2024, 2025]
+        part: ${{ fromJSON(inputs.parts) }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -58,7 +65,7 @@ jobs:
       - name: refit and score the holdout
         run: >-
           uv run --frozen --group model python -m adatta.model.backtest run
-          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }}
+          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }} --part ${{ matrix.part }}
           --every-days 7 --holdout ${{ github.run_id }} --upload ${{ github.run_id }}
   assemble:
     needs: refit

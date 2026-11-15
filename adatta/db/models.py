@@ -135,6 +135,12 @@ class Venue(Temporal, Base):
     name: Mapped[str] = mapped_column(String(128))
     city: Mapped[str] = mapped_column(String(128))
     country: Mapped[str] = mapped_column(String(64))  # the competition's country
+    # the venue's own country from the provider's /venues (host flag): Cardiff City Stadium
+    # is "Wales" here while `country` says "England" (it hosts Championship matches)
+    provider_country: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # fallback for the host flag where /venues has no entry: the country of the venue's city
+    # from an Open-Meteo place search (adatta/features/host.py); never overrides the above
+    geo_country: Mapped[str | None] = mapped_column(String(64), nullable=True)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     elevation_m: Mapped[float | None] = mapped_column(Float, nullable=True)

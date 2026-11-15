@@ -104,6 +104,8 @@ class Place:
     population: int | None
     feature_code: str
     timezone: str | None = None  # IANA name, as the geocoder gives it
+    country: str | None = None  # English country name ("United Kingdom")
+    admin1: str | None = None  # first-level region ("Wales")
 
 
 @dataclass(frozen=True)
@@ -142,7 +144,18 @@ def _place(r: dict[str, Any]) -> Place:
         population=r.get("population"),
         feature_code=str(r.get("feature_code") or ""),
         timezone=r.get("timezone"),
+        country=r.get("country"),
+        admin1=r.get("admin1"),
     )
+
+
+def populated_places(results: list[dict[str, Any]]) -> list[Place]:
+    """The populated places (feature code PPL*, not a city district PPLX) of a search."""
+    return [
+        _place(r)
+        for r in results
+        if str(r.get("feature_code") or "").startswith("PPL") and r.get("feature_code") != "PPLX"
+    ]
 
 
 def pick_place(results: list[dict[str, Any]], countries: tuple[str, ...], query: str) -> Geocode:
@@ -249,6 +262,7 @@ class OpenMeteoClient:
         self.last_storage_key: str | None = None
         self.last_response_at: datetime | None = None
         self._geocodes: dict[tuple[str, str], Geocode] = {}  # one search per city per run
+        self._places: dict[str, list[Place]] = {}
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), reraise=True)
     def _get(self, url: str, params: dict[str, Any]) -> httpx.Response:
@@ -274,6 +288,16 @@ class OpenMeteoClient:
                           storage_key=key, content_hash=digest))  # fmt: skip
             session.flush()
         return payload
+
+    def places(self, session: Session, city: str) -> tuple[str, list[Place]]:
+        """Worldwide place search for a city (query as `city_query` makes it): the query and
+        its populated places, with country and region. One search per query per run."""
+        query = city_query(city)
+        if query not in self._places:
+            params = {"name": query, "count": 10, "language": "en", "format": "json"}
+            results = self.fetch(session, GEOCODE_URL, params).get("results") or []
+            self._places[query] = populated_places(results)
+        return query, self._places[query]
 
     def geocode(self, session: Session, city: str, country: str) -> Geocode:
         query = city_query(city)

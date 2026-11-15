@@ -155,3 +155,35 @@ def test_groups_of_model_names() -> None:
     assert phase2.groups_of("phase1b_strength_open_xg") == ()
     assert phase2.groups_of("phase1b_strength_open_xg_ctx-style") == ("style",)
     assert phase2.groups_of("phase1b_strength_open_xg_ctx-weather-style_hz") == ("weather", "style")
+
+
+def _timed(model: str, times: dict[str, list[float | None]]) -> pl.DataFrame:
+    """Two prediction rows per refit (a refit counts once), fit seconds per bundle."""
+    rows = []
+    for bundle, ts_ in times.items():
+        for i, t in enumerate(ts_):
+            for match in (2 * i, 2 * i + 1):
+                rows.append({"model": model, "bundle": bundle, "as_of": i, "match_id": match,
+                             "refit_fit_s": t})  # fmt: skip
+    return pl.DataFrame(rows, schema_overrides={"refit_fit_s": pl.Float64})
+
+
+def test_feasibility_compares_median_refit_time_per_bundle() -> None:
+    ref = _timed("r", {"england": [100, 200, 300], "spain": [100, 100, 100]})
+    ok = _timed("c", {"england": [120, 240, 9000], "spain": [125, 125, 10]})  # 1.2x, 1.25x
+    rep = phase2.feasibility(pl.concat([ref, ok]), "c", "r")
+    assert rep["verdict"] == "pass" and rep["worst"] == "spain"
+    assert [b["ratio"] for b in rep["bundles"]] == [pytest.approx(1.2), pytest.approx(1.25)]
+    slow = _timed("c", {"england": [300, 300, 300], "spain": [100, 100, 100]})  # 1.5x
+    rep = phase2.feasibility(pl.concat([ref, slow]), "c", "r")
+    assert rep["verdict"] == "fail" and rep["worst"] == "england"
+    assert "**fail**" in "\n".join(phase2.feasibility_markdown(rep))
+
+
+def test_feasibility_without_fit_times_is_not_measured() -> None:
+    ref = _timed("r", {"england": [None, None]})
+    rep = phase2.feasibility(pl.concat([ref, _timed("c", {"england": [10, 10]})]), "c", "r")
+    assert rep["verdict"] == "not measured" and not rep["bundles"][0]["passed"]
+    bare = pl.concat([ref, _timed("c", {"england": [10, 10]})]).drop("refit_fit_s")
+    assert phase2.feasibility(bare, "c", "r")["verdict"] == "not measured"
+    assert "—" in "\n".join(phase2.feasibility_markdown(rep))

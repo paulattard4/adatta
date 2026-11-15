@@ -79,6 +79,27 @@ def parse_live(payload: dict[str, Any], league_ids: Iterable[int]) -> list[LiveS
     return out
 
 
+@dataclass(frozen=True)
+class ProviderVenue:
+    """A venue as `/venues` gives it: provider id, name, city and the venue's own country
+    (not the competition's: Cardiff City Stadium is in Wales)."""
+
+    ref: str
+    name: str
+    city: str
+    country: str
+
+
+def parse_venues(payload: dict[str, Any]) -> list[ProviderVenue]:
+    out = []
+    for v in payload.get("response", []):
+        if v.get("id") is None or not v.get("country"):
+            continue
+        out.append(ProviderVenue(str(v["id"]), str(v.get("name") or "").strip(),
+                                 str(v.get("city") or "").strip(), str(v["country"])))  # fmt: skip
+    return out
+
+
 class ApiFootballClient:
     def __init__(
         self,
@@ -212,6 +233,16 @@ class ApiFootballClient:
         data = self.fetch(session, "/odds", {"fixture": fixture_id}, live=True)
         resp: list[dict[str, Any]] = data.get("response", [])
         return resp[0] if resp else None
+
+    def countries(self, session: Session) -> list[str]:
+        """/countries: the provider's country names (the names `/venues?country=` accepts)."""
+        data = self.fetch(session, "/countries", {})
+        return [str(c["name"]) for c in data.get("response", []) if c.get("name")]
+
+    def venues(self, session: Session, country: str) -> list[ProviderVenue]:
+        """/venues?country: every venue the provider lists in a country, with its country."""
+        data = self.fetch(session, "/venues", {"country": country})
+        return parse_venues(data)
 
     def injuries(self, session: Session, league_id: int, season: int) -> list[dict[str, Any]]:
         """/injuries?league&season: per-fixture absences (Missing Fixture / Questionable)."""

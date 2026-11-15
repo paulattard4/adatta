@@ -190,6 +190,30 @@ Progress:
       3, to drop before any tier-3 fit; (4) 4 finished matches without a normal-time score
       (League One 2017, Serie C 2018-2020, one each). Before a tier-3 model: a group key
       for Serie C and Primera RFEF, and the round rule widened.
+- [x] Tier-3 cleanup. Acceptance stated first (2026-11-15): (a) one regular-round rule in
+      the adapter layer (`Regular Season - n`, `Girone X - n`, `Group N - n`, each with an
+      optional `2nd Phase`; UEFA's lettered `Group A - n` is not a league round), used by the
+      completeness report, `harness.load_matches` and the live trigger rule; (b) exact
+      duplicates (same sides and kickoff in one season) are flagged by the report and
+      `load_matches` keeps the lowest match id; (c) a group key per team from the
+      first-phase match graph (teams that play each other), so the round-robin count is
+      the sum over groups: Serie C 2016 and 2017 under one id read as three groups;
+      (d) play-off ids are marked `knockout` and are not counted as leagues; (e) for every
+      league in `config/competitions.yml`, `load_matches` returns the same match ids before
+      and after (checked on Neon), so no fitted bundle or cache changes; (f) the tier-3
+      report then flags only real gaps.
+      Result (2026-11-15): `normalize.is_regular_round` / `is_second_phase`,
+      `backfill.round_robin_groups` and `duplicate_fixtures`, `knockout: true` on ids 975,
+      976 and 1006; tests in `tests/test_tier3_rounds.py`. (e) holds: 39,755 matches, same
+      content hash before and after. The report went from 59 flagged seasons to 9, each a
+      real irregularity: the Ligue 3 2024 duplicate; 4 missing normal-time scores; Primera
+      RFEF Group 1 2022, where one place is shared by Internacional de Madrid (5 matches)
+      and Talavera (33); Serie C Girone B 2025, where Rimini stops after 15 matches; and
+      Serie C 2016 and 2017, where the provider files Reggina's Girone C fixtures under
+      Reggiana's id (880, named "Reggiana" in the raw payload), so the two clubs are one
+      team and Girone B and C read as one group (Reggina has its own id, 1692, from 2018).
+      Before a tier-3 fit, Serie C 2016-2017 needs that split (by opponent group) or stays
+      out. No team in the tier 1-2 leagues plays more matches than its group allows.
 
 ## Stage A: domestic cup ties, 90-minute forecasts
 

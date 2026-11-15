@@ -16,7 +16,7 @@ time); nothing is back-dated.
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -31,7 +31,6 @@ from adatta.adapters.quota import QuotaExceeded
 from adatta.config import Competition
 from adatta.db import models
 
-REGULAR_SEASON = "Regular Season"
 DETAIL_FLAGS = (
     "has_lineups",
     "has_player_match_stats",
@@ -190,8 +189,36 @@ def run(
 # --------------------------------------------------------------------------- report
 
 
-def _is_regular(round_: str | None) -> bool:
-    return bool(round_) and str(round_).startswith(REGULAR_SEASON)
+def round_robin_groups(pairs: Iterable[tuple[int, int]]) -> dict[int, int]:
+    """Group key per team: the connected components of the graph of teams that meet (from
+    one phase's league fixtures). A league split into groups under one id (Serie C before
+    2018) reads as its groups; the key is the smallest team id in the group."""
+    parent: dict[int, int] = {}
+
+    def find(t: int) -> int:
+        parent.setdefault(t, t)
+        while parent[t] != t:
+            parent[t] = parent[parent[t]]
+            t = parent[t]
+        return t
+
+    for a, b in pairs:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+    return {t: find(t) for t in parent}
+
+
+def duplicate_fixtures(matches: Sequence[models.Match]) -> list[models.Match]:
+    """Fixtures the provider lists again (same sides and kickoff), all but the lowest id."""
+    seen: set[tuple[int, int, object]] = set()
+    out = []
+    for m in sorted(matches, key=lambda m: m.match_id):
+        key = (m.home_team_id, m.away_team_id, m.kickoff_time)
+        if key in seen:
+            out.append(m)
+        seen.add(key)
+    return out
 
 
 def completeness(session: Session, comps: list[Competition]) -> list[dict[str, Any]]:
@@ -202,7 +229,7 @@ def completeness(session: Session, comps: list[Competition]) -> list[dict[str, A
     R, D, J = models.MatchResult, models.MatchDetail, models.BackfillJob
     rows: list[dict[str, Any]] = []
     for comp in comps:
-        is_league = str(comp.tier) != "cup"
+        is_league = str(comp.tier) != "cup" and not comp.knockout
         for year in comp.seasons:
             job = session.scalar(
                 select(J).where(
@@ -237,9 +264,15 @@ def completeness(session: Session, comps: list[Competition]) -> list[dict[str, A
                 )
             finished = [m for m in matches if m.status in normalize.FINISHED]
             not_played = Counter(m.status for m in matches if m.status not in normalize.FINISHED)
-            regular = [m for m in matches if _is_regular(m.round)]
-            teams = {t for m in regular for t in (m.home_team_id, m.away_team_id)}
-            expected = len(teams) * (len(teams) - 1) if is_league and teams else None
+            dups = duplicate_fixtures(matches)
+            dup_ids = {m.match_id for m in dups}
+            regular = [m for m in matches if normalize.is_regular_round(m.round)
+                       and m.match_id not in dup_ids]  # fmt: skip
+            first = [m for m in regular if not normalize.is_second_phase(m.round)]
+            groups = Counter(
+                round_robin_groups((m.home_team_id, m.away_team_id) for m in first).values()
+            )
+            expected = sum(n * (n - 1) for n in groups.values()) if is_league and groups else None
             with_nt = sum(
                 1
                 for m in finished
@@ -258,8 +291,11 @@ def completeness(session: Session, comps: list[Competition]) -> list[dict[str, A
                 "listed": len(matches),
                 "finished": len(finished),
                 "not_played": ";".join(f"{k}={v}" for k, v in sorted(not_played.items())),
-                "regular_listed": len(regular) if is_league else None,
+                "regular_listed": len(first) if is_league else None,
                 "regular_expected": expected,
+                "groups": len(groups) if is_league else None,
+                "second_phase": len(regular) - len(first) if is_league else None,
+                "duplicates": len(dups),
                 "finished_with_nt_score": with_nt,
                 "detail_stored": len(stored),
                 "detail_returned": len(returned),
@@ -283,6 +319,8 @@ def _flags(
             out.append("no regular-season round labels")
         elif row["regular_listed"] != row["regular_expected"]:
             out.append(f"regular season {row['regular_listed']}/{row['regular_expected']}")
+    if row["duplicates"]:
+        out.append(f"duplicate fixtures {row['duplicates']}")
     if row["finished_with_nt_score"] < row["finished"]:
         out.append(f"nt score missing {row['finished'] - row['finished_with_nt_score']}")
     if detail and row["detail_returned"] < row["finished"]:

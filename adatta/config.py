@@ -47,6 +47,9 @@ class Competition(BaseModel):
     # National-team competition (spec §10.4, D35 Stage D): its teams are national sides and it
     # is fitted apart from the club model. Sets competition.is_national.
     national: bool = False
+    # A knockout id inside a league's pyramid (play-offs, play-outs under their own league id):
+    # not a round robin, so the completeness report does not count its rounds.
+    knockout: bool = False
 
 
 def load_competitions(path: Path | str = "config/competitions.yml") -> list[Competition]:

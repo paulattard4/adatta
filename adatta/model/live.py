@@ -26,7 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from adatta.adapters.api_football_capture import NO_MATCH
-from adatta.adapters.normalize import FINISHED, SOURCE_ID
+from adatta.adapters.normalize import FINISHED, SOURCE_ID, is_regular_round
 from adatta.adapters.storage import RawStore, try_get
 from adatta.db import models
 from adatta.eval import harness
@@ -66,7 +66,7 @@ def bundle_fixtures(session: Session, leagues: list[int], lo: datetime, hi: date
     ).all()  # fmt: skip
     keep = [
         (k if k.tzinfo else k.replace(tzinfo=UTC), h, a) for k, h, a, status, rnd in rows
-        if status not in serve.NO_MATCH and (rnd or "").startswith(harness.REGULAR_SEASON)
+        if status not in serve.NO_MATCH and is_regular_round(rnd)
     ]  # fmt: skip
     return pl.DataFrame(keep, schema={"kickoff": pl.Datetime("us", "UTC"), "home": pl.Int64,
                                       "away": pl.Int64}, orient="row")  # fmt: skip
@@ -144,7 +144,7 @@ def pending_results(session: Session, leagues: list[int], as_of: datetime, lag_h
     return sum(
         1 for status, rnd in rows
         if status not in FINISHED and status not in NO_MATCH
-        and (rnd or "").startswith(harness.REGULAR_SEASON)
+        and is_regular_round(rnd)
     )  # fmt: skip
 
 

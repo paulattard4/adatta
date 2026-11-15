@@ -27,7 +27,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from adatta.adapters.normalize import FINISHED, SOURCE_ID
+from adatta.adapters.normalize import FINISHED, REGULAR_ROUND, SOURCE_ID
 from adatta.db import models
 from adatta.eval import metrics
 from adatta.model import dixon_coles as dc
@@ -35,7 +35,6 @@ from adatta.model import dixon_coles as dc
 Arr = NDArray[np.float64]
 DAY = 86_400.0
 MODELS = ("dixon_coles", "league_poisson", "base_rate")
-REGULAR_SEASON = "Regular Season"
 
 
 class HoldoutLocked(RuntimeError):
@@ -133,7 +132,8 @@ def load_config(path: Path | str = "config/evaluation.yml") -> EvalConfig:
 
 def load_matches(session: Session, league_ids: list[int]) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Finished regular-season league matches with a known 90' score, plus the ones that
-    can't be scored (finished but 90' score unknown) with the reason."""
+    can't be scored (finished but 90' score unknown) with the reason. A fixture the provider
+    lists twice (same sides and kickoff) is kept once, under its lowest match id."""
     M, S, C, R = models.Match, models.Season, models.Competition, models.MatchResult
     rows = session.execute(
         select(
@@ -164,7 +164,11 @@ def load_matches(session: Session, league_ids: list[int]) -> tuple[pl.DataFrame,
             "round": pl.Utf8, "hg": pl.Int64, "ag": pl.Int64,
         },
     )  # fmt: skip
-    df = df.filter(pl.col("round").str.starts_with(REGULAR_SEASON))
+    df = (
+        df.filter(pl.col("round").str.contains(REGULAR_ROUND))
+        .sort("match_id")
+        .unique(["home", "away", "kickoff"], keep="first", maintain_order=True)
+    )
     known = pl.col("hg").is_not_null() & pl.col("ag").is_not_null()
     unscorable = df.filter(~known).with_columns(reason=pl.lit("90' score unknown"))
     return df.filter(known).sort("kickoff", "match_id"), unscorable

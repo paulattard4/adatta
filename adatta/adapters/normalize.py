@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from collections.abc import Iterable, Iterator
 from datetime import UTC, datetime
@@ -14,6 +15,22 @@ from adatta.db import models
 
 SOURCE_ID = "api_football"
 FINISHED = {"FT", "AET", "PEN"}
+
+# League rounds as the provider labels them: "Regular Season - n", and in leagues split into
+# groups under one id each "Girone A - n" (Serie C) or "Group 1 - n" (Primera RFEF), either
+# with an optional "2nd Phase". Play-offs, play-outs, deciders and UEFA's lettered
+# "Group A - n" are not league rounds. Also usable as a Polars `str.contains` pattern.
+REGULAR_ROUND = r"^(Regular Season|Girone [A-Z] - |Group [0-9]+ - )"
+SECOND_PHASE = " - 2nd Phase - "
+_REGULAR_ROUND = re.compile(REGULAR_ROUND)
+
+
+def is_regular_round(label: str | None) -> bool:
+    return bool(label) and _REGULAR_ROUND.match(str(label)) is not None
+
+
+def is_second_phase(label: str | None) -> bool:
+    return SECOND_PHASE in (label or "")
 
 
 def ensure_source(session: Session) -> None:

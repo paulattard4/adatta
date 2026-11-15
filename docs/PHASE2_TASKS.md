@@ -503,6 +503,28 @@ Model (after the Phase 1b audit closes):
         0.95, Germany 1.04, Italy 1.24 (513 s vs 413 s; worst, close to the 1.25 limit and
         within the runner noise noted above), Spain 0.93. Longest job 224 min (England
         2023, half 0), mean 144 min, none over 360 and none rerun.
+- [ ] M4b G7 respecified on the dev window (owner, 2026-11-15, after M4 failed item 1).
+      Disclosed: this change is chosen after seeing the gate result, on dev data only; the
+      locked holdout, still unopened, is the guard against that choice.
+      Change: G7 is coded on a stated unit scale like the other groups, `tempo` =
+      (home `tempo_rel` + away `tempo_rel`) / 0.1, a fixed constant (no data statistic);
+      prior Normal(0, 0.2) per unit unchanged, so a priori one sd is a 20% change in the
+      goal rate per 0.1 of combined relative tempo. On the old scale this is Normal(0, 2):
+      the old Normal(0, 0.2) per unit of a covariate with sd about 0.09 said a priori that
+      the effect per sd is within about +-4%, a strong prior on the quantity being
+      measured, which is why the coefficient moved with the prior. Nothing else changes
+      (groups, snapshot 962f29fe719a9d58, 1b spec, gates, criteria). `covariates.py` is in
+      the fit hash, so every config hash changes once (the production spec's included: its
+      next live refit fits from scratch; its predictions are unchanged, it reads no
+      covariates). Acceptance stated first, each step only if the one before passes, one
+      heavy run at a time: (a) code and tests: the style block equals the old one / 0.1,
+      the other groups' blocks and the 1b spec are unchanged; (b) gate.yml with G7 on the
+      25-fit audit sample: every gating check passes in every fit (M4 item 1, unchanged);
+      (c) the 28-day group run against 43419004255 passes the per-group acceptance (M3,
+      unchanged); (d) the weekly dev run against 43421580602 passes D36 and feasibility
+      (M4 items 2 and 4, unchanged). Then M5 as planned. A fail at any step stops here
+      and Phase 2 ends without a promotion (proposed, owner to confirm: no second
+      respecification of G7 on the same dev window).
 - [ ] M5 Promotion per D30.
       - Holdout jobs split (prerequisite, 2026-11-15). Acceptance stated first: (a)
         `holdout.yml` takes a `parts` input (default `["0/1"]`, today's behaviour) and runs

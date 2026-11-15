@@ -18,7 +18,8 @@ Coding (fixed constants, never statistics of the data, so no scaling can leak):
                  0 under referee_basis pool_prior. Prior Normal(0, 0.1)
   G5 importance  dead_rubber, must_win indicators of the side's own importance
   G6 kickoff     early = local hour < 14; late = local hour >= 20. Regularised horseshoe
-  G7 style       home tempo_rel + away tempo_rel (null if either side is null)
+  G7 style       (home tempo_rel + away tempo_rel) / 0.1 (null if either side is null);
+                 per 0.1 of combined relative tempo since M4b (was per 1: sd ~0.09)
 A null input adds 0 to log lambda: the match falls back to the 1b model for that term,
 never imputed (principle 8). Priors Normal(0, 0.2) unless stated (§6.1).
 
@@ -160,8 +161,12 @@ def _kickoff(df: pl.DataFrame) -> F64:
     return np.column_stack([(ok & (h < 14)).astype(float), (ok & (h >= 20)).astype(float)])
 
 
+TEMPO_UNIT = 0.1  # G7: one unit = 0.1 of combined relative tempo (M4b)
+
+
 def _style(df: pl.DataFrame) -> F64:
-    return _zero_nan(_col(df, "home_tempo_rel") + _col(df, "away_tempo_rel"))[:, None]
+    tempo = _col(df, "home_tempo_rel") + _col(df, "away_tempo_rel")
+    return _zero_nan(tempo / TEMPO_UNIT)[:, None]
 
 
 _OWN: Mapping[str, Callable[[pl.DataFrame, str], F64]] = {

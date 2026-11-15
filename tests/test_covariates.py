@@ -104,7 +104,9 @@ def test_each_group_is_coded_as_the_plan_states() -> None:
     np.testing.assert_array_equal(imp.x_home, [[1, 0], [0, 0], [0, 0]])
     np.testing.assert_array_equal(imp.x_away, [[0, 1], [0, 0], [0, 0]])
     np.testing.assert_array_equal(blocks["kickoff"].x_home, [[1, 0], [0, 0], [0, 1]])
-    np.testing.assert_allclose(blocks["style"].x_home[:, 0], [0.15, 0.0, -0.1])  # null -> 0
+    # per 0.1 of combined tempo (M4b): 0.15 -> 1.5; a null side -> 0
+    np.testing.assert_allclose(blocks["style"].x_home[:, 0], [1.5, 0.0, -1.0])
+    assert cv.TEMPO_UNIT == 0.1
     assert [b.group.name for b in cv.design(df, ["style", "G1"])] == ["rest", "style"]
     with pytest.raises(ValueError, match="unknown"):
         cv.resolve(["G9"])
@@ -124,7 +126,7 @@ def test_offsets_are_the_design_times_the_coefficient_draws() -> None:
                home_tempo_rel=[0.1, 0.0], away_tempo_rel=[0.1, 0.2])  # fmt: skip
     blocks = cv.design(df, ["rest", "style"])
     draws = {"beta_rest": np.array([[-0.1, -0.2], [0.05, 0.0]]),
-             "beta_style": np.array([[0.5, 1.0]])}  # fmt: skip
+             "beta_style": np.array([[0.05, 0.1]])}  # fmt: skip  # x = 0.2 / 0.1 = 2
     oh, oa = cv.offsets(draws, blocks)
     np.testing.assert_allclose(oh, [[-0.1 + 0.1, -0.2 + 0.2], [0.05 + 0.1, 0.0 + 0.2]])
     np.testing.assert_allclose(oa, [[0.1, 0.2], [-0.1 + 0.1, -0.2 + 0.2]])

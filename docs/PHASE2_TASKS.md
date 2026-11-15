@@ -525,6 +525,34 @@ Model (after the Phase 1b audit closes):
       (M4 items 2 and 4, unchanged). Then M5 as planned. A fail at any step stops here
       and Phase 2 ends without a promotion (proposed, owner to confirm: no second
       respecification of G7 on the same dev window).
+      - (a) passes: `covariates.TEMPO_UNIT` 0.1, tests updated (commit 5b2ef5e).
+      - (b) **passes**, gate run 43737999116 (commit 5b2ef5e, snapshot 962f29fe719a9d58,
+        same audit dates and seed): 25 of 25 fits pass every gating check, 0 divergences in
+        every fit, R-hat at most 1.008. Parameter prior sensitivity worst 0.68 posterior sd
+        at x0.5 (England 2024) and 0.21 at x2; `beta_style` is no longer the worst
+        coefficient in any fit (the worst are the 1b spec's own: `kappa`, `mu_league`,
+        `sigma_strength`, `h_league`, `xg_bias`). Non-blocking warnings as in 1b:
+        total-dispersion PPC in some leagues, and the 4-week predictive proxy in 2 fits.
+      - (c) dispatched 2026-11-15: run 43742923943 (commit 5b2ef5e), `groups` G7, snapshot
+        962f29fe719a9d58, `every_days` 28, 2,000 draws, `vs` 43419004255.
+      - (c) **passes** (run 43742923943, grid identical). 18,591 warm dev matches, 18,487
+        active. (1) mixing pass: R-hat > 1.01 in 3 refits (reference 1 + 2, at the limit;
+        worst 1.016), ESS < 400 in 0, divergences in 0. (2) active total CRPS **−0.15%
+        [−0.25%, −0.05%]: pass**. (3) all warm 1X2 log loss −0.01%, RPS −0.01%, OU2.5 log
+        loss −0.14%, total CRPS −0.15%; bundles' 1X2 log loss −0.10% (Spain) to +0.04%
+        (England), all within limits. (4) ECE pass (home −0.0006, draw −0.0004, away
+        +0.0013, over 2.5 +0.0015). (5) tempo **positive in every bundle**, +0.026 (Italy)
+        to +0.073 (Spain) per 0.1 of combined relative tempo, 1.7 to 4.6 sd from 0, sd /
+        prior 0.07–0.09 (the data, not the prior, set it). Per unit of the old scale that is
+        +0.26 to +0.73, against +0.16 to +0.44 under the old prior: the old prior was
+        shrinking the coefficient, as the gate failure said. Printed for information, not
+        step (c)'s test: the D36 gate passes via route B (CRPS −0.15% [−0.25%, −0.05%],
+        OU2.5 −0.14% [−0.25%, −0.04%], 50 league segments, worst +0.14%), and the
+        refit-time ratio is 1.27 in France (limit 1.25; others 0.98–1.06). Feasibility is
+        judged on the weekly run (d), where France was 0.95 before the respecification.
+      - (d) dispatched 2026-11-15: run 43760181569 (commit 5b2ef5e), `groups` G7, snapshot
+        962f29fe719a9d58, weekly grid, `every_days` 7, 2,000 draws, parts halves, `vs`
+        43421580602.
 - [ ] M5 Promotion per D30.
       - Holdout jobs split (prerequisite, 2026-11-15). Acceptance stated first: (a)
         `holdout.yml` takes a `parts` input (default `["0/1"]`, today's behaviour) and runs

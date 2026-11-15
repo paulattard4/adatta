@@ -27,6 +27,7 @@ import json
 import time
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -52,6 +53,7 @@ AS_ISSUED_FROM = datetime(2024, 2, 1, tzinfo=UTC)
 PROXY_FROM = datetime(2019, 7, 1, tzinfo=UTC)
 CHECK_UNTIL = datetime(2024, 6, 1, tzinfo=UTC)
 PROXY_MAX_HORIZON = timedelta(hours=24)
+FETCH_WORKERS = 32  # parallel raw-store reads in load_realised (matches the R2 pool size)
 RUNS = {1: 24.0, 2: 48.0}  # previous_dayN -> lead hours
 PLAYED_AFTER = timedelta(days=1)  # fetch as-issued forecasts only for matches this long past
 ERA5_SINCE = "2019-01-01"
@@ -260,24 +262,37 @@ def _store_as_issued(
     return n
 
 
+def _point(t: Target) -> tuple[float, float]:
+    return climatology.cell(t.latitude, t.longitude)
+
+
 def load_realised(
     session: Session, store: RawStore, wanted: Sequence[Target]
 ) -> dict[int, MatchWeather]:
     """{match_id: ERA5 realised weather over the match} for targets whose dates a stored
     payload covers. Backtest stand-in only (D29): see the module docstring."""
     have = era5_payloads(session)
-    cache: dict[str, dict[str, Any]] = {}
+    covering = {
+        t.match_id: [k for a, b, k in have.get(_point(t), []) if t.days() <= _span(a, b)]
+        for t in wanted
+    }  # fmt: skip
+    keys = sorted({k for ks in covering.values() for k in ks})
+    # Tens of thousands of small payloads take far longer than the database's idle-in-
+    # transaction timeout (5 min on Neon): end the read transaction before fetching, and
+    # fetch in parallel. Nothing is pending here (expire_on_commit is off, so loaded rows
+    # stay usable); a session holding unflushed changes keeps its transaction.
+    if session.in_transaction() and not (session.new or session.dirty or session.deleted):
+        session.commit()
+    with ThreadPoolExecutor(max_workers=FETCH_WORKERS) as pool:
+        cache = dict(zip(keys, pool.map(lambda k: json.loads(gzip.decompress(store.get(k))), keys),
+                         strict=True))  # fmt: skip
     out: dict[int, MatchWeather] = {}
     for t in wanted:
-        point = climatology.cell(t.latitude, t.longitude)
-        for start, end, key in have.get(point, []):
-            if t.days() <= _span(start, end):
-                if key not in cache:
-                    cache[key] = json.loads(gzip.decompress(store.get(key)))
-                mw = match_weather(cache[key], t.kickoff)
-                if mw is not None and mw.temperature_c is not None:
-                    out[t.match_id] = mw
-                    break
+        for key in covering[t.match_id]:
+            mw = match_weather(cache[key], t.kickoff)
+            if mw is not None and mw.temperature_c is not None:
+                out[t.match_id] = mw
+                break
     return out
 
 

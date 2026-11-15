@@ -32,6 +32,7 @@ class LocalStore:
 class R2Store:
     def __init__(self, settings: Settings) -> None:
         import boto3
+        from botocore.config import Config
 
         self._bucket = settings.r2_bucket
         self._client = boto3.client(
@@ -40,6 +41,7 @@ class R2Store:
             aws_access_key_id=settings.r2_access_key_id,
             aws_secret_access_key=settings.r2_secret_access_key,
             region_name="auto",
+            config=Config(max_pool_connections=32),  # parallel reads (weather_history)
         )
 
     def put(self, key: str, data: bytes) -> None:

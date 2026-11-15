@@ -267,7 +267,7 @@ Model (after the Phase 1b audit closes):
       Note: editing `team_strength.py` changes the config hash, so cached backtest draws
       are not reused; with the default path identical, the stored 1b dev predictions stay
       the M3 reference.
-- [ ] M3 Group backtests G1–G7, one at a time (two backtests at once starve capture).
+- [x] M3 Group backtests G1–G7, one at a time (two backtests at once starve capture).
       Tooling (2026-11-12): `backtest.yml` inputs `groups` (one group per run) and
       `context` (snapshot digest, default latest); `assemble --vs <1b reference>` writes
       `phase2_<model>.json` and a report section via `adatta/eval/phase2.py`, which applies
@@ -377,6 +377,34 @@ Model (after the Phase 1b audit closes):
       it still fails on mixing and the primary metric); **G7 style −0.14% [−0.20%, −0.08%],
       pass**, all warm 1X2 log loss −0.01%, RPS −0.01%, OU2.5 −0.13%, ECE within limits.
       Reference for G3 and M4: run 43419004255.
+      **G3 weather: fail (2026-11-15, run 43663032427, commit 1275d6c, snapshot
+      962f29fe719a9d58, reference run 43419004255; grid identical).** Snapshot rebuilt at
+      − 1 h after the weather download finished (0 jobs left): every dev match 2019–2023
+      has weather (n 19,394: ERA5 stand-in 17,743, as-issued forecast 1,633, climatology
+      18). 18,591 warm dev matches, 9,628 active (any weather term non-zero). Primary
+      total-goals CRPS. (1) mixing **fail: R-hat > 1.01 in 5 refits** (limit 3); ESS < 400
+      in 0, divergences in 1. (2) active total CRPS **+0.23% [+0.07%, +0.38%]: fail, and
+      worse with the interval excluding 0**. (3) all warm **1X2 log loss +0.02%, RPS
+      +0.02% (fail, limit 0), OU2.5 log loss +0.11% and total CRPS +0.12% (fail, limit
+      +0.10%)**; bundles −0.03% (France) to +0.09% (Germany). (4) ECE pass (home +0.0039,
+      draw −0.0014, away −0.0005, over 2.5 +0.0007). (5) heat −0.045 to +0.025, expected
+      sign in 3 of 5 bundles; wind −0.083 to +0.035, 4 of 5; rain −0.024 to +0.058, 1 of 5
+      (positive in four bundles, against the expected negative sign); cold −0.209 to
+      −0.050 in every bundle (no sign stated), within about 1.8 sd of 0; sd / prior
+      0.14–0.74. Every coefficient is within about two sd of 0. Reading: weather adds no
+      detectable signal to goal totals once team strength is known, and the four free
+      terms per bundle cost sharpness out of sample. The stand-in uses realised ERA5
+      weather (D29), which flatters the group rather than penalising it, so a fail here is
+      not an artefact of forecast error. Recorded as failed; the group stays off by
+      default. The D36 combined gate printed for this run (G3 alone) fails on both routes,
+      for information only.
+      **M3 complete: G7 style is the only group that passes**; G1, G2, G3, G4, G5 and G6
+      fail. M4 therefore starts from G7 alone (owner to confirm before any M4 run).
+      Pipeline note: rebuilding the snapshot with the full weather first failed on the
+      database's 5-minute idle-in-transaction timeout (16,728 ERA5 payloads read one by
+      one inside the read transaction). `weather_history.load_realised` now ends the read
+      transaction first and fetches in parallel (32 workers; the R2 client pool raised to
+      match); the rebuild took 6 minutes.
 - [ ] M4 Combined model: gate, weekly dev run, feasibility.
       - Prerequisites done 2026-11-14 (before G3 and any M4 run). Acceptance stated first:
         (a) `config/phase2_gate.yml` holds the gate with routes A and B exactly as D36 (not `evaluation.yml`: it is in every fit's cache hash, so editing it would discard the cached refits D33 step 2 reuses); `load_config` merges it;
@@ -391,4 +419,38 @@ Model (after the Phase 1b audit closes):
         `parts` input (`["0/2","1/2"]` halves each bundle-season), `fetch_part` finds a
         split run's pieces, `check_parts` in assemble, `tests/test_backtest.py` (+2).
         `holdout.yml` is not split yet: the Phase 2 holdout run (M5) needs the same input.
+      - 2026-11-15: the owner confirmed M4 with G7 style alone (the only group that passed
+        M3). Preview, no new fits: G7's 28-day run (43372042130) assembled locally against
+        the clean 28-day reference (43419004255) with the D36 gate: **pass via route B**
+        (total CRPS −0.14% [−0.20%, −0.08%], OU2.5 log loss −0.13% [−0.19%, −0.06%], 1X2 log
+        loss and RPS −0.01% each, ECE within +0.005, 50 league segments, worst +0.09%);
+        route A fails (1X2 −0.01% [−0.03%, +0.01%]). Indicative only: the gate is judged on
+        the weekly run.
+      - Item 2, weekly dev run: dispatched 2026-11-15, run 43691182011 (commit 1275d6c),
+        `groups` G7, snapshot 962f29fe719a9d58, weekly grid, `every_days` 7, 2,000 draws,
+        jobs split in halves, `vs` 43421580602 (`phase1b_strength_open_xg`, the weekly 1b
+        reference of D33 step 1).
+      - Item 3, leakage. Acceptance stated first: through the backtest harness end to end,
+        (a) every training row's context read by a refit has `ctx_as_of` <= the refit's
+        as-of and kickoff + lag <= as-of, and every target's context row has `ctx_as_of` <=
+        kickoff − 1 h; (b) changing every context value observed after a time T leaves
+        every prediction made by T unchanged, while later predictions move (so the check
+        can fail); the fake fitter's coefficients depend on the training design, so a leak
+        into a fit shows. **Pass:** `tests/test_phase2_leakage.py` (2 tests, G7 and G3
+        terms); a deliberate leak (training 60 days past each refit) makes (b) fail.
+      - Item 1, gate tooling. Acceptance stated first: (a) `adatta.model.gate --group G7`
+        (`--context` digest, default latest) fits the production 1b spec plus the group's
+        terms on the same audit dates and seed, training rows and targets with their own
+        context rows at kickoff − 1 h, and the group's coefficients enter the headline, so
+        the x0.5 / x2 prior-sensitivity checks cover them; the report names the groups and
+        the snapshot. (b) Without `--group` the gate is unchanged: same fit, headline, trace
+        tag and report fields. (c) `gate.yml` takes `groups` and `context` inputs (default
+        empty / latest).
+        **Built, tests pass** (`tests/test_gate_groups.py`, 3 tests: the 1b trace tag
+        unchanged, every group coefficient in the headline after the 1b names, targets
+        scored with their own context row). `gate.yml` now carries the R2 settings (the
+        snapshot is read from the store). The fit itself needs PyMC, which runs only in CI
+        since the local Docker engine stopped (2026-11-12), so the first real check is the
+        audit-sample run: `gate.yml` with `groups` G7 and `context` 962f29fe719a9d58, after
+        the weekly run (one at a time) and once this change is pushed.
 - [ ] M5 Promotion per D30.

@@ -4,8 +4,12 @@
         --bundle england --as-of 2023-08-07
 
 Fits the production model plus x0.5 / x2 prior-scale refits (sensitivity) and two short
-same-seed fits (reproducibility). Traces go to data/traces/ (git-ignored); the report goes
-to reports/phase1b/gate/. Output is metrics only (logs may be public on CI).
+same-seed fits (reproducibility). `--group` (Phase 2, M4 item 1; repeatable) adds context
+groups: training rows and targets carry their own context row at kickoff - 1 h from the
+stored snapshot (`--context`, default the latest), and each group's coefficients join the
+headline, so the prior-sensitivity checks cover them. Traces go to data/traces/
+(git-ignored); the report goes to reports/phase1b/gate/. Output is metrics only (logs may
+be public on CI).
 """
 
 from __future__ import annotations
@@ -30,13 +34,15 @@ from adatta.eval.harness import (
     load_xg,
     refit_plan,
 )
+from adatta.model import covariates as cv
 from adatta.model import diagnostics as dg
 from adatta.model import team_strength as ts
 
 SEED = 20261105
 HEADLINE = ("delta", "mu_league", "h_league", "sigma_attack", "sigma_defence", "sigma_strength",
             "sigma_open", "sigma_walk", "sigma_home",
-            "rho", "kappa", "phi", "sigma_form", "xg_shape", "xg_bias", "change_weeks")  # fmt: skip
+            "rho", "kappa", "phi", "sigma_form", "xg_shape", "xg_bias", "change_weeks",
+            *(cv.beta_name(g) for g in cv.GROUPS.values()))  # fmt: skip
 
 
 def _flat(idata: Any, name: str) -> dict[str, tuple[float, float]]:
@@ -55,12 +61,14 @@ def headline(idata: Any) -> dict[str, tuple[float, float]]:
     return out
 
 
-def predict(idata: Any, fd: ts.FitData, targets: pl.DataFrame, max_goals: int) -> tuple[float, Any]:
+def predict(idata: Any, fd: ts.FitData, targets: pl.DataFrame, max_goals: int,
+            groups: tuple[str, ...] = ()) -> tuple[float, Any]:  # fmt: skip
     """Mean 1X2 log loss over target matches and each prediction's truncated tail mass, scored
-    exactly as the backtest scores (posterior-mean score matrix; D16 pending shifts)."""
+    exactly as the backtest scores (posterior-mean score matrix; D16 pending shifts; each
+    target's own context row with `groups`)."""
     from adatta.model import backtest as bt
 
-    rows = bt.score_targets(ts.slim(idata), fd, targets, max_goals)
+    rows = bt.score_targets(ts.slim(idata), fd, targets, max_goals, groups)
     return (float(np.mean([r["1X2:log_loss"] for r in rows])),
             np.array([r["tail_mass"] for r in rows]))  # fmt: skip
 
@@ -103,6 +111,18 @@ def audit_date(df: pl.DataFrame, cfg: EvalConfig, season: int) -> datetime:
     return dates[0]
 
 
+def trace_tag(structure: str, shifts: bool, form: bool, xg: bool, manager: bool,
+              groups: tuple[str, ...], tune: int, draws: int) -> str:  # fmt: skip
+    """Trace file tag; without groups exactly the 1b tag."""
+    tag = "" if structure == "independent" else f"_{structure}"
+    tag += "_d16" if shifts else ""
+    tag += "_ar1" if form else ""
+    tag += "_xg" if xg else ""
+    tag += "_mgr" if manager else ""
+    tag += f"_ctx-{'-'.join(groups)}" if groups else ""
+    return tag + ("" if tune == draws else f"_t{tune}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bundle", default="england")
@@ -121,8 +141,13 @@ def main() -> None:
     ap.add_argument("--form", action="store_true", help="AR(1) short-term form (§5.2)")
     ap.add_argument("--xg", action="store_true", help="xG auxiliary likelihood (§5.2)")
     ap.add_argument("--manager", action="store_true", help="manager-change widening (§5.2)")
+    ap.add_argument("--group", action="append", default=[],
+                    help="Phase 2 context group (G1-G7 or its name); repeatable")  # fmt: skip
+    ap.add_argument("--context", default="latest",
+                    help="context snapshot digest (with --group), default the latest")  # fmt: skip
     ap.add_argument("--reuse", action="store_true", help="load saved fits if present (debug)")
     args = ap.parse_args()
+    groups = cv.resolve(args.group)
 
     started = time.time()
     code_sha = _git_sha()
@@ -135,11 +160,21 @@ def main() -> None:
         if args.manager:
             df = df.join(load_coaches(s, leagues), on="match_id", how="left")
         s.rollback()
+    snapshot = None
+    if groups:  # every row's context at kickoff - 1 h, from the stored snapshot
+        from adatta.features import context_table
+        from adatta.model.backtest import _store
+
+        ctx, snapshot = context_table.load(_store("data/cache"), cv.HEADLINE_HORIZON,
+                                           args.context)  # fmt: skip
+        df = context_table.attach(df, ctx)
+        print(f"context groups {', '.join(groups)}; snapshot {snapshot}")
     if args.season is None:
         as_of = datetime.fromisoformat(args.as_of).replace(tzinfo=UTC)
     else:
         as_of = audit_date(df, cfg, args.season)
-    fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, cfg.result_available_after_hours)
+    fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, cfg.result_available_after_hours,
+                    groups)  # fmt: skip
     from adatta.eval.harness import mover_codes
 
     mh, ma = mover_codes(df, leagues)  # leak-free: season s and s - 1 only
@@ -155,13 +190,9 @@ def main() -> None:
     heads: dict[float, dict[str, tuple[float, float]]] = {}
     traces = Path("data/traces")
     traces.mkdir(parents=True, exist_ok=True)
-    tag = "" if args.structure == "independent" else f"_{args.structure}"
-    tag += "_d16" if args.shifts else ""
-    tag += "_ar1" if args.form else ""
-    tag += "_xg" if args.xg else ""
-    tag += "_mgr" if args.manager else ""
     tune = args.draws if args.tune is None else args.tune
-    tag += "" if tune == args.draws else f"_t{tune}"
+    tag = trace_tag(args.structure, args.shifts, args.form, args.xg, args.manager, groups, tune,
+                    args.draws)  # fmt: skip
     trace_path = traces / f"{args.bundle}_{as_of:%Y%m%d}{tag}_k1_{args.chains}x{args.draws}.nc"
     # One fit at a time: sample (or reload), save, extract what the checks need, release.
     for k in (1.0, 0.5, 2.0):
@@ -189,7 +220,7 @@ def main() -> None:
         timings[f"fit_scale_{k:g}"] = round(time.time() - t0)
         print(f"fit prior_scale={k:g}: {timings[f'fit_scale_{k:g}']} s", flush=True)
         heads[k] = headline(idata)
-        ll[k], tails = predict(idata, fd, targets, cfg.max_goals)
+        ll[k], tails = predict(idata, fd, targets, cfg.max_goals, groups)
         if k == 1.0:
             checks += dg.convergence(idata)
             checks.append(dg.truncation(tails))
@@ -241,10 +272,11 @@ def main() -> None:
         "n_targets": targets.height, "logloss_1x2_by_prior_scale": ll,
         "headline": {n: {"mean": v[0], "sd": v[1]} for n, v in hb.items()},
         "checks": [c.as_dict() for c in checks],
+        **({"groups": list(groups), "context_snapshot": snapshot} if groups else {}),
     }  # fmt: skip
     (out / "report.json").write_text(json.dumps(report, indent=2, default=str))
     lines = [f"# Phase 1b inference gate — {args.bundle} as of {as_of:%Y-%m-%d} "
-             f"({args.structure})", "",
+             f"({args.structure}{', context ' + ', '.join(groups) if groups else ''})", "",
              f"**{'PASS' if passed else 'FAIL'}** ({sum(c.passed for c in gating)}/"
              f"{len(gating)} gating checks; warnings don't block). Code {code_sha}, seed {SEED}, "
              f"{args.chains} x {args.draws} draws, {tune} tuning.", "",

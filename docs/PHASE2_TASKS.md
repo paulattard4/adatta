@@ -430,6 +430,15 @@ Model (after the Phase 1b audit closes):
         `groups` G7, snapshot 962f29fe719a9d58, weekly grid, `every_days` 7, 2,000 draws,
         jobs split in halves, `vs` 43421580602 (`phase1b_strength_open_xg`, the weekly 1b
         reference of D33 step 1).
+        **Result (2026-11-15): pass.** All 50 refit jobs and assemble succeeded on the first
+        attempt. D36 gate on 18,682 warm matches: **pass via route B** (total CRPS −0.13%
+        [−0.18%, −0.07%], OU2.5 log loss −0.11% [−0.18%, −0.05%], 1X2 log loss and RPS
+        −0.00%, ECE home −0.0003, draw +0.0008, away +0.0008, over 2.5 −0.0016; 50 league
+        segments, worst league 136 OU2.5 log loss +0.09%); route A fails (1X2 log loss
+        −0.00% [−0.02%, +0.01%]). Group report for G7 passes (R-hat over in 5 refits, limit
+        9; divergences in 2 refits, limit 2, at the limit; active total CRPS −0.12% [−0.18%, −0.06%]).
+        Tempo coefficient positive in every bundle (+0.16 Italy to +0.44 Spain, sd/prior
+        0.59-0.68). These match the 28-day preview.
       - Item 3, leakage. Acceptance stated first: through the backtest harness end to end,
         (a) every training row's context read by a refit has `ctx_as_of` <= the refit's
         as-of and kickoff + lag <= as-of, and every target's context row has `ctx_as_of` <=
@@ -452,7 +461,27 @@ Model (after the Phase 1b audit closes):
         snapshot is read from the store). The fit itself needs PyMC, which runs only in CI
         since the local Docker engine stopped (2026-11-12), so the first real check is the
         audit-sample run: `gate.yml` with `groups` G7 and `context` 962f29fe719a9d58, after
-        the weekly run (one at a time) and once this change is pushed.
+        the weekly run (one at a time) and once this change is pushed. Dispatched
+        2026-11-15 after the weekly run passed: run 43730396857 (commit 6e7d753).
+        **Result: fail.** All 25 jobs ran (4 chains x 2,000 draws, seed 20261105); 8 of 25
+        fits pass every gating check, 17 fail, all on parameter prior sensitivity of
+        `beta_style` (posterior mean moves > 1 posterior sd when every prior scale is x0.5
+        or x2): x0.5 shifts 1.01-2.45 sd, x2 1.10-1.93 sd. By bundle: Spain 5 of 5 fail
+        (worst 2.45 sd; the 2023 fit also has 2 divergences), France 5 of 5, Germany
+        4 of 5, England 2 of 5, Italy 1 of 5. Every other check passes in every fit
+        (R-hat, ESS, PPC per league, identifiability, truncation, reproducibility; a few
+        total-dispersion warnings in 135 and 136, non-blocking as in 1b), and predictive
+        sensitivity passes everywhere (4-week 1X2 log loss moves < 0.2%). Reading: with
+        the coded covariate's small spread (`tempo` = home + away `tempo_rel`, sd about
+        0.09) the Normal(0, 0.2) prior is informative on `beta_style` (posterior sd / prior
+        sd 0.59-0.68 in the weekly run), so the coefficient's value depends on the prior
+        even though the forecasts barely do. The rule (no headline posterior mean moves > 1
+        sd) is unchanged and gates; **M4 fails on item 1, so the Phase 2 holdout is not
+        opened.** Next is the owner's decision: stop Phase 2 without a promotion, or a dev
+        respecification of G7 (for example, the covariate on a stated unit scale like the
+        other groups, keeping Normal(0, 0.2)) rerun through M3, M4 and the gate on the dev
+        window only, with the holdout as the guard against having chosen it after this
+        result.
       - Item 4, feasibility tooling. Acceptance stated first: (a) `assemble --vs` reports,
         for every context model, the median refit time per bundle (each distinct refit
         once, `refit_fit_s`, cached refits at their original fit time) against the
@@ -468,6 +497,12 @@ Model (after the Phase 1b audit closes):
         noise of the order of the limit itself, so a fail on item 4 needs a look at whether
         it is the model or the runners before it is read as infeasible (raised for the owner;
         the criterion is not changed). Judged on the weekly run against 43421580602.
+        **Result (2026-11-15): pass**, from 43691182011 re-assembled locally against
+        43421580602 (the run was dispatched before this report existed; same gate verdicts
+        as its CI assemble). Median refit time ratio: England 1.10 (474 s vs 432 s), France
+        0.95, Germany 1.04, Italy 1.24 (513 s vs 413 s; worst, close to the 1.25 limit and
+        within the runner noise noted above), Spain 0.93. Longest job 224 min (England
+        2023, half 0), mean 144 min, none over 360 and none rerun.
 - [ ] M5 Promotion per D30.
       - Holdout jobs split (prerequisite, 2026-11-15). Acceptance stated first: (a)
         `holdout.yml` takes a `parts` input (default `["0/1"]`, today's behaviour) and runs

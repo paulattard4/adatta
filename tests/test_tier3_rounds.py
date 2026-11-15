@@ -109,3 +109,13 @@ def test_report_counts_groups_flags_the_duplicate_and_skips_knockout_ids() -> No
     knockout = league.model_copy(update={"knockout": True})
     (ko,) = backfill.completeness(s, [knockout])
     assert ko["regular_expected"] is None and "round labels" not in ko["flags"]
+
+
+def test_capture_reads_tier3_without_duplicate_ids() -> None:
+    from adatta.cli import CAPTURE_FILES
+    from adatta.config import load_competitions
+
+    comps = [c for path in CAPTURE_FILES for c in load_competitions(path)]
+    ids = [c.league_id for c in comps]
+    assert len(ids) == len(set(ids))
+    assert {41, 80, 63, 138, 942, 943, 435, 436} <= set(ids)

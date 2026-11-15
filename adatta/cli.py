@@ -228,6 +228,15 @@ def _serve_dispatcher() -> Any:
     return run
 
 
+# Competition files the capture tick reads. Only competitions.yml's bundle leagues get
+# forecasts; the others are captured for data (national teams: Stage D; tier 3: Stage A).
+CAPTURE_FILES = (
+    "config/competitions.yml",
+    "config/national_competitions.yml",
+    "config/tier3_competitions.yml",
+)
+
+
 @app.command()
 def capture() -> None:
     """Snapshot capture tick: run whatever is due (designed for a ~15-minute schedule).
@@ -240,7 +249,7 @@ def capture() -> None:
     client = _client()
     with get_session() as session:
         weather = OpenMeteoClient(make_store(settings))
-        comps = load_competitions() + load_competitions("config/national_competitions.yml")
+        comps = [c for path in CAPTURE_FILES for c in load_competitions(path)]
         report = run_capture(
             session, client, comps, weather=weather,
             projector=_projector(session, settings), refits_due=_refits_due(session),

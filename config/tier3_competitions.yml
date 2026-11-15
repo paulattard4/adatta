@@ -1,6 +1,7 @@
 # Third tiers (D35 Stage 0; docs/BEYOND_LEAGUES_PLAN.md): history for Stage A cup ties, most
-# of whose early rounds involve a tier-3+ side. Backfill and audit only: this file is not read
-# by the capture tick (live capture of the current season is a separate owner decision).
+# of whose early rounds involve a tier-3+ side. Live capture from 2026-11-15 (owner decision):
+# the capture tick loads this file (adatta/cli.py CAPTURE_FILES) and takes each id's current
+# season from /leagues, so `seasons` below only drives the backfill. Not modelled: no forecasts.
 #   uv run adatta audit --config config/tier3_competitions.yml
 #   uv run adatta backfill-run --config config/tier3_competitions.yml
 # league_id values verified against /leagues on 2026-11-15. Provider names: France's tier 3

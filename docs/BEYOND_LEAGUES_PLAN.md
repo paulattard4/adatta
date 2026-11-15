@@ -214,6 +214,16 @@ Progress:
       team and Girone B and C read as one group (Reggina has its own id, 1692, from 2018).
       Before a tier-3 fit, Serie C 2016-2017 needs that split (by opponent group) or stays
       out. No team in the tier 1-2 leagues plays more matches than its group allows.
+- [ ] Tier-3 live capture (owner: yes, 2026-11-15). Quota before: live capture used about
+      220-900 API-Football requests a day over 5-14 Nov (the 3,000+ days were backfills),
+      against 7,500. Tier 3 adds about 80 league matches a week to roughly 90, so odds and
+      lineups about double: an expected 500-1,800 a day, under 25%, far from the 70%
+      upgrade trigger. Acceptance stated first: (a) the capture tick loads
+      `config/tier3_competitions.yml` next to `competitions.yml` and
+      `national_competitions.yml` (one list of capture files, in code); (b) tier 3 gets
+      calendar, availability, odds, lineups, detail and weather like any captured league,
+      and no forecasts (projection covers the bundle leagues only); (c) after a week the
+      daily request count is checked against the estimate, and stays under 70%.
 
 ## Stage A: domestic cup ties, 90-minute forecasts
 

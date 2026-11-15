@@ -166,7 +166,30 @@ Progress:
       all 250 rule-covered finals and semis decided. The 25 review cases were settled by hand
       the same day (23 overrides in `config/neutral_venues.yml`, a rule for the Championship
       play-off final). `--write` set `match.neutral` on 362 matches.
-- [ ] Third tiers.
+- [x] Third tiers. Acceptance stated first (2026-11-15): (a) league ids verified against
+      `/leagues` (done: League One 41, 3. Liga 80, Ligue 3 63 (the Championnat National),
+      Serie C 138 / 942 / 943 by group plus play-offs 975 / 976, Primera División RFEF 435-438
+      and 692 by group plus play-offs 1006; Spain's tier 3 is absent before 2019, so 2016-2018
+      stay a gap, never filled); (b) `adatta audit --config config/tier3_competitions.yml`
+      fills the capability table, with feasibility rows in `docs/SOURCE_FEASIBILITY.md`;
+      (c) `adatta backfill-run --config config/tier3_competitions.yml` loads every listed
+      season with detail for finished matches, none failed, and the completeness report
+      shows it; (d) the file is not read by the capture tick: live capture of tier 3 is a
+      separate decision for the owner (it would add odds, lineup and weather requests for
+      about 2,300 matches a season).
+      Result (2026-11-15): 87 seasons queued and done, none failed, 1,585 requests; all
+      29,502 finished matches have detail (`backfill-report`). What the report flags, none
+      of it a load gap: (1) "no regular-season round labels" on 55 seasons is the report's
+      rule, not the data: Serie C from 2018 labels rounds "Girone A - n", Primera RFEF
+      "Group 1 - n" (2020 adds a "2nd Phase"), and play-offs have no regular season;
+      (2) Serie C 138 in 2016 and 2017 holds all three groups in one league (1,140 and
+      1,026 matches, "Regular Season - n"), so the group must come from the teams, not the
+      id; 19 seasons have cancelled or postponed matches (2019-20 Covid stops, 36 cancelled
+      in Serie C 2017; status comes as both "CANC" and "Canc"); (3) Ligue 3 2024 lists one fixture
+      twice (matches 80630 and 80631, same sides and kickoff), the only duplicate in tier
+      3, to drop before any tier-3 fit; (4) 4 finished matches without a normal-time score
+      (League One 2017, Serie C 2018-2020, one each). Before a tier-3 model: a group key
+      for Serie C and Primera RFEF, and the round rule widened.
 
 ## Stage A: domestic cup ties, 90-minute forecasts
 

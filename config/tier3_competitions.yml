@@ -1,0 +1,25 @@
+# Third tiers (D35 Stage 0; docs/BEYOND_LEAGUES_PLAN.md): history for Stage A cup ties, most
+# of whose early rounds involve a tier-3+ side. Backfill and audit only: this file is not read
+# by the capture tick (live capture of the current season is a separate owner decision).
+#   uv run adatta audit --config config/tier3_competitions.yml
+#   uv run adatta backfill-run --config config/tier3_competitions.yml
+# league_id values verified against /leagues on 2026-11-15. Provider names: France's tier 3
+# is "Ligue 3" (the Championnat National); Spain's is in the source from 2019 only, as
+# "Primera División RFEF - Group N" (Segunda B before 2021/22: 4 groups in 2019, 5 in 2020
+# with group 5 under its own id; 2 groups from 2021). Serie C is one id per group (Girone B
+# and C from 2018; earlier seasons sit under Girone A's id). Play-offs are separate ids.
+competitions:
+  - {name: League One,                         country: England, league_id: 41,   level: senior, tier: 3, priority: 6, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: 3. Liga,                            country: Germany, league_id: 80,   level: senior, tier: 3, priority: 6, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Ligue 3,                            country: France,  league_id: 63,   level: senior, tier: 3, priority: 6, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Serie C - Girone A,                 country: Italy,   league_id: 138,  level: senior, tier: 3, priority: 6, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Serie C - Girone B,                 country: Italy,   league_id: 942,  level: senior, tier: 3, priority: 6, seasons: [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Serie C - Girone C,                 country: Italy,   league_id: 943,  level: senior, tier: 3, priority: 6, seasons: [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Serie C - Promotion - Play-offs,    country: Italy,   league_id: 976,  level: senior, tier: 3, priority: 7, seasons: [2022, 2023, 2024, 2025]}
+  - {name: Serie C - Relegation - Play-offs,   country: Italy,   league_id: 975,  level: senior, tier: 3, priority: 7, seasons: [2022, 2023, 2024, 2025]}
+  - {name: Primera División RFEF - Group 1,    country: Spain,   league_id: 435,  level: senior, tier: 3, priority: 6, seasons: [2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Primera División RFEF - Group 2,    country: Spain,   league_id: 436,  level: senior, tier: 3, priority: 6, seasons: [2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Primera División RFEF - Group 3,    country: Spain,   league_id: 437,  level: senior, tier: 3, priority: 6, seasons: [2019, 2020]}
+  - {name: Primera División RFEF - Group 4,    country: Spain,   league_id: 438,  level: senior, tier: 3, priority: 6, seasons: [2019, 2020]}
+  - {name: Primera División RFEF - Group 5,    country: Spain,   league_id: 692,  level: senior, tier: 3, priority: 6, seasons: [2020]}
+  - {name: Primera División RFEF - Play Offs,  country: Spain,   league_id: 1006, level: senior, tier: 3, priority: 7, seasons: [2022, 2023, 2024, 2025]}

@@ -152,6 +152,24 @@ Gate (Stage 0 national): results and lineups verified, capability table filled. 
 the host flag, live capture before the March 2027 window, and the history load (about
 1,000-1,500 requests).
 
+## 8. Third tiers (D35 Stage 0, for Stage A cup ties)
+
+Evidence: `/leagues` by country (7 requests, 2026-11-15) and the capability audit of
+`config/tier3_competitions.yml`, 14 competitions x 87 seasons, 40 sampled finished fixtures per
+season (seed 20261105), 267 requests: `reports/capability_audit/20261115T104928Z.csv` (+
+`.manifest.json`). Rows are in `competition_source_capability`. 29,502 finished matches.
+
+| Field | Status | Source, endpoint | Historical availability | Coverage (from payloads) | Update cadence | As-of reconstructable | Licensing | Fallback | Required phase |
+|---|---|---|---|---|---|---|---|---|---|
+| Fixtures and results | verified | `/fixtures?league&season` | League One, 3. Liga, Ligue 3 (France's National), Serie C 2016 on (2016-17 all three groups under Girone A's id 138; B and C have their own ids from 2018); Spain from 2019 only (Primera División RFEF groups; Segunda B 2016-2018 is not in the source) | Every finished fixture | not measured | Yes | [verify] | Spain 2016-2018: gap, never filled; a Spanish tier-3 side's cup tie before 2019 is not forecast | Stage A |
+| Lineups | verified (partial early Ligue 3) | `/fixtures?ids` | as above | About 100% in every league and season except Ligue 3 2016-2018 (22-48%) and the Spanish play-offs (59%) | not measured | Final XI: yes | [verify] | team-only | later |
+| Team statistics (shots etc.) | partial | statistics | as above | League One 76% (mean over seasons), 3. Liga 61% (0 in 2016, 98% from 2020); Serie C, Ligue 3, Primera RFEF 0% | not measured | Yes | [verify] | results-only | later |
+| xG | absent (almost) | statistics `expected_goals` | – | League One 6%, 3. Liga 17% (recent seasons); elsewhere 0% | – | – | – | results-only | – |
+| Referee | verified | `fixture.referee` | as above | 59-100% by league (Ligue 3 2025-26 17%) | – | Name yes | [verify] | – | – |
+
+Gate (Stage 0 third tiers): results verified, capability table filled. Not captured live: the
+capture tick reads `competitions.yml` and `national_competitions.yml` only.
+
 ## Open items
 
 1. **Cups by stage.** Capability is recorded per season, but cup coverage depends on the round

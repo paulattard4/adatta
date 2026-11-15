@@ -1,0 +1,1393 @@
+league_id,competition,season,n_finished,capability,declared,n_sampled,n_with,coverage_ratio,status,mismatch
+41,League One,2016,557,has_lineups,true,40,40,1.0,available,false
+41,League One,2016,557,has_player_match_stats,true,40,0,0.0,absent,true
+41,League One,2016,557,has_shot_stats,true,40,10,0.25,partial,false
+41,League One,2016,557,has_xg,,40,0,0.0,absent,false
+41,League One,2016,557,has_corners_data,true,40,10,0.25,partial,false
+41,League One,2016,557,has_cards_data,true,40,40,1.0,available,false
+41,League One,2016,557,has_half_split_stats,,40,40,1.0,available,false
+41,League One,2016,557,has_substitution_timestamps,true,40,40,1.0,available,false
+41,League One,2016,557,has_referee_history,,40,40,1.0,available,false
+41,League One,2016,557,has_event_coordinates,,40,0,0.0,absent,false
+41,League One,2016,557,has_physical_load_data,,40,0,0.0,absent,false
+41,League One,2016,557,has_attendance_data,,40,0,0.0,absent,false
+41,League One,2016,557,supports_lineup_strength_adjustment,,0,0,,unknown,false
+41,League One,2016,557,supports_player_goal_props,,0,0,,unknown,false
+41,League One,2016,557,supports_player_shot_props,,0,0,,unknown,false
+41,League One,2016,557,supports_player_discipline_props,,0,0,,unknown,false
+41,League One,2017,557,has_lineups,true,40,40,1.0,available,false
+41,League One,2017,557,has_player_match_stats,false,40,0,0.0,absent,false
+41,League One,2017,557,has_shot_stats,true,40,13,0.325,partial,false
+41,League One,2017,557,has_xg,,40,0,0.0,absent,false
+41,League One,2017,557,has_corners_data,true,40,13,0.325,partial,false
+41,League One,2017,557,has_cards_data,true,40,38,0.95,available,false
+41,League One,2017,557,has_half_split_stats,,40,40,1.0,available,false
+41,League One,2017,557,has_substitution_timestamps,true,40,40,1.0,available,false
+41,League One,2017,557,has_referee_history,,40,39,0.975,available,false
+41,League One,2017,557,has_event_coordinates,,40,0,0.0,absent,false
+41,League One,2017,557,has_physical_load_data,,40,0,0.0,absent,false
+41,League One,2017,557,has_attendance_data,,40,0,0.0,absent,false
+41,League One,2017,557,supports_lineup_strength_adjustment,,0,0,,unknown,false
+41,League One,2017,557,supports_player_goal_props,,0,0,,unknown,false
+41,League One,2017,557,supports_player_shot_props,,0,0,,unknown,false
+41,League One,2017,557,supports_player_discipline_props,,0,0,,unknown,false
+41,League One,2018,557,has_lineups,true,40,40,1.0,available,false
+41,League One,2018,557,has_player_match_stats,true,40,0,0.0,absent,true
+41,League One,2018,557,has_shot_stats,true,40,0,0.0,absent,true
+41,League One,2018,557,has_xg,,40,0,0.0,absent,false
+41,League One,2018,557,has_corners_data,true,40,0,0.0,absent,true
+41,League One,2018,557,has_cards_data,true,40,39,0.975,available,false
+41,League One,2018,557,has_half_split_stats,,40,40,1.0,available,false
+41,League One,2018,557,has_substitution_timestamps,true,40,40,1.0,available,false
+41,League One,2018,557,has_referee_history,,40,40,1.0,available,false
+41,League One,2018,557,has_event_coordinates,,40,0,0.0,absent,false
+41,League One,2018,557,has_physical_load_data,,40,0,0.0,absent,false
+41,League One,2018,557,has_attendance_data,,40,0,0.0,absent,false
+41,League One,2018,557,supports_lineup_strength_adjustment,,0,0,,unknown,false
+41,League One,2018,557,supports_player_goal_props,,0,0,,unknown,false
+41,League One,2018,557,supports_player_shot_props,,0,0,,unknown,false
+41,League One,2018,557,supports_player_discipline_props,,0,0,,unknown,false
+41,League One,2019,405,has_lineups,true,40,40,1.0,available,false
+41,League One,2019,405,has_player_match_stats,true,40,40,1.0,available,false
+41,League One,2019,405,has_shot_stats,true,40,40,1.0,available,false
+41,League One,2019,405,has_xg,,40,0,0.0,absent,false
+41,League One,2019,405,has_corners_data,true,40,40,1.0,available,false
+41,League One,2019,405,has_cards_data,true,40,40,1.0,available,false
+41,League One,2019,405,has_half_split_stats,,40,40,1.0,available,false
+41,League One,2019,405,has_substitution_timestamps,true,40,40,1.0,available,false
+41,League One,2019,405,has_referee_history,,40,40,1.0,available,false
+41,League One,2019,405,has_event_coordinates,,40,0,0.0,absent,false
+41,League One,2019,405,has_physical_load_data,,40,0,0.0,absent,false
+41,League One,2019,405,has_attendance_data,,40,0,0.0,absent,false
+41,League One,2019,405,supports_lineup_strength_adjustment,,0,0,,unknown,false
+41,League One,2019,405,supports_player_goal_props,,0,0,,unknown,false
+41,League One,2019,405,supports_player_shot_props,,0,0,,unknown,false
+41,League One,2019,405,supports_player_discipline_props,,0,0,,unknown,false
+41,League One,2020,557,has_lineups,true,40,40,1.0,available,false
+41,League One,2020,557,has_player_match_stats,true,40,40,1.0,available,false
+41,League One,2020,557,has_shot_stats,true,40,40,1.0,available,false
+41,League One,2020,557,has_xg,,40,0,0.0,absent,false
+41,League One,2020,557,has_corners_data,true,40,40,1.0,available,false
+41,League One,2020,557,has_cards_data,true,40,40,1.0,available,false
+41,League One,2020,557,has_half_split_stats,,40,40,1.0,available,false
+41,League One,2020,557,has_substitution_timestamps,true,40,40,1.0,available,false
+41,League One,2020,557,has_referee_history,,40,40,1.0,available,false
+41,League One,2020,557,has_event_coordinates,,40,0,0.0,absent,false
+41,League One,2020,557,has_physical_load_data,,40,0,0.0,absent,false
+41,League One,2020,557,has_attendance_data,,40,0,0.0,absent,false
+41,League One,2020,557,supports_lineup_strength_adjustment,,0,0,,unknown,false
+41,League One,2020,557,supports_player_goal_props,,0,0,,unknown,false
+41,League One,2020,557,supports_player_shot_props,,0,0,,unknown,false
+41,League One,2020,557,supports_player_discipline_props,,0,0,,unknown,false
+41,League One,2021,557,has_lineups,true,40,40,1.0,available,false
+41,League One,2021,557,has_player_match_stats,true,40,40,1.0,available,false
+41,League One,2021,557,has_shot_stats,true,40,40,1.0,available,false
+41,League One,2021,557,has_xg,,40,0,0.0,absent,false
+41,League One,2021,557,has_corners_data,true,40,40,1.0,available,false
+41,League One,2021,557,has_cards_data,true,40,40,1.0,available,false
+41,League One,2021,557,has_half_split_stats,,40,40,1.0,available,false
+41,League One,2021,557,has_substitution_timestamps,true,40,40,1.0,available,false
+41,League One,2021,557,has_referee_history,,40,40,1.0,available,false
+41,League One,2021,557,has_event_coordinates,,40,0,0.0,absent,false
+41,League One,2021,557,has_physical_load_data,,40,0,0.0,absent,false
+41,League One,2021,557,has_attendance_data,,40,0,0.0,absent,false
+41,League One,2021,557,supports_lineup_strength_adjustment,,0,0,,unknown,false
+41,League One,2021,557,supports_player_goal_props,,0,0,,unknown,false
+41,League One,2021,557,supports_player_shot_props,,0,0,,unknown,false
+41,League One,2021,557,supports_player_discipline_props,,0,0,,unknown,false
+41,League One,2022,557,has_lineups,true,40,40,1.0,available,false
+41,League One,2022,557,has_player_match_stats,true,40,40,1.0,available,false
+41,League One,2022,557,has_shot_stats,true,40,40,1.0,available,false
+41,League One,2022,557,has_xg,,40,0,0.0,absent,false
+41,League One,2022,557,has_corners_data,true,40,40,1.0,available,false
+41,League One,2022,557,has_cards_data,true,40,40,1.0,available,false
+41,League One,2022,557,has_half_split_stats,,40,40,1.0,available,false
+41,League One,2022,557,has_substitution_timestamps,true,40,40,1.0,available,false
+41,League One,2022,557,has_referee_history,,40,40,1.0,available,false
+41,League One,2022,557,has_event_coordinates,,40,0,0.0,absent,false
+41,League One,2022,557,has_physical_load_data,,40,0,0.0,absent,false
+41,League One,2022,557,has_attendance_data,,40,0,0.0,absent,false
+41,League One,2022,557,supports_lineup_strength_adjustment,,0,0,,unknown,false
+41,League One,2022,557,supports_player_goal_props,,0,0,,unknown,false
+41,League One,2022,557,supports_player_shot_props,,0,0,,unknown,false
+41,League One,2022,557,supports_player_discipline_props,,0,0,,unknown,false
+41,League One,2023,557,has_lineups,true,40,40,1.0,available,false
+41,League One,2023,557,has_player_match_stats,true,40,40,1.0,available,false
+41,League One,2023,557,has_shot_stats,true,40,40,1.0,available,false
+41,League One,2023,557,has_xg,,40,0,0.0,absent,false
+41,League One,2023,557,has_corners_data,true,40,40,1.0,available,false
+41,League One,2023,557,has_cards_data,true,40,40,1.0,available,false
+41,League One,2023,557,has_half_split_stats,,40,40,1.0,available,false
+41,League One,2023,557,has_substitution_timestamps,true,40,40,1.0,available,false
+41,League One,2023,557,has_referee_history,,40,40,1.0,available,false
+41,League One,2023,557,has_event_coordinates,,40,0,0.0,absent,false
+41,League One,2023,557,has_physical_load_data,,40,0,0.0,absent,false
+41,League One,2023,557,has_attendance_data,,40,0,0.0,absent,false
+41,League One,2023,557,supports_lineup_strength_adjustment,,0,0,,unknown,false
+41,League One,2023,557,supports_player_goal_props,,0,0,,unknown,false
+41,League One,2023,557,supports_player_shot_props,,0,0,,unknown,false
+41,League One,2023,557,supports_player_discipline_props,,0,0,,unknown,false
+41,League One,2024,557,has_lineups,true,40,40,1.0,available,false
+41,League One,2024,557,has_player_match_stats,true,40,40,1.0,available,false
+41,League One,2024,557,has_shot_stats,true,40,40,1.0,available,false
+41,League One,2024,557,has_xg,,40,0,0.0,absent,false
+41,League One,2024,557,has_corners_data,true,40,40,1.0,available,false
+41,League One,2024,557,has_cards_data,true,40,40,1.0,available,false
+41,League One,2024,557,has_half_split_stats,,40,40,1.0,available,false
+41,League One,2024,557,has_substitution_timestamps,true,40,40,1.0,available,false
+41,League One,2024,557,has_referee_history,,40,40,1.0,available,false
+41,League One,2024,557,has_event_coordinates,,40,0,0.0,absent,false
+41,League One,2024,557,has_physical_load_data,,40,0,0.0,absent,false
+41,League One,2024,557,has_attendance_data,,40,0,0.0,absent,false
+41,League One,2024,557,supports_lineup_strength_adjustment,,0,0,,unknown,false
+41,League One,2024,557,supports_player_goal_props,,0,0,,unknown,false
+41,League One,2024,557,supports_player_shot_props,,0,0,,unknown,false
+41,League One,2024,557,supports_player_discipline_props,,0,0,,unknown,false
+41,League One,2025,557,has_lineups,true,40,40,1.0,available,false
+41,League One,2025,557,has_player_match_stats,true,40,40,1.0,available,false
+41,League One,2025,557,has_shot_stats,true,40,40,1.0,available,false
+41,League One,2025,557,has_xg,,40,22,0.55,partial,false
+41,League One,2025,557,has_corners_data,true,40,40,1.0,available,false
+41,League One,2025,557,has_cards_data,true,40,40,1.0,available,false
+41,League One,2025,557,has_half_split_stats,,40,40,1.0,available,false
+41,League One,2025,557,has_substitution_timestamps,true,40,40,1.0,available,false
+41,League One,2025,557,has_referee_history,,40,39,0.975,available,false
+41,League One,2025,557,has_event_coordinates,,40,0,0.0,absent,false
+41,League One,2025,557,has_physical_load_data,,40,0,0.0,absent,false
+41,League One,2025,557,has_attendance_data,,40,0,0.0,absent,false
+41,League One,2025,557,supports_lineup_strength_adjustment,,0,0,,unknown,false
+41,League One,2025,557,supports_player_goal_props,,0,0,,unknown,false
+41,League One,2025,557,supports_player_shot_props,,0,0,,unknown,false
+41,League One,2025,557,supports_player_discipline_props,,0,0,,unknown,false
+63,Ligue 3,2016,306,has_lineups,true,40,19,0.475,partial,false
+63,Ligue 3,2016,306,has_player_match_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2016,306,has_shot_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2016,306,has_xg,,40,0,0.0,absent,false
+63,Ligue 3,2016,306,has_corners_data,false,40,0,0.0,absent,false
+63,Ligue 3,2016,306,has_cards_data,true,40,0,0.0,absent,true
+63,Ligue 3,2016,306,has_half_split_stats,,40,40,1.0,available,false
+63,Ligue 3,2016,306,has_substitution_timestamps,true,40,13,0.325,partial,false
+63,Ligue 3,2016,306,has_referee_history,,40,0,0.0,absent,false
+63,Ligue 3,2016,306,has_event_coordinates,,40,0,0.0,absent,false
+63,Ligue 3,2016,306,has_physical_load_data,,40,0,0.0,absent,false
+63,Ligue 3,2016,306,has_attendance_data,,40,0,0.0,absent,false
+63,Ligue 3,2016,306,supports_lineup_strength_adjustment,,0,0,,unknown,false
+63,Ligue 3,2016,306,supports_player_goal_props,,0,0,,unknown,false
+63,Ligue 3,2016,306,supports_player_shot_props,,0,0,,unknown,false
+63,Ligue 3,2016,306,supports_player_discipline_props,,0,0,,unknown,false
+63,Ligue 3,2017,272,has_lineups,true,40,9,0.225,partial,false
+63,Ligue 3,2017,272,has_player_match_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2017,272,has_shot_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2017,272,has_xg,,40,0,0.0,absent,false
+63,Ligue 3,2017,272,has_corners_data,false,40,0,0.0,absent,false
+63,Ligue 3,2017,272,has_cards_data,true,40,0,0.0,absent,true
+63,Ligue 3,2017,272,has_half_split_stats,,40,40,1.0,available,false
+63,Ligue 3,2017,272,has_substitution_timestamps,true,40,9,0.225,partial,false
+63,Ligue 3,2017,272,has_referee_history,,40,0,0.0,absent,false
+63,Ligue 3,2017,272,has_event_coordinates,,40,0,0.0,absent,false
+63,Ligue 3,2017,272,has_physical_load_data,,40,0,0.0,absent,false
+63,Ligue 3,2017,272,has_attendance_data,,40,0,0.0,absent,false
+63,Ligue 3,2017,272,supports_lineup_strength_adjustment,,0,0,,unknown,false
+63,Ligue 3,2017,272,supports_player_goal_props,,0,0,,unknown,false
+63,Ligue 3,2017,272,supports_player_shot_props,,0,0,,unknown,false
+63,Ligue 3,2017,272,supports_player_discipline_props,,0,0,,unknown,false
+63,Ligue 3,2018,306,has_lineups,true,40,12,0.3,partial,false
+63,Ligue 3,2018,306,has_player_match_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2018,306,has_shot_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2018,306,has_xg,,40,0,0.0,absent,false
+63,Ligue 3,2018,306,has_corners_data,false,40,0,0.0,absent,false
+63,Ligue 3,2018,306,has_cards_data,true,40,5,0.125,partial,false
+63,Ligue 3,2018,306,has_half_split_stats,,40,40,1.0,available,false
+63,Ligue 3,2018,306,has_substitution_timestamps,true,40,12,0.3,partial,false
+63,Ligue 3,2018,306,has_referee_history,,40,0,0.0,absent,false
+63,Ligue 3,2018,306,has_event_coordinates,,40,0,0.0,absent,false
+63,Ligue 3,2018,306,has_physical_load_data,,40,0,0.0,absent,false
+63,Ligue 3,2018,306,has_attendance_data,,40,0,0.0,absent,false
+63,Ligue 3,2018,306,supports_lineup_strength_adjustment,,0,0,,unknown,false
+63,Ligue 3,2018,306,supports_player_goal_props,,0,0,,unknown,false
+63,Ligue 3,2018,306,supports_player_shot_props,,0,0,,unknown,false
+63,Ligue 3,2018,306,supports_player_discipline_props,,0,0,,unknown,false
+63,Ligue 3,2019,223,has_lineups,true,40,40,1.0,available,false
+63,Ligue 3,2019,223,has_player_match_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2019,223,has_shot_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2019,223,has_xg,,40,0,0.0,absent,false
+63,Ligue 3,2019,223,has_corners_data,false,40,0,0.0,absent,false
+63,Ligue 3,2019,223,has_cards_data,true,40,12,0.3,partial,false
+63,Ligue 3,2019,223,has_half_split_stats,,40,40,1.0,available,false
+63,Ligue 3,2019,223,has_substitution_timestamps,true,40,40,1.0,available,false
+63,Ligue 3,2019,223,has_referee_history,,40,40,1.0,available,false
+63,Ligue 3,2019,223,has_event_coordinates,,40,0,0.0,absent,false
+63,Ligue 3,2019,223,has_physical_load_data,,40,0,0.0,absent,false
+63,Ligue 3,2019,223,has_attendance_data,,40,0,0.0,absent,false
+63,Ligue 3,2019,223,supports_lineup_strength_adjustment,,0,0,,unknown,false
+63,Ligue 3,2019,223,supports_player_goal_props,,0,0,,unknown,false
+63,Ligue 3,2019,223,supports_player_shot_props,,0,0,,unknown,false
+63,Ligue 3,2019,223,supports_player_discipline_props,,0,0,,unknown,false
+63,Ligue 3,2020,306,has_lineups,true,40,40,1.0,available,false
+63,Ligue 3,2020,306,has_player_match_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2020,306,has_shot_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2020,306,has_xg,,40,0,0.0,absent,false
+63,Ligue 3,2020,306,has_corners_data,false,40,0,0.0,absent,false
+63,Ligue 3,2020,306,has_cards_data,true,40,8,0.2,partial,false
+63,Ligue 3,2020,306,has_half_split_stats,,40,40,1.0,available,false
+63,Ligue 3,2020,306,has_substitution_timestamps,true,40,40,1.0,available,false
+63,Ligue 3,2020,306,has_referee_history,,40,40,1.0,available,false
+63,Ligue 3,2020,306,has_event_coordinates,,40,0,0.0,absent,false
+63,Ligue 3,2020,306,has_physical_load_data,,40,0,0.0,absent,false
+63,Ligue 3,2020,306,has_attendance_data,,40,0,0.0,absent,false
+63,Ligue 3,2020,306,supports_lineup_strength_adjustment,,0,0,,unknown,false
+63,Ligue 3,2020,306,supports_player_goal_props,,0,0,,unknown,false
+63,Ligue 3,2020,306,supports_player_shot_props,,0,0,,unknown,false
+63,Ligue 3,2020,306,supports_player_discipline_props,,0,0,,unknown,false
+63,Ligue 3,2021,306,has_lineups,true,40,39,0.975,available,false
+63,Ligue 3,2021,306,has_player_match_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2021,306,has_shot_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2021,306,has_xg,,40,0,0.0,absent,false
+63,Ligue 3,2021,306,has_corners_data,false,40,0,0.0,absent,false
+63,Ligue 3,2021,306,has_cards_data,true,40,12,0.3,partial,false
+63,Ligue 3,2021,306,has_half_split_stats,,40,39,0.975,available,false
+63,Ligue 3,2021,306,has_substitution_timestamps,true,40,39,0.975,available,false
+63,Ligue 3,2021,306,has_referee_history,,40,39,0.975,available,false
+63,Ligue 3,2021,306,has_event_coordinates,,40,0,0.0,absent,false
+63,Ligue 3,2021,306,has_physical_load_data,,40,0,0.0,absent,false
+63,Ligue 3,2021,306,has_attendance_data,,40,0,0.0,absent,false
+63,Ligue 3,2021,306,supports_lineup_strength_adjustment,,0,0,,unknown,false
+63,Ligue 3,2021,306,supports_player_goal_props,,0,0,,unknown,false
+63,Ligue 3,2021,306,supports_player_shot_props,,0,0,,unknown,false
+63,Ligue 3,2021,306,supports_player_discipline_props,,0,0,,unknown,false
+63,Ligue 3,2022,306,has_lineups,true,40,40,1.0,available,false
+63,Ligue 3,2022,306,has_player_match_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2022,306,has_shot_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2022,306,has_xg,,40,0,0.0,absent,false
+63,Ligue 3,2022,306,has_corners_data,false,40,0,0.0,absent,false
+63,Ligue 3,2022,306,has_cards_data,true,40,28,0.7,partial,false
+63,Ligue 3,2022,306,has_half_split_stats,,40,40,1.0,available,false
+63,Ligue 3,2022,306,has_substitution_timestamps,true,40,40,1.0,available,false
+63,Ligue 3,2022,306,has_referee_history,,40,40,1.0,available,false
+63,Ligue 3,2022,306,has_event_coordinates,,40,0,0.0,absent,false
+63,Ligue 3,2022,306,has_physical_load_data,,40,0,0.0,absent,false
+63,Ligue 3,2022,306,has_attendance_data,,40,0,0.0,absent,false
+63,Ligue 3,2022,306,supports_lineup_strength_adjustment,,0,0,,unknown,false
+63,Ligue 3,2022,306,supports_player_goal_props,,0,0,,unknown,false
+63,Ligue 3,2022,306,supports_player_shot_props,,0,0,,unknown,false
+63,Ligue 3,2022,306,supports_player_discipline_props,,0,0,,unknown,false
+63,Ligue 3,2023,306,has_lineups,true,40,40,1.0,available,false
+63,Ligue 3,2023,306,has_player_match_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2023,306,has_shot_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2023,306,has_xg,,40,0,0.0,absent,false
+63,Ligue 3,2023,306,has_corners_data,false,40,0,0.0,absent,false
+63,Ligue 3,2023,306,has_cards_data,true,40,39,0.975,available,false
+63,Ligue 3,2023,306,has_half_split_stats,,40,40,1.0,available,false
+63,Ligue 3,2023,306,has_substitution_timestamps,true,40,40,1.0,available,false
+63,Ligue 3,2023,306,has_referee_history,,40,40,1.0,available,false
+63,Ligue 3,2023,306,has_event_coordinates,,40,0,0.0,absent,false
+63,Ligue 3,2023,306,has_physical_load_data,,40,0,0.0,absent,false
+63,Ligue 3,2023,306,has_attendance_data,,40,0,0.0,absent,false
+63,Ligue 3,2023,306,supports_lineup_strength_adjustment,,0,0,,unknown,false
+63,Ligue 3,2023,306,supports_player_goal_props,,0,0,,unknown,false
+63,Ligue 3,2023,306,supports_player_shot_props,,0,0,,unknown,false
+63,Ligue 3,2023,306,supports_player_discipline_props,,0,0,,unknown,false
+63,Ligue 3,2024,273,has_lineups,true,40,40,1.0,available,false
+63,Ligue 3,2024,273,has_player_match_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2024,273,has_shot_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2024,273,has_xg,,40,0,0.0,absent,false
+63,Ligue 3,2024,273,has_corners_data,false,40,0,0.0,absent,false
+63,Ligue 3,2024,273,has_cards_data,true,40,38,0.95,available,false
+63,Ligue 3,2024,273,has_half_split_stats,,40,40,1.0,available,false
+63,Ligue 3,2024,273,has_substitution_timestamps,true,40,40,1.0,available,false
+63,Ligue 3,2024,273,has_referee_history,,40,40,1.0,available,false
+63,Ligue 3,2024,273,has_event_coordinates,,40,0,0.0,absent,false
+63,Ligue 3,2024,273,has_physical_load_data,,40,0,0.0,absent,false
+63,Ligue 3,2024,273,has_attendance_data,,40,0,0.0,absent,false
+63,Ligue 3,2024,273,supports_lineup_strength_adjustment,,0,0,,unknown,false
+63,Ligue 3,2024,273,supports_player_goal_props,,0,0,,unknown,false
+63,Ligue 3,2024,273,supports_player_shot_props,,0,0,,unknown,false
+63,Ligue 3,2024,273,supports_player_discipline_props,,0,0,,unknown,false
+63,Ligue 3,2025,271,has_lineups,true,40,40,1.0,available,false
+63,Ligue 3,2025,271,has_player_match_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2025,271,has_shot_stats,false,40,0,0.0,absent,false
+63,Ligue 3,2025,271,has_xg,,40,0,0.0,absent,false
+63,Ligue 3,2025,271,has_corners_data,false,40,0,0.0,absent,false
+63,Ligue 3,2025,271,has_cards_data,true,40,40,1.0,available,false
+63,Ligue 3,2025,271,has_half_split_stats,,40,40,1.0,available,false
+63,Ligue 3,2025,271,has_substitution_timestamps,true,40,40,1.0,available,false
+63,Ligue 3,2025,271,has_referee_history,,40,7,0.175,partial,false
+63,Ligue 3,2025,271,has_event_coordinates,,40,0,0.0,absent,false
+63,Ligue 3,2025,271,has_physical_load_data,,40,0,0.0,absent,false
+63,Ligue 3,2025,271,has_attendance_data,,40,0,0.0,absent,false
+63,Ligue 3,2025,271,supports_lineup_strength_adjustment,,0,0,,unknown,false
+63,Ligue 3,2025,271,supports_player_goal_props,,0,0,,unknown,false
+63,Ligue 3,2025,271,supports_player_shot_props,,0,0,,unknown,false
+63,Ligue 3,2025,271,supports_player_discipline_props,,0,0,,unknown,false
+80,3. Liga,2016,380,has_lineups,true,40,40,1.0,available,false
+80,3. Liga,2016,380,has_player_match_stats,false,40,0,0.0,absent,false
+80,3. Liga,2016,380,has_shot_stats,false,40,0,0.0,absent,false
+80,3. Liga,2016,380,has_xg,,40,0,0.0,absent,false
+80,3. Liga,2016,380,has_corners_data,false,40,0,0.0,absent,false
+80,3. Liga,2016,380,has_cards_data,true,40,0,0.0,absent,true
+80,3. Liga,2016,380,has_half_split_stats,,40,40,1.0,available,false
+80,3. Liga,2016,380,has_substitution_timestamps,true,40,40,1.0,available,false
+80,3. Liga,2016,380,has_referee_history,,40,0,0.0,absent,false
+80,3. Liga,2016,380,has_event_coordinates,,40,0,0.0,absent,false
+80,3. Liga,2016,380,has_physical_load_data,,40,0,0.0,absent,false
+80,3. Liga,2016,380,has_attendance_data,,40,0,0.0,absent,false
+80,3. Liga,2016,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+80,3. Liga,2016,380,supports_player_goal_props,,0,0,,unknown,false
+80,3. Liga,2016,380,supports_player_shot_props,,0,0,,unknown,false
+80,3. Liga,2016,380,supports_player_discipline_props,,0,0,,unknown,false
+80,3. Liga,2017,380,has_lineups,true,40,40,1.0,available,false
+80,3. Liga,2017,380,has_player_match_stats,false,40,0,0.0,absent,false
+80,3. Liga,2017,380,has_shot_stats,true,40,1,0.025,partial,false
+80,3. Liga,2017,380,has_xg,,40,0,0.0,absent,false
+80,3. Liga,2017,380,has_corners_data,true,40,31,0.775,partial,false
+80,3. Liga,2017,380,has_cards_data,true,40,38,0.95,available,false
+80,3. Liga,2017,380,has_half_split_stats,,40,40,1.0,available,false
+80,3. Liga,2017,380,has_substitution_timestamps,true,40,40,1.0,available,false
+80,3. Liga,2017,380,has_referee_history,,40,38,0.95,available,false
+80,3. Liga,2017,380,has_event_coordinates,,40,0,0.0,absent,false
+80,3. Liga,2017,380,has_physical_load_data,,40,0,0.0,absent,false
+80,3. Liga,2017,380,has_attendance_data,,40,0,0.0,absent,false
+80,3. Liga,2017,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+80,3. Liga,2017,380,supports_player_goal_props,,0,0,,unknown,false
+80,3. Liga,2017,380,supports_player_shot_props,,0,0,,unknown,false
+80,3. Liga,2017,380,supports_player_discipline_props,,0,0,,unknown,false
+80,3. Liga,2018,380,has_lineups,true,40,40,1.0,available,false
+80,3. Liga,2018,380,has_player_match_stats,false,40,0,0.0,absent,false
+80,3. Liga,2018,380,has_shot_stats,true,40,17,0.425,partial,false
+80,3. Liga,2018,380,has_xg,,40,0,0.0,absent,false
+80,3. Liga,2018,380,has_corners_data,true,40,33,0.825,partial,false
+80,3. Liga,2018,380,has_cards_data,true,40,36,0.9,partial,false
+80,3. Liga,2018,380,has_half_split_stats,,40,40,1.0,available,false
+80,3. Liga,2018,380,has_substitution_timestamps,true,40,40,1.0,available,false
+80,3. Liga,2018,380,has_referee_history,,40,35,0.875,partial,false
+80,3. Liga,2018,380,has_event_coordinates,,40,0,0.0,absent,false
+80,3. Liga,2018,380,has_physical_load_data,,40,0,0.0,absent,false
+80,3. Liga,2018,380,has_attendance_data,,40,0,0.0,absent,false
+80,3. Liga,2018,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+80,3. Liga,2018,380,supports_player_goal_props,,0,0,,unknown,false
+80,3. Liga,2018,380,supports_player_shot_props,,0,0,,unknown,false
+80,3. Liga,2018,380,supports_player_discipline_props,,0,0,,unknown,false
+80,3. Liga,2019,380,has_lineups,true,40,40,1.0,available,false
+80,3. Liga,2019,380,has_player_match_stats,false,40,0,0.0,absent,false
+80,3. Liga,2019,380,has_shot_stats,true,40,27,0.675,partial,false
+80,3. Liga,2019,380,has_xg,,40,0,0.0,absent,false
+80,3. Liga,2019,380,has_corners_data,true,40,40,1.0,available,false
+80,3. Liga,2019,380,has_cards_data,true,40,40,1.0,available,false
+80,3. Liga,2019,380,has_half_split_stats,,40,40,1.0,available,false
+80,3. Liga,2019,380,has_substitution_timestamps,true,40,40,1.0,available,false
+80,3. Liga,2019,380,has_referee_history,,40,40,1.0,available,false
+80,3. Liga,2019,380,has_event_coordinates,,40,0,0.0,absent,false
+80,3. Liga,2019,380,has_physical_load_data,,40,0,0.0,absent,false
+80,3. Liga,2019,380,has_attendance_data,,40,0,0.0,absent,false
+80,3. Liga,2019,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+80,3. Liga,2019,380,supports_player_goal_props,,0,0,,unknown,false
+80,3. Liga,2019,380,supports_player_shot_props,,0,0,,unknown,false
+80,3. Liga,2019,380,supports_player_discipline_props,,0,0,,unknown,false
+80,3. Liga,2020,380,has_lineups,true,40,40,1.0,available,false
+80,3. Liga,2020,380,has_player_match_stats,false,40,0,0.0,absent,false
+80,3. Liga,2020,380,has_shot_stats,true,40,39,0.975,available,false
+80,3. Liga,2020,380,has_xg,,40,0,0.0,absent,false
+80,3. Liga,2020,380,has_corners_data,true,40,39,0.975,available,false
+80,3. Liga,2020,380,has_cards_data,true,40,40,1.0,available,false
+80,3. Liga,2020,380,has_half_split_stats,,40,40,1.0,available,false
+80,3. Liga,2020,380,has_substitution_timestamps,true,40,40,1.0,available,false
+80,3. Liga,2020,380,has_referee_history,,40,40,1.0,available,false
+80,3. Liga,2020,380,has_event_coordinates,,40,0,0.0,absent,false
+80,3. Liga,2020,380,has_physical_load_data,,40,0,0.0,absent,false
+80,3. Liga,2020,380,has_attendance_data,,40,0,0.0,absent,false
+80,3. Liga,2020,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+80,3. Liga,2020,380,supports_player_goal_props,,0,0,,unknown,false
+80,3. Liga,2020,380,supports_player_shot_props,,0,0,,unknown,false
+80,3. Liga,2020,380,supports_player_discipline_props,,0,0,,unknown,false
+80,3. Liga,2021,373,has_lineups,true,40,40,1.0,available,false
+80,3. Liga,2021,373,has_player_match_stats,false,40,0,0.0,absent,false
+80,3. Liga,2021,373,has_shot_stats,true,40,39,0.975,available,false
+80,3. Liga,2021,373,has_xg,,40,0,0.0,absent,false
+80,3. Liga,2021,373,has_corners_data,true,40,39,0.975,available,false
+80,3. Liga,2021,373,has_cards_data,true,40,40,1.0,available,false
+80,3. Liga,2021,373,has_half_split_stats,,40,40,1.0,available,false
+80,3. Liga,2021,373,has_substitution_timestamps,true,40,40,1.0,available,false
+80,3. Liga,2021,373,has_referee_history,,40,40,1.0,available,false
+80,3. Liga,2021,373,has_event_coordinates,,40,0,0.0,absent,false
+80,3. Liga,2021,373,has_physical_load_data,,40,0,0.0,absent,false
+80,3. Liga,2021,373,has_attendance_data,,40,0,0.0,absent,false
+80,3. Liga,2021,373,supports_lineup_strength_adjustment,,0,0,,unknown,false
+80,3. Liga,2021,373,supports_player_goal_props,,0,0,,unknown,false
+80,3. Liga,2021,373,supports_player_shot_props,,0,0,,unknown,false
+80,3. Liga,2021,373,supports_player_discipline_props,,0,0,,unknown,false
+80,3. Liga,2022,380,has_lineups,true,40,40,1.0,available,false
+80,3. Liga,2022,380,has_player_match_stats,false,40,0,0.0,absent,false
+80,3. Liga,2022,380,has_shot_stats,true,40,32,0.8,partial,false
+80,3. Liga,2022,380,has_xg,,40,0,0.0,absent,false
+80,3. Liga,2022,380,has_corners_data,true,40,32,0.8,partial,false
+80,3. Liga,2022,380,has_cards_data,true,40,39,0.975,available,false
+80,3. Liga,2022,380,has_half_split_stats,,40,40,1.0,available,false
+80,3. Liga,2022,380,has_substitution_timestamps,true,40,40,1.0,available,false
+80,3. Liga,2022,380,has_referee_history,,40,40,1.0,available,false
+80,3. Liga,2022,380,has_event_coordinates,,40,0,0.0,absent,false
+80,3. Liga,2022,380,has_physical_load_data,,40,0,0.0,absent,false
+80,3. Liga,2022,380,has_attendance_data,,40,0,0.0,absent,false
+80,3. Liga,2022,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+80,3. Liga,2022,380,supports_player_goal_props,,0,0,,unknown,false
+80,3. Liga,2022,380,supports_player_shot_props,,0,0,,unknown,false
+80,3. Liga,2022,380,supports_player_discipline_props,,0,0,,unknown,false
+80,3. Liga,2023,380,has_lineups,true,40,40,1.0,available,false
+80,3. Liga,2023,380,has_player_match_stats,true,40,13,0.325,partial,false
+80,3. Liga,2023,380,has_shot_stats,true,40,35,0.875,partial,false
+80,3. Liga,2023,380,has_xg,,40,13,0.325,partial,false
+80,3. Liga,2023,380,has_corners_data,true,40,35,0.875,partial,false
+80,3. Liga,2023,380,has_cards_data,true,40,40,1.0,available,false
+80,3. Liga,2023,380,has_half_split_stats,,40,40,1.0,available,false
+80,3. Liga,2023,380,has_substitution_timestamps,true,40,40,1.0,available,false
+80,3. Liga,2023,380,has_referee_history,,40,40,1.0,available,false
+80,3. Liga,2023,380,has_event_coordinates,,40,0,0.0,absent,false
+80,3. Liga,2023,380,has_physical_load_data,,40,0,0.0,absent,false
+80,3. Liga,2023,380,has_attendance_data,,40,0,0.0,absent,false
+80,3. Liga,2023,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+80,3. Liga,2023,380,supports_player_goal_props,,0,0,,unknown,false
+80,3. Liga,2023,380,supports_player_shot_props,,0,0,,unknown,false
+80,3. Liga,2023,380,supports_player_discipline_props,,0,0,,unknown,false
+80,3. Liga,2024,380,has_lineups,true,40,40,1.0,available,false
+80,3. Liga,2024,380,has_player_match_stats,true,40,22,0.55,partial,false
+80,3. Liga,2024,380,has_shot_stats,true,40,22,0.55,partial,false
+80,3. Liga,2024,380,has_xg,,40,22,0.55,partial,false
+80,3. Liga,2024,380,has_corners_data,true,40,22,0.55,partial,false
+80,3. Liga,2024,380,has_cards_data,true,40,40,1.0,available,false
+80,3. Liga,2024,380,has_half_split_stats,,40,40,1.0,available,false
+80,3. Liga,2024,380,has_substitution_timestamps,true,40,40,1.0,available,false
+80,3. Liga,2024,380,has_referee_history,,40,40,1.0,available,false
+80,3. Liga,2024,380,has_event_coordinates,,40,0,0.0,absent,false
+80,3. Liga,2024,380,has_physical_load_data,,40,0,0.0,absent,false
+80,3. Liga,2024,380,has_attendance_data,,40,0,0.0,absent,false
+80,3. Liga,2024,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+80,3. Liga,2024,380,supports_player_goal_props,,0,0,,unknown,false
+80,3. Liga,2024,380,supports_player_shot_props,,0,0,,unknown,false
+80,3. Liga,2024,380,supports_player_discipline_props,,0,0,,unknown,false
+80,3. Liga,2025,380,has_lineups,true,40,40,1.0,available,false
+80,3. Liga,2025,380,has_player_match_stats,true,40,33,0.825,partial,false
+80,3. Liga,2025,380,has_shot_stats,true,40,33,0.825,partial,false
+80,3. Liga,2025,380,has_xg,,40,33,0.825,partial,false
+80,3. Liga,2025,380,has_corners_data,true,40,33,0.825,partial,false
+80,3. Liga,2025,380,has_cards_data,true,40,40,1.0,available,false
+80,3. Liga,2025,380,has_half_split_stats,,40,40,1.0,available,false
+80,3. Liga,2025,380,has_substitution_timestamps,true,40,40,1.0,available,false
+80,3. Liga,2025,380,has_referee_history,,40,40,1.0,available,false
+80,3. Liga,2025,380,has_event_coordinates,,40,0,0.0,absent,false
+80,3. Liga,2025,380,has_physical_load_data,,40,0,0.0,absent,false
+80,3. Liga,2025,380,has_attendance_data,,40,0,0.0,absent,false
+80,3. Liga,2025,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+80,3. Liga,2025,380,supports_player_goal_props,,0,0,,unknown,false
+80,3. Liga,2025,380,supports_player_shot_props,,0,0,,unknown,false
+80,3. Liga,2025,380,supports_player_discipline_props,,0,0,,unknown,false
+138,Serie C - Girone A,2016,1140,has_lineups,true,40,40,1.0,available,false
+138,Serie C - Girone A,2016,1140,has_player_match_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2016,1140,has_shot_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2016,1140,has_xg,,40,0,0.0,absent,false
+138,Serie C - Girone A,2016,1140,has_corners_data,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2016,1140,has_cards_data,true,40,0,0.0,absent,true
+138,Serie C - Girone A,2016,1140,has_half_split_stats,,40,40,1.0,available,false
+138,Serie C - Girone A,2016,1140,has_substitution_timestamps,true,40,40,1.0,available,false
+138,Serie C - Girone A,2016,1140,has_referee_history,,40,0,0.0,absent,false
+138,Serie C - Girone A,2016,1140,has_event_coordinates,,40,0,0.0,absent,false
+138,Serie C - Girone A,2016,1140,has_physical_load_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2016,1140,has_attendance_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2016,1140,supports_lineup_strength_adjustment,,0,0,,unknown,false
+138,Serie C - Girone A,2016,1140,supports_player_goal_props,,0,0,,unknown,false
+138,Serie C - Girone A,2016,1140,supports_player_shot_props,,0,0,,unknown,false
+138,Serie C - Girone A,2016,1140,supports_player_discipline_props,,0,0,,unknown,false
+138,Serie C - Girone A,2017,990,has_lineups,true,40,40,1.0,available,false
+138,Serie C - Girone A,2017,990,has_player_match_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2017,990,has_shot_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2017,990,has_xg,,40,0,0.0,absent,false
+138,Serie C - Girone A,2017,990,has_corners_data,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2017,990,has_cards_data,true,40,0,0.0,absent,true
+138,Serie C - Girone A,2017,990,has_half_split_stats,,40,40,1.0,available,false
+138,Serie C - Girone A,2017,990,has_substitution_timestamps,true,40,40,1.0,available,false
+138,Serie C - Girone A,2017,990,has_referee_history,,40,0,0.0,absent,false
+138,Serie C - Girone A,2017,990,has_event_coordinates,,40,0,0.0,absent,false
+138,Serie C - Girone A,2017,990,has_physical_load_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2017,990,has_attendance_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2017,990,supports_lineup_strength_adjustment,,0,0,,unknown,false
+138,Serie C - Girone A,2017,990,supports_player_goal_props,,0,0,,unknown,false
+138,Serie C - Girone A,2017,990,supports_player_shot_props,,0,0,,unknown,false
+138,Serie C - Girone A,2017,990,supports_player_discipline_props,,0,0,,unknown,false
+138,Serie C - Girone A,2018,407,has_lineups,true,40,39,0.975,available,false
+138,Serie C - Girone A,2018,407,has_player_match_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2018,407,has_shot_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2018,407,has_xg,,40,0,0.0,absent,false
+138,Serie C - Girone A,2018,407,has_corners_data,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2018,407,has_cards_data,true,40,4,0.1,partial,false
+138,Serie C - Girone A,2018,407,has_half_split_stats,,40,40,1.0,available,false
+138,Serie C - Girone A,2018,407,has_substitution_timestamps,true,40,38,0.95,available,false
+138,Serie C - Girone A,2018,407,has_referee_history,,40,0,0.0,absent,false
+138,Serie C - Girone A,2018,407,has_event_coordinates,,40,0,0.0,absent,false
+138,Serie C - Girone A,2018,407,has_physical_load_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2018,407,has_attendance_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2018,407,supports_lineup_strength_adjustment,,0,0,,unknown,false
+138,Serie C - Girone A,2018,407,supports_player_goal_props,,0,0,,unknown,false
+138,Serie C - Girone A,2018,407,supports_player_shot_props,,0,0,,unknown,false
+138,Serie C - Girone A,2018,407,supports_player_discipline_props,,0,0,,unknown,false
+138,Serie C - Girone A,2019,301,has_lineups,true,40,40,1.0,available,false
+138,Serie C - Girone A,2019,301,has_player_match_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2019,301,has_shot_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2019,301,has_xg,,40,0,0.0,absent,false
+138,Serie C - Girone A,2019,301,has_corners_data,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2019,301,has_cards_data,true,40,38,0.95,available,false
+138,Serie C - Girone A,2019,301,has_half_split_stats,,40,40,1.0,available,false
+138,Serie C - Girone A,2019,301,has_substitution_timestamps,true,40,40,1.0,available,false
+138,Serie C - Girone A,2019,301,has_referee_history,,40,40,1.0,available,false
+138,Serie C - Girone A,2019,301,has_event_coordinates,,40,0,0.0,absent,false
+138,Serie C - Girone A,2019,301,has_physical_load_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2019,301,has_attendance_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2019,301,supports_lineup_strength_adjustment,,0,0,,unknown,false
+138,Serie C - Girone A,2019,301,supports_player_goal_props,,0,0,,unknown,false
+138,Serie C - Girone A,2019,301,supports_player_shot_props,,0,0,,unknown,false
+138,Serie C - Girone A,2019,301,supports_player_discipline_props,,0,0,,unknown,false
+138,Serie C - Girone A,2020,428,has_lineups,true,40,40,1.0,available,false
+138,Serie C - Girone A,2020,428,has_player_match_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2020,428,has_shot_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2020,428,has_xg,,40,0,0.0,absent,false
+138,Serie C - Girone A,2020,428,has_corners_data,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2020,428,has_cards_data,true,40,39,0.975,available,false
+138,Serie C - Girone A,2020,428,has_half_split_stats,,40,40,1.0,available,false
+138,Serie C - Girone A,2020,428,has_substitution_timestamps,true,40,40,1.0,available,false
+138,Serie C - Girone A,2020,428,has_referee_history,,40,40,1.0,available,false
+138,Serie C - Girone A,2020,428,has_event_coordinates,,40,0,0.0,absent,false
+138,Serie C - Girone A,2020,428,has_physical_load_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2020,428,has_attendance_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2020,428,supports_lineup_strength_adjustment,,0,0,,unknown,false
+138,Serie C - Girone A,2020,428,supports_player_goal_props,,0,0,,unknown,false
+138,Serie C - Girone A,2020,428,supports_player_shot_props,,0,0,,unknown,false
+138,Serie C - Girone A,2020,428,supports_player_discipline_props,,0,0,,unknown,false
+138,Serie C - Girone A,2021,432,has_lineups,true,40,40,1.0,available,false
+138,Serie C - Girone A,2021,432,has_player_match_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2021,432,has_shot_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2021,432,has_xg,,40,0,0.0,absent,false
+138,Serie C - Girone A,2021,432,has_corners_data,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2021,432,has_cards_data,true,40,40,1.0,available,false
+138,Serie C - Girone A,2021,432,has_half_split_stats,,40,40,1.0,available,false
+138,Serie C - Girone A,2021,432,has_substitution_timestamps,true,40,40,1.0,available,false
+138,Serie C - Girone A,2021,432,has_referee_history,,40,40,1.0,available,false
+138,Serie C - Girone A,2021,432,has_event_coordinates,,40,0,0.0,absent,false
+138,Serie C - Girone A,2021,432,has_physical_load_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2021,432,has_attendance_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2021,432,supports_lineup_strength_adjustment,,0,0,,unknown,false
+138,Serie C - Girone A,2021,432,supports_player_goal_props,,0,0,,unknown,false
+138,Serie C - Girone A,2021,432,supports_player_shot_props,,0,0,,unknown,false
+138,Serie C - Girone A,2021,432,supports_player_discipline_props,,0,0,,unknown,false
+138,Serie C - Girone A,2022,380,has_lineups,true,40,40,1.0,available,false
+138,Serie C - Girone A,2022,380,has_player_match_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2022,380,has_shot_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2022,380,has_xg,,40,0,0.0,absent,false
+138,Serie C - Girone A,2022,380,has_corners_data,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2022,380,has_cards_data,true,40,40,1.0,available,false
+138,Serie C - Girone A,2022,380,has_half_split_stats,,40,40,1.0,available,false
+138,Serie C - Girone A,2022,380,has_substitution_timestamps,true,40,40,1.0,available,false
+138,Serie C - Girone A,2022,380,has_referee_history,,40,40,1.0,available,false
+138,Serie C - Girone A,2022,380,has_event_coordinates,,40,0,0.0,absent,false
+138,Serie C - Girone A,2022,380,has_physical_load_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2022,380,has_attendance_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2022,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+138,Serie C - Girone A,2022,380,supports_player_goal_props,,0,0,,unknown,false
+138,Serie C - Girone A,2022,380,supports_player_shot_props,,0,0,,unknown,false
+138,Serie C - Girone A,2022,380,supports_player_discipline_props,,0,0,,unknown,false
+138,Serie C - Girone A,2023,380,has_lineups,true,40,40,1.0,available,false
+138,Serie C - Girone A,2023,380,has_player_match_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2023,380,has_shot_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2023,380,has_xg,,40,0,0.0,absent,false
+138,Serie C - Girone A,2023,380,has_corners_data,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2023,380,has_cards_data,true,40,40,1.0,available,false
+138,Serie C - Girone A,2023,380,has_half_split_stats,,40,40,1.0,available,false
+138,Serie C - Girone A,2023,380,has_substitution_timestamps,true,40,40,1.0,available,false
+138,Serie C - Girone A,2023,380,has_referee_history,,40,40,1.0,available,false
+138,Serie C - Girone A,2023,380,has_event_coordinates,,40,0,0.0,absent,false
+138,Serie C - Girone A,2023,380,has_physical_load_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2023,380,has_attendance_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2023,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+138,Serie C - Girone A,2023,380,supports_player_goal_props,,0,0,,unknown,false
+138,Serie C - Girone A,2023,380,supports_player_shot_props,,0,0,,unknown,false
+138,Serie C - Girone A,2023,380,supports_player_discipline_props,,0,0,,unknown,false
+138,Serie C - Girone A,2024,380,has_lineups,true,40,40,1.0,available,false
+138,Serie C - Girone A,2024,380,has_player_match_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2024,380,has_shot_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2024,380,has_xg,,40,0,0.0,absent,false
+138,Serie C - Girone A,2024,380,has_corners_data,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2024,380,has_cards_data,true,40,40,1.0,available,false
+138,Serie C - Girone A,2024,380,has_half_split_stats,,40,40,1.0,available,false
+138,Serie C - Girone A,2024,380,has_substitution_timestamps,true,40,40,1.0,available,false
+138,Serie C - Girone A,2024,380,has_referee_history,,40,40,1.0,available,false
+138,Serie C - Girone A,2024,380,has_event_coordinates,,40,0,0.0,absent,false
+138,Serie C - Girone A,2024,380,has_physical_load_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2024,380,has_attendance_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2024,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+138,Serie C - Girone A,2024,380,supports_player_goal_props,,0,0,,unknown,false
+138,Serie C - Girone A,2024,380,supports_player_shot_props,,0,0,,unknown,false
+138,Serie C - Girone A,2024,380,supports_player_discipline_props,,0,0,,unknown,false
+138,Serie C - Girone A,2025,380,has_lineups,true,40,40,1.0,available,false
+138,Serie C - Girone A,2025,380,has_player_match_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2025,380,has_shot_stats,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2025,380,has_xg,,40,0,0.0,absent,false
+138,Serie C - Girone A,2025,380,has_corners_data,false,40,0,0.0,absent,false
+138,Serie C - Girone A,2025,380,has_cards_data,true,40,39,0.975,available,false
+138,Serie C - Girone A,2025,380,has_half_split_stats,,40,40,1.0,available,false
+138,Serie C - Girone A,2025,380,has_substitution_timestamps,true,40,40,1.0,available,false
+138,Serie C - Girone A,2025,380,has_referee_history,,40,12,0.3,partial,false
+138,Serie C - Girone A,2025,380,has_event_coordinates,,40,0,0.0,absent,false
+138,Serie C - Girone A,2025,380,has_physical_load_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2025,380,has_attendance_data,,40,0,0.0,absent,false
+138,Serie C - Girone A,2025,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+138,Serie C - Girone A,2025,380,supports_player_goal_props,,0,0,,unknown,false
+138,Serie C - Girone A,2025,380,supports_player_shot_props,,0,0,,unknown,false
+138,Serie C - Girone A,2025,380,supports_player_discipline_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2019,280,has_lineups,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2019,280,has_player_match_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2019,280,has_shot_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2019,280,has_xg,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2019,280,has_corners_data,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2019,280,has_cards_data,true,40,4,0.1,partial,false
+435,Primera División RFEF - Group 1,2019,280,has_half_split_stats,,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2019,280,has_substitution_timestamps,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2019,280,has_referee_history,,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2019,280,has_event_coordinates,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2019,280,has_physical_load_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2019,280,has_attendance_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2019,280,supports_lineup_strength_adjustment,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2019,280,supports_player_goal_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2019,280,supports_player_shot_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2019,280,supports_player_discipline_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2020,248,has_lineups,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2020,248,has_player_match_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2020,248,has_shot_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2020,248,has_xg,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2020,248,has_corners_data,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2020,248,has_cards_data,true,40,14,0.35,partial,false
+435,Primera División RFEF - Group 1,2020,248,has_half_split_stats,,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2020,248,has_substitution_timestamps,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2020,248,has_referee_history,,40,39,0.975,available,false
+435,Primera División RFEF - Group 1,2020,248,has_event_coordinates,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2020,248,has_physical_load_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2020,248,has_attendance_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2020,248,supports_lineup_strength_adjustment,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2020,248,supports_player_goal_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2020,248,supports_player_shot_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2020,248,supports_player_discipline_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2021,366,has_lineups,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2021,366,has_player_match_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2021,366,has_shot_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2021,366,has_xg,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2021,366,has_corners_data,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2021,366,has_cards_data,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2021,366,has_half_split_stats,,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2021,366,has_substitution_timestamps,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2021,366,has_referee_history,,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2021,366,has_event_coordinates,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2021,366,has_physical_load_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2021,366,has_attendance_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2021,366,supports_lineup_strength_adjustment,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2021,366,supports_player_goal_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2021,366,supports_player_shot_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2021,366,supports_player_discipline_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2022,375,has_lineups,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2022,375,has_player_match_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2022,375,has_shot_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2022,375,has_xg,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2022,375,has_corners_data,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2022,375,has_cards_data,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2022,375,has_half_split_stats,,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2022,375,has_substitution_timestamps,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2022,375,has_referee_history,,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2022,375,has_event_coordinates,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2022,375,has_physical_load_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2022,375,has_attendance_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2022,375,supports_lineup_strength_adjustment,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2022,375,supports_player_goal_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2022,375,supports_player_shot_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2022,375,supports_player_discipline_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2023,380,has_lineups,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2023,380,has_player_match_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2023,380,has_shot_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2023,380,has_xg,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2023,380,has_corners_data,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2023,380,has_cards_data,true,40,39,0.975,available,false
+435,Primera División RFEF - Group 1,2023,380,has_half_split_stats,,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2023,380,has_substitution_timestamps,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2023,380,has_referee_history,,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2023,380,has_event_coordinates,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2023,380,has_physical_load_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2023,380,has_attendance_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2023,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2023,380,supports_player_goal_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2023,380,supports_player_shot_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2023,380,supports_player_discipline_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2024,380,has_lineups,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2024,380,has_player_match_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2024,380,has_shot_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2024,380,has_xg,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2024,380,has_corners_data,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2024,380,has_cards_data,true,40,39,0.975,available,false
+435,Primera División RFEF - Group 1,2024,380,has_half_split_stats,,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2024,380,has_substitution_timestamps,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2024,380,has_referee_history,,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2024,380,has_event_coordinates,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2024,380,has_physical_load_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2024,380,has_attendance_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2024,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2024,380,supports_player_goal_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2024,380,supports_player_shot_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2024,380,supports_player_discipline_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2025,380,has_lineups,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2025,380,has_player_match_stats,false,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2025,380,has_shot_stats,true,40,0,0.0,absent,true
+435,Primera División RFEF - Group 1,2025,380,has_xg,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2025,380,has_corners_data,true,40,0,0.0,absent,true
+435,Primera División RFEF - Group 1,2025,380,has_cards_data,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2025,380,has_half_split_stats,,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2025,380,has_substitution_timestamps,true,40,40,1.0,available,false
+435,Primera División RFEF - Group 1,2025,380,has_referee_history,,40,6,0.15,partial,false
+435,Primera División RFEF - Group 1,2025,380,has_event_coordinates,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2025,380,has_physical_load_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2025,380,has_attendance_data,,40,0,0.0,absent,false
+435,Primera División RFEF - Group 1,2025,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2025,380,supports_player_goal_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2025,380,supports_player_shot_props,,0,0,,unknown,false
+435,Primera División RFEF - Group 1,2025,380,supports_player_discipline_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2019,280,has_lineups,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2019,280,has_player_match_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2019,280,has_shot_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2019,280,has_xg,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2019,280,has_corners_data,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2019,280,has_cards_data,true,40,6,0.15,partial,false
+436,Primera División RFEF - Group 2,2019,280,has_half_split_stats,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2019,280,has_substitution_timestamps,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2019,280,has_referee_history,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2019,280,has_event_coordinates,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2019,280,has_physical_load_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2019,280,has_attendance_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2019,280,supports_lineup_strength_adjustment,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2019,280,supports_player_goal_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2019,280,supports_player_shot_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2019,280,supports_player_discipline_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2020,274,has_lineups,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2020,274,has_player_match_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2020,274,has_shot_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2020,274,has_xg,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2020,274,has_corners_data,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2020,274,has_cards_data,true,40,13,0.325,partial,false
+436,Primera División RFEF - Group 2,2020,274,has_half_split_stats,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2020,274,has_substitution_timestamps,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2020,274,has_referee_history,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2020,274,has_event_coordinates,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2020,274,has_physical_load_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2020,274,has_attendance_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2020,274,supports_lineup_strength_adjustment,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2020,274,supports_player_goal_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2020,274,supports_player_shot_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2020,274,supports_player_discipline_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2021,380,has_lineups,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2021,380,has_player_match_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2021,380,has_shot_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2021,380,has_xg,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2021,380,has_corners_data,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2021,380,has_cards_data,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2021,380,has_half_split_stats,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2021,380,has_substitution_timestamps,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2021,380,has_referee_history,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2021,380,has_event_coordinates,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2021,380,has_physical_load_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2021,380,has_attendance_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2021,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2021,380,supports_player_goal_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2021,380,supports_player_shot_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2021,380,supports_player_discipline_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2022,380,has_lineups,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2022,380,has_player_match_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2022,380,has_shot_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2022,380,has_xg,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2022,380,has_corners_data,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2022,380,has_cards_data,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2022,380,has_half_split_stats,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2022,380,has_substitution_timestamps,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2022,380,has_referee_history,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2022,380,has_event_coordinates,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2022,380,has_physical_load_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2022,380,has_attendance_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2022,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2022,380,supports_player_goal_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2022,380,supports_player_shot_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2022,380,supports_player_discipline_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2023,380,has_lineups,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2023,380,has_player_match_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2023,380,has_shot_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2023,380,has_xg,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2023,380,has_corners_data,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2023,380,has_cards_data,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2023,380,has_half_split_stats,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2023,380,has_substitution_timestamps,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2023,380,has_referee_history,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2023,380,has_event_coordinates,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2023,380,has_physical_load_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2023,380,has_attendance_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2023,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2023,380,supports_player_goal_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2023,380,supports_player_shot_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2023,380,supports_player_discipline_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2024,380,has_lineups,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2024,380,has_player_match_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2024,380,has_shot_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2024,380,has_xg,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2024,380,has_corners_data,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2024,380,has_cards_data,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2024,380,has_half_split_stats,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2024,380,has_substitution_timestamps,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2024,380,has_referee_history,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2024,380,has_event_coordinates,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2024,380,has_physical_load_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2024,380,has_attendance_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2024,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2024,380,supports_player_goal_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2024,380,supports_player_shot_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2024,380,supports_player_discipline_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2025,380,has_lineups,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2025,380,has_player_match_stats,false,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2025,380,has_shot_stats,true,40,0,0.0,absent,true
+436,Primera División RFEF - Group 2,2025,380,has_xg,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2025,380,has_corners_data,true,40,0,0.0,absent,true
+436,Primera División RFEF - Group 2,2025,380,has_cards_data,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2025,380,has_half_split_stats,,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2025,380,has_substitution_timestamps,true,40,40,1.0,available,false
+436,Primera División RFEF - Group 2,2025,380,has_referee_history,,40,5,0.125,partial,false
+436,Primera División RFEF - Group 2,2025,380,has_event_coordinates,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2025,380,has_physical_load_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2025,380,has_attendance_data,,40,0,0.0,absent,false
+436,Primera División RFEF - Group 2,2025,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2025,380,supports_player_goal_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2025,380,supports_player_shot_props,,0,0,,unknown,false
+436,Primera División RFEF - Group 2,2025,380,supports_player_discipline_props,,0,0,,unknown,false
+437,Primera División RFEF - Group 3,2019,280,has_lineups,true,40,40,1.0,available,false
+437,Primera División RFEF - Group 3,2019,280,has_player_match_stats,false,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2019,280,has_shot_stats,false,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2019,280,has_xg,,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2019,280,has_corners_data,false,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2019,280,has_cards_data,true,40,4,0.1,partial,false
+437,Primera División RFEF - Group 3,2019,280,has_half_split_stats,,40,40,1.0,available,false
+437,Primera División RFEF - Group 3,2019,280,has_substitution_timestamps,true,40,40,1.0,available,false
+437,Primera División RFEF - Group 3,2019,280,has_referee_history,,40,40,1.0,available,false
+437,Primera División RFEF - Group 3,2019,280,has_event_coordinates,,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2019,280,has_physical_load_data,,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2019,280,has_attendance_data,,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2019,280,supports_lineup_strength_adjustment,,0,0,,unknown,false
+437,Primera División RFEF - Group 3,2019,280,supports_player_goal_props,,0,0,,unknown,false
+437,Primera División RFEF - Group 3,2019,280,supports_player_shot_props,,0,0,,unknown,false
+437,Primera División RFEF - Group 3,2019,280,supports_player_discipline_props,,0,0,,unknown,false
+437,Primera División RFEF - Group 3,2020,274,has_lineups,true,40,40,1.0,available,false
+437,Primera División RFEF - Group 3,2020,274,has_player_match_stats,false,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2020,274,has_shot_stats,false,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2020,274,has_xg,,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2020,274,has_corners_data,false,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2020,274,has_cards_data,true,40,10,0.25,partial,false
+437,Primera División RFEF - Group 3,2020,274,has_half_split_stats,,40,40,1.0,available,false
+437,Primera División RFEF - Group 3,2020,274,has_substitution_timestamps,true,40,40,1.0,available,false
+437,Primera División RFEF - Group 3,2020,274,has_referee_history,,40,39,0.975,available,false
+437,Primera División RFEF - Group 3,2020,274,has_event_coordinates,,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2020,274,has_physical_load_data,,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2020,274,has_attendance_data,,40,0,0.0,absent,false
+437,Primera División RFEF - Group 3,2020,274,supports_lineup_strength_adjustment,,0,0,,unknown,false
+437,Primera División RFEF - Group 3,2020,274,supports_player_goal_props,,0,0,,unknown,false
+437,Primera División RFEF - Group 3,2020,274,supports_player_shot_props,,0,0,,unknown,false
+437,Primera División RFEF - Group 3,2020,274,supports_player_discipline_props,,0,0,,unknown,false
+438,Primera División RFEF - Group 4,2019,280,has_lineups,true,40,40,1.0,available,false
+438,Primera División RFEF - Group 4,2019,280,has_player_match_stats,false,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2019,280,has_shot_stats,false,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2019,280,has_xg,,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2019,280,has_corners_data,false,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2019,280,has_cards_data,true,40,4,0.1,partial,false
+438,Primera División RFEF - Group 4,2019,280,has_half_split_stats,,40,40,1.0,available,false
+438,Primera División RFEF - Group 4,2019,280,has_substitution_timestamps,true,40,40,1.0,available,false
+438,Primera División RFEF - Group 4,2019,280,has_referee_history,,40,40,1.0,available,false
+438,Primera División RFEF - Group 4,2019,280,has_event_coordinates,,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2019,280,has_physical_load_data,,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2019,280,has_attendance_data,,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2019,280,supports_lineup_strength_adjustment,,0,0,,unknown,false
+438,Primera División RFEF - Group 4,2019,280,supports_player_goal_props,,0,0,,unknown,false
+438,Primera División RFEF - Group 4,2019,280,supports_player_shot_props,,0,0,,unknown,false
+438,Primera División RFEF - Group 4,2019,280,supports_player_discipline_props,,0,0,,unknown,false
+438,Primera División RFEF - Group 4,2020,248,has_lineups,true,40,40,1.0,available,false
+438,Primera División RFEF - Group 4,2020,248,has_player_match_stats,false,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2020,248,has_shot_stats,false,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2020,248,has_xg,,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2020,248,has_corners_data,false,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2020,248,has_cards_data,true,40,16,0.4,partial,false
+438,Primera División RFEF - Group 4,2020,248,has_half_split_stats,,40,40,1.0,available,false
+438,Primera División RFEF - Group 4,2020,248,has_substitution_timestamps,true,40,40,1.0,available,false
+438,Primera División RFEF - Group 4,2020,248,has_referee_history,,40,40,1.0,available,false
+438,Primera División RFEF - Group 4,2020,248,has_event_coordinates,,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2020,248,has_physical_load_data,,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2020,248,has_attendance_data,,40,0,0.0,absent,false
+438,Primera División RFEF - Group 4,2020,248,supports_lineup_strength_adjustment,,0,0,,unknown,false
+438,Primera División RFEF - Group 4,2020,248,supports_player_goal_props,,0,0,,unknown,false
+438,Primera División RFEF - Group 4,2020,248,supports_player_shot_props,,0,0,,unknown,false
+438,Primera División RFEF - Group 4,2020,248,supports_player_discipline_props,,0,0,,unknown,false
+692,Primera División RFEF - Group 5,2020,248,has_lineups,true,40,40,1.0,available,false
+692,Primera División RFEF - Group 5,2020,248,has_player_match_stats,false,40,0,0.0,absent,false
+692,Primera División RFEF - Group 5,2020,248,has_shot_stats,false,40,0,0.0,absent,false
+692,Primera División RFEF - Group 5,2020,248,has_xg,,40,0,0.0,absent,false
+692,Primera División RFEF - Group 5,2020,248,has_corners_data,false,40,0,0.0,absent,false
+692,Primera División RFEF - Group 5,2020,248,has_cards_data,true,40,7,0.175,partial,false
+692,Primera División RFEF - Group 5,2020,248,has_half_split_stats,,40,40,1.0,available,false
+692,Primera División RFEF - Group 5,2020,248,has_substitution_timestamps,true,40,40,1.0,available,false
+692,Primera División RFEF - Group 5,2020,248,has_referee_history,,40,40,1.0,available,false
+692,Primera División RFEF - Group 5,2020,248,has_event_coordinates,,40,0,0.0,absent,false
+692,Primera División RFEF - Group 5,2020,248,has_physical_load_data,,40,0,0.0,absent,false
+692,Primera División RFEF - Group 5,2020,248,has_attendance_data,,40,0,0.0,absent,false
+692,Primera División RFEF - Group 5,2020,248,supports_lineup_strength_adjustment,,0,0,,unknown,false
+692,Primera División RFEF - Group 5,2020,248,supports_player_goal_props,,0,0,,unknown,false
+692,Primera División RFEF - Group 5,2020,248,supports_player_shot_props,,0,0,,unknown,false
+692,Primera División RFEF - Group 5,2020,248,supports_player_discipline_props,,0,0,,unknown,false
+942,Serie C - Girone B,2018,380,has_lineups,true,40,40,1.0,available,false
+942,Serie C - Girone B,2018,380,has_player_match_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2018,380,has_shot_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2018,380,has_xg,,40,0,0.0,absent,false
+942,Serie C - Girone B,2018,380,has_corners_data,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2018,380,has_cards_data,true,40,7,0.175,partial,false
+942,Serie C - Girone B,2018,380,has_half_split_stats,,40,40,1.0,available,false
+942,Serie C - Girone B,2018,380,has_substitution_timestamps,true,40,40,1.0,available,false
+942,Serie C - Girone B,2018,380,has_referee_history,,40,0,0.0,absent,false
+942,Serie C - Girone B,2018,380,has_event_coordinates,,40,0,0.0,absent,false
+942,Serie C - Girone B,2018,380,has_physical_load_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2018,380,has_attendance_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2018,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+942,Serie C - Girone B,2018,380,supports_player_goal_props,,0,0,,unknown,false
+942,Serie C - Girone B,2018,380,supports_player_shot_props,,0,0,,unknown,false
+942,Serie C - Girone B,2018,380,supports_player_discipline_props,,0,0,,unknown,false
+942,Serie C - Girone B,2019,267,has_lineups,true,40,40,1.0,available,false
+942,Serie C - Girone B,2019,267,has_player_match_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2019,267,has_shot_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2019,267,has_xg,,40,0,0.0,absent,false
+942,Serie C - Girone B,2019,267,has_corners_data,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2019,267,has_cards_data,true,40,40,1.0,available,false
+942,Serie C - Girone B,2019,267,has_half_split_stats,,40,40,1.0,available,false
+942,Serie C - Girone B,2019,267,has_substitution_timestamps,true,40,40,1.0,available,false
+942,Serie C - Girone B,2019,267,has_referee_history,,40,40,1.0,available,false
+942,Serie C - Girone B,2019,267,has_event_coordinates,,40,0,0.0,absent,false
+942,Serie C - Girone B,2019,267,has_physical_load_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2019,267,has_attendance_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2019,267,supports_lineup_strength_adjustment,,0,0,,unknown,false
+942,Serie C - Girone B,2019,267,supports_player_goal_props,,0,0,,unknown,false
+942,Serie C - Girone B,2019,267,supports_player_shot_props,,0,0,,unknown,false
+942,Serie C - Girone B,2019,267,supports_player_discipline_props,,0,0,,unknown,false
+942,Serie C - Girone B,2020,380,has_lineups,true,40,40,1.0,available,false
+942,Serie C - Girone B,2020,380,has_player_match_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2020,380,has_shot_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2020,380,has_xg,,40,0,0.0,absent,false
+942,Serie C - Girone B,2020,380,has_corners_data,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2020,380,has_cards_data,true,40,38,0.95,available,false
+942,Serie C - Girone B,2020,380,has_half_split_stats,,40,40,1.0,available,false
+942,Serie C - Girone B,2020,380,has_substitution_timestamps,true,40,40,1.0,available,false
+942,Serie C - Girone B,2020,380,has_referee_history,,40,40,1.0,available,false
+942,Serie C - Girone B,2020,380,has_event_coordinates,,40,0,0.0,absent,false
+942,Serie C - Girone B,2020,380,has_physical_load_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2020,380,has_attendance_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2020,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+942,Serie C - Girone B,2020,380,supports_player_goal_props,,0,0,,unknown,false
+942,Serie C - Girone B,2020,380,supports_player_shot_props,,0,0,,unknown,false
+942,Serie C - Girone B,2020,380,supports_player_discipline_props,,0,0,,unknown,false
+942,Serie C - Girone B,2021,380,has_lineups,true,40,40,1.0,available,false
+942,Serie C - Girone B,2021,380,has_player_match_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2021,380,has_shot_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2021,380,has_xg,,40,0,0.0,absent,false
+942,Serie C - Girone B,2021,380,has_corners_data,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2021,380,has_cards_data,true,40,34,0.85,partial,false
+942,Serie C - Girone B,2021,380,has_half_split_stats,,40,40,1.0,available,false
+942,Serie C - Girone B,2021,380,has_substitution_timestamps,true,40,40,1.0,available,false
+942,Serie C - Girone B,2021,380,has_referee_history,,40,40,1.0,available,false
+942,Serie C - Girone B,2021,380,has_event_coordinates,,40,0,0.0,absent,false
+942,Serie C - Girone B,2021,380,has_physical_load_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2021,380,has_attendance_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2021,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+942,Serie C - Girone B,2021,380,supports_player_goal_props,,0,0,,unknown,false
+942,Serie C - Girone B,2021,380,supports_player_shot_props,,0,0,,unknown,false
+942,Serie C - Girone B,2021,380,supports_player_discipline_props,,0,0,,unknown,false
+942,Serie C - Girone B,2022,380,has_lineups,true,40,40,1.0,available,false
+942,Serie C - Girone B,2022,380,has_player_match_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2022,380,has_shot_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2022,380,has_xg,,40,0,0.0,absent,false
+942,Serie C - Girone B,2022,380,has_corners_data,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2022,380,has_cards_data,true,40,38,0.95,available,false
+942,Serie C - Girone B,2022,380,has_half_split_stats,,40,40,1.0,available,false
+942,Serie C - Girone B,2022,380,has_substitution_timestamps,true,40,40,1.0,available,false
+942,Serie C - Girone B,2022,380,has_referee_history,,40,40,1.0,available,false
+942,Serie C - Girone B,2022,380,has_event_coordinates,,40,0,0.0,absent,false
+942,Serie C - Girone B,2022,380,has_physical_load_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2022,380,has_attendance_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2022,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+942,Serie C - Girone B,2022,380,supports_player_goal_props,,0,0,,unknown,false
+942,Serie C - Girone B,2022,380,supports_player_shot_props,,0,0,,unknown,false
+942,Serie C - Girone B,2022,380,supports_player_discipline_props,,0,0,,unknown,false
+942,Serie C - Girone B,2023,380,has_lineups,true,40,40,1.0,available,false
+942,Serie C - Girone B,2023,380,has_player_match_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2023,380,has_shot_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2023,380,has_xg,,40,0,0.0,absent,false
+942,Serie C - Girone B,2023,380,has_corners_data,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2023,380,has_cards_data,true,40,40,1.0,available,false
+942,Serie C - Girone B,2023,380,has_half_split_stats,,40,40,1.0,available,false
+942,Serie C - Girone B,2023,380,has_substitution_timestamps,true,40,40,1.0,available,false
+942,Serie C - Girone B,2023,380,has_referee_history,,40,40,1.0,available,false
+942,Serie C - Girone B,2023,380,has_event_coordinates,,40,0,0.0,absent,false
+942,Serie C - Girone B,2023,380,has_physical_load_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2023,380,has_attendance_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2023,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+942,Serie C - Girone B,2023,380,supports_player_goal_props,,0,0,,unknown,false
+942,Serie C - Girone B,2023,380,supports_player_shot_props,,0,0,,unknown,false
+942,Serie C - Girone B,2023,380,supports_player_discipline_props,,0,0,,unknown,false
+942,Serie C - Girone B,2024,380,has_lineups,true,40,40,1.0,available,false
+942,Serie C - Girone B,2024,380,has_player_match_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2024,380,has_shot_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2024,380,has_xg,,40,0,0.0,absent,false
+942,Serie C - Girone B,2024,380,has_corners_data,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2024,380,has_cards_data,true,40,39,0.975,available,false
+942,Serie C - Girone B,2024,380,has_half_split_stats,,40,40,1.0,available,false
+942,Serie C - Girone B,2024,380,has_substitution_timestamps,true,40,40,1.0,available,false
+942,Serie C - Girone B,2024,380,has_referee_history,,40,40,1.0,available,false
+942,Serie C - Girone B,2024,380,has_event_coordinates,,40,0,0.0,absent,false
+942,Serie C - Girone B,2024,380,has_physical_load_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2024,380,has_attendance_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2024,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+942,Serie C - Girone B,2024,380,supports_player_goal_props,,0,0,,unknown,false
+942,Serie C - Girone B,2024,380,supports_player_shot_props,,0,0,,unknown,false
+942,Serie C - Girone B,2024,380,supports_player_discipline_props,,0,0,,unknown,false
+942,Serie C - Girone B,2025,357,has_lineups,true,40,40,1.0,available,false
+942,Serie C - Girone B,2025,357,has_player_match_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2025,357,has_shot_stats,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2025,357,has_xg,,40,0,0.0,absent,false
+942,Serie C - Girone B,2025,357,has_corners_data,false,40,0,0.0,absent,false
+942,Serie C - Girone B,2025,357,has_cards_data,true,40,40,1.0,available,false
+942,Serie C - Girone B,2025,357,has_half_split_stats,,40,40,1.0,available,false
+942,Serie C - Girone B,2025,357,has_substitution_timestamps,true,40,40,1.0,available,false
+942,Serie C - Girone B,2025,357,has_referee_history,,40,12,0.3,partial,false
+942,Serie C - Girone B,2025,357,has_event_coordinates,,40,0,0.0,absent,false
+942,Serie C - Girone B,2025,357,has_physical_load_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2025,357,has_attendance_data,,40,0,0.0,absent,false
+942,Serie C - Girone B,2025,357,supports_lineup_strength_adjustment,,0,0,,unknown,false
+942,Serie C - Girone B,2025,357,supports_player_goal_props,,0,0,,unknown,false
+942,Serie C - Girone B,2025,357,supports_player_shot_props,,0,0,,unknown,false
+942,Serie C - Girone B,2025,357,supports_player_discipline_props,,0,0,,unknown,false
+943,Serie C - Girone C,2018,342,has_lineups,true,40,38,0.95,available,false
+943,Serie C - Girone C,2018,342,has_player_match_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2018,342,has_shot_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2018,342,has_xg,,40,0,0.0,absent,false
+943,Serie C - Girone C,2018,342,has_corners_data,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2018,342,has_cards_data,true,40,7,0.175,partial,false
+943,Serie C - Girone C,2018,342,has_half_split_stats,,40,38,0.95,available,false
+943,Serie C - Girone C,2018,342,has_substitution_timestamps,true,40,38,0.95,available,false
+943,Serie C - Girone C,2018,342,has_referee_history,,40,0,0.0,absent,false
+943,Serie C - Girone C,2018,342,has_event_coordinates,,40,0,0.0,absent,false
+943,Serie C - Girone C,2018,342,has_physical_load_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2018,342,has_attendance_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2018,342,supports_lineup_strength_adjustment,,0,0,,unknown,false
+943,Serie C - Girone C,2018,342,supports_player_goal_props,,0,0,,unknown,false
+943,Serie C - Girone C,2018,342,supports_player_shot_props,,0,0,,unknown,false
+943,Serie C - Girone C,2018,342,supports_player_discipline_props,,0,0,,unknown,false
+943,Serie C - Girone C,2019,300,has_lineups,true,40,40,1.0,available,false
+943,Serie C - Girone C,2019,300,has_player_match_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2019,300,has_shot_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2019,300,has_xg,,40,0,0.0,absent,false
+943,Serie C - Girone C,2019,300,has_corners_data,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2019,300,has_cards_data,true,40,39,0.975,available,false
+943,Serie C - Girone C,2019,300,has_half_split_stats,,40,40,1.0,available,false
+943,Serie C - Girone C,2019,300,has_substitution_timestamps,true,40,40,1.0,available,false
+943,Serie C - Girone C,2019,300,has_referee_history,,40,40,1.0,available,false
+943,Serie C - Girone C,2019,300,has_event_coordinates,,40,0,0.0,absent,false
+943,Serie C - Girone C,2019,300,has_physical_load_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2019,300,has_attendance_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2019,300,supports_lineup_strength_adjustment,,0,0,,unknown,false
+943,Serie C - Girone C,2019,300,supports_player_goal_props,,0,0,,unknown,false
+943,Serie C - Girone C,2019,300,supports_player_shot_props,,0,0,,unknown,false
+943,Serie C - Girone C,2019,300,supports_player_discipline_props,,0,0,,unknown,false
+943,Serie C - Girone C,2020,343,has_lineups,true,40,40,1.0,available,false
+943,Serie C - Girone C,2020,343,has_player_match_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2020,343,has_shot_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2020,343,has_xg,,40,0,0.0,absent,false
+943,Serie C - Girone C,2020,343,has_corners_data,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2020,343,has_cards_data,true,40,39,0.975,available,false
+943,Serie C - Girone C,2020,343,has_half_split_stats,,40,40,1.0,available,false
+943,Serie C - Girone C,2020,343,has_substitution_timestamps,true,40,40,1.0,available,false
+943,Serie C - Girone C,2020,343,has_referee_history,,40,40,1.0,available,false
+943,Serie C - Girone C,2020,343,has_event_coordinates,,40,0,0.0,absent,false
+943,Serie C - Girone C,2020,343,has_physical_load_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2020,343,has_attendance_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2020,343,supports_lineup_strength_adjustment,,0,0,,unknown,false
+943,Serie C - Girone C,2020,343,supports_player_goal_props,,0,0,,unknown,false
+943,Serie C - Girone C,2020,343,supports_player_shot_props,,0,0,,unknown,false
+943,Serie C - Girone C,2020,343,supports_player_discipline_props,,0,0,,unknown,false
+943,Serie C - Girone C,2021,376,has_lineups,true,40,40,1.0,available,false
+943,Serie C - Girone C,2021,376,has_player_match_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2021,376,has_shot_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2021,376,has_xg,,40,0,0.0,absent,false
+943,Serie C - Girone C,2021,376,has_corners_data,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2021,376,has_cards_data,true,40,40,1.0,available,false
+943,Serie C - Girone C,2021,376,has_half_split_stats,,40,40,1.0,available,false
+943,Serie C - Girone C,2021,376,has_substitution_timestamps,true,40,40,1.0,available,false
+943,Serie C - Girone C,2021,376,has_referee_history,,40,40,1.0,available,false
+943,Serie C - Girone C,2021,376,has_event_coordinates,,40,0,0.0,absent,false
+943,Serie C - Girone C,2021,376,has_physical_load_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2021,376,has_attendance_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2021,376,supports_lineup_strength_adjustment,,0,0,,unknown,false
+943,Serie C - Girone C,2021,376,supports_player_goal_props,,0,0,,unknown,false
+943,Serie C - Girone C,2021,376,supports_player_shot_props,,0,0,,unknown,false
+943,Serie C - Girone C,2021,376,supports_player_discipline_props,,0,0,,unknown,false
+943,Serie C - Girone C,2022,380,has_lineups,true,40,40,1.0,available,false
+943,Serie C - Girone C,2022,380,has_player_match_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2022,380,has_shot_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2022,380,has_xg,,40,0,0.0,absent,false
+943,Serie C - Girone C,2022,380,has_corners_data,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2022,380,has_cards_data,true,40,39,0.975,available,false
+943,Serie C - Girone C,2022,380,has_half_split_stats,,40,40,1.0,available,false
+943,Serie C - Girone C,2022,380,has_substitution_timestamps,true,40,40,1.0,available,false
+943,Serie C - Girone C,2022,380,has_referee_history,,40,40,1.0,available,false
+943,Serie C - Girone C,2022,380,has_event_coordinates,,40,0,0.0,absent,false
+943,Serie C - Girone C,2022,380,has_physical_load_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2022,380,has_attendance_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2022,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+943,Serie C - Girone C,2022,380,supports_player_goal_props,,0,0,,unknown,false
+943,Serie C - Girone C,2022,380,supports_player_shot_props,,0,0,,unknown,false
+943,Serie C - Girone C,2022,380,supports_player_discipline_props,,0,0,,unknown,false
+943,Serie C - Girone C,2023,380,has_lineups,true,40,40,1.0,available,false
+943,Serie C - Girone C,2023,380,has_player_match_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2023,380,has_shot_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2023,380,has_xg,,40,0,0.0,absent,false
+943,Serie C - Girone C,2023,380,has_corners_data,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2023,380,has_cards_data,true,40,40,1.0,available,false
+943,Serie C - Girone C,2023,380,has_half_split_stats,,40,40,1.0,available,false
+943,Serie C - Girone C,2023,380,has_substitution_timestamps,true,40,40,1.0,available,false
+943,Serie C - Girone C,2023,380,has_referee_history,,40,40,1.0,available,false
+943,Serie C - Girone C,2023,380,has_event_coordinates,,40,0,0.0,absent,false
+943,Serie C - Girone C,2023,380,has_physical_load_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2023,380,has_attendance_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2023,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+943,Serie C - Girone C,2023,380,supports_player_goal_props,,0,0,,unknown,false
+943,Serie C - Girone C,2023,380,supports_player_shot_props,,0,0,,unknown,false
+943,Serie C - Girone C,2023,380,supports_player_discipline_props,,0,0,,unknown,false
+943,Serie C - Girone C,2024,362,has_lineups,true,40,40,1.0,available,false
+943,Serie C - Girone C,2024,362,has_player_match_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2024,362,has_shot_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2024,362,has_xg,,40,0,0.0,absent,false
+943,Serie C - Girone C,2024,362,has_corners_data,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2024,362,has_cards_data,true,40,39,0.975,available,false
+943,Serie C - Girone C,2024,362,has_half_split_stats,,40,40,1.0,available,false
+943,Serie C - Girone C,2024,362,has_substitution_timestamps,true,40,40,1.0,available,false
+943,Serie C - Girone C,2024,362,has_referee_history,,40,40,1.0,available,false
+943,Serie C - Girone C,2024,362,has_event_coordinates,,40,0,0.0,absent,false
+943,Serie C - Girone C,2024,362,has_physical_load_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2024,362,has_attendance_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2024,362,supports_lineup_strength_adjustment,,0,0,,unknown,false
+943,Serie C - Girone C,2024,362,supports_player_goal_props,,0,0,,unknown,false
+943,Serie C - Girone C,2024,362,supports_player_shot_props,,0,0,,unknown,false
+943,Serie C - Girone C,2024,362,supports_player_discipline_props,,0,0,,unknown,false
+943,Serie C - Girone C,2025,380,has_lineups,true,40,40,1.0,available,false
+943,Serie C - Girone C,2025,380,has_player_match_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2025,380,has_shot_stats,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2025,380,has_xg,,40,0,0.0,absent,false
+943,Serie C - Girone C,2025,380,has_corners_data,false,40,0,0.0,absent,false
+943,Serie C - Girone C,2025,380,has_cards_data,true,40,40,1.0,available,false
+943,Serie C - Girone C,2025,380,has_half_split_stats,,40,40,1.0,available,false
+943,Serie C - Girone C,2025,380,has_substitution_timestamps,true,40,40,1.0,available,false
+943,Serie C - Girone C,2025,380,has_referee_history,,40,5,0.125,partial,false
+943,Serie C - Girone C,2025,380,has_event_coordinates,,40,0,0.0,absent,false
+943,Serie C - Girone C,2025,380,has_physical_load_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2025,380,has_attendance_data,,40,0,0.0,absent,false
+943,Serie C - Girone C,2025,380,supports_lineup_strength_adjustment,,0,0,,unknown,false
+943,Serie C - Girone C,2025,380,supports_player_goal_props,,0,0,,unknown,false
+943,Serie C - Girone C,2025,380,supports_player_shot_props,,0,0,,unknown,false
+943,Serie C - Girone C,2025,380,supports_player_discipline_props,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2022,8,has_lineups,true,8,8,1.0,available,false
+975,Serie C - Relegation - Play-offs,2022,8,has_player_match_stats,false,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2022,8,has_shot_stats,false,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2022,8,has_xg,,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2022,8,has_corners_data,false,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2022,8,has_cards_data,true,8,8,1.0,available,false
+975,Serie C - Relegation - Play-offs,2022,8,has_half_split_stats,,8,8,1.0,available,false
+975,Serie C - Relegation - Play-offs,2022,8,has_substitution_timestamps,true,8,8,1.0,available,false
+975,Serie C - Relegation - Play-offs,2022,8,has_referee_history,,8,8,1.0,available,false
+975,Serie C - Relegation - Play-offs,2022,8,has_event_coordinates,,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2022,8,has_physical_load_data,,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2022,8,has_attendance_data,,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2022,8,supports_lineup_strength_adjustment,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2022,8,supports_player_goal_props,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2022,8,supports_player_shot_props,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2022,8,supports_player_discipline_props,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2023,8,has_lineups,true,8,8,1.0,available,false
+975,Serie C - Relegation - Play-offs,2023,8,has_player_match_stats,false,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2023,8,has_shot_stats,false,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2023,8,has_xg,,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2023,8,has_corners_data,false,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2023,8,has_cards_data,true,8,8,1.0,available,false
+975,Serie C - Relegation - Play-offs,2023,8,has_half_split_stats,,8,8,1.0,available,false
+975,Serie C - Relegation - Play-offs,2023,8,has_substitution_timestamps,true,8,8,1.0,available,false
+975,Serie C - Relegation - Play-offs,2023,8,has_referee_history,,8,8,1.0,available,false
+975,Serie C - Relegation - Play-offs,2023,8,has_event_coordinates,,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2023,8,has_physical_load_data,,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2023,8,has_attendance_data,,8,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2023,8,supports_lineup_strength_adjustment,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2023,8,supports_player_goal_props,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2023,8,supports_player_shot_props,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2023,8,supports_player_discipline_props,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2024,10,has_lineups,true,10,10,1.0,available,false
+975,Serie C - Relegation - Play-offs,2024,10,has_player_match_stats,false,10,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2024,10,has_shot_stats,false,10,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2024,10,has_xg,,10,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2024,10,has_corners_data,false,10,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2024,10,has_cards_data,true,10,10,1.0,available,false
+975,Serie C - Relegation - Play-offs,2024,10,has_half_split_stats,,10,10,1.0,available,false
+975,Serie C - Relegation - Play-offs,2024,10,has_substitution_timestamps,true,10,10,1.0,available,false
+975,Serie C - Relegation - Play-offs,2024,10,has_referee_history,,10,10,1.0,available,false
+975,Serie C - Relegation - Play-offs,2024,10,has_event_coordinates,,10,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2024,10,has_physical_load_data,,10,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2024,10,has_attendance_data,,10,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2024,10,supports_lineup_strength_adjustment,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2024,10,supports_player_goal_props,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2024,10,supports_player_shot_props,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2024,10,supports_player_discipline_props,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2025,2,has_lineups,true,2,2,1.0,available,false
+975,Serie C - Relegation - Play-offs,2025,2,has_player_match_stats,false,2,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2025,2,has_shot_stats,false,2,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2025,2,has_xg,,2,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2025,2,has_corners_data,false,2,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2025,2,has_cards_data,true,2,1,0.5,partial,false
+975,Serie C - Relegation - Play-offs,2025,2,has_half_split_stats,,2,2,1.0,available,false
+975,Serie C - Relegation - Play-offs,2025,2,has_substitution_timestamps,true,2,2,1.0,available,false
+975,Serie C - Relegation - Play-offs,2025,2,has_referee_history,,2,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2025,2,has_event_coordinates,,2,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2025,2,has_physical_load_data,,2,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2025,2,has_attendance_data,,2,0,0.0,absent,false
+975,Serie C - Relegation - Play-offs,2025,2,supports_lineup_strength_adjustment,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2025,2,supports_player_goal_props,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2025,2,supports_player_shot_props,,0,0,,unknown,false
+975,Serie C - Relegation - Play-offs,2025,2,supports_player_discipline_props,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2022,39,has_lineups,true,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2022,39,has_player_match_stats,false,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2022,39,has_shot_stats,false,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2022,39,has_xg,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2022,39,has_corners_data,false,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2022,39,has_cards_data,true,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2022,39,has_half_split_stats,,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2022,39,has_substitution_timestamps,true,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2022,39,has_referee_history,,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2022,39,has_event_coordinates,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2022,39,has_physical_load_data,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2022,39,has_attendance_data,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2022,39,supports_lineup_strength_adjustment,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2022,39,supports_player_goal_props,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2022,39,supports_player_shot_props,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2022,39,supports_player_discipline_props,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2023,39,has_lineups,true,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2023,39,has_player_match_stats,false,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2023,39,has_shot_stats,false,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2023,39,has_xg,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2023,39,has_corners_data,false,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2023,39,has_cards_data,true,39,37,0.9487179487179487,partial,false
+976,Serie C - Promotion - Play-offs,2023,39,has_half_split_stats,,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2023,39,has_substitution_timestamps,true,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2023,39,has_referee_history,,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2023,39,has_event_coordinates,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2023,39,has_physical_load_data,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2023,39,has_attendance_data,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2023,39,supports_lineup_strength_adjustment,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2023,39,supports_player_goal_props,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2023,39,supports_player_shot_props,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2023,39,supports_player_discipline_props,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2024,39,has_lineups,true,39,38,0.9743589743589743,available,false
+976,Serie C - Promotion - Play-offs,2024,39,has_player_match_stats,false,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2024,39,has_shot_stats,false,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2024,39,has_xg,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2024,39,has_corners_data,false,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2024,39,has_cards_data,true,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2024,39,has_half_split_stats,,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2024,39,has_substitution_timestamps,true,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2024,39,has_referee_history,,39,38,0.9743589743589743,available,false
+976,Serie C - Promotion - Play-offs,2024,39,has_event_coordinates,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2024,39,has_physical_load_data,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2024,39,has_attendance_data,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2024,39,supports_lineup_strength_adjustment,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2024,39,supports_player_goal_props,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2024,39,supports_player_shot_props,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2024,39,supports_player_discipline_props,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2025,39,has_lineups,true,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2025,39,has_player_match_stats,false,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2025,39,has_shot_stats,false,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2025,39,has_xg,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2025,39,has_corners_data,false,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2025,39,has_cards_data,true,39,38,0.9743589743589743,available,false
+976,Serie C - Promotion - Play-offs,2025,39,has_half_split_stats,,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2025,39,has_substitution_timestamps,true,39,39,1.0,available,false
+976,Serie C - Promotion - Play-offs,2025,39,has_referee_history,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2025,39,has_event_coordinates,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2025,39,has_physical_load_data,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2025,39,has_attendance_data,,39,0,0.0,absent,false
+976,Serie C - Promotion - Play-offs,2025,39,supports_lineup_strength_adjustment,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2025,39,supports_player_goal_props,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2025,39,supports_player_shot_props,,0,0,,unknown,false
+976,Serie C - Promotion - Play-offs,2025,39,supports_player_discipline_props,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2022,14,has_lineups,true,14,14,1.0,available,false
+1006,Primera División RFEF - Play Offs,2022,14,has_player_match_stats,false,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2022,14,has_shot_stats,false,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2022,14,has_xg,,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2022,14,has_corners_data,false,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2022,14,has_cards_data,true,14,6,0.42857142857142855,partial,false
+1006,Primera División RFEF - Play Offs,2022,14,has_half_split_stats,,14,14,1.0,available,false
+1006,Primera División RFEF - Play Offs,2022,14,has_substitution_timestamps,true,14,14,1.0,available,false
+1006,Primera División RFEF - Play Offs,2022,14,has_referee_history,,14,14,1.0,available,false
+1006,Primera División RFEF - Play Offs,2022,14,has_event_coordinates,,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2022,14,has_physical_load_data,,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2022,14,has_attendance_data,,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2022,14,supports_lineup_strength_adjustment,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2022,14,supports_player_goal_props,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2022,14,supports_player_shot_props,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2022,14,supports_player_discipline_props,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2023,14,has_lineups,true,14,14,1.0,available,false
+1006,Primera División RFEF - Play Offs,2023,14,has_player_match_stats,false,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2023,14,has_shot_stats,false,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2023,14,has_xg,,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2023,14,has_corners_data,false,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2023,14,has_cards_data,true,14,14,1.0,available,false
+1006,Primera División RFEF - Play Offs,2023,14,has_half_split_stats,,14,14,1.0,available,false
+1006,Primera División RFEF - Play Offs,2023,14,has_substitution_timestamps,true,14,14,1.0,available,false
+1006,Primera División RFEF - Play Offs,2023,14,has_referee_history,,14,14,1.0,available,false
+1006,Primera División RFEF - Play Offs,2023,14,has_event_coordinates,,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2023,14,has_physical_load_data,,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2023,14,has_attendance_data,,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2023,14,supports_lineup_strength_adjustment,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2023,14,supports_player_goal_props,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2023,14,supports_player_shot_props,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2023,14,supports_player_discipline_props,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2024,14,has_lineups,true,14,5,0.35714285714285715,partial,false
+1006,Primera División RFEF - Play Offs,2024,14,has_player_match_stats,false,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2024,14,has_shot_stats,false,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2024,14,has_xg,,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2024,14,has_corners_data,false,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2024,14,has_cards_data,true,14,13,0.9285714285714286,partial,false
+1006,Primera División RFEF - Play Offs,2024,14,has_half_split_stats,,14,14,1.0,available,false
+1006,Primera División RFEF - Play Offs,2024,14,has_substitution_timestamps,true,14,14,1.0,available,false
+1006,Primera División RFEF - Play Offs,2024,14,has_referee_history,,14,5,0.35714285714285715,partial,false
+1006,Primera División RFEF - Play Offs,2024,14,has_event_coordinates,,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2024,14,has_physical_load_data,,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2024,14,has_attendance_data,,14,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2024,14,supports_lineup_strength_adjustment,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2024,14,supports_player_goal_props,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2024,14,supports_player_shot_props,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2024,14,supports_player_discipline_props,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2025,12,has_lineups,false,12,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2025,12,has_player_match_stats,false,12,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2025,12,has_shot_stats,false,12,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2025,12,has_xg,,12,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2025,12,has_corners_data,false,12,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2025,12,has_cards_data,true,12,11,0.9166666666666666,partial,false
+1006,Primera División RFEF - Play Offs,2025,12,has_half_split_stats,,12,12,1.0,available,false
+1006,Primera División RFEF - Play Offs,2025,12,has_substitution_timestamps,true,12,11,0.9166666666666666,partial,false
+1006,Primera División RFEF - Play Offs,2025,12,has_referee_history,,12,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2025,12,has_event_coordinates,,12,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2025,12,has_physical_load_data,,12,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2025,12,has_attendance_data,,12,0,0.0,absent,false
+1006,Primera División RFEF - Play Offs,2025,12,supports_lineup_strength_adjustment,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2025,12,supports_player_goal_props,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2025,12,supports_player_shot_props,,0,0,,unknown,false
+1006,Primera División RFEF - Play Offs,2025,12,supports_player_discipline_props,,0,0,,unknown,false

@@ -33,16 +33,16 @@ def is_second_phase(label: str | None) -> bool:
     return SECOND_PHASE in (label or "")
 
 
-# A national side's level from its name (docs/BEYOND_LEAGUES_PLAN.md, team level): a final
-# U15-U23 (or U-20), a women's W before it or at the end, a final B. Clubs in domestic
-# leagues are not classified: a reserve side plays a senior league.
+# A national side's level and gender from its name (docs/BEYOND_LEAGUES_PLAN.md, team level,
+# gender as its own field): a final U15-U23 (or U-20), a women's W before it or at the end,
+# a final B. Clubs in domestic leagues are not classified: a reserve side plays a senior
+# league.
 _AGE = re.compile(r"\s+U-?(1[5-9]|2[0-3])$")
 _WOMEN = re.compile(r"\s+W$")
 _B_SIDE = re.compile(r"\s+B$")
 
 
-def team_level_of(name: str) -> str:
-    """`senior`, `b`, `u15`-`u23`, `women` or `women_u15`-`women_u23`."""
+def _profile(name: str) -> tuple[str, str]:
     rest = name.strip()
     age = _AGE.search(rest)
     if age:
@@ -51,9 +51,17 @@ def team_level_of(name: str) -> str:
     if women:
         rest = _WOMEN.sub("", rest)
     level = f"u{age.group(1)}" if age else "b" if _B_SIDE.search(rest) else "senior"
-    if women:
-        return "women" if level == "senior" else f"women_{level}"
-    return level
+    return ("women" if women else "men"), level
+
+
+def team_level_of(name: str) -> str:
+    """`senior`, `b` or `u15`-`u23` (levels only; gender is `gender_of`)."""
+    return _profile(name)[1]
+
+
+def gender_of(name: str) -> str:
+    """`women` for a name with a women's W, else `men`."""
+    return _profile(name)[0]
 
 
 def ensure_source(session: Session) -> None:
@@ -219,8 +227,8 @@ def teams_by_ref(
 ) -> dict[str, models.Team]:
     """Bulk get-or-create teams from {source_ref: name}: one SELECT per 500 refs, one flush.
     National sides (teams of a national-team competition) are stored with is_national, their
-    own name as country and a team_level from the name; an existing row is upgraded, never
-    downgraded."""
+    own name as country, and a gender and team_level from the name; an existing row is
+    upgraded, never downgraded."""
     T = models.Team
     out: dict[str, models.Team] = {}
     for part in chunks(sorted(teams)):
@@ -234,11 +242,12 @@ def teams_by_ref(
         for t in out.values():
             if not t.is_national:
                 t.is_national, t.country = True, t.name
-                t.team_level = team_level_of(t.name)
+                t.gender, t.team_level = _profile(t.name)
     new = [
         T(source_id=SOURCE_ID, source_ref=ref, name=name,
           country=name if national else country, is_national=national,
-          team_level=team_level_of(name) if national else "senior")
+          team_level=team_level_of(name) if national else "senior",
+          gender=gender_of(name) if national else "men")
         for ref, name in teams.items()
         if ref not in out
     ]  # fmt: skip

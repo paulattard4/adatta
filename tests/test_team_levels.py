@@ -17,24 +17,24 @@ from adatta.features import team_levels as tl
 
 
 @pytest.mark.parametrize(
-    ("name", "level"),
+    ("name", "gender", "level"),
     [
-        ("England", "senior"),
-        ("England U21", "u21"),
-        ("Brazil U-20", "u20"),
-        ("St. Vincent / Gren. U20", "u20"),
-        ("Canada W U17", "women_u17"),
-        ("Mexico W", "women"),
-        ("England B", "b"),
-        ("Korea DPR U23", "u23"),
-        ("Rangers U17", "u17"),
-        ("Netherlands U14", "senior"),  # outside U15-U23: not read as an age
-        ("Bosnia & Herzegovina", "senior"),
-        ("Los Angeles FC", "senior"),
+        ("England", "men", "senior"),
+        ("England U21", "men", "u21"),
+        ("Brazil U-20", "men", "u20"),
+        ("St. Vincent / Gren. U20", "men", "u20"),
+        ("Canada W U17", "women", "u17"),
+        ("Mexico W", "women", "senior"),
+        ("England B", "men", "b"),
+        ("Korea DPR U23", "men", "u23"),
+        ("Rangers U17", "men", "u17"),
+        ("Netherlands U14", "men", "senior"),  # outside U15-U23: not read as an age
+        ("Bosnia & Herzegovina", "men", "senior"),
+        ("Los Angeles FC", "men", "senior"),
     ],
 )
-def test_level_from_the_name(name: str, level: str) -> None:
-    assert normalize.team_level_of(name) == level
+def test_gender_and_level_from_the_name(name: str, gender: str, level: str) -> None:
+    assert normalize.gender_of(name) == gender and normalize.team_level_of(name) == level
 
 
 def test_parse_team_reads_the_national_flag() -> None:
@@ -47,10 +47,14 @@ def test_parse_team_reads_the_national_flag() -> None:
 
 def test_new_national_sides_get_their_level_at_load() -> None:
     s = _session()
-    got = normalize.teams_by_ref(s, {"1": "Spain U19", "2": "Spain"}, national=True)
+    got = normalize.teams_by_ref(s, {"1": "Spain U19", "2": "Spain", "4": "Spain W U17"},
+                                 national=True)  # fmt: skip
     assert got["1"].team_level == "u19" and got["2"].team_level == "senior"
+    assert (got["4"].gender, got["4"].team_level) == ("women", "u17")
+    assert got["1"].gender == got["2"].gender == "men"
     club = normalize.teams_by_ref(s, {"3": "Barcelona B"}, country="Spain")
-    assert club["3"].team_level == "senior" and not club["3"].is_national  # a club: untouched
+    assert (club["3"].gender, club["3"].team_level) == ("men", "senior")  # a club: untouched
+    assert not club["3"].is_national
 
 
 class FakeClient:
@@ -82,7 +86,7 @@ def _session() -> Session:
 def test_youth_women_b_and_clubs_drop_out_of_the_senior_fit(tmp_path: Path) -> None:
     s, store = _session(), LocalStore(tmp_path)
     names = {"10": "England", "11": "England U21", "12": "Canada W U17", "13": "England B",
-             "14": "Los Angeles FC", "15": "Bahamas"}  # fmt: skip
+             "14": "Los Angeles FC", "15": "Bahamas", "16": "Canada"}  # fmt: skip
     for ref, n in names.items():  # stored before this change: all senior
         s.add(models.Team(source_id=normalize.SOURCE_ID, source_ref=ref, name=n, country=n,
                           is_national=True))  # fmt: skip
@@ -95,13 +99,15 @@ def test_youth_women_b_and_clubs_drop_out_of_the_senior_fit(tmp_path: Path) -> N
                                      "country": "USA"}})  # Bahamas: no answer  # fmt: skip
     assert tl.fetch_teams(s, client, cands) == 2
     assert tl.fetch_teams(s, client, cands) == 0 and client.asked == [14, 15]  # resumable
-    assert tl.apply_levels(teams) == 3
+    assert tl.apply_levels(teams) == 3  # U21, women's U17, B
     assert tl.apply_clubs(cands, tl.stored_teams(s, store)) == ["Los Angeles FC"]
     by = {t.name: t for t in teams}
     assert by["Los Angeles FC"].country == "USA" and by["Bahamas"].is_national  # not guessed
-    senior = {by[n].team_id for n in ("England", "Bahamas")}
-    assert tl.senior_national_ids(s) == senior
-    assert tl.level_counts(teams) == {"senior": 3, "u21": 1, "women_u17": 1, "b": 1}
+    assert (by["Canada W U17"].gender, by["Canada W U17"].team_level) == ("women", "u17")
+    senior = {by[n].team_id for n in ("England", "Bahamas", "Canada")}
+    assert tl.senior_national_ids(s) == senior  # Canada stays, Canada W U17 drops out
+    assert tl.level_counts(teams) == {"men senior": 4, "men u21": 1, "women u17": 1,
+                                      "men b": 1}  # fmt: skip
 
 
 def test_a_nation_the_provider_flags_as_a_club_stays_national() -> None:

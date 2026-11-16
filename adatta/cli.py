@@ -499,11 +499,11 @@ def teams_level(
         help="ask /teams?id= about national sides that match no country (about 85 "
         "requests, resumable)",
     ),
-    write: bool = typer.Option(False, help="write team_level and the clubs cleared"),
+    write: bool = typer.Option(False, help="write gender, team_level and the clubs cleared"),
 ) -> None:
-    """team_level of national sides from their names, and clubs among them by the provider's
-    own national flag (adatta/features/team_levels.py). Without --fetch no requests; without
-    --write nothing is changed."""
+    """Gender and team_level of national sides from their names, and clubs among them by the
+    provider's own national flag (adatta/features/team_levels.py). Without --fetch no
+    requests; without --write nothing is changed."""
     from adatta.features import host
     from adatta.features import team_levels as tl
 
@@ -522,8 +522,8 @@ def teams_level(
         changed = tl.apply_levels(teams)
         cleared = tl.apply_clubs(candidates, tl.stored_teams(session, store), tl.load_nations())
         asked = len(tl.fetched_teams(session) & {t.source_ref for t in candidates})
-        typer.echo(f"{len(teams)} national sides; levels {tl.level_counts(teams)}; "
-                   f"{changed} levels changed")  # fmt: skip
+        typer.echo(f"{len(teams)} national sides; by gender and level {tl.level_counts(teams)}; "
+                   f"{changed} changed")  # fmt: skip
         typer.echo(f"{len(candidates)} without a country match, {asked} answered by the "
                    f"provider; {len(cleared)} clubs: {', '.join(cleared) or '-'}")  # fmt: skip
         if write:

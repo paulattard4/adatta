@@ -1,17 +1,19 @@
 """Team level and clubs among national sides (docs/BEYOND_LEAGUES_PLAN.md, team level; before
 any national-team model, Stage D).
 
-Teams of national competitions (`is_national`) take `team_level` from their name
-(`normalize.team_level_of`: U15-U23, women's, B sides). A national side whose name matches
-no provider country may be a club that played a national side (LAFC, DC United): the
-provider's own flag decides, one `/teams?id=` request each (`fetch_teams`, the only place
-here that sends requests, through the client and its quota planner); `national: false`
+Teams of national competitions (`is_national`) take `gender` and `team_level` from their
+name (`normalize.gender_of`, `normalize.team_level_of`: women's sides, U15-U23, B sides).
+A national side whose name matches no provider country may be a club that played a
+national side (LAFC, DC United): the provider's own flag decides, one `/teams?id=` request
+each (`fetch_teams`, the only place here that sends requests, through the client and its
+quota planner); `national: false`
 clears `is_national`, except where the provider's country is the side's own name
 (Montserrat, Puerto Rico U19: a club's country is never its own name) or the side is listed
 under `nations` in config/national_countries.yml (checked by hand: the provider's flag is
 wrong there). No answer, or `national: true`, leaves the row as it is.
 
-A senior national fit reads `senior_national_ids`: national sides at `senior` level only.
+A senior men's national fit reads `senior_national_ids`: men's national sides at `senior`
+level only.
 """
 
 from __future__ import annotations
@@ -26,12 +28,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from adatta.adapters.api_football import ProviderTeam, parse_team
-from adatta.adapters.normalize import name_key, team_level_of
+from adatta.adapters.normalize import gender_of, name_key, team_level_of
 from adatta.adapters.storage import RawStore
 from adatta.db import models
 from adatta.features import host
 
 SENIOR = "senior"
+MEN = "men"
 
 
 def national_teams(session: Session) -> list[models.Team]:
@@ -39,12 +42,12 @@ def national_teams(session: Session) -> list[models.Team]:
 
 
 def apply_levels(teams: Sequence[models.Team]) -> int:
-    """Set team_level from the name; returns how many changed."""
+    """Set gender and team_level from the name; returns how many teams changed."""
     changed = 0
     for t in teams:
-        level = team_level_of(t.name)
-        if t.team_level != level:
-            t.team_level = level
+        gender, level = gender_of(t.name), team_level_of(t.name)
+        if (t.gender, t.team_level) != (gender, level):
+            t.gender, t.team_level = gender, level
             changed += 1
     return changed
 
@@ -110,11 +113,12 @@ def apply_clubs(teams: Sequence[models.Team], provider: dict[str, ProviderTeam],
 
 
 def senior_national_ids(session: Session) -> set[int]:
-    """The teams a senior national-team fit may read."""
+    """The teams a senior men's national-team fit may read."""
     T = models.Team
-    q = select(T.team_id).where(T.is_national, T.team_level == SENIOR)
+    q = select(T.team_id).where(T.is_national, T.gender == MEN, T.team_level == SENIOR)
     return set(session.scalars(q))
 
 
 def level_counts(teams: Sequence[models.Team]) -> dict[str, int]:
-    return dict(Counter(t.team_level for t in teams).most_common())
+    """Teams by gender and level, e.g. {"men senior": 216, "women u17": 2}."""
+    return dict(Counter(f"{t.gender} {t.team_level}" for t in teams).most_common())

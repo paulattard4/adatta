@@ -82,7 +82,8 @@ class Team(Base):
     source_ref: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(128))
     country: Mapped[str] = mapped_column(String(64), default="")
-    team_level: Mapped[str] = mapped_column(String(32), default="senior")
+    team_level: Mapped[str] = mapped_column(String(32), default="senior")  # senior, b, u15-u23
+    gender: Mapped[str] = mapped_column(String(16), default="men", server_default="men")
     is_national: Mapped[bool] = mapped_column(Boolean, default=False)
     parent_team_id: Mapped[int | None] = mapped_column(ForeignKey("team.team_id"), nullable=True)
     __table_args__ = (UniqueConstraint("source_id", "source_ref"),)

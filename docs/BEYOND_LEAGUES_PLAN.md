@@ -117,6 +117,19 @@ Progress:
         not FIFA nations); 634 national sides remain: senior 218, u16-u23 410, B 4 (Algeria,
         Egypt, Ghana, Morocco), women's U17 2. The 29 sides without a country match that
         the provider calls national stay (Afghanistan, Bahamas, North Korea, ...).
+      - Gender as its own field (owner, 2026-11-16: "gender as its own field, and level kept
+        for levels"). Acceptance stated first: (a) `team.gender` (new, `men` or `women`, not
+        null, default `men`; migration 0012, forward-only, existing rows `men`);
+        `team_level` holds levels only (`senior`, `b`, `u15`-`u23`); (b) national sides take
+        both from the name (a `W` before the age or at the end is `women`), at load and by
+        `adatta teams-level`; club sides keep `men` and `senior`; (c) a senior men's
+        national fit selects `is_national`, `gender == "men"` and `team_level == "senior"`,
+        so Canada W U17 is `women` / `u17` and drops out while Canada stays; (d) the
+        command prints counts by gender and level.
+        **Done (2026-11-16):** migration 0012 applied; `normalize.gender_of`,
+        `team_level_of` (levels only), `team_levels.senior_national_ids` (men, senior).
+        634 national sides: men senior 218, men u16-u23 410, men B 4, women u17 2 (Canada,
+        Mexico); every club `men` / `senior`.
       - History load done 2026-11-15: `adatta backfill-run --config
         config/national_competitions.yml`, 78 jobs (none failed), 572 requests (below the
         1,000-1,500 estimate: detail goes 20 matches a call); 10,308 finished national

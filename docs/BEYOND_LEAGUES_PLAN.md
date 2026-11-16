@@ -86,6 +86,37 @@ Progress:
         FC Urartu) are tagged `is_national` too. The owner keeps youth sides in the data
         (2026-11-15). Before any national-team model (Stage D): set `team_level` from the
         name (U15-U23) and keep youth sides and clubs out of the senior fit.
+      - Team level and clubs, acceptance stated first (owner: yes, 2026-11-16). Scope: teams
+        of national competitions (`is_national`); club sides in domestic leagues keep
+        `senior` (a reserve side plays a senior league). (a) `team_level` from the name:
+        a final `U15`-`U23` (or `U-20`) gives `u15`-`u23`, a `W` before it or at the end
+        marks a women's side (`women`, `women_u17`), a final `B` gives `b`, anything else
+        `senior`; set on new national sides at load and on stored ones by a command.
+        (b) Clubs: a national side whose name (suffix removed) matches no provider country
+        is checked with the provider's own flag, one `/teams?id=` request each through the
+        client and quota planner (about 85, resumable, raw payloads kept); `national:
+        false` clears `is_national` and sets the provider's country; `national: true` or
+        no answer leaves the row as it is (never guessed). (c) A senior national fit
+        selects `is_national` and `team_level == "senior"`; tests show a U21 side, a
+        women's U17 side, a B side and a club drop out and a senior side stays. (d) The
+        command prints counts by level and the clubs cleared, and writes only with
+        `--write`.
+        **Built and applied (2026-11-16):** `normalize.team_level_of` (also set at load on
+        national sides), `adatta/features/team_levels.py`, `adatta teams-level [--fetch]
+        [--write]`, `ApiFootballClient.team` / `parse_team`, `tests/test_team_levels.py`
+        (16 tests). `host.Countries` now strips every suffix ("Canada W U17" -> Canada; it
+        stripped only the last); host roles are not rewritten until `venues-host --write`
+        runs again. Rule (b) amended after its first run, disclosed: the provider flags
+        some nations `national: false` (Montserrat, Sao Tome and Principe, Papua New Guinea
+        U20, Puerto Rico U19), so a side stays national when the provider's country is its
+        own name, or when it is listed under `nations` in `config/national_countries.yml`
+        (Sao Tome and Principe: provider country "São-Tomé-e-Príncipe"). The four were
+        cleared by the first run and restored. Result: 83 `/teams` requests; 27 clubs
+        cleared (MLS, USL, K League, Süper Lig and other clubs, PSG U17, Rangers U17,
+        Philadelphia Union II, ABFF U19, and the Basque and Catalan selections, which are
+        not FIFA nations); 634 national sides remain: senior 218, u16-u23 410, B 4 (Algeria,
+        Egypt, Ghana, Morocco), women's U17 2. The 29 sides without a country match that
+        the provider calls national stay (Afghanistan, Bahamas, North Korea, ...).
       - History load done 2026-11-15: `adatta backfill-run --config
         config/national_competitions.yml`, 78 jobs (none failed), 572 requests (below the
         1,000-1,500 estimate: detail goes 20 matches a call); 10,308 finished national

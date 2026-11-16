@@ -33,6 +33,29 @@ def is_second_phase(label: str | None) -> bool:
     return SECOND_PHASE in (label or "")
 
 
+# A national side's level from its name (docs/BEYOND_LEAGUES_PLAN.md, team level): a final
+# U15-U23 (or U-20), a women's W before it or at the end, a final B. Clubs in domestic
+# leagues are not classified: a reserve side plays a senior league.
+_AGE = re.compile(r"\s+U-?(1[5-9]|2[0-3])$")
+_WOMEN = re.compile(r"\s+W$")
+_B_SIDE = re.compile(r"\s+B$")
+
+
+def team_level_of(name: str) -> str:
+    """`senior`, `b`, `u15`-`u23`, `women` or `women_u15`-`women_u23`."""
+    rest = name.strip()
+    age = _AGE.search(rest)
+    if age:
+        rest = rest[: age.start()]
+    women = _WOMEN.search(rest) is not None
+    if women:
+        rest = _WOMEN.sub("", rest)
+    level = f"u{age.group(1)}" if age else "b" if _B_SIDE.search(rest) else "senior"
+    if women:
+        return "women" if level == "senior" else f"women_{level}"
+    return level
+
+
 def ensure_source(session: Session) -> None:
     if session.get(models.Source, SOURCE_ID) is None:
         session.add(models.Source(source_id=SOURCE_ID, description="API-Football v3"))
@@ -195,8 +218,9 @@ def teams_by_ref(
     session: Session, teams: dict[str, str], country: str = "", national: bool = False
 ) -> dict[str, models.Team]:
     """Bulk get-or-create teams from {source_ref: name}: one SELECT per 500 refs, one flush.
-    National sides (teams of a national-team competition) are stored with is_national and
-    their own name as country; an existing row is upgraded, never downgraded."""
+    National sides (teams of a national-team competition) are stored with is_national, their
+    own name as country and a team_level from the name; an existing row is upgraded, never
+    downgraded."""
     T = models.Team
     out: dict[str, models.Team] = {}
     for part in chunks(sorted(teams)):
@@ -210,9 +234,11 @@ def teams_by_ref(
         for t in out.values():
             if not t.is_national:
                 t.is_national, t.country = True, t.name
+                t.team_level = team_level_of(t.name)
     new = [
         T(source_id=SOURCE_ID, source_ref=ref, name=name,
-          country=name if national else country, is_national=national)
+          country=name if national else country, is_national=national,
+          team_level=team_level_of(name) if national else "senior")
         for ref, name in teams.items()
         if ref not in out
     ]  # fmt: skip

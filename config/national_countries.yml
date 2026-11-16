@@ -29,3 +29,9 @@ aliases:
   Taiwan: Chinese-Taipei
   Macao: Macau
   Palestinian Territory: Palestine
+
+# National sides the provider's /teams flags `national: false` although they are nations,
+# where its country is not the side's own name (team level, docs/BEYOND_LEAGUES_PLAN.md).
+# Checked by hand on 2026-11-16 (provider country "São-Tomé-e-Príncipe").
+nations:
+  - Sao Tome and Principe

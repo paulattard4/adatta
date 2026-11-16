@@ -49,6 +49,14 @@ def load_aliases(path: Path | str = ALIASES_PATH) -> dict[str, str]:
     return {str(k): str(v) for k, v in (raw.get("aliases") or {}).items()}
 
 
+def base_name(team_name: str) -> str:
+    """The name without its youth, reserve or women's suffixes ("Canada W U17" -> "Canada")."""
+    base, prev = team_name.strip(), ""
+    while base != prev:
+        prev, base = base, SUFFIX.sub("", base)
+    return base
+
+
 class Countries:
     """Team name -> provider country name, from the provider's names and the aliases."""
 
@@ -58,7 +66,7 @@ class Countries:
         self.aliases = aliases
 
     def of(self, team_name: str) -> str | None:
-        base = SUFFIX.sub("", team_name.strip())
+        base = base_name(team_name)
         if base in self.aliases:
             alias = self.aliases[base]
             return alias if alias in self.names else None

@@ -492,6 +492,48 @@ def venues_host(
             session.commit()  # the venue countries
 
 
+@app.command("teams-level")
+def teams_level(
+    fetch: bool = typer.Option(
+        False,
+        help="ask /teams?id= about national sides that match no country (about 85 "
+        "requests, resumable)",
+    ),
+    write: bool = typer.Option(False, help="write team_level and the clubs cleared"),
+) -> None:
+    """team_level of national sides from their names, and clubs among them by the provider's
+    own national flag (adatta/features/team_levels.py). Without --fetch no requests; without
+    --write nothing is changed."""
+    from adatta.features import host
+    from adatta.features import team_levels as tl
+
+    store = make_store(get_settings())
+    with get_session() as session:
+        teams = tl.national_teams(session)
+        countries = host.Countries(host.stored_country_names(session, store), host.load_aliases())
+        if not countries.names:
+            raise typer.BadParameter("no stored /countries payload: run venues-host --fetch")
+        candidates = tl.club_candidates(teams, countries)
+        if fetch:
+            client = _client()
+            n = tl.fetch_teams(session, client, candidates)
+            typer.echo(f"fetched {n} teams ({len(candidates)} without a country match); "
+                       f"account quota used today ~{client.quota_used_today}")  # fmt: skip
+        changed = tl.apply_levels(teams)
+        cleared = tl.apply_clubs(candidates, tl.stored_teams(session, store), tl.load_nations())
+        asked = len(tl.fetched_teams(session) & {t.source_ref for t in candidates})
+        typer.echo(f"{len(teams)} national sides; levels {tl.level_counts(teams)}; "
+                   f"{changed} levels changed")  # fmt: skip
+        typer.echo(f"{len(candidates)} without a country match, {asked} answered by the "
+                   f"provider; {len(cleared)} clubs: {', '.join(cleared) or '-'}")  # fmt: skip
+        if write:
+            session.commit()
+            typer.echo(f"written; senior national sides now {len(tl.senior_national_ids(session))}")
+        else:
+            session.rollback()
+            typer.echo("dry run: nothing written (--write to apply)")
+
+
 @app.command("venues-coverage")
 def venues_coverage() -> None:
     """Share of bundle league fixtures with travel and altitude terms, by country, tier and

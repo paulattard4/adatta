@@ -100,6 +100,26 @@ def parse_venues(payload: dict[str, Any]) -> list[ProviderVenue]:
     return out
 
 
+@dataclass(frozen=True)
+class ProviderTeam:
+    """A team as `/teams?id=` gives it: whether the provider counts it a national side, and
+    its country."""
+
+    ref: str
+    name: str
+    national: bool
+    country: str
+
+
+def parse_team(payload: dict[str, Any]) -> ProviderTeam | None:
+    resp = payload.get("response") or []
+    t = (resp[0] or {}).get("team") or {} if resp else {}
+    if t.get("id") is None or not isinstance(t.get("national"), bool):
+        return None
+    return ProviderTeam(str(t["id"]), str(t.get("name") or ""), t["national"],
+                        str(t.get("country") or ""))  # fmt: skip
+
+
 class ApiFootballClient:
     def __init__(
         self,
@@ -243,6 +263,10 @@ class ApiFootballClient:
         """/venues?country: every venue the provider lists in a country, with its country."""
         data = self.fetch(session, "/venues", {"country": country})
         return parse_venues(data)
+
+    def team(self, session: Session, team_id: int) -> ProviderTeam | None:
+        """/teams?id=: one team with the provider's national flag (None if not answered)."""
+        return parse_team(self.fetch(session, "/teams", {"id": team_id}))
 
     def injuries(self, session: Session, league_id: int, season: int) -> list[dict[str, Any]]:
         """/injuries?league&season: per-fixture absences (Missing Fixture / Questionable)."""

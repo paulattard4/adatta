@@ -150,6 +150,25 @@ class ScoreSplit(NamedTuple):
     away_pens: int | None
 
 
+NT_PROVIDER, NT_EVENTS = "provider", "events"  # match_result.nt_basis
+
+
+def keeps_events_split(cur: models.MatchResult, new: ScoreSplit, fx: dict[str, Any]) -> bool:
+    """A 90' score taken from the goal events (Stage A, A0) stays through a fixture re-ingest
+    while the provider's half-time, shootout and total goals still agree with it."""
+    if cur.nt_basis != NT_EVENTS:
+        return False
+    goals = fx.get("goals") or {}
+    if goals.get("home") is None or goals.get("away") is None:
+        return False
+    hn, he, an, ae = cur.home_goals_nt, cur.home_goals_et, cur.away_goals_nt, cur.away_goals_et
+    if hn is None or he is None or an is None or ae is None:
+        return False
+    rest = (cur.home_goals_ht, cur.away_goals_ht, cur.home_pens, cur.away_pens)
+    same_rest = rest == (new.home_goals_ht, new.away_goals_ht, new.home_pens, new.away_pens)
+    return same_rest and (hn + he, an + ae) == (int(goals["home"]), int(goals["away"]))
+
+
 def _score_of(r: models.MatchResult) -> ScoreSplit:
     return ScoreSplit(
         r.home_goals_ht,
@@ -405,7 +424,7 @@ def ingest_fixtures(
         new = split_score(fx)
         cur = current.get(match.match_id)
         if cur is not None:
-            if _score_of(cur) == new:
+            if _score_of(cur) == new or keeps_events_split(cur, new, fx):
                 continue
             cur.superseded_at = now
             cur.valid_to = now

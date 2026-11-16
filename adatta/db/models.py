@@ -220,6 +220,9 @@ class MatchResult(Temporal, Base):
     away_goals_et: Mapped[int | None] = mapped_column(Integer, nullable=True)
     home_pens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     away_pens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Where the 90' score came from: "provider" (the fixture's score fields) or "events" (the
+    # stored detail's goal events, Stage A A0; adatta/adapters/detail_store.py).
+    nt_basis: Mapped[str] = mapped_column(String(16), default="provider", server_default="provider")
     __table_args__ = (Index("ix_match_result_match", "match_id", "superseded_at"),)
 
 

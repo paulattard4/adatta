@@ -1,0 +1,16 @@
+# Cup formats by API-Football league id (docs/BEYOND_LEAGUES_PLAN.md Stage A, A0 (c);
+# adatta/features/cup_ties.py). Stage B extends this with extra time, penalties and the
+# away-goals rule, with validity dates.
+#
+# second_meeting: what a second match of the same two teams in the same round is.
+#   leg     two-legged rounds exist (the pair meets once each way; leg 1 is the earlier)
+#   replay  single-match rounds with replays: the later meeting is a replay (the provider
+#           labels some "... Replays", but from 2025/26 FA Cup qualifying replays keep the
+#           round's own label)
+#   none    single matches only: a second meeting is listed as irregular
+formats:
+  45: {name: FA Cup, second_meeting: replay}
+  143: {name: Copa del Rey, second_meeting: leg}
+  137: {name: Coppa Italia, second_meeting: leg}
+  81: {name: DFB Pokal, second_meeting: none}
+  66: {name: Coupe de France, second_meeting: none}

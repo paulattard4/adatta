@@ -534,6 +534,51 @@ def teams_level(
             typer.echo("dry run: nothing written (--write to apply)")
 
 
+@app.command("results-nt-repair")
+def results_nt_repair(
+    write: bool = typer.Option(False, help="write the new match_result versions"),
+) -> None:
+    """Stage A, A0 (a): the 90' score of matches that went to extra time from the goal events
+    of the stored detail (adatta/adapters/detail_store.py). Prints counts by competition and
+    season only, never scores, so holdout outcomes are not read. No requests; without --write
+    nothing is changed."""
+    from collections import Counter
+
+    from sqlalchemy import select
+
+    from adatta.adapters import detail_store
+    from adatta.db import models
+
+    M, S, C = models.Match, models.Season, models.Competition
+    with get_session() as session:
+        out = detail_store.repair_normal_time(session, make_store(get_settings()))
+        ids = [m for m, _, _ in out["changed"]] + out["unscorable"]
+        where = {
+            mid: (name, year)
+            for mid, name, year in session.execute(
+                select(M.match_id, C.name, S.year)
+                .join(S, S.season_id == M.season_id)
+                .join(C, C.competition_id == S.competition_id)
+                .where(M.match_id.in_(ids))
+            )
+        } if ids else {}  # fmt: skip
+        typer.echo(f"{out['matches']} matches after extra time or without a 90' score: "
+                   f"{len(out['changed'])} changed, {out['agree']} agree with the events, "
+                   f"{out['provider_kept']} keep the provider's split, "
+                   f"{len(out['unscorable'])} unscorable, "
+                   f"{out['no_result']} without a result row")  # fmt: skip
+        for label, mids in (("changed", [m for m, _, _ in out["changed"]]),
+                            ("unscorable", out["unscorable"])):  # fmt: skip
+            for (name, year), n in sorted(Counter(where[m] for m in mids).items()):
+                typer.echo(f"  {label} {year} {name}: {n}")
+        if write:
+            session.commit()
+            typer.echo("written")
+        else:
+            session.rollback()
+            typer.echo("dry run: nothing written (--write to apply)")
+
+
 @app.command("teams-split")
 def teams_split(
     write: bool = typer.Option(False, help="move the matches to the other club"),

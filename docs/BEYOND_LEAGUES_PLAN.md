@@ -389,6 +389,38 @@ Acceptance (stated 2026-11-16, before building):
 - Compute: A1 reuses the league backtest's weekly refits (no new fits); A2 terms are
   small models on top of the league posterior. CI runs wait for the one-at-a-time rule.
 
+- [x] **A0 done 2026-11-16; (a)-(c) pass.**
+  (a) `api_football_stats.event_goals` / `normal_time_from_events` (shootout kicks carry
+  the comment "Penalty Shootout"; missed penalties are not goals),
+  `detail_store.repair_normal_time`, `adatta results-nt-repair [--write]` (prints counts
+  by competition-season only, never scores), migration 0013 (`match_result.nt_basis`:
+  provider | events; a fixture re-ingest keeps an events row while the provider's half
+  time, shootout and total still agree), `tests/test_nt_repair.py` (4 tests). Validated
+  first on 2,154 sampled matches up to 2023 decided in 90': the event score equals the
+  stored one on 2,153 (own goals are credited to the side the event names). Scope widened
+  while building, disclosed: finished matches with no 90' score are included, because the
+  provider marks some extra-time ties FT (Coppa Italia match 51563: 2-2 after 90, 2-4
+  after extra time, status FT). Applied to all seasons: 2,107 matches; 375 new versions
+  (nt_basis events), 1,371 already agreeing, 479 keep the provider's split (no usable
+  events), 252 unscorable and listed (none in the dev bundle ties); a rerun changes
+  nothing. Dev bundle ties now 820 of 820 scorable (training 442 of 442; holdout and
+  live 359 of 365, counted, not read). Tier 1-2 `load_matches` unchanged (39,759
+  matches, same hash; checked uncommitted first, as the M5 holdout run was in progress).
+  (b) Stored `neutral` agrees with the venue role on every bundle tie. Bundle ties
+  2016/17-2023/24: 1,202 home, 57 neutral, 3 swapped (all 2016-2018), 0 unknown, so the
+  dev seasons have no swapped or unknown tie; 10 unknown (no venue) in the holdout and
+  live seasons. One final a season is neutral in every cup except where the
+  documented ground rule keeps it home (Coppa Italia 2016 and 2018 finals at the
+  Olimpico with Lazio playing; Tottenham's 2017/18 FA Cup semi-final at Wembley, their
+  home that season); Copa del Rey 2016-2017 has no fixtures at all (known gap,
+  `SOURCE_FEASIBILITY.md`). The Stage A loader reads the role, so a swapped tie gives
+  the home term to the side at its ground. (c) `adatta/features/cup_ties.py` labels
+  single matches, legs and replays from the fixture list and `config/cup_formats.yml`
+  (`second_meeting`: leg, replay or none), `tests/test_cup_ties.py` (5 tests). From
+  2025/26 the provider keeps the round's own label on FA Cup qualifying replays, so the
+  format, not the label alone, decides. All 11,281 stored cup matches: Copa del Rey 64
+  two-legged ties, Coppa Italia 20, FA Cup 1,004 replays, 0 irregular.
+
 ## Stage B: knockout resolution (§9)
 
 Needed whenever a winner is required: domestic cups, continental knockouts and

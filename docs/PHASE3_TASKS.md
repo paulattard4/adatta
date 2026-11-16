@@ -159,12 +159,105 @@ Consequences:
           left.
         - From the next push the capture tick runs it daily.
 - [ ] **P3-b Availability, selection and minutes, validated standalone (§7.1-§7.2).**
-      `P(start | available)` and an expected-minutes distribution per player. Acceptance
-      stated before building; the shape proposed now:
-      - on dev, at the T-24h horizon from realised history only, against two baselines
-        ("the previous match's XI" and "season selection frequency");
-      - log loss and Brier of start per player, CRPS of minutes, by league and position;
-      - the status-informed version judged on the live period (D39).
+      `P(start | available)` and an expected-minutes distribution per player.
+      **Acceptance stated 2026-11-16, before building and before any selection result is
+      seen.** This is a standalone component study on dev only. It changes no production
+      forecast, and the locked holdout is not touched.
+
+      (a) **What is predicted.** For each team-match, each player in the team's candidate
+      pool gets three probabilities: start, bench, or not in the matchday squad (§7.2:
+      starters, N bench, the rest healthy scratch or out). Each player also gets a minutes
+      distribution: zero-inflated, with Beta-scaled minutes given a start and given
+      coming on (§7.2). Matches are bundle-league matches only. Minutes are on the 90'
+      scale (`minutes_nt`, the model's own scale).
+
+      (b) **When it is predicted, and from what.**
+      - The as-of time is kickoff − 24 h, the T-24h forecast.
+      - Inputs are only appearances final by then (`AppearanceHistory.as_of`), plus that
+        match's context as of then: congestion (days since the team's last match and to
+        its next, all loaded competitions, D25's labelled look-ahead for the forward
+        side) and importance.
+      - Pre-match status is not used on dev; it doesn't exist before 2026-11-05 (D39).
+        Bench size is per competition-season, the largest bench seen in its matches before
+        the as-of time.
+
+      (c) **Candidate pool.**
+      - Every player with a matchday-squad appearance for the team in the 365 days
+        before the as-of time.
+      - A player is dropped once they have appeared for another club after their last
+        appearance for this one.
+      - Live, the pool also includes the current squad list (P3-a).
+      - Reported: the share of actual starters and bench players who were in the pool.
+        Players outside it are new arrivals, the cold start; they are scored with the
+        pool's leftover mass, so they are never silently dropped.
+
+      (d) **Model to build.** A Bayesian hierarchical multinomial-logit model (start /
+      bench / out), with player effects pooled player → position → league.
+      - Covariates:
+        - recent starts and squad selections (last match, exponentially weighted over
+          about 10 matches);
+        - minutes in the last match;
+        - days since the player's last appearance, and the length of a gap ended by a
+          return (injury-return ramp, §7.4);
+        - matches since their first appearance for the club (new-signing ramp);
+        - sent off in the team's last match;
+        - whether the team's coach changed since their last start (the coach of the team's
+          last match, known at the as-of time);
+        - team congestion;
+        - importance.
+      - Fitted per bundle with NumPyro (D10), on the dev walk-forward plan: refit every 28
+        days (D14), training on everything final by the refit date from 2016/17.
+      - The §14.5 inference gates apply to the fits (R-hat, ESS, divergences, PPC of starts
+        per team = 11). A fit that misses the CI time budget is raised before any
+        approximation is substituted.
+      - Per team-match, posterior draws give 11 starters and up to N bench by weighted
+        sampling without replacement. Exactly one goalkeeper starts. The marginal
+        probabilities are read off the samples, so they sum to 11 starters and N bench by
+        construction.
+
+      (e) **Baselines.** Both are fitted on warm-up seasons only (2016/17-2018/19) and fixed
+      before any dev score is seen.
+      - *B1, previous XI:* a player's three-way probabilities from the empirical rates for
+        their outcome in the team's previous match (started / bench / out → start / bench /
+        out next), by position family.
+      - *B2, selection frequency:* the player's exponentially weighted start and bench
+        shares over the team's last 10 matches, shrunk toward the position-family mean by
+        a constant fitted on warm-up.
+      - Both are normalised per team-match to 11 starters and N bench. Their minutes
+        distributions are the player's empirical minutes over their last 10 matches, or the
+        position-family distribution if they have fewer than 3.
+
+      (f) **Metrics.** All on dev bundle-league matches 2019/20-2023/24, paired by
+      team-match.
+      - Three-way log loss per player (primary).
+      - Brier score of start.
+      - XI overlap: the actual starters among the 11 most likely.
+      - CRPS of `minutes_nt`.
+      - ECE of P(start) in 10 bins.
+      - Reported overall, by league, by position family, and for the cold-start and
+        return-from-gap subsets.
+
+      (g) **Pass.** All of the following must hold:
+      1. The three-way log loss beats **both** baselines overall, with the paired 95%
+         interval excluding zero.
+      2. The point estimate beats B2 (the stronger of the two on warm-up, else B1) in
+         every bundle league.
+      3. Minutes CRPS beats both baselines overall, with the paired 95% interval excluding
+         zero.
+      4. ECE of P(start) is at most 0.02 overall and at most 0.03 in every league.
+      5. The inference gates pass in every refit (the dispersion PPC is a warning, as
+         D20).
+      6. No dev appearance after the as-of time changes any prediction (leakage test).
+
+      A fail is reported with its segment. The model is respecified only on dev, and the
+      respecification is disclosed.
+
+      (h) **Live check** (not part of the dev pass). The status-informed variant is judged
+      on the live period once 1,000 bundle team-matches with status snapshots are scored
+      (D39):
+      - a "missing" status is a hard fact (P(start) = 0);
+      - a "questionable" status enters as a covariate.
+      It is measured against the dev model on the same matches with the same metrics.
 - [ ] **P3-c Formation, slot-code roles, Manager entity (§7.3).** Register 3c rows are
       verified (formation 99.65%, grid 99.65%, coach 99.59%). Acceptance stated before
       building.

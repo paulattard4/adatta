@@ -1,10 +1,10 @@
 "use client";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { CapabilityBadge, FreshnessBadge } from "@/components/Badges";
 import { ConfidencePanel } from "@/components/Confidence";
 import { Heatmap } from "@/components/Heatmap";
 import { LIVE_REFRESH_MS, score } from "@/components/Live";
+import { MatchNav } from "@/components/MatchNav";
 import { ProbCell } from "@/components/Prob";
 import { Waterfall } from "@/components/Waterfall";
 import { useJson, useNow } from "@/lib/fetch";
@@ -74,7 +74,8 @@ export default function MatchPage() {
   const w = h.weather;
   return (
     <div className="match">
-      <Link href="/" className="back">← Fixtures</Link>
+      <MatchNav id={h.match_id} competitionId={h.competition_id} kickoff={h.kickoff}
+                title={`${kickoffLocal(h.kickoff)} · ${h.home} v ${h.away}`} />
 
       <section className="panel strip">
         <div className="strip-teams">

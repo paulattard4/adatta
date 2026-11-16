@@ -190,7 +190,9 @@ def test_phase2_holdout_scores_only_the_pinned_specs(tmp_path: Path) -> None:
     from test_covariates import CovFitter, with_context
 
     cfg, df = promo_cfg(), with_context(matches((2022, 2023, 2024)))
-    assert bt.promotion_spec(config()) is None  # empty in the shipped config
+    shipped = bt.promotion_spec(config())  # pinned by the owner after M4b (PHASE2_TASKS M5)
+    assert shipped is not None and shipped.groups == ("style",)
+    assert config().promotion.context == "962f29fe719a9d58"
     promo = bt.promotion_spec(cfg)
     assert promo is not None and promo.groups == ("style",) and promo.every_days == 7
     store, key2 = LocalStore(tmp_path), harness.HoldoutKey("2", "phase2")

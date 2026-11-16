@@ -4,5 +4,5 @@
 # before the opening; changing it after the opening invalidates the promotion. Kept apart
 # from evaluation.yml, which is part of every fit's cache hash. Empty groups = not set.
 promotion:
-  groups: []      # context groups, names or G1-G7, e.g. [style]
-  context: ""     # the kickoff - 1 h context snapshot digest the holdout run reads
+  groups: [style]               # G7 (M4b, tempo per 0.1 of combined relative tempo)
+  context: "962f29fe719a9d58"   # the kickoff - 1 h context snapshot digest the holdout run reads

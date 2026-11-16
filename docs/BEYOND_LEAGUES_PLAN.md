@@ -105,8 +105,8 @@ Progress:
         national sides), `adatta/features/team_levels.py`, `adatta teams-level [--fetch]
         [--write]`, `ApiFootballClient.team` / `parse_team`, `tests/test_team_levels.py`
         (16 tests). `host.Countries` now strips every suffix ("Canada W U17" -> Canada; it
-        stripped only the last); host roles are not rewritten until `venues-host --write`
-        runs again. Rule (b) amended after its first run, disclosed: the provider flags
+        stripped only the last); `venues-host --write` rerun 2026-11-16: `match.neutral`
+        changed on 0 national matches (the fix changes no neutral flag). Rule (b) amended after its first run, disclosed: the provider flags
         some nations `national: false` (Montserrat, Sao Tome and Principe, Papua New Guinea
         U20, Puerto Rico U19), so a side stays national when the provider's country is its
         own name, or when it is listed under `nations` in `config/national_countries.yml`
@@ -258,6 +258,44 @@ Progress:
       team and Girone B and C read as one group (Reggina has its own id, 1692, from 2018).
       Before a tier-3 fit, Serie C 2016-2017 needs that split (by opponent group) or stays
       out. No team in the tier 1-2 leagues plays more matches than its group allows.
+- [x] Reggiana / Reggina split. Correction to the item above, found 2026-11-16: Reggina's
+      own id (1692) appears only from 2020/21 (Serie B), not 2018, so id 880 also holds
+      Reggina's 2018 and 2019 Girone C seasons (Reggiana was in Serie D in 2018/19 and
+      Girone B in 2019/20) and some play-off and Coppa Italia ties. Only Serie C and Coppa
+      Italia matches up to 2019/20 are involved: no tier 1-2 league match is.
+      Acceptance (stated 2026-11-16, before building): (a) `config/team_splits.yml` names
+      the shared provider id (880), the other club's id (1692), the last season it covers
+      (2019) and the other club's home city (Reggio Calabria); the code knows no club.
+      (b) A regular-round league match of the shared id goes to the other club when its
+      opponent is in the other club's group: groups from who plays whom in that
+      competition-season without the shared id; the other club's group is the one whose
+      teams the shared id hosts in that city. More than one such group stops the command.
+      (c) Any other match (play-off, cup) goes to the other club when the shared id is at
+      home in that city, or when the coach named for the shared side that season coached
+      only the other club's matches; one coaching only the shared club's matches keeps it;
+      anything else stays as filed and is listed as unresolved (principle 8, no guess).
+      (d) Moving a match changes its home/away team id and the team id of its per-match
+      rows (every table with `match_id` and `team_id`: coaches, lineups, team stats,
+      player status); nothing else. (e) After the move, in every league season each club
+      plays no more matches than its group allows, and no coach is named for both clubs in
+      one season; the tier-3 report no longer flags Serie C 2016 and 2017, and
+      `load_matches` for the tier 1-2 leagues returns the same content hash. (f) `adatta
+      teams-split [--write]` prints the moves by competition-season and reason and the
+      unresolved matches, writes only with `--write`, and a second run moves nothing.
+      Unit tests on synthetic fixtures for (b)-(d) and the second run.
+      **Done 2026-11-16; (a)-(f) pass.** `adatta/adapters/team_splits.py`,
+      `config/team_splits.yml`, `adatta teams-split [--write]`, `tests/test_team_splits.py`
+      (7 tests). 152 of id 880's 270 matches up to 2019 moved to Reggina: 38 in 2016 and 36
+      in 2017 (Serie C under one id), 36 in Girone C 2018 and 38 in Girone C 2019, all by
+      group; a 2018 play-off tie (home at the Granillo) and its return leg (by coach), and
+      2019 Coppa Italia rounds 1 (home at the Granillo) and 2 (by coach). Kept as Reggiana:
+      118, including the 2016 and 2017 Coppa Italia ties (by coach) and the 2019/20
+      play-offs at the Mapei. 0 unresolved. Rows rewritten: match 152, match_coach 142,
+      lineup / team stats / player status 0. After the move: 74 teams that did not play a
+      double round robin of their group (Girone B and C merged) before, none after; no
+      coach named for both clubs in any season; a second run moves nothing; the tier-3
+      report drops the Serie C 2016 and 2017 flags (7 left, each a real irregularity); tier
+      1-2 `load_matches` unchanged (39,759 matches, same hash before and after).
 - [ ] Tier-3 live capture (owner: yes, 2026-11-15). Quota before: live capture used about
       220-900 API-Football requests a day over 5-14 Nov (the 3,000+ days were backfills),
       against 7,500. Tier 3 adds about 80 league matches a week to roughly 90, so odds and

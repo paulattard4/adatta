@@ -534,6 +534,60 @@ def teams_level(
             typer.echo("dry run: nothing written (--write to apply)")
 
 
+@app.command("teams-split")
+def teams_split(
+    write: bool = typer.Option(False, help="move the matches to the other club"),
+) -> None:
+    """Split provider team ids that hold two clubs (config/team_splits.yml,
+    adatta/adapters/team_splits.py): prints the moves by competition-season and reason, the
+    unresolved matches, and the checks after the move. No requests; without --write nothing
+    is changed."""
+    from collections import Counter
+
+    from sqlalchemy import select
+
+    from adatta.adapters import team_splits as ts
+    from adatta.db import models
+
+    with get_session() as session:
+        comp_names = dict(session.execute(
+            select(models.Competition.competition_id, models.Competition.name)).all())  # fmt: skip
+        for sp in ts.load_splits():
+            shared = ts.team_id(session, sp.provider, sp.team_ref)
+            other = ts.team_id(session, sp.provider, sp.other_ref)
+            fx = ts.load_fixtures(session, shared, other, sp.last_season)
+            coaches = ts.load_coaches(session, (f.match_id for f in fx), (shared, other))
+            plan = ts.plan_split(fx, shared, other, sp.other_city, coaches)
+            by_id = {f.match_id: f for f in fx}
+            typer.echo(f"{sp.provider}:{sp.team_ref} -> {sp.other_ref} up to {sp.last_season}: "
+                       f"{len(plan.moves)} to move, {len(plan.kept)} kept, "
+                       f"{len(plan.unresolved)} unresolved")  # fmt: skip
+            tally = Counter((comp_names[by_id[m].competition_id], by_id[m].season, why)
+                            for m, why in plan.moves.items())  # fmt: skip
+            for (comp, season, why), n in sorted(tally.items(), key=lambda kv: kv[0][1]):
+                typer.echo(f"  move {season} {comp}: {n} by {why}")
+            for m in sorted(plan.unresolved):
+                f = by_id[m]
+                typer.echo(f"  unresolved {f.season} {comp_names[f.competition_id]} {f.round}: "
+                           f"match {m}, {'home' if f.home == shared else 'away'} "
+                           f"({f.venue or 'no venue'})")  # fmt: skip
+            after = ts.moved(fx, plan.moves, shared, other)
+            touched = {(f.competition_id, f.season) for f in fx if f.match_id in plan.moves}
+            before = [e for e in ts.group_mismatch(fx) if (e[0], e[1]) in touched]
+            mismatch = [e for e in ts.group_mismatch(after) if (e[0], e[1]) in touched]
+            both = ts.shared_coaches(after, shared, other, coaches)
+            typer.echo(f"  teams not playing a double round robin of their group: {len(before)} "
+                       f"before, after {mismatch or 'none'}; coaches named for both "
+                       f"clubs {both or 'none'}")  # fmt: skip
+            if write:
+                typer.echo(f"  written: {ts.apply(session, plan.moves, shared, other)}")
+        if write:
+            session.commit()
+        else:
+            session.rollback()
+            typer.echo("dry run: nothing written (--write to apply)")
+
+
 @app.command("venues-coverage")
 def venues_coverage() -> None:
     """Share of bundle league fixtures with travel and altitude terms, by country, tier and

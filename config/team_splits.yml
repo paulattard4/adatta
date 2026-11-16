@@ -1,0 +1,13 @@
+# Provider team ids that hold two clubs (docs/BEYOND_LEAGUES_PLAN.md, Reggiana / Reggina
+# split; adatta/adapters/team_splits.py). `team_ref` is the shared id, `other_ref` the other
+# club's own id, `last_season` the last season start year the sharing covers, `other_city`
+# the other club's home city as venue names or cities spell it.
+splits:
+  # API-Football files Reggina (Reggio Calabria) under Reggiana's id 880 until 2019/20:
+  # Serie C 2016-2017 (all three groups under one id), Girone C 2018 and 2019, and some
+  # play-off and Coppa Italia ties. Reggina has its own id 1692 from 2020/21.
+  - provider: api_football
+    team_ref: "880"
+    other_ref: "1692"
+    last_season: 2019
+    other_city: Reggio Calabria

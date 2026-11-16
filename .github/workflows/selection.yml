@@ -26,6 +26,9 @@ on:
       table:
         description: "selection table digest (latest = the newest stored)"
         default: "latest"
+      assemble:
+        description: "apply the pass rule after the fits (false for a timing pilot: fits and gates only, no scores)"
+        default: "true"
 permissions:
   contents: read
 concurrency:
@@ -62,7 +65,7 @@ jobs:
           --draws ${{ inputs.draws }} --table ${{ inputs.table }} --upload ${{ github.run_id }}
   assemble:
     needs: fit
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && inputs.assemble == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:

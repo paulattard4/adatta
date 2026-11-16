@@ -320,9 +320,74 @@ tier). Cup matches as training data: tested separately (first as targets only, t
 added to the likelihood with their own home term), because rotation makes them noisier
 evidence of strength.
 
-Acceptance (to be stated in full before building): on dev cup ties between bundle teams,
-1X2 and 90' scores not worse than the 1b model applied unchanged, calibration (ECE) no
-worse; each cup term judged like a Phase 2 group.
+Acceptance (outline): on dev cup ties between bundle teams, 1X2 and 90' scores not worse
+than the 1b model applied unchanged, calibration (ECE) no worse; each cup term judged like
+a Phase 2 group. Stated in full below.
+
+Data inventory (2026-11-16, stored data only, no requests). A bundle tie is a finished
+tie of the five cups where both teams play tier 1 or 2 of that country in that season.
+- Dev seasons 2019/20-2023/24 (`config/evaluation.yml`): 820 bundle ties (FA Cup 212,
+  Coppa Italia 191, DFB-Pokal 143, Copa del Rey 142, Coupe de France 132), 353 between
+  two top-flight sides. Training-only history 2016/17-2018/19: 442. Holdout 2024/25 and
+  2025/26: 325 (counted, not opened). 2026/27 so far: 40 played, 16 listed to come.
+- Out of scope for now: bundle v tier 3 (695 finished, all seasons) waits for a tier-3
+  fit; bundle v lower (1,221) and the rest (mostly FA Cup qualifying) are not forecast.
+- 90' score: present on 99.1% of dev bundle ties. Of the 161 that went to extra time,
+  153 agree with the goal events in the stored detail (minute ≤ 90, missed penalties
+  out), 7 have no stored 90' score but events that give one, and 1 disagrees. Coverage
+  is lower in the holdout seasons (84-95% by cup), where the provider leaves the
+  extra-time split out more often, so the repair in A0 matters there. Below the bundle
+  ties (FA Cup qualifying rounds) the stored split is often wrong: AET ties whose stored
+  90' score is not level, one side null; not used by Stage A.
+- Detail payload stored for 100% of bundle ties; venue for 94-100%; `neutral` set on
+  40 dev ties (finals; FA Cup semi-finals at Wembley), 19 FA Cup replays, two-legged
+  rounds in Copa del Rey (semi-finals, some early rounds) and Coppa Italia (semi-finals).
+- Gap to each side's next league match (the rotation proxy): median 3-5 days by cup.
+- No historical cup odds or lineup snapshots (live capture only). Cup odds are captured
+  from 2026-11-05 (69 cup matches so far, lineups on 42); the 40 bundle ties played in
+  2026/27 came before that, so the first with odds are the 16 still to come. Odds stay out of the model (principle 1); a cup
+  Edge/CLV report can only cover the live period.
+- Stage B data (dev seasons only): shootout kick events are missing on 200 of 492 dev
+  shootouts with detail; where present, the provider's `score.penalty` disagrees with the
+  kick events on 5 of 145 (e.g. Copa del Rey match 46650: field 1-0, kicks 4-2). The
+  shootout winner needs a rule before Stage B.
+- Disclosed: the first inventory pass printed extra-time and shootout counts for the
+  holdout seasons too (how many ties went to extra time). They were not used for any
+  choice here, and nothing further about holdout outcomes was read.
+
+Acceptance (stated 2026-11-16, before building):
+- **A0, data first.** (a) The 90' score of a tie that went to extra time comes from the
+  goal events (minute ≤ 90, missed penalties out) when the events' goals add up to the
+  provider's total; otherwise from the stored split; otherwise it is null and the tie is
+  listed as unscorable (never dropped silently, never imputed). Unit tests on synthetic
+  payloads; dev bundle ties then 100% scorable, or each exception listed. The same rule
+  runs on every season, so holdout coverage improves without its outcomes being read.
+  (b) Neutral ties: `neutral` set on every final and FA Cup semi-final from the venue
+  rule already used (`config/neutral_venues.yml`), checked by cup and season (one final
+  a season, two FA Cup semi-finals). (c) Each leg of a two-legged tie and each replay is
+  a 90' match in its own right; the leg-2 forecast does not use the leg-1 score (that is
+  Stage B's aggregate).
+- **A1, reference.** The bundle's production 1b posterior, refitted weekly as of the tie
+  (the same grid as the league backtest), applied unchanged: the listed home side gets
+  the league home advantage, neutral or not. Scored on the 820 dev bundle ties: 1X2 log
+  loss, RPS, 90' score log-likelihood, ECE per outcome, by cup and by tier pairing
+  (1v1, 1v2, 2v2). Its calibration on cups is reported before any term is tried.
+- **A2, cup terms, one at a time against A1** on the same ties, walk-forward (each
+  term's parameters from earlier cup ties only): (T1) a cup home advantage of its own;
+  (T2) no home term on neutral ties; (T3) rotation, from the cup round, each side's
+  gap to its next league match and the tier gap. A term passes on the D18 rule (paired
+  95% interval on 1X2 log loss or RPS excludes zero in its favour, no cup segment worse
+  by more than 1.0%, ECE no worse than +0.005 per outcome) and passes the inference
+  gates where it is fitted. With about 820 ties the intervals will be wide; a term that
+  does not pass is left out, not tuned.
+- **A3, cups as training data** (after A2, separately): cup ties added to the likelihood
+  with their own home term. It passes only if the dev league backtest is no worse (D18
+  segments, 1.0%) and the cup ties improve as in A2.
+- **Holdout and serving.** The 325 holdout-season ties stay locked; they are opened once,
+  with their own marker, for the Stage A promotion decision (like M5). Cup forecasts go
+  live only for bundle ties, and the dashboard says why other ties have none.
+- Compute: A1 reuses the league backtest's weekly refits (no new fits); A2 terms are
+  small models on top of the league posterior. CI runs wait for the one-at-a-time rule.
 
 ## Stage B: knockout resolution (§9)
 

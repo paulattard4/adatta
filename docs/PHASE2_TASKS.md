@@ -553,6 +553,31 @@ Model (after the Phase 1b audit closes):
       - (d) dispatched 2026-11-15: run 43760181569 (commit 5b2ef5e), `groups` G7, snapshot
         962f29fe719a9d58, weekly grid, `every_days` 7, 2,000 draws, parts halves, `vs`
         43421580602.
+      - (d) result (2026-11-16): **D36 passes, feasibility fails as written; owner to
+        decide.** All 51 jobs succeeded on the first attempt (longest 217 min, mean 146,
+        none over 360, none rerun). D36 gate on 18,682 warm matches: **pass via route B**
+        (total CRPS −0.14% [−0.24%, −0.04%], OU2.5 log loss −0.13% [−0.24%, −0.03%], 1X2
+        log loss −0.02% and RPS −0.03%, ECE home +0.0006, draw +0.0002, away +0.0008,
+        over 2.5 −0.0017; 50 league segments, worst league 136 OU2.5 +0.19%); route A
+        fails on log loss (−0.02% [−0.05%, +0.00%]), RPS alone passes (−0.03% [−0.05%,
+        −0.00%]). Feasibility (median refit time ratio, limit 1.25): England 1.19, France
+        1.05, **Germany 1.29 (440 s vs 340 s): fail**, Italy 1.06, Spain 0.98.
+        The look item 4 asks for before a fail is read as infeasible (model or runners),
+        from the runs' refit times in R2, metrics only: per job (one runner each), the
+        Germany ratio against the reference is 0.50 to 1.85 across its 10 jobs, for the
+        same model; the old-scale G7 run (43691182011) shows the same spread (0.68 to
+        1.42) and passed with Germany 1.04 and Italy 1.24, where this run has 1.29 and
+        1.06. The same model refitting the same dates on the old and new scale differs by
+        a median 0.89 (Italy) to 1.17 (England) per refit. Runner-to-runner speed varies
+        by more than the 25% margin, so this run cannot tell a 29% cost from noise; the
+        respecification changes one covariate's scale and adds no parameter. Not changed:
+        the criterion. A paired timing, both specs on the same runner over the same
+        dates, would separate the two (owner's call, acceptance to be stated first).
+        For information, outside (d)'s test: the per-group report fails on mixing, R-hat
+        > 1.01 in 11 of 928 refits against a limit of 9 (reference 7 + 2; worst 1.017;
+        divergences in 2, at the limit); active total CRPS −0.14% [−0.23%, −0.04%]; tempo
+        positive in every bundle, +0.025 to +0.073 per 0.1, sd / prior 0.07–0.09.
+        Promotion file not drafted: (d) has not passed.
 - [ ] M5 Promotion per D30.
       - Holdout jobs split (prerequisite, 2026-11-15). Acceptance stated first: (a)
         `holdout.yml` takes a `parts` input (default `["0/1"]`, today's behaviour) and runs

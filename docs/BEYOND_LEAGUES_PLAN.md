@@ -509,6 +509,36 @@ tournaments.
 Data to verify first: ET and shootout scores (`split_score` already separates them),
 shootout kick events, and how often the provider has them per competition.
 
+- [x] Shootout winner rule. Checked first on the dev seasons of the five cups (2016/17 to
+  2023/24, nothing later read), against who advanced (the side of the tie that plays a
+  later match in the same cup-season): of 486 shootouts with an advancer, the provider's
+  `score.penalty` names the right winner in 485 (the other: Coupe de France 2016, match
+  54542, field 4-3 to the home side, the away side played on); the kick events exist for
+  124 shootouts and never name a different winner from the field, but their count
+  differs from the field in 5 of 145 shootouts with kicks (e.g. Copa del Rey match 46650:
+  field 1-0, kicks 4-2) and one kick list is level (3-3: incomplete).
+  Acceptance (stated 2026-11-16, before building): (a) the kicks are parsed in the adapter
+  (shootout events carry the comment "Penalty Shootout"; a missed kick is "Missed
+  Penalty"); they count as complete only when replaying them in the listed order, best of
+  five then sudden death, decides the shootout at the last listed kick and not before
+  (so the check holds for ABAB and ABBA orders). (b) The winner is the field's when both
+  values are there and differ; otherwise the complete kicks'; otherwise none. (c) Where a
+  later round shows who advanced, it must agree; a disagreement leaves the shootout
+  unresolved and listed (never guessed either way). (d) The shootout score kept for a
+  kick model is the complete kicks', never the field's count. (e) Unit tests on
+  synthetic kick lists (early finish, sudden death, kicks after the end, ABBA, level);
+  a report by cup for the dev seasons only (shootouts, basis, complete kicks, count
+  disagreements, unresolved), no requests.
+  **Done 2026-11-16; (a)-(e) pass.** `api_football_stats.shootout_kicks`,
+  `adatta/features/shootouts.py` (`kicks_score`, `decide`, `advanced_side`),
+  `adatta results-shootouts`, `tests/test_shootouts.py` (4 tests). Dev report: 492
+  shootouts (FA Cup 161, Coupe de France 157, Copa del Rey 73, DFB-Pokal 63, Coppa
+  Italia 38); winner from the score in 491, unresolved 1 (Coupe de France match 54542,
+  listed); kicks listed for 124 and complete for 119; among complete kicks one count
+  differs from the score (Copa del Rey). The earlier "5 of 145" count disagreements were
+  incomplete kick lists. Nothing is written to the database: Stage B reads the rule when
+  it builds its labels.
+
 Acceptance: P(advance) calibration and log loss on dev knockout ties against a baseline
 of "90' model, level = coin flip", validated apart from the round-robin core (§19.3).
 

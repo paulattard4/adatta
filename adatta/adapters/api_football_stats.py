@@ -82,6 +82,22 @@ def normal_time_from_events(fx: dict[str, Any]) -> tuple[int, int] | None:
     return nt if total == (int(goals["home"]), int(goals["away"])) else None
 
 
+def shootout_kicks(fx: dict[str, Any]) -> list[tuple[str, bool]] | None:
+    """The shootout's kicks in the listed order, as (side, scored) with side "home" or
+    "away" (Stage B shootout rule). None without shootout events, or when a kick names
+    neither side."""
+    home, away = fx["teams"]["home"]["id"], fx["teams"]["away"]["id"]
+    kicks: list[tuple[str, bool]] = []
+    for e in fx.get("events") or []:
+        if e.get("type") != "Goal" or e.get("comments") != SHOOTOUT:
+            continue
+        team = (e.get("team") or {}).get("id")
+        if team not in (home, away):
+            return None
+        kicks.append(("home" if team == home else "away", e.get("detail") != "Missed Penalty"))
+    return kicks or None
+
+
 def match_coaches(fx: dict[str, Any]) -> list[dict[str, Any]]:
     """One dict per team whose lineup names a coach: team_ref, coach_ref, coach_name (D12).
     A lineup without a coach id gives no row (absent, never imputed)."""

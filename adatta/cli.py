@@ -579,6 +579,75 @@ def results_nt_repair(
             typer.echo("dry run: nothing written (--write to apply)")
 
 
+@app.command("results-shootouts")
+def results_shootouts() -> None:
+    """Stage B shootout winner rule (adatta/features/shootouts.py) on the five domestic cups,
+    dev seasons and earlier only (config/evaluation.yml), so no holdout outcome is read: per
+    cup the shootouts, the basis of the winner, complete kicks, kick counts that differ from
+    the provider's score, and the unresolved ones. No requests."""
+    import gzip
+    import json
+    from collections import Counter, defaultdict
+
+    from sqlalchemy import select
+
+    from adatta.adapters import api_football_stats as st
+    from adatta.db import models
+    from adatta.eval import harness
+    from adatta.features import cup_ties
+    from adatta.features import shootouts as so
+
+    last = max(harness.load_config().dev_seasons)
+    cups = cup_ties.load_formats()
+    store = make_store(get_settings())
+    M, S, C, D, R = (models.Match, models.Season, models.Competition, models.MatchDetail,
+                     models.MatchResult)  # fmt: skip
+    with get_session() as session:
+        rows = session.execute(
+            select(M.match_id, M.source_ref, M.status, M.home_team_id, M.away_team_id,
+                   M.kickoff_time, S.season_id, C.name, D.storage_key, R.home_pens, R.away_pens)
+            .join(S, S.season_id == M.season_id)
+            .join(C, C.competition_id == S.competition_id)
+            .outerjoin(D, (D.match_id == M.match_id) & D.flags["returned"].as_boolean())
+            .outerjoin(R, (R.match_id == M.match_id) & R.superseded_at.is_(None))
+            .where(C.source_ref.in_([str(c) for c in cups]), S.year <= last)
+        ).all()  # fmt: skip
+        session.rollback()
+    by_season: dict[int, list[Any]] = defaultdict(list)
+    for r in rows:
+        by_season[r[6]].append(r)
+    pens = [r for r in rows if r[2] == "PEN"]
+    payloads: dict[str, dict[str, Any]] = {}
+    tally: Counter[tuple[str, str]] = Counter()
+    notes: list[str] = []
+    for r in pens:
+        mid, ref, _, home, away, kick, sid, cup, key, hp, ap = r
+        later = {t for x in by_season[sid] if x[5] > kick for t in (x[3], x[4])}
+        kicks = None
+        if key is not None:
+            if key not in payloads:
+                data = json.loads(gzip.decompress(store.get(key)))
+                payloads[key] = {str(f["fixture"]["id"]): f for f in data.get("response", [])}
+            fx = payloads[key].get(ref)
+            kicks = st.shootout_kicks(fx) if fx is not None else None
+        res = so.decide((hp, ap), kicks, so.advanced_side(home, away, later))
+        tally[(cup, "shootouts")] += 1
+        tally[(cup, f"basis {res.basis}")] += 1
+        tally[(cup, "kicks listed")] += kicks is not None
+        tally[(cup, "kicks complete")] += res.kicks is not None
+        tally[(cup, "kick count differs from score")] += (
+            res.kicks is not None and hp is not None and res.kicks != (hp, ap)
+        )
+        if res.basis == "unresolved":
+            notes.append(f"{cup} match {mid}: {res.note}")
+    typer.echo(f"Shootouts in the five cups, seasons to {last} (dev and earlier):")
+    for cup in sorted({c for c, _ in tally}):
+        typer.echo(f"  {cup}: " + ", ".join(f"{k} {v}" for (c, k), v in sorted(tally.items())
+                                            if c == cup))  # fmt: skip
+    for n in notes:
+        typer.echo(f"  unresolved: {n}")
+
+
 @app.command("teams-split")
 def teams_split(
     write: bool = typer.Option(False, help="move the matches to the other club"),

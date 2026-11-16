@@ -429,7 +429,9 @@ Acceptance (stated 2026-11-16, before building):
   tie's week (`harness.week_start`), the same refit and cache key as that week's league
   matches; the tie's league (intercept, home advantage) is the home side's league that
   season; a `swapped` venue swaps the sides; neutral ties keep the home term (T2 tests
-  that); `score_targets(exact=True)` adds the 90' score's log loss. Holdout seasons
+  that); `score_targets(exact=True)` adds the 90' score's log loss and each posterior
+  draw's rates, rho and kappa, and each row keeps its home term per draw, so A2 rescores
+  ties without refitting (`draws_*` columns, R2 only). Holdout seasons
   raise HoldoutLocked; a spec with groups, widening or another grid is refused.
   Count corrected: 816 dev bundle ties, not 820. Four DFB-Pokal ties had a 3. Liga side
   that went on to the 2. Bundesliga relegation play-off, which the provider files under

@@ -223,7 +223,8 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
     target's own context row, observed by kickoff - horizon_ctx (the headline T - 1 h);
     `groups` () scores the 1b model unchanged. `walk` (D34) adds the strength drift for
     matches ahead of the last refit step; None scores them from the last step as is.
-    `exact` adds the 90' score's log loss, -log P(hg, ag) (Stage A, A1)."""
+    `exact` adds the 90' score's log loss, -log P(hg, ag), and each draw's rates, rho and
+    kappa (`draws_*`), so a later term can rescore the target (Stage A, A1 and A2)."""
     tix = {int(t): i for i, t in enumerate(fd.team_ids)}
     lix = {lid: i for i, lid in enumerate(fd.leagues)}
     home = np.array([tix.get(int(t), -1) for t in targets["home"]], dtype=np.int64)
@@ -270,7 +271,10 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
             "p_over25": mk["OU2.5"][0], "p_btts": mk["BTTS"][0],
             **{f"active__{g}": bool(f[k]) for g, f in flags.items()},
             **metrics.score_markets(mk, int(hg), int(ag)),
-            **({"score:log_loss": _exact_log_loss(m, int(hg), int(ag))} if exact else {}),
+            **({"score:log_loss": _exact_log_loss(m, int(hg), int(ag)),
+                "draws_lam": lam[k].tolist(), "draws_mu": mu_[k].tolist(),
+                "draws_rho": np.asarray(rho[k]).tolist(),
+                "draws_kappa": np.asarray(kappa[k]).tolist()} if exact else {}),  # fmt: skip
         })  # fmt: skip
     return out
 

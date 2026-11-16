@@ -150,7 +150,8 @@ def score_season(
         counts = np.bincount(np.concatenate([fd.home, fd.away]), minlength=len(fd.team_ids))
         n_of = {int(t): int(counts[j]) for j, t in enumerate(fd.team_ids)}
         scored = bt.score_targets(draws, fd, grp, cfg.max_goals, exact=True)
-        for r, s in zip(grp.iter_rows(named=True), scored, strict=True):
+        homes = home_terms(draws, fd, grp)
+        for r, s, ht in zip(grp.iter_rows(named=True), scored, homes, strict=True):
             n_h, n_a = n_of.get(int(r["home"]), 0), n_of.get(int(r["away"]), 0)
             rows.append({
                 "match_id": r["match_id"], "cup_id": r["cup_id"], "season": season,
@@ -161,11 +162,27 @@ def score_season(
                 "cold_start": min(n_h, n_a) < cfg.min_warmup_matches,
                 "bundle": bundle, "model": spec.model_name, "fit_hash": h,
                 "cached": cached is not None, **{f"refit_{k}": v for k, v in diag.items()}, **s,
+                "draws_home_term": ht,
             })  # fmt: skip
         log(f"  refit {i + 1}/{len(weeks)} as of {as_of:%Y-%m-%d}: {grp.height} ties, "
             f"{'cached' if cached is not None else 'fitted'}, "
             f"R-hat {diag.get('rhat_max', float('nan')):.3f}")  # fmt: skip
     return pl.DataFrame(rows)
+
+
+def home_terms(draws: bt.Draws, fd: ts.FitData, targets: pl.DataFrame) -> list[list[float]]:
+    """Per target, each draw's home term on log lambda_home (league h plus the home side's own,
+    as `ts.rates_from_draws` adds it; an unseen home side has none of its own), so A2 can
+    take it off a neutral tie (T2)."""
+    tix = {int(t): i for i, t in enumerate(fd.team_ids)}
+    lix = {lid: i for i, lid in enumerate(fd.leagues)}
+    h_l, h_t = draws["h_league"], draws["h_team"] * draws["sigma_home"]
+    out = []
+    for home, lid in zip(targets["home"], targets["league_id"], strict=True):
+        j = tix.get(int(home), -1)
+        h = h_l[lix[int(lid)]] + (h_t[j] if j >= 0 else 0.0)
+        out.append(np.asarray(h, dtype=np.float64).tolist())
+    return out
 
 
 # --------------------------------------------------------------------------- report

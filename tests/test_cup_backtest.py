@@ -101,3 +101,14 @@ def test_summary_and_markdown_carry_metrics_only(tmp_path: Path) -> None:
 def test_shipped_cup_formats_name_each_bundles_cup() -> None:
     expected = {"england": [45], "spain": [143], "italy": [137], "germany": [81], "france": [66]}
     assert {b: cb.cups_of(b) for b in expected} == expected
+
+
+def test_rows_keep_each_draws_rates_and_home_term(tmp_path: Path) -> None:
+    cfg, df = config(), matches()
+    t = cb.build_targets(ties(), df, LEAGUES)
+    pred = cb.score_season(df, LEAGUES, "england", cfg, 2019, spec(), LocalStore(tmp_path), t,
+                           FakeFitter(), log=lambda _: None)  # fmt: skip
+    r = pred.row(0, named=True)
+    assert len(r["draws_lam"]) == len(r["draws_mu"]) == len(r["draws_rho"]) == 20
+    assert r["draws_home_term"] == [0.25] * 20  # FakeFitter: h_league 0.25, h_team 0
+    assert abs(sum(r["draws_lam"]) / 20 + sum(r["draws_mu"]) / 20 - r["exp_total"]) < 1e-9

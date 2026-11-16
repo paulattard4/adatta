@@ -252,6 +252,48 @@ Consequences:
       A fail is reported with its segment. The model is respecified only on dev, and the
       respecification is disclosed.
 
+      *Amended 2026-11-16 while building, before any model or baseline score on dev was
+      seen:*
+      1. **Context timing.** Congestion, next-match kind and importance come from the
+         stored h48 context snapshot (b29bb7f0915abf76), i.e. as of kickoff − 48 h, a day
+         earlier than the forecast. That is less information than T-24h, never more. A
+         T-24h snapshot would need a new context build.
+      2. **Coherent marginals.** The per-team totals are computed exactly per posterior
+         draw by capped proportional rescaling ("water-filling"): starts sum to 11 with one
+         goalkeeper, bench places to N, each player's three sum to 1. They are then
+         averaged over draws. This replaces Monte Carlo sampling without replacement: it
+         gives the same constraints without sampling noise.
+      3. **Newcomers.** Expected newcomer starts and bench places are taken off the pool's
+         totals, the same for every model. The figure is the league's training-window mean
+         for the model, and its warm-up mean for the baselines. Newcomers have no player
+         row, so they are counted and reported per team-match but not in the paired
+         per-player metrics.
+      4. **Bench size N** is the team's mean bench over its last 5 matches. The
+         "largest bench seen in the competition-season" would overstate N for teams that
+         don't fill the bench.
+      5. **Sampler settings.** 4 chains × 500 draws, after 500 tuning steps. Predictions use
+         200 thinned draws, and the minutes pmf 50 of them.
+      6. **Jobs.** Each bundle-season runs in parts (`--part i/n`) to keep jobs under 6 h.
+
+      **Built 2026-11-16, run pending:**
+      - Code: `adatta/features/selection.py` (pool, covariates, outcome),
+        `adatta/eval/selection.py` (inputs, table store, leakage check, baselines,
+        coherent probabilities, minutes pmf, metrics, verdict, report) and
+        `adatta/model/selection.py` (PyMC model, NumPyro sampler, walk-forward parts,
+        assemble).
+      - CI: `.github/workflows/selection.yml`.
+      - Tests: `tests/test_selection.py` (7) and `tests/test_selection_model.py` (CI model
+        job).
+      - Selection table `061ebfdb66114294` (2016/17-2023/24, built locally in about 5
+        min, stored in R2 only):
+        - 2,011,411 player rows from 62,325 team-matches; median pool 32;
+        - 11 starters in 99.9% of team-matches;
+        - 99.1% of actual starters were in the pool (99.0-99.3% in every season); 0.30
+          newcomers per team-match on the bench;
+        - leakage check: 0 of 100 sampled matches changed when every later appearance was
+          removed.
+      - It runs after the A1 cup run (one backtest-type run at a time).
+
       (h) **Live check** (not part of the dev pass). The status-informed variant is judged
       on the live period once 1,000 bundle team-matches with status snapshots are scored
       (D39):

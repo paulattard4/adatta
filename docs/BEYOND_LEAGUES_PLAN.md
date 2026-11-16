@@ -421,6 +421,29 @@ Acceptance (stated 2026-11-16, before building):
   format, not the label alone, decides. All 11,281 stored cup matches: Copa del Rey 64
   two-legged ties, Coppa Italia 20, FA Cup 1,004 replays, 0 irregular.
 
+- [ ] **A1 built 2026-11-16; run pending (CI, after the M5 holdout run).**
+  `adatta/model/cup_backtest.py` (`run`, `plan`, `assemble`), `.github/workflows/cups.yml`
+  (bundle x dev season, then assemble; metrics only in logs and artifacts, match-level
+  rows in R2 under `cups/`), `tests/test_cup_backtest.py` (5 tests, fake sampler).
+  How a tie is scored: from the production spec's weekly refit as of the Monday of the
+  tie's week (`harness.week_start`), the same refit and cache key as that week's league
+  matches; the tie's league (intercept, home advantage) is the home side's league that
+  season; a `swapped` venue swaps the sides; neutral ties keep the home term (T2 tests
+  that); `score_targets(exact=True)` adds the 90' score's log loss. Holdout seasons
+  raise HoldoutLocked; a spec with groups, widening or another grid is refused.
+  Count corrected: 816 dev bundle ties, not 820. Four DFB-Pokal ties had a 3. Liga side
+  that went on to the 2. Bundesliga relegation play-off, which the provider files under
+  the 2. Bundesliga season, so the inventory counted it as tier 2 (Regensburg 2023,
+  Kaiserslautern 2021, Ingolstadt 2019 and 2020). A1 takes a team's tier from its
+  regular-season league matches, as the league backtest does.
+  Compute (`plan`): the 816 ties need 200 Monday refits (England 42, Spain 35, Italy 45,
+  Germany 40, France 38), none cached under today's fit hash `49cdc7f9c3b7711a`. The last
+  weekly dev refits of the production spec (`2a82dbe0285182f9`, 13-14 Nov) were cached
+  before `covariates.py` changed on 15 Nov (M4b); that file is in every spec's hash, so
+  they are not reused, although the production model does not read it. The 200 fits are
+  cached for any later weekly dev run. Smoke test (pipeline only, not a result): England
+  2019, 43 ties scored from those older refits, read-only, tail mass at most 1.9e-6.
+
 ## Stage B: knockout resolution (§9)
 
 Needed whenever a winner is required: domestic cups, continental knockouts and

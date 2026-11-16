@@ -216,12 +216,14 @@ def coefficient_summary(draws: Draws, groups: Sequence[str]) -> dict[str, float]
 
 def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals: int,
                   groups: Sequence[str] = (), horizon_ctx: timedelta = cv.HEADLINE_HORIZON,
-                  walk: hz.Walk | None = None) -> list[dict[str, Any]]:  # fmt: skip
+                  walk: hz.Walk | None = None, exact: bool = False,
+                  ) -> list[dict[str, Any]]:  # fmt: skip
     """Per target: markets from the posterior-mean score matrix, their scores, tail mass.
     Prediction time (Phase 2, M1): the refit's draws (fitted as of the plan date) with each
     target's own context row, observed by kickoff - horizon_ctx (the headline T - 1 h);
     `groups` () scores the 1b model unchanged. `walk` (D34) adds the strength drift for
-    matches ahead of the last refit step; None scores them from the last step as is."""
+    matches ahead of the last refit step; None scores them from the last step as is.
+    `exact` adds the 90' score's log loss, -log P(hg, ag) (Stage A, A1)."""
     tix = {int(t): i for i, t in enumerate(fd.team_ids)}
     lix = {lid: i for i, lid in enumerate(fd.leagues)}
     home = np.array([tix.get(int(t), -1) for t in targets["home"]], dtype=np.int64)
@@ -268,8 +270,15 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
             "p_over25": mk["OU2.5"][0], "p_btts": mk["BTTS"][0],
             **{f"active__{g}": bool(f[k]) for g, f in flags.items()},
             **metrics.score_markets(mk, int(hg), int(ag)),
+            **({"score:log_loss": _exact_log_loss(m, int(hg), int(ag))} if exact else {}),
         })  # fmt: skip
     return out
+
+
+def _exact_log_loss(m: NDArray[np.float64], hg: int, ag: int) -> float:
+    """-log P(hg, ag) from a score matrix; a score beyond the truncation gets the floor."""
+    p = float(m[hg, ag]) if hg < m.shape[0] and ag < m.shape[1] else 0.0
+    return -float(np.log(max(p, 1e-12)))
 
 
 def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConfig,

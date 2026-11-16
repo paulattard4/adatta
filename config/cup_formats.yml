@@ -1,4 +1,5 @@
-# Cup formats by API-Football league id (docs/BEYOND_LEAGUES_PLAN.md Stage A, A0 (c);
+# Cup formats by API-Football league id, with the bundle whose teams the cup's ties are
+# between (docs/BEYOND_LEAGUES_PLAN.md Stage A, A0 (c);
 # adatta/features/cup_ties.py). Stage B extends this with extra time, penalties and the
 # away-goals rule, with validity dates.
 #
@@ -9,8 +10,8 @@
 #           round's own label)
 #   none    single matches only: a second meeting is listed as irregular
 formats:
-  45: {name: FA Cup, second_meeting: replay}
-  143: {name: Copa del Rey, second_meeting: leg}
-  137: {name: Coppa Italia, second_meeting: leg}
-  81: {name: DFB Pokal, second_meeting: none}
-  66: {name: Coupe de France, second_meeting: none}
+  45: {name: FA Cup, bundle: england, second_meeting: replay}
+  143: {name: Copa del Rey, bundle: spain, second_meeting: leg}
+  137: {name: Coppa Italia, bundle: italy, second_meeting: leg}
+  81: {name: DFB Pokal, bundle: germany, second_meeting: none}
+  66: {name: Coupe de France, bundle: france, second_meeting: none}

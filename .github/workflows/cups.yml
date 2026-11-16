@@ -1,0 +1,81 @@
+# Stage A, A1 (docs/BEYOND_LEAGUES_PLAN.md): the production 1b model applied unchanged to the
+# dev cup ties between bundle teams. Manual dispatch only. One matrix job per bundle x dev
+# season scores that season's ties from the weekly refit of each tie's Monday
+# (python -m adatta.model.cup_backtest run), the same refit and cache entry as that week's
+# league matches: a cached refit is reused, a missing one is fitted and cached. A final job
+# assembles the metrics.
+# The repo is public: logs and artifacts carry metrics only. Match-level predictions go to R2
+# (cups/parts, cups/reports), never to workflow artifacts. Holdout seasons are refused by the
+# code (HoldoutLocked), whatever is typed here.
+# One backtest-type run at a time (backtest, gate, holdout, timing, cups): two runs together
+# fill the account's 20 job slots and starve the capture.
+name: cups
+on:
+  workflow_dispatch:
+    inputs:
+      bundles:
+        description: "JSON list of bundles"
+        default: '["england","spain","italy","germany","france"]'
+      seasons:
+        description: "JSON list of dev seasons"
+        default: "[2019,2020,2021,2022,2023]"
+      draws:
+        description: "NUTS draws per chain (production 2000)"
+        default: "2000"
+permissions:
+  contents: read
+concurrency:
+  group: cups
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        bundle: ${{ fromJSON(inputs.bundles) }}
+        season: ${{ fromJSON(inputs.seasons) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: score cup ties
+        run: >-
+          uv run --frozen --group model python -m adatta.model.cup_backtest run
+          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }}
+          --draws ${{ inputs.draws }} --upload ${{ github.run_id }}
+  assemble:
+    needs: score
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: assemble
+        env:
+          BUNDLES: ${{ inputs.bundles }}
+          SEASONS: ${{ inputs.seasons }}
+        run: |
+          b=$(echo "$BUNDLES" | uv run python -c "import json,sys; print(','.join(json.load(sys.stdin)))")
+          s=$(echo "$SEASONS" | uv run python -c "import json,sys; print(','.join(map(str, json.load(sys.stdin))))")
+          uv run python -m adatta.model.cup_backtest assemble --fetch ${{ github.run_id }} \
+            --bundles "$b" --seasons "$s" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cups-a1-summary
+          path: reports/stage_a/a1/*/summary.md

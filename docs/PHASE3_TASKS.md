@@ -123,10 +123,41 @@ Consequences:
           time.
       - Register section 4b added. Holdout seasons are built (the live fits need them) but
         not summarised.
-- [ ] **P3-a Status feed and squad lists.** Daily status capture runs (since 2026-11-05).
+- [x] **P3-a Status feed and squad lists.** Daily status capture runs (since 2026-11-05).
       To add: squad lists per bundle team into `player_registration` (versioned,
       `valid_from/to`), through the quota planner, with the request cost stated first.
-      Acceptance stated before building.
+      - **Probe (1 request, team 33):** `/players/squads?team` gives the current squad
+        only: player id, name, age, number and position, with no dates. So history starts
+        with the capture.
+      - **Cost (stated before building):** one request per team per day. That is 198
+        requests for the ten bundle leagues' 2026/27 teams, about 2.6% of the
+        7,500/day quota. Daily use in the 8 days to 2026-11-16 peaked at 1,483, so it goes
+        to about 1,680 (22%), well under the 70% upgrade trigger.
+      - **Acceptance** (written while building, before the first live capture):
+        (a) the client method `squad` and the adapter `parse_squad`, with the raw payload
+        kept and every request through the quota planner's live reserve. Age and photo are
+        not stored.
+        (b) Registration spells:
+        - a listed player without an open spell gets one (`valid_from` = response time);
+        - a changed number or position supersedes the spell;
+        - a player no longer listed has their spell closed (`valid_to`, not superseded);
+        - an empty answer changes nothing;
+        - a second run the same day is not made (daily job).
+        (c) Tier 1-2 leagues only, inside the capture tick's daily jobs.
+        (d) Tests with the fake provider.
+        (e) On the first live run, at least 95% of the 198 teams return a squad, and at
+        least 90% of the players who have played for a club in 2026/27 are in its list.
+      - **Done 2026-11-16; (a)-(e) pass.**
+        - Code: migration 0014 (`player_registration.shirt_number`, `position`, an index
+          on open spells), `api_football_capture.parse_squad`, `ApiFootballClient.squad`,
+          `capture.jobs.capture_squads` / `apply_squad` / `squads_due`.
+        - Tests: 2 in `tests/test_capture.py`.
+        - First live run, logged as the day's `squads` job: 198 of 198 teams answered (198
+          requests; 765 used today); 5,989 open registrations, a median squad of 30.
+        - 4,659 of the 4,829 players who have played for a club in 2026/27 (96.5%) are in
+          its current list. The rest are mostly expected to be players who have since
+          left.
+        - From the next push the capture tick runs it daily.
 - [ ] **P3-b Availability, selection and minutes, validated standalone (§7.1-§7.2).**
       `P(start | available)` and an expected-minutes distribution per player. Acceptance
       stated before building; the shape proposed now:

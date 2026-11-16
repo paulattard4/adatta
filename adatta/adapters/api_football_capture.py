@@ -119,6 +119,29 @@ def n_bookmakers(odds: dict[str, Any] | None) -> int:
     return len((odds or {}).get("bookmakers") or [])
 
 
+@dataclass(frozen=True)
+class SquadEntry:
+    player_ref: str
+    player_name: str
+    number: int | None
+    position: str | None  # Goalkeeper / Defender / Midfielder / Attacker
+
+
+def parse_squad(rows: list[dict[str, Any]]) -> list[SquadEntry]:
+    """/players/squads?team: the team's current squad. The provider's `age` and photo are
+    not kept (not needed, and personal data is kept to what the model uses)."""
+    out: list[SquadEntry] = []
+    for r in rows:
+        for p in r.get("players") or []:
+            if p.get("id") is None:
+                continue
+            num = p.get("number")
+            out.append(SquadEntry(player_ref=str(p["id"]), player_name=str(p.get("name") or ""),
+                                  number=int(num) if isinstance(num, int) else None,
+                                  position=p.get("position") or None))  # fmt: skip
+    return out
+
+
 def parse_injuries(rows: list[dict[str, Any]]) -> list[Absence]:
     out: list[Absence] = []
     for r in rows:

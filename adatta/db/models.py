@@ -443,14 +443,24 @@ class CompetitionBundleMember(Base):
 
 class PlayerRegistration(Temporal, Base):
     """Which team (and so which level) a player is registered with, over time (§3.2).
-    A player can hold several registrations in one season at different levels."""
+    A player can hold several registrations in one season at different levels.
+
+    Built from the daily squad list (Phase 3, P3-a): a spell opens when the player is first
+    listed (valid_from = the response time) and closes when they are no longer listed
+    (valid_to); a changed number or position supersedes the spell. History starts with the
+    capture; the provider gives only the current squad."""
 
     __tablename__ = "player_registration"
     registration_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
     player_id: Mapped[int] = mapped_column(ForeignKey("player.player_id"))
     team_id: Mapped[int] = mapped_column(ForeignKey("team.team_id"))
     source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
-    __table_args__ = (Index("ix_registration_player", "player_id", "valid_from"),)
+    shirt_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    position: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    __table_args__ = (
+        Index("ix_registration_player", "player_id", "valid_from"),
+        Index("ix_registration_team_open", "team_id", "valid_to"),
+    )
 
 
 class OverrideParametric(Base):

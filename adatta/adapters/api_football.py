@@ -268,6 +268,12 @@ class ApiFootballClient:
         """/teams?id=: one team with the provider's national flag (None if not answered)."""
         return parse_team(self.fetch(session, "/teams", {"id": team_id}))
 
+    def squad(self, session: Session, team_id: int) -> list[dict[str, Any]]:
+        """/players/squads?team: the team's current squad list (one request, no history)."""
+        data = self.fetch(session, "/players/squads", {"team": team_id}, live=True)
+        out: list[dict[str, Any]] = data.get("response", [])
+        return out
+
     def injuries(self, session: Session, league_id: int, season: int) -> list[dict[str, Any]]:
         """/injuries?league&season: per-fixture absences (Missing Fixture / Questionable)."""
         data = self.fetch(session, "/injuries", {"league": league_id, "season": season}, live=True)

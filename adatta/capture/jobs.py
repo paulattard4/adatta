@@ -342,6 +342,81 @@ def capture_status(
     return counts
 
 
+SQUAD_TIERS = ("1", "2")  # the bundle leagues the team model fits (Phase 3, P3-a)
+
+
+def squads_due(comp: Competition) -> bool:
+    return str(comp.tier) in SQUAD_TIERS and not comp.national and comp.detail
+
+
+def apply_squad(
+    session: Session, team_id: int, entries: list[afc.SquadEntry], observed: datetime
+) -> Counter[str]:
+    """Version one team's registrations against its squad list: a listed player without an
+    open spell gets one, a changed number or position supersedes the spell, an open spell
+    whose player is no longer listed closes. An empty list changes nothing (a provider
+    gap must not end every spell)."""
+    counts: Counter[str] = Counter()
+    if not entries:
+        counts["empty"] += 1
+        return counts
+    R = models.PlayerRegistration
+    players = normalize.players_by_ref(session, {e.player_ref: e.player_name for e in entries})
+    open_rows = {
+        r.player_id: r
+        for r in session.scalars(select(R).where(R.team_id == team_id, R.valid_to.is_(None)))
+    }
+    listed: set[int] = set()
+    for e in entries:
+        pid = players[e.player_ref].player_id
+        if pid in listed:  # listed twice: keep the first
+            continue
+        listed.add(pid)
+        cur = open_rows.get(pid)
+        if cur is not None and (cur.shirt_number, cur.position) == (e.number, e.position):
+            counts["unchanged"] += 1
+            continue
+        if cur is not None:
+            cur.valid_to = cur.superseded_at = observed
+            counts["changed"] += 1
+        else:
+            counts["new"] += 1
+        session.add(R(player_id=pid, team_id=team_id, source_id=SOURCE_ID, observed_at=observed,
+                      valid_from=observed, shirt_number=e.number, position=e.position))  # fmt: skip
+    for pid, row in open_rows.items():
+        if pid not in listed:
+            row.valid_to = observed
+            counts["left"] += 1
+    return counts
+
+
+def capture_squads(
+    session: Session, client: ApiFootballClient, comp: Competition, now: datetime
+) -> Counter[str]:
+    """Daily squad list of every team in a tier 1-2 league's current season (Phase 3,
+    P3-a): one request per team, through the quota planner like every request."""
+    season = _current_season_row(session, comp)
+    if season is None:
+        raise RuntimeError("no season row yet: calendar must run first")
+    M, T = models.Match, models.Team
+    ids = {
+        t
+        for h, a in session.execute(
+            select(M.home_team_id, M.away_team_id).where(M.season_id == season.season_id)
+        )
+        for t in (h, a)
+    }
+    counts: Counter[str] = Counter()
+    for team in session.scalars(select(T).where(T.team_id.in_(ids)).order_by(T.team_id)):
+        if not team.source_ref.isdigit():
+            counts["no_provider_id"] += 1
+            continue
+        entries = afc.parse_squad(client.squad(session, int(team.source_ref)))
+        counts.update(apply_squad(session, team.team_id, entries, _observed(client)))
+        counts["teams"] += 1
+    return counts
+
+
 def capture_detail(session: Session, client: ApiFootballClient, comp: Competition) -> int:
     """Daily: post-match detail (lineups, events, statistics incl. xG) for finished matches of
     the current season that lack it, 20 per request; team stats are parsed as they arrive."""
@@ -666,6 +741,8 @@ def run_capture(
                 step("status", scope, lambda c=comp: capture_status(session, client, c, now))
             if not _ran_recently(session, "detail", scope, now):
                 step("detail", scope, lambda c=comp: capture_detail(session, client, c))
+            if squads_due(comp) and not _ran_recently(session, "squads", scope, now):
+                step("squads", scope, lambda c=comp: capture_squads(session, client, c, now))
     except QuotaExceeded:
         pass
     report.requests = client.requests_made - start_requests

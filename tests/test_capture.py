@@ -37,6 +37,10 @@ class FakeApi:
         self.odds_offered = True
         self.n_fixtures = 1
         self.season_dates: tuple[str, str] | None = None  # (start, end) on /leagues
+        # /players/squads?team: (id, number, position) per team
+        self.squads: dict[int, list[tuple[int, int | None, str]]] = {
+            1: [(501, 1, "Goalkeeper"), (502, 5, "Defender")], 2: [(601, 9, "Attacker")],
+        }  # fmt: skip
 
     def fixture(self, fid: int, kickoff: datetime) -> dict[str, Any]:
         return {
@@ -80,6 +84,11 @@ class FakeApi:
                     "fixture": {"id": 1, "date": K.isoformat()},
                     "league": {"id": 999, "season": 2026},
                 }]  # fmt: skip
+        elif req.url.path == "/players/squads":
+            team = int(q["team"])
+            players = [{"id": i, "name": f"S{i}", "age": 25, "number": n, "position": pos}
+                       for i, n, pos in self.squads.get(team, [])]  # fmt: skip
+            body = [{"team": {"id": team}, "players": players}] if players else []
         elif req.url.path == "/odds":
             body = []
             if self.odds_offered and now >= K - timedelta(days=8):
@@ -446,3 +455,42 @@ def test_network_blip_alerts_only_when_it_persists(tmp_path: Path) -> None:
     h2 = Harness(tmp_path / "b")
     r = h2.tick(T0, projector=bug)
     assert len(r.errors) == 1 and "ValueError" in r.errors[0]
+
+
+def _spells(h: Harness) -> list[tuple[str, int | None, str | None, bool, bool]]:
+    """(player ref, number, position, open, superseded) per registration row, in order."""
+    with Session(h.engine) as s:
+        R, P = models.PlayerRegistration, models.Player
+        rows = s.execute(select(P.source_ref, R.shirt_number, R.position, R.valid_to,
+                                R.superseded_at).join(P, P.player_id == R.player_id)
+                         .order_by(R.registration_id)).all()  # fmt: skip
+        return [(r, n, pos, vt is None, sup is not None) for r, n, pos, vt, sup in rows]
+
+
+def test_squad_lists_version_registrations(tmp_path: Path) -> None:
+    h = Harness(tmp_path)
+    h.tick(T0)
+    assert sum(c.startswith("/players/squads") for c in h.api.calls) == 2  # one per team
+    assert _spells(h) == [("501", 1, "Goalkeeper", True, False),
+                          ("502", 5, "Defender", True, False),
+                          ("601", 9, "Attacker", True, False)]  # fmt: skip
+    h.tick(T0 + timedelta(hours=1))  # daily: not asked again
+    assert sum(c.startswith("/players/squads") for c in h.api.calls) == 2
+    h.api.squads[1] = [(502, 6, "Defender"), (503, None, "Midfielder")]  # 501 left, 502 #6
+    h.tick(T0 + timedelta(days=1))
+    assert _spells(h) == [("501", 1, "Goalkeeper", False, False),  # closed, not superseded
+                          ("502", 5, "Defender", False, True),  # superseded by the change
+                          ("601", 9, "Attacker", True, False),
+                          ("502", 6, "Defender", True, False),
+                          ("503", None, "Midfielder", True, False)]  # fmt: skip
+    before = _spells(h)
+    h.api.squads = {}  # the provider answers with no squad: no spell ends
+    h.tick(T0 + timedelta(days=2))
+    assert _spells(h) == before
+
+
+def test_squads_are_captured_for_tier_1_and_2_leagues_only(tmp_path: Path) -> None:
+    h = Harness(tmp_path)
+    third = COMP.model_copy(update={"tier": 3})
+    h.tick(T0, comps=[third])
+    assert not any(c.startswith("/players/squads") for c in h.api.calls)

@@ -171,7 +171,7 @@ Features (outside `adatta/model/`, can start now):
       are null: 118 side-seasons entering the loaded leagues (promoted from an unloaded
       third tier, all in the five second divisions) during their first 4 matches.
       `tempo_rel` ranges −0.30 to +0.51, sd 0.063.
-- [ ] F2 Weather history per D29 (c), free tier, in the background.
+- [x] F2 Weather history per D29 (c), free tier, in the background.
       Design: (1) as-issued forecasts for every bundle league match from 2024-02-01 (the
       previous-runs API has values from late January 2024: probed 2026-11-11, Manchester
       empty on 01-25, Madrid present on 01-28), read from the runs 1 and 2 days before
@@ -199,7 +199,20 @@ Features (outside `adatta/model/`, can start now):
       started. Open-Meteo began refusing this machine ("Too many concurrent requests")
       after about 1,550 requests at 4,000 an hour on top of the day's climatology calls, so
       the pace is now 2,000 an hour. Resume daily with `adatta weather-history`.
-- [ ] F3 Context rows for every training and target match at kickoff − 1 h and − 48 h,
+      **Done 2026-11-16; passes.** The last 5 as-issued windows fetched; `weather-history
+      --dry-run` now plans nothing (30,727 placed matches). Coverage at T − 1 h, bundle
+      league matches 2019/20 to 2026-11-05 (28,014): 99.94% have a forecast (10,253, all
+      lead 24 h, from 2024-02-01) or the stand-in (17,743, 2019-07-26 to 2024-01-31). The
+      other 18 keep climatology: Premier League and Championship matches of 1–3 Feb 2024,
+      whose as-issued rows exist but carry no values (the previous-runs archive starts a
+      few days later at the English points; nothing to fall back to, principle 8). At
+      T − 48 h every pre-2024-02-01 match keeps climatology (no stand-in) and 10,248 have a
+      48 h forecast. Stand-in minus day-1 forecast, Feb–May 2024, 1,613 matches
+      (`weather-history-report`): temperature MAE 0.98 °C (bias +0.06), wind MAE 3.0 km/h
+      (bias +1.06), precipitation MAE 0.28 mm (bias +0.03). That is the stand-in's
+      optimism: a weather effect fitted on 2019–2024 sees weather about this much more
+      exactly than a forecast would give it.
+- [x] F3 Context rows for every training and target match at kickoff − 1 h and − 48 h,
       written once per data snapshot (`context-build --horizon-hours`), hashed into the
       reproducibility manifest.
       Acceptance (stated 2026-11-12, before building): (1) every finished league match the
@@ -221,6 +234,12 @@ Features (outside `adatta/model/`, can start now):
       horizon (items 1, 2). Not yet uploaded: the F2 weather download is still running
       (as-issued forecasts so far reach La Liga, Serie A, Segunda and Serie B from 2024,
       Ligue 1 and 2 in part, England not yet), so a snapshot now would be superseded.
+      **Final snapshots stored 2026-11-16, after F2:** h1 `7cf547d91cba6529`, h48
+      `b29bb7f0915abf76` (`latest` points at them), 42,624 matches 2016–2026 each, the
+      same match ids at both horizons, `ctx_as_of` 47 h apart on every row. The M5
+      promotion spec stays pinned to `962f29fe719a9d58` (it reads only the style columns,
+      which the weather download does not touch; still stored and loads), so the holdout
+      run in progress is unaffected; a weather group run uses the new digests.
       **G5 gap closed 2026-11-12:** importance was null for every 2016–2018 match
       (zone rules from 2019 only), so dead rubbers in the dev training windows would have
       been fitted as live. `config/league_rules.yml` now has 2016/17–2018/19 rules (UEFA

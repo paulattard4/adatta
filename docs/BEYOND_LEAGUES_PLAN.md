@@ -421,7 +421,23 @@ Acceptance (stated 2026-11-16, before building):
   format, not the label alone, decides. All 11,281 stored cup matches: Copa del Rey 64
   two-legged ties, Coppa Italia 20, FA Cup 1,004 replays, 0 irregular.
 
-- [ ] **A1 built 2026-11-16; run pending (CI, after the M5 holdout run).**
+- [x] **A1 done 2026-11-16 (run 43903439721, all 26 jobs succeeded).** It is a reference,
+  with no gate. On 816 dev bundle ties:
+  - **Scores:** 1X2 log loss 0.9510, RPS 0.1926, 90' score log loss 2.896.
+  - **Mean p against the observed rate:** home 0.437 / 0.442, draw 0.250 / 0.238, away
+    0.313 / 0.320. ECE home 0.044, draw 0.037, away 0.054.
+  - **By tier pairing:**
+    - 1v1: 0.9764 (344 ties).
+    - 1v2: 0.8779 (343 ties). Away is under-predicted: 0.327 against 0.394.
+    - 2v2: 1.0774 (129 ties). Draws are under-predicted: 0.282 against 0.349.
+  - **By cup:** from FA Cup 0.9091 to Copa del Rey 1.0384. In the Copa del Rey home is
+    over-predicted (0.388 against 0.359) and away under-predicted (0.319 against 0.394).
+  - **Neutral ties (40):** the listed home side wins 0.325 against a predicted 0.444. That
+    is the home term T2 removes.
+  - **Inference:** the 200 refits were fitted here and cached under fit hash
+    `49cdc7f9c3b7711a`. R-hat was over 1.01 in 3 refits and there were divergences in 1;
+    tail mass at most 2.67e-4.
+  - Full table in the run's `cups-a1-summary` artifact (metrics only).
   `adatta/model/cup_backtest.py` (`run`, `plan`, `assemble`), `.github/workflows/cups.yml`
   (bundle x dev season, then assemble; metrics only in logs and artifacts, match-level
   rows in R2 under `cups/`), `tests/test_cup_backtest.py` (5 tests, fake sampler).
@@ -446,7 +462,7 @@ Acceptance (stated 2026-11-16, before building):
   cached for any later weekly dev run. Smoke test (pipeline only, not a result): England
   2019, 43 ties scored from those older refits, read-only, tail mass at most 1.9e-6.
 
-- [ ] **A2 design, fixed 2026-11-16 before any A1 result exists.** Each term is an
+- [x] **A2 design, fixed 2026-11-16 before any A1 result exists.** Each term is an
   offset on the A1 draws' log rates (log λ home, log μ away), so A1's rows rescore a tie
   without refitting the league model; A1 itself is the same rescoring with no offset.
   - T1, a cup home advantage of its own (one parameter γ): log λ += γ on ties not on a
@@ -489,6 +505,28 @@ Acceptance (stated 2026-11-16, before building):
     paired interval still spans zero, and with 900 it passes. So on the 816 real ties only
     a large term can pass: an expectation stated before the result, not a reason to relax
     the gate.
+  - **Result 2026-11-16: no term passes; all three are left out, not tuned.** Run on
+    A1's rows (`cup_terms run --a1 43903439721`, local). Rescoring A1 from its draws
+    reproduced the stored probabilities to 2.2e-16. Relative change against A1, paired by
+    tie:
+    - **T1, cup home advantage (776 ties moved):**
+      - 1X2 log loss −0.03% [−0.29%, +0.24%], RPS −0.04% [−0.45%, +0.38%].
+      - Posterior +0.025 (sd 0.029) on top of the league term; the prior sd 0.1, 0.25
+        and 0.5 give 0.023, 0.025 and 0.025.
+      - ECE draw +0.0056, over the +0.005 limit.
+    - **T2, no home term on neutral ties (40 ties):**
+      - 1X2 log loss −0.09% [−0.36%, +0.19%], RPS −0.17% [−0.58%, +0.24%].
+      - ECE better on all three outcomes.
+      - Its intervals include zero, since only 40 ties move.
+    - **T3, rotation and tier gap (414 ties):**
+      - 1X2 log loss −0.48% [−1.10%, +0.13%], RPS −0.72% [−1.67%, +0.22%].
+      - θ_tier +0.062 (sd 0.034), θ_gap −0.049 (sd 0.050); prior-insensitive.
+      - ECE home +0.0086 and draw +0.0083, over the limit.
+    - No cup segment is worse than +0.78% (FA Cup total CRPS under T1).
+    - **Reading:** T3 points the right way (it moves the 1v2 away bias), but on 816 ties
+      its intervals span zero, as the simulation said beforehand. It and T2 can be retested
+      when the holdout ties or live cup ties add data, under a gate stated then. A3 (cups
+      as training data) waits with Stages B-D (D37).
 
 ## Stage B: knockout resolution (§9)
 

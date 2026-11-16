@@ -1,0 +1,79 @@
+# Paired refit timing (docs/PHASE2_TASKS.md, M4b (d')): item 4's feasibility rule with the 1b
+# production spec and the challenger fitted on the same runner at fixed dates, so runner speed
+# cancels. One job per bundle x dev season (3 dates each, both specs, fresh fits, no cache);
+# the report job applies the verdict. Manual dispatch only; one heavy workflow at a time
+# (don't run it next to a backtest, gate or holdout run). The repo is public: the artifacts
+# hold dates, fit times and convergence numbers only.
+name: timing
+on:
+  workflow_dispatch:
+    inputs:
+      groups:
+        description: "challenger context groups, comma-separated (G1-G7 or names)"
+        default: "G7"
+      context:
+        description: "context snapshot digest the challenger reads"
+        default: "962f29fe719a9d58"
+permissions:
+  contents: read
+concurrency:
+  group: timing
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  pair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      # Same budget as backtest.yml: 18 of the account's 20 concurrent jobs.
+      max-parallel: 18
+      matrix:
+        bundle: ["england", "spain", "italy", "germany", "france"]
+        season: [2019, 2020, 2021, 2022, 2023]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: paired fits
+        env:
+          CTX_GROUPS: ${{ inputs.groups }}
+          CONTEXT: ${{ inputs.context }}
+        run: >-
+          group_args=(); IFS=',' read -ra gs <<< "$CTX_GROUPS";
+          for g in "${gs[@]}"; do g="${g// /}"; [ -n "$g" ] && group_args+=(--group "$g"); done;
+          uv run --frozen --group model python -m adatta.model.paired_timing run
+          "${group_args[@]}" --context "$CONTEXT"
+          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: timing-${{ matrix.bundle }}-${{ matrix.season }}
+          path: reports/phase2/paired_timing/*.json
+  report:
+    needs: pair
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: timing-*
+          path: timing
+          merge-multiple: true
+      - name: verdict
+        run: >-
+          uv run --frozen --group model python -m adatta.model.paired_timing report timing/*.json
+          | tee -a "$GITHUB_STEP_SUMMARY"

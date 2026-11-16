@@ -578,6 +578,26 @@ Model (after the Phase 1b audit closes):
         divergences in 2, at the limit); active total CRPS −0.14% [−0.23%, −0.04%]; tempo
         positive in every bundle, +0.025 to +0.073 per 0.1, sd / prior 0.07–0.09.
         Promotion file not drafted: (d) has not passed.
+      - (d') Paired timing (owner, 2026-11-16: "Paired timing test"), deciding item 4 for
+        M4b. Acceptance stated first, before any fit. Dates fixed in advance: in each dev
+        season (2019–2023) of each bundle's weekly plan, the 3 refits at positions
+        floor(n/6), floor(n/2), floor(5n/6) of that season's n refits, so 15 dates per
+        bundle, the same rule for every bundle. (a) Tool: one job per bundle-season, each
+        date fitted on that job's runner by both the 1b production spec and the G7
+        challenger (snapshot 962f29fe719a9d58), fresh (no refit cache read or written),
+        production sampler settings and seed, the order alternating by date (reference
+        first on even positions); a fit's time is measured as `refit_fit_s` is (sampling
+        and convergence numbers, compilation included). Tests: the date rule, the
+        alternation, no cache use, the verdict. (b) Verdict, item 4's rule on paired
+        runners: per bundle, the median challenger time over its 15 dates divided by the
+        median reference time over the same 15 dates is at most 1.25; **all five bundles**
+        are tested and must pass (not Germany alone: the same noise may have flattered a
+        bundle that passed). The median of the per-date ratios is printed for information.
+        (c) A bundle with a missing date or season is "not measured", never a pass; a
+        failed job may be rerun. Decision: (b) passing in every bundle reads item 4 as
+        passed and the weekly run's Germany 1.29 as runner noise, and M5 follows; any bundle
+        over 1.25 fails item 4 and Phase 2 ends without a promotion. Metrics only in the
+        public artifact (dates, fit times, convergence numbers).
 - [ ] M5 Promotion per D30.
       - Holdout jobs split (prerequisite, 2026-11-15). Acceptance stated first: (a)
         `holdout.yml` takes a `parts` input (default `["0/1"]`, today's behaviour) and runs

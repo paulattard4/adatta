@@ -503,7 +503,7 @@ Model (after the Phase 1b audit closes):
         0.95, Germany 1.04, Italy 1.24 (513 s vs 413 s; worst, close to the 1.25 limit and
         within the runner noise noted above), Spain 0.93. Longest job 224 min (England
         2023, half 0), mean 144 min, none over 360 and none rerun.
-- [ ] M4b G7 respecified on the dev window (owner, 2026-11-15, after M4 failed item 1).
+- [x] M4b G7 respecified on the dev window (owner, 2026-11-15, after M4 failed item 1).
       Disclosed: this change is chosen after seeing the gate result, on dev data only; the
       locked holdout, still unopened, is the guard against that choice.
       Change: G7 is coded on a stated unit scale like the other groups, `tempo` =
@@ -598,6 +598,19 @@ Model (after the Phase 1b audit closes):
         passed and the weekly run's Germany 1.29 as runner noise, and M5 follows; any bundle
         over 1.25 fails item 4 and Phase 2 ends without a promotion. Metrics only in the
         public artifact (dates, fit times, convergence numbers).
+        Built (commit 2ab45e6): `adatta/model/paired_timing.py`, `timing.yml`,
+        `tests/test_paired_timing.py` (10 tests). Dispatched 2026-11-16: run 43811483942,
+        `groups` G7, snapshot 962f29fe719a9d58.
+        **Result (2026-11-16): pass.** All 25 jobs and the report succeeded; 75 paired
+        dates. Median fit time, challenger vs reference on the same runners: England 462 s
+        vs 450 s (1.03), France 509 vs 494 (1.03), Germany 348 vs 340 (1.02), Italy 540 vs
+        534 (1.01), Spain 442 vs 433 (1.02); median paired ratio 1.02-1.04. Per-date
+        ratios 0.45-1.16; the order did not matter (median 1.02 with either spec first).
+        Convergence on these fits: worst R-hat 1.011 (reference) and 1.010 (challenger),
+        divergences 0 and 1. Per the decision stated before the run: item 4 passes, and
+        the weekly run's Germany 1.29 is read as runner noise. **M4b complete: (a)-(d)
+        pass.** Next: M5, the owner fills `config/phase2_promotion.yml` (G7 style,
+        snapshot 962f29fe719a9d58) and dispatches the second holdout opening.
 - [ ] M5 Promotion per D30.
       - Holdout jobs split (prerequisite, 2026-11-15). Acceptance stated first: (a)
         `holdout.yml` takes a `parts` input (default `["0/1"]`, today's behaviour) and runs

@@ -98,6 +98,156 @@ def shootout_kicks(fx: dict[str, Any]) -> list[tuple[str, bool]] | None:
     return kicks or None
 
 
+EXTRA_TIME_LENGTH = 120
+SENT_OFF = ("Red Card", "Second Yellow card")  # Card event details that end a player's match
+OWN_GOAL = "Own Goal"
+
+# per-player statistic -> (block, field) in `players[].players[].statistics[0]`
+PLAYER_STATS = {
+    "goals_provider": ("goals", "total"), "assists": ("goals", "assists"),
+    "saves": ("goals", "saves"), "conceded": ("goals", "conceded"),
+    "shots_total": ("shots", "total"), "shots_on": ("shots", "on"),
+    "passes": ("passes", "total"), "key_passes": ("passes", "key"),
+    "tackles": ("tackles", "total"), "interceptions": ("tackles", "interceptions"),
+    "blocks": ("tackles", "blocks"), "duels": ("duels", "total"), "duels_won": ("duels", "won"),
+    "dribbles": ("dribbles", "attempts"), "dribbles_won": ("dribbles", "success"),
+    "fouls_committed": ("fouls", "committed"), "fouls_drawn": ("fouls", "drawn"),
+    "yellow": ("cards", "yellow"), "red": ("cards", "red"), "offsides": ("offsides", None),
+    "pen_scored": ("penalty", "scored"), "pen_missed": ("penalty", "missed"),
+    "pen_won": ("penalty", "won"), "pen_committed": ("penalty", "commited"),
+    "pen_saved": ("penalty", "saved"),
+}  # fmt: skip
+
+
+def _int(v: Any) -> int | None:
+    f = _float(v)
+    return None if f is None else int(f)
+
+
+def _minute(e: dict[str, Any], length: int) -> int | None:
+    """An event's match minute on the 0-length scale: stoppage time counts as the minute
+    it extends (90+3 is 90), capped at the match length."""
+    el = (e.get("time") or {}).get("elapsed")
+    return None if el is None else min(int(el), length)
+
+
+def player_appearances(
+    fx: dict[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """One dict per player in a team's lineup (starters and bench) for a finished match,
+    and counts of what could not be read (Phase 3, P3-0).
+
+    Minutes come from the events: a starter is on from 0, a substitute from the
+    substitution minute; a player leaves at a substitution or a sending-off, else at the
+    end (90, or 120 after extra time). A substitution event's two players are told apart
+    by who is on the pitch (the provider's player/assist order is not relied on); an event
+    where that is unclear is counted and skipped. `minutes_nt` is the part within 90'.
+    The provider's own `games.minutes` is kept beside it for comparison, never merged.
+
+    Goals are counted from the goal events (own goals, missed penalties and shootout kicks
+    excluded); own goals are counted apart and never credited as goals (spec §7.4). The
+    provider's per-player goal total is kept as `goals_provider`.
+
+    Counting statistics: the provider sends null for zero, so a null is 0 for a player who
+    played when the statistic is collected for that team in that match (any player of the
+    team has a value), and stays null otherwise; a player who did not play gets nulls.
+    `rating` is never filled."""
+    status = ((fx.get("fixture") or {}).get("status") or {}).get("short")
+    length = EXTRA_TIME_LENGTH if status in ("AET", "PEN") else NORMAL_TIME
+    counts: dict[str, int] = {"no_player_id": 0, "unclear_sub": 0, "not_in_lineup": 0}
+    lineups = fx.get("lineups") or []
+    out: dict[tuple[str, str], dict[str, Any]] = {}
+    on_pitch: set[str] = set()
+    for lu in lineups:
+        team = str((lu.get("team") or {}).get("id"))
+        for started, entries in ((True, lu.get("startXI")), (False, lu.get("substitutes"))):
+            for e in entries or []:
+                pl = e.get("player") or {}
+                if pl.get("id") is None:
+                    counts["no_player_id"] += 1
+                    continue
+                ref = str(pl["id"])
+                out[(team, ref)] = {
+                    "team_ref": team, "player_ref": ref, "player_name": pl.get("name") or "",
+                    "started": started, "number": _int(pl.get("number")), "pos": pl.get("pos"),
+                    "grid": pl.get("grid"), "minute_on": 0 if started else None,
+                    "minute_off": None, "sent_off": False, "goals": 0, "own_goals": 0,
+                }  # fmt: skip
+                if started:
+                    on_pitch.add(ref)
+    by_player = {ref: row for (_, ref), row in out.items()}
+    for e in fx.get("events") or []:
+        kind, detail = e.get("type"), e.get("detail")
+        m = _minute(e, length)
+        a = str((e.get("player") or {}).get("id"))
+        if kind == "subst" and m is not None:
+            b = str((e.get("assist") or {}).get("id"))
+            if a in on_pitch and b not in on_pitch and b in by_player:
+                off, on = a, b
+            elif b in on_pitch and a not in on_pitch and a in by_player:
+                off, on = b, a
+            else:
+                counts["unclear_sub"] += 1
+                continue
+            on_pitch.discard(off)
+            on_pitch.add(on)
+            by_player[off]["minute_off"] = m
+            by_player[on]["minute_on"] = m
+        elif kind == "Card" and detail in SENT_OFF and a in on_pitch and m is not None:
+            on_pitch.discard(a)
+            by_player[a]["minute_off"] = m
+            by_player[a]["sent_off"] = True
+        elif kind == "Goal" and e.get("comments") != SHOOTOUT and a in by_player:
+            if detail == OWN_GOAL:
+                by_player[a]["own_goals"] += 1
+            elif detail != "Missed Penalty":
+                by_player[a]["goals"] += 1
+    for row in out.values():
+        start: int | None = row["minute_on"]
+        if start is None:
+            row["minutes"] = row["minutes_nt"] = 0
+            continue
+        end: int = row["minute_off"] if row["minute_off"] is not None else length
+        row["minute_off"] = end
+        row["minutes"] = max(end - start, 0)
+        row["minutes_nt"] = max(min(end, NORMAL_TIME) - min(start, NORMAL_TIME), 0)
+    for block in fx.get("players") or []:
+        team = str((block.get("team") or {}).get("id"))
+        entries = block.get("players") or []
+        stats = {}
+        for e in entries:
+            pl = e.get("player") or {}
+            st = (e.get("statistics") or [{}])[0]
+            if pl.get("id") is not None:
+                stats[str(pl["id"])] = st
+        collected = {
+            name for name, (blk, field) in PLAYER_STATS.items()
+            if any(((st.get(blk) if field is None else (st.get(blk) or {}).get(field))
+                    is not None) for st in stats.values())
+        }  # fmt: skip
+        for ref, st in stats.items():
+            if (team, ref) not in out:
+                counts["not_in_lineup"] += 1
+                continue
+            row = out[(team, ref)]
+            games = st.get("games") or {}
+            row["minutes_provider"] = _int(games.get("minutes"))
+            row["rating"] = _float(games.get("rating"))
+            row["captain"] = bool(games.get("captain"))
+            played = row["minutes"] > 0 or (row["minutes_provider"] or 0) > 0
+            for name, (blk, field) in PLAYER_STATS.items():
+                v = st.get(blk) if field is None else (st.get(blk) or {}).get(field)
+                row[name] = _int(v) if v is not None else (0 if played and name in collected
+                                                            else None)  # fmt: skip
+    for row in out.values():
+        row.setdefault("minutes_provider", None)
+        row.setdefault("rating", None)
+        row.setdefault("captain", None)
+        for name in PLAYER_STATS:
+            row.setdefault(name, None)
+    return list(out.values()), counts
+
+
 def match_coaches(fx: dict[str, Any]) -> list[dict[str, Any]]:
     """One dict per team whose lineup names a coach: team_ref, coach_ref, coach_name (D12).
     A lineup without a coach id gives no row (absent, never imputed)."""

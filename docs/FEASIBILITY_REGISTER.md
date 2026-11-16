@@ -108,6 +108,24 @@ timing (the entry says which) · `absent` = verified missing from every source w
 | 3c.5 | Manager appointment and departure dates | `/coachs?team` `career[].start/end` | Month precision only (every date is the 1st of a month), and incomplete: `/coachs?team=33` (Manchester United) returns 2 coaches, missing others who led the team 2019–2025 | Probe `/coachs?team=33` | Dated facts, but the source's precision is too coarse for as-of use | **partial** | Tenure from the first and last match a coach appears in a lineup (3c.4), which is exact to the match |
 | 3c.6 | Opponent tier | Internal: from Layer 2 strength or Q_league | n/a (no external data) | n/a | As of the strength estimate used | **verified** | n/a |
 
+## 4b. Phase 3a/3b and Layer 5: status, squads, appearances, minutes, player rates (§7.1, §7.2, §7.4)
+
+Added 2026-11-16 (Phase 3, P3-0). Coverage is for the ten bundle leagues, dev seasons 2019/20 to
+2023/24. It comes from the player appearances built from the stored payloads (`adatta
+appearances-report`, no requests): 3,695,388 appearance rows from 91,726 matches over every
+stored competition-season. 8,345 finished matches have no lineup, mostly lower tiers and early
+cup rounds.
+
+| # | Covariate | Source, endpoint, field | Coverage, bundle leagues 2019–2023 | Verified by | Temporal availability | Status | Degrades to |
+|---|---|---|---|---|---|---|---|
+| 3a.1 | Pre-match player status (injured, suspended, doubtful) | `/injuries?league&season` (`player_status_snapshot`, daily capture) | Live only, from 2026-11-05: 632 snapshots on 294 matches by 2026-11-10; the feed lists absences only for fixtures ahead | Neon `player_status_snapshot`, `capture_log` | As-of from capture; cannot be reconstructed (§7.1) | **partial** (live only) | Dev backtests at the lineups-known horizon; the availability model is judged on the live period (D39) |
+| 3a.2 | Squad lists, registrations | `/players/squads?team` (`player_registration`) | Not captured: 0 rows | Neon | Would be live snapshots only | **absent** (P3-a) | Eligible pool = players who appeared for the club in the training window |
+| 3b.1 | Starters and bench per team-match | `lineups[].startXI`, `substitutes` | 11 starters in at least 99.9% of team-matches in every league | appearances report | Post-match fact for history; live at lineup release (3c.1) | **verified** | Matches without a lineup drop out |
+| 3b.2 | Minutes per player | Substitution and sending-off events (`events[]`, type `subst` and `Card`); the provider's `games.minutes` kept beside it | Event minutes for every listed player. They agree with the provider's within 3 min for 89.8% (Serie B) to 96.7% (Ligue 1) of players who played, a mean over seasons; the lowest is Serie B 2019/20 at 66.6%, where the provider counts stoppage time (its minutes are larger, by 6 or more for the 10% furthest apart). 0.6% of substitution events name two players who are both on or both off the pitch and are skipped | appearances report; `tests/test_appearances.py` | Post-match fact | **verified** (event minutes) | Provider minutes where events are missing |
+| 5.1 | Per-90 counts: goals, assists, shots, key passes, tackles, cards | Goals from goal events (own goals apart, §7.4); the rest from `players[].statistics` | Collected in at least 99.2% of team-matches with a lineup in every league. Event goals agree with the provider's per-player total in 99.8–100%. Serie B player statistics exist from 2019 only | appearances report | Post-match fact | **verified** | Position × league pooled rates |
+| 5.2 | Provider match rating | `players[].statistics.games.rating` | As 5.1 | appearances report | Post-match fact | **verified**, not a model input | Stored for reference only: the provider's own composite, not defined; it would need its own test |
+| 5.3 | Market value (cold-start rate prior, §7.4) | Transfermarkt | Not loaded: no official API, terms not reviewed (B.5) | none (no request made) | Current value only; past values not as-of | **absent** | Position × league pooled prior for new players, flagged in the confidence profile |
+
 ## 5. Former Phase 3c signals, now the §20.2 experiment backlog
 
 Registered so that a later experiment starts from a known data position. None has scheduled

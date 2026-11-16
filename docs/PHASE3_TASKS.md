@@ -66,7 +66,7 @@ Consequences:
 
 ## Tasks
 
-- [ ] **P3-0 Player data from stored payloads (no requests).** Acceptance (stated
+- [x] **P3-0 Player data from stored payloads (no requests).** Acceptance (stated
       2026-11-16, before building):
       (a) **Register.** `docs/FEASIBILITY_REGISTER.md` gains rows for the 3a/3b inputs and
       the Layer 5 rates: status feed, squads, appearances, minutes, each per-90 statistic.
@@ -78,6 +78,14 @@ Consequences:
       gives, `source_id` and the temporal fields. Players are keyed by provider id, so one
       player is one row in `player` across clubs. The payload's shape is known only to the
       adapter (`api_football_stats`).
+      *Amended 2026-11-16 while building, before any result was read: (1) storage is one
+      Parquet file per competition-season in the object store
+      (`players/appearances/v1/<league>/<season>.parquet`), not a Postgres table. About
+      3.7M rows would take roughly 2.5 GB at `team_match_stat`'s size per row, against
+      a 281 MB database today on the free tier. The model reads appearances in bulk, and
+      every file is rebuilt from the raw payloads. `player` stays in Postgres. (2) The slot
+      code moves to P3-c, which defines the formation vocabulary; the grid is stored, so
+      nothing is lost.*
       (c) **Checks.**
       - Each team-match with a lineup has 11 starters.
       - A starter's minutes equal the match length or their substitution minute. A
@@ -94,6 +102,27 @@ Consequences:
       season).
       (f) **Leakage test.** A loader at as-of t returns only appearances from matches final
       by t.
+      **Done 2026-11-16; (a)-(f) pass.**
+      - Code: `api_football_stats.player_appearances`, `adatta/features/appearances.py`
+        (`build`, `load`, `AppearanceHistory.as_of`, `report`), the CLI commands
+        `appearances-build` and `appearances-report`, and `tests/test_appearances.py`
+        (5 tests).
+      - Build: 362 competition-season files, 3,695,388 rows from 91,726 matches; players
+        are registered in `player`. 8,345 finished matches have no lineup.
+      - Counted and skipped:
+        - 5,222 lineup entries with no player id;
+        - 4,419 unclear substitutions (0.6%);
+        - 12,345 statistics entries for a player not in the lineup;
+        - 2,541 rows whose team is neither side of the match (0.07%).
+      - Bundle leagues, dev seasons 2019–2023:
+        - 11 starters in at least 99.9% of team-matches;
+        - event goals agree with the provider's per-player total in 99.8–100%;
+        - per-90 counts are collected in at least 99.2% of team-matches;
+        - event minutes are within 3 min of the provider's for a mean of 89.8% to 96.7%
+          per league. Lowest: Serie B 2019/20 at 66.6%, where the provider counts stoppage
+          time.
+      - Register section 4b added. Holdout seasons are built (the live fits need them) but
+        not summarised.
 - [ ] **P3-a Status feed and squad lists.** Daily status capture runs (since 2026-11-05).
       To add: squad lists per bundle team into `player_registration` (versioned,
       `valid_from/to`), through the quota planner, with the request cost stated first.

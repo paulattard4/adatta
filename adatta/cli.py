@@ -1191,6 +1191,45 @@ def coach_load(workers: int = typer.Option(8, help="parallel raw-store reads")) 
     typer.echo(counts)
 
 
+@app.command("appearances-build")
+def appearances_build(
+    league: str = typer.Option(None, help="provider league id; all when omitted"),
+    season: int = typer.Option(None, help="season start year; all when omitted"),
+    rebuild: bool = typer.Option(False, help="replace files already stored"),
+    workers: int = typer.Option(8, help="parallel raw-store reads"),
+) -> None:
+    """Build player appearances (Phase 3, P3-0) from stored detail payloads into one Parquet
+    file per competition-season in the object store. No API requests. Resumable."""
+    from adatta.features import appearances
+
+    with get_session() as session:
+        counts = appearances.build(
+            session, make_store(get_settings()), league, season, rebuild, workers
+        )
+    typer.echo(counts)
+
+
+@app.command("appearances-report")
+def appearances_report(
+    max_season: int = typer.Option(2023, help="last season reported (dev ends 2023)"),
+    out: str = typer.Option("", help="also write the report as CSV to this path"),
+) -> None:
+    """Coverage and checks of the stored appearances per competition-season (P3-0 (d)).
+    Aggregates only; no match-level data is printed."""
+    import polars as pl
+
+    from adatta.features import appearances
+
+    with get_session() as session:
+        groups = [g for g in appearances.targets(session) if g[1] <= max_season]
+    frame = appearances.load(make_store(get_settings()), sorted(groups))
+    rep = appearances.report(frame)
+    if out:
+        rep.write_csv(out)
+    with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=200, float_precision=3):
+        typer.echo(rep)
+
+
 @app.command("stats-load")
 def stats_load(workers: int = typer.Option(8, help="parallel raw-store reads")) -> None:
     """Build team_match_stat from stored detail payloads (no API requests). Resumable."""

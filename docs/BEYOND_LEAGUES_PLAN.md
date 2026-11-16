@@ -577,6 +577,14 @@ and competitive matches reported apart.
 
 ## Cross-cutting
 
+- **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,
+  both already built; Stages B, C and D wait until after Phase 3.
+- **Travel (owner, 2026-11-16):** the G2 travel and altitude terms failed on domestic
+  league matches (`PHASE2_TASKS.md`), where travel is part of home advantage. They are
+  re-evaluated where they can matter: cup ties (lower-tier hosts, long trips across a
+  country, neutral finals) and continental and international matches (Stages A, C, D),
+  as a tested term in each stage's acceptance, never assumed. The features need no
+  rebuild.
 - **Serving and refits:** results-triggered refits (D33) already work from the fixture
   list, so cup and continental midweek results are used as soon as these matches are in
   the model.

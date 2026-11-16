@@ -11,6 +11,12 @@ Status (2026-11-11): **stated, not started.** The inputs are built and verified
 Phase 1b audit to finish (it holds `adatta/model/` and the backtest and gate workflows).
 The owner settled D29–D31 on 2026-11-11, each as leaned below.
 
+**Closed 2026-11-16 (owner, D37).** The locked holdout rejected G7 style on the D36 gate
+(M5), so no context group is promoted and production stays `phase1b_strength_open_xg`.
+The context features stay built and loaded. G2 travel is to be re-evaluated on cup and
+international matches when those are modelled (`docs/BEYOND_LEAGUES_PLAN.md`,
+Cross-cutting). Next: Phase 3 (`docs/PHASE3_TASKS.md`).
+
 Tick each item only when its acceptance check passes.
 
 ## What enters, and where (spec §6.1–§6.2, register sections 1–3)
@@ -424,7 +430,8 @@ Model (after the Phase 1b audit closes):
       one inside the read transaction). `weather_history.load_realised` now ends the read
       transaction first and fetches in parallel (32 workers; the R2 client pool raised to
       match); the rebuild took 6 minutes.
-- [ ] M4 Combined model: gate, weekly dev run, feasibility.
+- [ ] M4 Combined model: gate, weekly dev run, feasibility. *(Not passed as built: M4b
+      respecified G7 and passed; closed with Phase 2, D37.)*
       - Prerequisites done 2026-11-14 (before G3 and any M4 run). Acceptance stated first:
         (a) `config/phase2_gate.yml` holds the gate with routes A and B exactly as D36 (not `evaluation.yml`: it is in every fit's cache hash, so editing it would discard the cached refits D33 step 2 reuses); `load_config` merges it;
         (b) the verdict passes on route A, on route B, on both, and fails when 1X2 is a

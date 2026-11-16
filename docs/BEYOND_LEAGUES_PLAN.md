@@ -460,7 +460,7 @@ Acceptance (stated 2026-11-16, before building):
     side: log λ_side += Σθz_side − Σθz_opponent, and the same with sides swapped.
   - Fitting, walk-forward: a tie's parameters come from the dev cup ties whose results
     were available (kickoff + 3 h) by the Monday of its week, all five cups pooled;
-    posterior on a grid (γ: −0.6 to 0.6 by 0.02; θ: −0.6 to 0.6 by 0.04 each) with a
+    posterior on a grid (γ: −1.0 to 1.0 by 0.02; θ: −1.0 to 1.0 by 0.05 each) with a
     Normal(0, 0.25) prior, the likelihood from the observed 90' score under the A1 draws
     (Dixon-Coles with rho and kappa, renormalised as `dixon_coles.score_matrix`), using
     100 of the draws for the fit; the tie is then scored at the posterior mean with all
@@ -476,6 +476,19 @@ Acceptance (stated 2026-11-16, before building):
     1.0%; ECE per outcome (home, draw, away) no worse than +0.005. Reported, not gated:
     the 90' score log loss. A term that fails is left out; nothing is tuned after seeing
     the result (grid, prior, the 3-day gap and the quarter-final cut are fixed here).
+  - Amended while building, still before any A1 result: the grids first ran to ±0.6, where
+    the Normal(0, 0.25) prior alone puts 0.4% of its mass on the edge, so the 1e-3 edge
+    check could never pass; at ±1.0 the prior's edge mass is under 1e-4.
+  - Built 2026-11-16, runs when A1 is in: `adatta/eval/cup_terms.py`
+    (`python -m adatta.eval.cup_terms run --a1 RUN_ID`, local, reads A1's rows from R2,
+    prints metrics only), `tests/test_cup_terms.py` (7 tests). The vectorised score matrix
+    equals `dixon_coles.score_matrix`; A1 rescored from its draws must reproduce its stored
+    probabilities (reported as the largest difference). On simulated ties: a true cup home
+    effect of −0.35 is recovered within 3 posterior sd (600 ties: estimate −0.24) and
+    rotation likewise; with 600 ties that effect improves 1X2 log loss by 0.8% but the
+    paired interval still spans zero, and with 900 it passes. So on the 816 real ties only
+    a large term can pass: an expectation stated before the result, not a reason to relax
+    the gate.
 
 ## Stage B: knockout resolution (§9)
 

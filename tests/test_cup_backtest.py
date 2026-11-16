@@ -47,6 +47,9 @@ def test_targets_keep_bundle_ties_and_swap_a_swapped_venue() -> None:
     assert (by[1]["league_id"], by[1]["pairing"]) == (39, "1v2")
     assert (by[2]["home"], by[2]["away"], by[2]["hg"], by[2]["ag"]) == (1002, 1001, 0, 0)
     assert (by[5]["league_id"], by[5]["pairing"]) == (40, "2v2")
+    assert (by[1]["tier_home"], by[1]["tier_away"]) == (1, 2)
+    # synthetic leagues play every 7 days from a Wednesday 15:00 plus a few hours
+    assert all(0 < by[1][f"gap_{s}_days"] < 8 for s in ("home", "away"))
 
 
 def test_scores_from_the_weeks_monday_refit_shared_with_the_league(tmp_path: Path) -> None:

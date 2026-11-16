@@ -25,6 +25,7 @@ their own marker, for the Stage A promotion decision.
 from __future__ import annotations
 
 import argparse
+import bisect
 import io
 import json
 from collections.abc import Callable, Sequence
@@ -99,7 +100,8 @@ def build_targets(ties: pl.DataFrame, df: pl.DataFrame, leagues: Sequence[int]) 
         .drop("league_away")
         .sort("kickoff", "match_id")
     )  # fmt: skip
-    return out.with_columns(
+    gaps = next_league_gaps(out, df)
+    return out.join(gaps, on="match_id", how="left").with_columns(
         pairing=pl.concat_str(
             [
                 pl.min_horizontal("tier_home", "tier_away"),
@@ -108,6 +110,30 @@ def build_targets(ties: pl.DataFrame, df: pl.DataFrame, leagues: Sequence[int]) 
             separator="v",
         )
     )
+
+
+def next_league_gaps(ties: pl.DataFrame, df: pl.DataFrame) -> pl.DataFrame:
+    """Days from each tie to each side's next league match as played (A2's T3; null when the
+    side plays no later league match in `df`)."""
+    kicks: dict[int, list[Any]] = {}
+    for h, a, k in zip(df["home"], df["away"], df["kickoff"], strict=True):
+        kicks.setdefault(int(h), []).append(k)
+        kicks.setdefault(int(a), []).append(k)
+    for v in kicks.values():
+        v.sort()
+
+    def gap(team: int, at: Any) -> float | None:
+        ks = kicks.get(team, [])
+        i = bisect.bisect_right(ks, at)
+        return (ks[i] - at).total_seconds() / 86400 if i < len(ks) else None
+
+    kick = ties["kickoff"].to_list()
+    return pl.DataFrame(
+        {"match_id": ties["match_id"],
+         "gap_home_days": [gap(int(t), k) for t, k in zip(ties["home"], kick, strict=True)],
+         "gap_away_days": [gap(int(t), k) for t, k in zip(ties["away"], kick, strict=True)]},
+        schema={"match_id": pl.Int64, "gap_home_days": pl.Float64, "gap_away_days": pl.Float64},
+    )  # fmt: skip
 
 
 # --------------------------------------------------------------------------- scoring
@@ -158,6 +184,8 @@ def score_season(
                 "kickoff": r["kickoff"], "as_of": as_of, "round": r["round"], "kind": r["kind"],
                 "role": r["role"], "neutral": r["role"] == "neutral", "pairing": r["pairing"],
                 "league_id": r["league_id"], "home": r["home"], "away": r["away"],
+                "tier_home": r["tier_home"], "tier_away": r["tier_away"],
+                "gap_home_days": r["gap_home_days"], "gap_away_days": r["gap_away_days"],
                 "hg": r["hg"], "ag": r["ag"], "n_train": len(fd.hg),
                 "cold_start": min(n_h, n_a) < cfg.min_warmup_matches,
                 "bundle": bundle, "model": spec.model_name, "fit_hash": h,

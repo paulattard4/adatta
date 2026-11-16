@@ -446,6 +446,37 @@ Acceptance (stated 2026-11-16, before building):
   cached for any later weekly dev run. Smoke test (pipeline only, not a result): England
   2019, 43 ties scored from those older refits, read-only, tail mass at most 1.9e-6.
 
+- [ ] **A2 design, fixed 2026-11-16 before any A1 result exists.** Each term is an
+  offset on the A1 draws' log rates (log λ home, log μ away), so A1's rows rescore a tie
+  without refitting the league model; A1 itself is the same rescoring with no offset.
+  - T1, a cup home advantage of its own (one parameter γ): log λ += γ on ties not on a
+    neutral ground (neutral ties untouched, so T1 and T2 stay separate questions).
+  - T2, no home term on neutral ground (no parameter): log λ −= h on neutral ties, h the
+    draw's home term (league plus the home side's own, `draws_home_term`).
+  - T3, rotation (two parameters θ_tier, θ_gap): for each side, z_tier = 1 in a round
+    before the quarter-finals when the side plays a tier above its opponent, z_gap = 1
+    when its next league match is within 3 days of the tie (the next league kickoff as
+    played; rescheduling after the tie is rare and is not modelled). Rotation weakens the
+    side: log λ_side += Σθz_side − Σθz_opponent, and the same with sides swapped.
+  - Fitting, walk-forward: a tie's parameters come from the dev cup ties whose results
+    were available (kickoff + 3 h) by the Monday of its week, all five cups pooled;
+    posterior on a grid (γ: −0.6 to 0.6 by 0.02; θ: −0.6 to 0.6 by 0.04 each) with a
+    Normal(0, 0.25) prior, the likelihood from the observed 90' score under the A1 draws
+    (Dixon-Coles with rho and kappa, renormalised as `dixon_coles.score_matrix`), using
+    100 of the draws for the fit; the tie is then scored at the posterior mean with all
+    draws. Early ties have little history and stay near 0 (the prior); they are scored
+    all the same.
+  - Inference checks for a grid posterior (in place of R-hat and ESS): posterior mass on
+    the grid's edge under 1e-3 at every refit; posterior sd at the last refit; prior
+    sensitivity (the last estimate under prior sd 0.1, 0.25 and 0.5); posterior
+    predictive home / draw / away rates against the observed.
+  - Gate per term, against A1 on the same 816 ties: the paired 95% interval of 1X2 log
+    loss or RPS excludes zero in the term's favour; in no cup is any D28 segment metric
+    (1X2 log loss, RPS, OU2.5 and BTTS log loss, total-goals CRPS) worse by more than
+    1.0%; ECE per outcome (home, draw, away) no worse than +0.005. Reported, not gated:
+    the 90' score log loss. A term that fails is left out; nothing is tuned after seeing
+    the result (grid, prior, the 3-day gap and the quarter-final cut are fixed here).
+
 ## Stage B: knockout resolution (§9)
 
 Needed whenever a winner is required: domestic cups, continental knockouts and

@@ -13,14 +13,22 @@ interface Group { key: string; label: string; items: Item[] }
 
 const byKickoff = (a: Item, b: Item) => a.kickoff.localeCompare(b.kickoff) || a.id - b.id;
 
-/** Jump between matches from a match page: a dropdown of every upcoming fixture (by
- * competition) and every played match, and previous / next within the same competition
- * (played and upcoming together, by kickoff). Keyboard: Alt + ← / →. */
+const WINDOW_DAYS = 7;
+
+/** Jump between matches from a match page: a dropdown of the fixtures of the next 7 days (by
+ * competition) and the matches played in the last 7, and previous / next within the same
+ * competition (played and upcoming together, by kickoff). Keyboard: Alt + ← / →. */
 export function MatchNav({ id, competitionId, kickoff, title }:
   { id: number; competitionId: number; kickoff: string; title: string }) {
   const router = useRouter();
-  const fx = useJson<FixtureList>("/api/fixtures");
-  const pl = useJson<PlayedList>("/api/played");
+  // fixed once per page, so the request URLs stay stable between renders
+  const [fxUrl, plUrl] = useMemo(() => {
+    const now = Date.now(), span = WINDOW_DAYS * 86400e3;
+    const iso = (t: number) => new Date(t).toISOString();
+    return [`/api/fixtures?start=${iso(now)}&end=${iso(now + span)}`, `/api/played?start=${iso(now - span)}`];
+  }, []);
+  const fx = useJson<FixtureList>(fxUrl);
+  const pl = useJson<PlayedList>(plUrl);
 
   const groups = useMemo<Group[]>(() => {
     const out: Group[] = (fx.data?.competitions ?? []).map((c) => ({

@@ -657,3 +657,8 @@ Model (after the Phase 1b audit closes):
         Before the opening: M4 passes, the owner fills `phase2_promotion.yml` (G7 style,
         snapshot 962f29fe719a9d58 unless rebuilt) and commits it, then dispatches with
         `parts` halves (the weekly fits of the biggest bundle-seasons need them).
+      - Promotion pinned by the owner after M4b (commit f72aa2f): groups [style], context
+        962f29fe719a9d58. **Second opening made 2026-11-16 07:40 UTC (owner: "open the
+        holdout"): run 43825480177** (commit f72aa2f), opening phase2, parts halves; the
+        claim job succeeded. 40 refit jobs (5 bundles x 2 holdout seasons x 2 halves x 2
+        specs), then assemble applies the D36 gate.

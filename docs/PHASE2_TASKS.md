@@ -630,7 +630,7 @@ Model (after the Phase 1b audit closes):
         the weekly run's Germany 1.29 is read as runner noise. **M4b complete: (a)-(d)
         pass.** Next: M5, the owner fills `config/phase2_promotion.yml` (G7 style,
         snapshot 962f29fe719a9d58) and dispatches the second holdout opening.
-- [ ] M5 Promotion per D30.
+- [x] M5 Promotion per D30.
       - Holdout jobs split (prerequisite, 2026-11-15). Acceptance stated first: (a)
         `holdout.yml` takes a `parts` input (default `["0/1"]`, today's behaviour) and runs
         each holdout bundle-season as that many jobs (`--part`), within the same 18-job
@@ -681,3 +681,22 @@ Model (after the Phase 1b audit closes):
         holdout"): run 43825480177** (commit f72aa2f), opening phase2, parts halves; the
         claim job succeeded. 40 refit jobs (5 bundles x 2 holdout seasons x 2 halves x 2
         specs), then assemble applies the D36 gate.
+      - **Result (2026-11-16): rejected; Phase 2 ends without a promotion.** All 40 refit
+        jobs and assemble succeeded (none rerun; longest 325 min of 360). 373 refits per
+        model, none with R-hat > 1.01, ESS < 400 or divergences (worst R-hat 1.008 and
+        1.007). On 7,261 warm holdout matches, style vs the 1b reference rescored on the
+        same code and grid, paired by match: **D36 fails on both routes.** Route A: 1X2 log
+        loss −0.01% [−0.04%, +0.02%], RPS −0.02% [−0.06%, +0.01%], neither interval
+        excludes zero. Route B: total CRPS −0.06% [−0.16%, +0.05%], OU2.5 log loss −0.04%
+        [−0.15%, +0.08%], neither excludes zero, and ECE over2.5 +0.0058 (0.0270 vs 0.0213)
+        is over the +0.005 limit. League segments pass (50, worst +0.27% OU2.5 log loss in
+        league 78). Group check fails the same way (active-match CRPS −0.05% [−0.16%,
+        +0.05%]; ECE over2.5 +0.0056). Feasibility as written fails on Spain (median refit
+        607 s vs 453 s, 1.34; the other four 1.01–1.16); not deciding, since the gate
+        already fails. Tempo coefficients are positive in every bundle (+0.007 Italy to
+        +0.054 Spain). gate.json verdict "rejected"; one `model_run` row recorded
+        (component phase2, window holdout). Production stays `phase1b_strength_open_xg`.
+        For information, 1b vs 1a on the same holdout and current code: 1X2 log loss
+        −0.48% [−0.76%, −0.20%], RPS −0.76% [−1.19%, −0.32%], so the 1b promotion holds.
+        The holdout has now been opened twice (1b, Phase 2); whether a later context claim
+        goes to the live period (D30 (b)) is the owner's call.

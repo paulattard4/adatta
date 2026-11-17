@@ -376,7 +376,7 @@ Consequences:
       - a "missing" status is a hard fact (P(start) = 0);
       - a "questionable" status enters as a covariate.
       It is measured against the dev model on the same matches with the same metrics.
-- [ ] **P3-c Formation, slot-code roles, Manager entity (§7.3).** Register 3c rows are
+- [x] **P3-c Formation, slot-code roles, Manager entity (§7.3).** Register 3c rows are
       verified (formation 99.65%, grid 99.65%, coach 99.59%).
       Acceptance (stated 2026-11-17, before building; no formation, slot or tenure figure
       on dev has been looked at beyond the register's coverage counts):
@@ -503,7 +503,13 @@ Consequences:
          the model is respecified on dev rather than sampled longer.
 
       **Dev run 2026-11-17 (run 44168855657, 25 jobs, 283 refits, median fit 61 s):**
-      verdict fail on (e)5 only; rerun per amendment 2 pending. Every other check passed:
+      verdict fail on (e)5 only. Every other check passed (below).
+
+      **Result 2026-11-17: pass** (run 44186511938, amendment 2: the whole dev run at 2,000
+      draws, median fit 103 s). All 283 refits pass the inference gates and all 19 checks
+      of (e) pass. Scores are essentially unchanged: vs F2 -4.69% [-5.05%, -4.32%], vs F1
+      -14.94%, ECE 0.019, role assignment +0.359. Production is unchanged: the slot codes,
+      tenures and formation distribution feed P3-d0 and P3-d. Figures of the first run:
       - formation log loss per team-match 1.455 against F1 1.710 and F2 1.526; vs F2
         -4.7% [-5.0%, -4.3%], vs F1 -14.9%; below F2 in all 10 leagues (-1.9% to -7.4%);
       - back-line family log loss 0.494 against F2 0.526; ECE of the top class 0.018;

@@ -165,7 +165,8 @@ def test_verdict_needs_every_check() -> None:
                 rows.append({"model": model, "match_id": m, "team_id": 1, "player_id": pl_id,
                              "league_ref": "39" if m % 2 else "40", "p_start": p * 11 / 11,
                              "start": start, "log_loss": -np.log(good) + rng.normal(0, 0.01),
-                             "crps": (1 - good) * 10})  # fmt: skip
+                             "crps": (1 - good) * 10, "brier": (1 - good) ** 2, "pos": "M",
+                             "cold": False, "returning": pl_id == 3})  # fmt: skip
     scored = pl.DataFrame(rows)
     v = ev.verdict(scored, "B2", inference_ok=True, leakage_ok=True)
     names = {c["check"]: c["pass"] for c in v.checks}
@@ -173,3 +174,8 @@ def test_verdict_needs_every_check() -> None:
     assert not names["ECE overall"]  # 0.9 / 0.1 against outcomes of 1 / 0
     assert not v.passed
     assert not ev.verdict(scored, "B2", inference_ok=False, leakage_ok=True).checks[-2]["pass"]
+    diags = [{"fit_s": 900.0, "gates_ok": True, "ppc_starts_q": q, "ppc_bench_q": 0.5}
+             for q in (0.02, 0.4, 0.6, 0.97)]  # fmt: skip
+    text = ev.markdown(scored, v, diags, "digest")
+    assert "PPC (warning only" in text and "| starts | 50.0% |" in text
+    assert "| bench | 0.0% |" in text and "passing the gates: 4" in text

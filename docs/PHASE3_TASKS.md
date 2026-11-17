@@ -256,7 +256,7 @@ Consequences:
          zero.
       4. ECE of P(start) is at most 0.02 overall and at most 0.03 in every league.
       5. The inference gates pass in every refit (the dispersion PPC is a warning, as
-         D20).
+         D20; the starts and bench PPC too, amendment 8).
       6. No dev appearance after the as-of time changes any prediction (leakage test).
 
       A fail is reported with its segment. The model is respecified only on dev, and the
@@ -307,6 +307,19 @@ Consequences:
 
          Each refit now prints its time per sub-model and its gate values, and saves its
          part to R2 as it goes, so a job cut off at 6 h keeps the refits it finished.
+
+      *Amended 2026-11-17 during the re-pilot (run 44027737564), before any model or
+      baseline score on dev was seen; owner: "Yes, make it a warning":*
+      8. **Starts and bench PPC are a warning.** Refit 2 of the re-pilot converged (R-hat
+         1.006, ESS 636, no divergences) but its starts PPC was q = 0.02. The check reads
+         the raw softmax, whose totals are free; the served probabilities are water-filled
+         to 11 starters and N bench by construction (amendment 2), which is what the
+         acceptance's "PPC of starts per team = 11" asks. Two 90% bands in each of about
+         325 refits would also fail a well-specified model by chance. So R-hat, ESS and
+         divergences gate every refit, and the PPC is reported as a warning, as D20 did
+         for goal dispersion: the share of refits outside the central 90% (about 10%
+         expected) and the q deciles. Calibration stays gated by ECE on dev outcomes
+         (g)4.
 
       **Built 2026-11-16, reworked 2026-11-17 (amendment 7), run pending:**
       - Code: `adatta/features/selection.py` (pool, covariates, outcome),

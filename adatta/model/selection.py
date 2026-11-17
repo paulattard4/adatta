@@ -35,6 +35,7 @@ from adatta.features.referees import RESULT_LAG
 Arr = NDArray[np.float64]
 PREFIX = "selection"
 REFIT_DAYS = 28  # D14
+PPC_BAND = (0.05, 0.95)  # central 90%; a warning only (amendment 8)
 TRAIN_DAYS = 730  # amendment 7: each refit trains on the two years before it
 SEED = 20261116
 DRAWS = 500
@@ -319,8 +320,12 @@ def run_part(players: pl.DataFrame, teams: pl.DataFrame, leagues: list[str], sea
             "fit_s": fit_s, **{f"fit_s_{k}": v for k, v in timings.items()},
             **{c.name: c.value for c in checks},
             "worst": {c.name: c.detail for c in checks if c.detail},
-            "gates_ok": all(c.passed for c in checks if c.blocking)
-            and 0.05 <= ppc["ppc_starts_q"] <= 0.95 and 0.05 <= ppc["ppc_bench_q"] <= 0.95,
+            # amendment 8: R-hat, ESS and divergences gate every refit; the starts and bench
+            # PPC is a reported warning (the served probabilities are coherent by
+            # construction, and ECE on dev outcomes checks calibration)
+            "gates_ok": all(c.passed for c in checks if c.blocking),
+            "ppc_ok": all(PPC_BAND[0] <= ppc[f"ppc_{k}_q"] <= PPC_BAND[1]
+                          for k in ("starts", "bench")),
             **ppc,
         })  # fmt: skip
         g = diags[-1]
@@ -328,7 +333,8 @@ def run_part(players: pl.DataFrame, teams: pl.DataFrame, leagues: list[str], sea
               f"({', '.join(f'{k} {v:.0f}' for k, v in timings.items())}); "
               f"rhat {g['rhat']:.3f}, ess {min(g['ess_bulk'], g['ess_tail']):.0f}, "
               f"div {g['divergences']:.0f}, ppc q {g['ppc_starts_q']:.2f}/{g['ppc_bench_q']:.2f}; "
-              f"gates {'ok' if g['gates_ok'] else 'FAIL'}", flush=True)  # fmt: skip
+              f"gates {'ok' if g['gates_ok'] else 'FAIL'}"
+              f"{'' if g['ppc_ok'] else ' (PPC warning)'}", flush=True)  # fmt: skip
         if on_refit is not None:
             on_refit(pl.concat(out), diags)
     return (pl.concat(out) if out else pl.DataFrame()), diags

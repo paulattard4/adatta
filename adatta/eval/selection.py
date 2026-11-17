@@ -433,6 +433,15 @@ def markdown(scored: pl.DataFrame, v: Verdict, diags: list[dict[str, Any]],
     fit = [d["fit_s"] for d in diags]
     lines += ["", f"Refits: {len(diags)}; passing the gates: {sum(d['gates_ok'] for d in diags)}; "
               f"fit time median {np.median(fit):.0f} s, max {max(fit):.0f} s."]  # fmt: skip
+    lines += ["", "PPC (warning only, amendment 8): share of refits with q outside the central "
+              "90% (about 10% expected), and the q deciles.", "",
+              "| check | outside | q deciles (10%-90%) |", "|---|---|---|"]  # fmt: skip
+    for k in ("starts", "bench"):
+        q = np.array([d[f"ppc_{k}_q"] for d in diags if f"ppc_{k}_q" in d])
+        if len(q):
+            out = float(((q < 0.05) | (q > 0.95)).mean())
+            dec = " ".join(f"{x:.2f}" for x in np.quantile(q, np.linspace(0.1, 0.9, 9)))
+            lines.append(f"| {k} | {out:.1%} | {dec} |")
     return "\n".join(lines)
 
 

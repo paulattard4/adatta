@@ -493,7 +493,27 @@ Consequences:
            practice 2022-2023), with slot history counted from positional matches.
          - The formation model (c) and Manager and tenure (b) are unaffected.
 
-      **Built 2026-11-17, run pending:**
+      *Amended 2026-11-17 after the dev run (run 44168855657), whose scores had been
+      seen; owner: "Yes, rerun at 2,000":*
+      2. **Longer sampling.** The run failed only (e)5: 24 of 283 refits had R-hat
+         1.010-1.016 (limit 1.01), 13 of them in Italy (mostly the 4-3-1-2 intercept and
+         the per-class home terms), with bulk ESS 448 or more and no divergences. The whole
+         dev run is repeated with 2,000 draws per chain after 2,000 tuning steps (was
+         500/500), the workflow's `draws` input; nothing else changes. If refits still fail,
+         the model is respecified on dev rather than sampled longer.
+
+      **Dev run 2026-11-17 (run 44168855657, 25 jobs, 283 refits, median fit 61 s):**
+      verdict fail on (e)5 only; rerun per amendment 2 pending. Every other check passed:
+      - formation log loss per team-match 1.455 against F1 1.710 and F2 1.526; vs F2
+        -4.7% [-5.0%, -4.3%], vs F1 -14.9%; below F2 in all 10 leagues (-1.9% to -7.4%);
+      - back-line family log loss 0.494 against F2 0.526; ECE of the top class 0.018;
+      - first 5 matches under a coach: 1.625 against F2 1.757 (reported, not gating);
+      - role assignment at the lineups-known horizon: 88.3% of starters in the actual
+        slot against R1 52.4% (+0.359 [+0.356, +0.362]); sparse-history players 81.6%
+        against 53.3%;
+      - (a) and (b) checks pass; leakage 0 of 100; PPC warning 0% of refits outside.
+
+      **Built 2026-11-17:**
       - Code: `adatta/features/lineups.py` (slot rules, positional test, lineup table,
         checks), `adatta/features/tenure.py` (tenures, checks, versioned storage),
         `adatta/features/formation.py` (as-of features), `adatta/eval/formation.py`

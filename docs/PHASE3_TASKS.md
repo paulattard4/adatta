@@ -464,6 +464,52 @@ Consequences:
 
       Cost: 0 API requests (stored payloads and `match_coach`). One CI walk-forward
       run (one backtest-type run at a time).
+
+      *Amended 2026-11-17 while building, before any formation, role or tenure result on
+      dev was seen; owner: "Degrade before 2022":*
+      1. **The grid is positional only from 2022/23.** The orientation check found that
+         grid columns before 2022 are not pitch positions. 779 players who are clearly
+         full-backs in 2022-2023 (at least 80% of their back-four starts on one edge, 10 or
+         more starts) sit on that edge in only 5-45% of their back-four starts in most
+         league-seasons 2016-2021, against 94-100% from 2022; the provider's G/D/M/F
+         code agrees with the grid row's line for 74-91% of starters before 2022, against
+         94-100% after. Exceptions: Serie A 2019 (86% / 97%) and La Liga 2019 (94% / 99%).
+         Columns are fixed with column 1 on the left (from 2022: a left-back in column 1,
+         a right-back in the last).
+         - **Full slot codes** only in league-seasons that pass a measured test: the
+           full-backs on their usual side at least 90%, and G/D/M/F agreeing with the row
+           line at least 95%. Full-backs are identified from 2022-2023 only (no holdout
+           season read).
+         - **Elsewhere,** line-level codes from the provider's G/D/M/F (GK, D, M, F),
+           never guessed sides; a starter with no provider code gets U.
+         - **Formations** come from the grid rows: the row counts reproduce the
+           provider's formation string in 596 of 596 sampled lineups that have one (the 4
+           others have neither). So the lineup table is built from the stored
+           appearances, without re-reading the payloads.
+         - **(a) checks** (one code per starter, one GK, line counts, 95% agreement) are
+           required in the positional league-seasons; the others are reported as
+           degraded. Pass rule 1 reads accordingly.
+         - **(d) role assignment** is judged on positional league-seasons only (in
+           practice 2022-2023), with slot history counted from positional matches.
+         - The formation model (c) and Manager and tenure (b) are unaffected.
+
+      **Built 2026-11-17, run pending:**
+      - Code: `adatta/features/lineups.py` (slot rules, positional test, lineup table,
+        checks), `adatta/features/tenure.py` (tenures, checks, versioned storage),
+        `adatta/features/formation.py` (as-of features), `adatta/eval/formation.py`
+        (inputs, baselines, metrics, role assignment, leakage, verdict, report) and
+        `adatta/model/formation.py` (conditional logit, NumPyro, walk-forward, assemble).
+      - Migration 0015 (`manager`, `manager_tenure`), applied: 5,935 managers and 11,337
+        tenures from 182,621 coach rows (all stored competitions); every row in one tenure,
+        no overlaps; a rebuild changes nothing.
+      - Lineup table `d1d11c0a7f3ce0a7` and formation table `9a05c70602047e45` (R2 only):
+        62,080 bundle team-matches 2016-2023; vocabulary of 15 formations plus other
+        (97% of warm-up); 21 positional bundle league-seasons (every league in 2022 and
+        2023, and La Liga 2019), all passing the (a) checks; leakage 0 of 100;
+        16,318 positional dev team-matches for the role check.
+      - CI: `.github/workflows/formation.yml`. Tests: `tests/test_lineups.py` (25),
+        `tests/test_tenure.py` (2), `tests/test_formation.py` (7),
+        `tests/test_formation_model.py` (CI model job).
 - [ ] **P3-d0 Player rates, Layer 5 (§7.4).** Per-90 rates pooled player → position →
       league, with a dispersion test by position and statistic (§7.4). Market-value prior
       only after the licensing review. Acceptance stated before building.

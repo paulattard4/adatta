@@ -593,6 +593,40 @@ class MatchCoach(Temporal, Base):
     __table_args__ = (Index("ix_match_coach", "match_id", "team_id", "superseded_at"),)
 
 
+class Manager(Temporal, Base):
+    """A coach as a top-level entity (spec §3.2: tendencies travel between clubs; P3-c).
+    Built from `match_coach`: one row per provider coach id."""
+
+    __tablename__ = "manager"
+    manager_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    source_ref: Mapped[str] = mapped_column(String(64))
+    name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    __table_args__ = (UniqueConstraint("source_id", "source_ref"),)
+
+
+class ManagerTenure(Temporal, Base):
+    """A run of consecutive team matches under one coach (P3-c (b)): start and end are the
+    first and last match in it, exact to the match (the provider's career dates are
+    month-only and incomplete, register 3c.5). valid_from is the first kickoff; valid_to is
+    the last kickoff once another coach has followed, else open. A forecast reads the
+    tenure's length up to its as-of time, never its end. A tenure that grows supersedes its
+    earlier row."""
+
+    __tablename__ = "manager_tenure"
+    tenure_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True, autoincrement=True)
+    manager_id: Mapped[int] = mapped_column(ForeignKey("manager.manager_id"))
+    team_id: Mapped[int] = mapped_column(ForeignKey("team.team_id"))
+    source_id: Mapped[str] = mapped_column(ForeignKey("source.source_id"))
+    first_match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    last_match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    n_matches: Mapped[int] = mapped_column(Integer)
+    __table_args__ = (
+        Index("ix_tenure_team", "team_id", "valid_from"),
+        Index("ix_tenure_manager", "manager_id", "valid_from"),
+    )
+
+
 class TeamMatchStat(Temporal, Base):
     """Post-match team statistics for one match x team (Phase 1b, D8), parsed from the stored
     detail payload. Usable for a prediction as of kickoff + result lag, like the result.

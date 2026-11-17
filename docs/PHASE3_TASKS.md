@@ -49,20 +49,30 @@ Consequences:
 
 1. **§7.5 and §8: "must show on the locked holdout"** that the in-likelihood offset beats
    serving-only. The 2024/25-2025/26 holdout has been opened twice already (1b, Phase 2).
-   Proposed: the live 2026/27 period judges the promotion (D38, open).
+   Resolved: the live 2026/27 period judges the promotion (D38).
 2. **§7.1 status snapshots** exist only from 2026-11-05, so availability has no dev
    history. Proposed: dev backtests at the lineups-known horizon, and the availability
    model judged live; optionally the provider's past `/injuries` lists as realised-absence
-   labels only (D39, open).
+   labels only. Resolved: both, the probe priced first (D39).
 3. **§19.3 Phase 1b gate "every Phase 2/3c covariate has a verified entry"**: the register
    covers 3c (formation, slots, manager) but not 3a, 3b or the Layer 5 rates. P3-0 adds them.
 
 ## Decisions
 
 - **D37 (resolved 2026-11-16):** Phase 3 next; Stage A finishes A1 and A2; Stages B-D wait.
-- **D38 (open):** promotion window for step (d). Leaning: live 2026/27.
-- **D39 (open):** pre-match availability before live capture. Leaning: both, the
-  `/injuries` probe priced in requests first.
+- **D38 (resolved 2026-11-17):** the step (d) promotion is judged on the live 2026/27
+  period; the holdout is not opened a third time.
+- **D39 (resolved 2026-11-17):** both. Dev backtests at the lineups-known horizon; the
+  status-informed model judged live; the past `/injuries` lists priced in requests
+  first, and if loaded used only as realised-absence labels.
+  *Priced 2026-11-17 (4 test calls, raw payloads kept):* one request returns a whole
+  league-season in one page. Premier League 2019 and Championship 2019 are empty (no
+  history that far back). Premier League 2021: 2,563 rows on 350 of 380 fixtures, from
+  2021-08-21; 2023: 3,853 rows on 380 fixtures (3,228 "Missing Fixture", 625
+  "Questionable", with a reason such as "Knee Injury"). No publication time, as expected.
+  The full probe is about 40 requests (10 bundle leagues x 2020-2023, holdout seasons not
+  needed), under 1% of a day's quota. Dev seasons 2019 and 2020 (probably) and warm-up
+  have no labels.
 
 ## Tasks
 

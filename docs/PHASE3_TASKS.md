@@ -377,8 +377,93 @@ Consequences:
       - a "questionable" status enters as a covariate.
       It is measured against the dev model on the same matches with the same metrics.
 - [ ] **P3-c Formation, slot-code roles, Manager entity (§7.3).** Register 3c rows are
-      verified (formation 99.65%, grid 99.65%, coach 99.59%). Acceptance stated before
-      building.
+      verified (formation 99.65%, grid 99.65%, coach 99.59%).
+      Acceptance (stated 2026-11-17, before building; no formation, slot or tenure figure
+      on dev has been looked at beyond the register's coverage counts):
+
+      **Scope.** Three parts, each judged on its own: (1) slot codes, (2) Manager and
+      tenure, (3) a formation model. Plus a role-assignment check that uses all three.
+      Nothing reaches production: selection (P3-b) stays as passed, and conditioning it
+      on formation is a later challenger. The Layer 5 rates (P3-d0) and the lineup offset
+      (P3-d) use what P3-c builds. Dev seasons 2019-2023, warm-up 2016-2018, no holdout
+      season loaded (the loader refuses > 2023, as P3-b).
+
+      (a) **Slot codes (data).** From the stored `/fixtures?ids` payloads (0 requests):
+      per team-match the formation string, and per starter the grid "row:col" mapped
+      deterministically to a slot code (GK, RB, RCB, CB, LCB, LB, RWB, LWB, CDM, CM, CAM,
+      RM, LM, RW, LW, ST and so on; §7.3). A rule table per formation row shape, in code,
+      with a unit test for every formation in the vocabulary.
+      - **Orientation.** Which grid column is the right side is not documented by the
+        provider. It is fixed from a hand-checked sample of 20 well-known full-backs and
+        wide players. If the sample doesn't settle it (fewer than 18 of 20 agree), codes
+        are side-neutral (FB, WB, CB, WM, W) rather than guessed.
+      - Stored as Parquet in R2 beside the appearances (`players/lineups/v1/...`), with
+        the temporal fields and `source_id`, as P3-0 did for appearances (Neon free
+        tier); the spec's Lineup entity is this table.
+      - **Checks:** every starter of a team-match with a formation and a full grid gets
+        exactly one code; exactly one GK per team-match; the codes' line counts match the
+        formation string; slot family agrees with the provider's G/D/M/F code for at
+        least 95% of starters where that code exists. Reported per league-season.
+
+      (b) **Manager and tenure.** Tables `manager` and `manager_tenure` (migration
+      0015, forward-only) from `match_coach`: a tenure is a run of consecutive team
+      matches under one coach, so a coach who leaves and returns has two. Start and end are
+      the first and last match in the tenure (exact to the match; register 3c.5: the
+      provider's dates are month-only and incomplete).
+      - **As-of:** a tenure's end is not known while it runs. A forecast at T sees the
+        team's coach from its last match final by T and that tenure's length up to T,
+        never the end date.
+      - **Checks:** every `match_coach` row is in exactly one tenure; a team's tenures
+        don't overlap; the leakage test of (c) also covers the manager inputs.
+
+      (c) **Formation model** (§7.3), at T-24h like P3-b:
+      - **Vocabulary:** the formations covering at least 97% of warm-up team-matches, the
+        rest as "other". Fixed on warm-up only.
+      - **Model:** a conditional multinomial logit over the vocabulary, sampled with
+        NumPyro (P3-b's lesson: covariates, no per-team random effects). Inputs: the
+        team's recency-weighted formation shares; the coach's career shares pooled across
+        their earlier clubs, shrunk towards the team's by the coach's match count; the
+        team's last formation; opponent tier; home/away; importance. Opponent tier is the
+        production model's pre-match P(win) - P(loss) for the team, from the stored dev
+        backtest predictions (as-of by construction; a model output, not odds); 0 where a
+        match has none.
+      - **Walk-forward:** refit every 28 days on the 730 days before (as P3-b
+        amendment 7), per bundle.
+      - **Baselines,** fixed on warm-up: F1 = the team's last formation, smoothed towards
+        the league's shares (weight fitted on warm-up); F2 = the team's recency-weighted
+        shares, smoothed the same way.
+      - **Metrics:** multiclass log loss of the actual formation, paired by team-match;
+        back-line family (3/4/5 at the back) log loss; ECE of the top class.
+
+      (d) **Role assignment** (§7.3), at the lineups-known horizon: given the actual
+      formation and the actual XI, each starter is assigned a slot from the codes they
+      have occupied before (as-of), as the most likely complete assignment of the 11 to
+      the formation's slots. Baseline R1: the same assignment using only the provider's
+      G/D/M/F code and the team's slot shares. Metric: share of starters whose assigned
+      code equals the actual one, paired by team-match; reported for new signings and
+      players with fewer than 5 coded starts.
+
+      (e) **Pass.** All of the following must hold:
+      1. (a) and (b) checks pass in every dev league-season (a shortfall in one season is
+         reported with its segment and degrades to formation-only codes there, never to
+         invented ones).
+      2. Formation log loss beats both F1 and F2 overall, with the paired 95% interval
+         excluding zero, and the point estimate beats the stronger of the two in every
+         bundle league.
+      3. Back-line family log loss is no worse than the stronger baseline overall (point
+         estimate).
+      4. ECE of the top class is at most 0.03 overall.
+      5. Inference gates (R-hat, ESS, divergences) pass in every refit; the PPC of
+         formation shares is a reported warning (as P3-b amendment 8).
+      6. Role assignment beats R1 overall, paired 95% interval excluding zero.
+      7. Leakage: no information final after the as-of time changes any formation or
+         role input (100 sampled team-matches, as P3-b).
+
+      Reported, not gating: the first 5 matches under a new coach (does career pooling
+      help?), formation log loss by league and by opponent-tier band.
+
+      Cost: 0 API requests (stored payloads and `match_coach`). One CI walk-forward
+      run (one backtest-type run at a time).
 - [ ] **P3-d0 Player rates, Layer 5 (§7.4).** Per-90 rates pooled player → position →
       league, with a dispersion test by position and statistic (§7.4). Market-value prior
       only after the licensing review. Acceptance stated before building.

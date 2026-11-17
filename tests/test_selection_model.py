@@ -1,5 +1,6 @@
 """P3-b model (adatta/model/selection.py) on a small synthetic table: it samples, its
-predictions are coherent per team-match, and an unseen player gets the pooled mean.
+predictions are coherent per team-match (an unseen player too), and the five
+sub-models pass through the combined gates.
 PyMC + NumPyro: runs in the CI model job (D13)."""
 
 import numpy as np
@@ -69,5 +70,12 @@ def test_the_model_samples_and_predicts_coherently() -> None:
             i = g["i"].to_numpy()
             assert p[i, 0].sum() == pytest.approx(11.0, abs=1e-3)
             assert p[i, 1].sum() == pytest.approx(3.0, abs=1e-3)
+    assert set(idata) == set(ms.SUBMODELS)
+    assert {c.name for c in ms.convergence(idata)} == {
+        "rhat",
+        "ess_bulk",
+        "ess_tail",
+        "divergences",
+    }
     ppc = ms.ppc_starts(d, post, rows, np.random.default_rng(0))
     assert 0.0 <= ppc["ppc_starts_q"] <= 1.0

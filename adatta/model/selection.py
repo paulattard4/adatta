@@ -1,7 +1,13 @@
-"""P3-b selection and minutes model (docs/PHASE3_TASKS.md): a hierarchical multinomial logit
-(start / bench / out) with player effects pooled player -> position -> league, and a
-minutes sub-model (full 90 given a start, coming on given the bench, Beta-scaled minutes
-otherwise). PyMC, sampled with NumPyro (D10); the model dependency group, CI only (D13).
+"""P3-b selection and minutes model (docs/PHASE3_TASKS.md): a multinomial logit (start /
+bench / out) with league intercepts and position offsets (the first position is the
+reference), and a minutes model (full 90 given a start, coming on given the bench,
+Beta-scaled minutes otherwise). PyMC, sampled with NumPyro (D10); the model dependency
+group, CI only (D13).
+
+Amendment 7 (after the first timing pilot): the five likelihoods share no parameter, so
+each is sampled on its own (the joint posterior is their product); no per-player effects
+(the player's own history enters through the covariates); and each refit trains on the
+TRAIN_DAYS before it.
 
 CLI (CI): `run --bundle B --season S --upload RUN` fits the 28-day refits covering one
 dev season of one bundle and stores the scored rows in the private raw store; `assemble
@@ -13,9 +19,9 @@ from __future__ import annotations
 import io
 import json
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -29,6 +35,7 @@ from adatta.features.referees import RESULT_LAG
 Arr = NDArray[np.float64]
 PREFIX = "selection"
 REFIT_DAYS = 28  # D14
+TRAIN_DAYS = 730  # amendment 7: each refit trains on the two years before it
 SEED = 20261116
 DRAWS = 500
 CHAINS = 4
@@ -43,7 +50,6 @@ class Design:
     mean: dict[str, float]
     sd: dict[str, float]
     leagues: list[str]
-    players: dict[int, int]
 
 
 def design(train: pl.DataFrame) -> Design:
@@ -54,8 +60,7 @@ def design(train: pl.DataFrame) -> Design:
         s = float(np.nanstd(x))
         sd[f] = s if s > 1e-9 else 1.0
     leagues = sorted(train["league_ref"].unique().to_list())
-    players = {int(p): i for i, p in enumerate(sorted(train["player_id"].unique().to_list()))}
-    return Design(mean, sd, leagues, players)
+    return Design(mean, sd, leagues)
 
 
 def matrix(d: Design, rows: pl.DataFrame, cols: Sequence[str] = sel.FEATURES) -> Arr:
@@ -72,51 +77,50 @@ def _pos(rows: pl.DataFrame) -> NDArray[np.int64]:
     return np.array([names.index(p) for p in rows["pos"].to_list()])
 
 
-def _codes(d: Design, rows: pl.DataFrame) -> tuple[NDArray[np.int64], NDArray[np.int64]]:
-    lg = np.array([d.leagues.index(x) for x in rows["league_ref"].to_list()])
-    pl_ = np.array([d.players.get(int(p), -1) for p in rows["player_id"].to_list()])
-    return lg, pl_
+def _leagues(d: Design, rows: pl.DataFrame) -> NDArray[np.int64]:
+    return np.array([d.leagues.index(x) for x in rows["league_ref"].to_list()])
 
 
-def build_model(d: Design, train: pl.DataFrame) -> Any:
+SUBMODELS = ("select", "full", "on", "start_m", "on_m")
+
+
+def build_models(d: Design, train: pl.DataFrame) -> dict[str, Any]:
+    """The five independent likelihoods, one PyMC model each."""
     import pymc as pm
     import pytensor.tensor as pt
 
     X = matrix(d, train)
     Xm = matrix(d, train, MINUTES_X)
-    lg, pid = _codes(d, train)
+    lg = _leagues(d, train)
     pos = _pos(train)
     y = train["y"].to_numpy()
     cls = np.select([y == sel.START, y == sel.BENCH], [0, 1], 2)  # start, bench, out
     mins = train["minutes_nt"].to_numpy()
-    n_pos, n_pl, n_lg = len(sel.POS) + 1, len(d.players), len(d.leagues)
+    n_pos, n_lg = len(sel.POS) + 1, len(d.leagues)
+    models: dict[str, Any] = {}
     with pm.Model() as m:
         a = pm.Normal("a", 0.0, 2.0, shape=(n_lg, 2))
         b = pm.Normal("b", 0.0, 1.0, shape=(X.shape[1], 2))
-        tau = pm.HalfNormal("tau", 1.0, shape=2)
-        pos_eff = pm.Normal("pos_eff", 0.0, 1.0, shape=(n_pos, 2)) * tau
-        sigma = pm.HalfNormal("sigma", 1.0, shape=2)
-        z = pm.Normal("z", 0.0, 1.0, shape=(n_pl, 2))
-        eta = a[lg] + pt.dot(X, b) + pos_eff[pos] + z[pid] * sigma
+        pos_raw = pm.Normal("pos_raw", 0.0, 1.0, shape=(n_pos - 1, 2))
+        pos_eff = pt.concatenate([pt.zeros((1, 2)), pos_raw], axis=0)
+        eta = a[lg] + pt.dot(X, b) + pos_eff[pos]
         logits = pt.concatenate([eta, pt.zeros((len(y), 1))], axis=1)
         pm.Categorical("y", logit_p=logits, observed=cls)
-        # minutes: full 90 given a start; coming on given the bench; Beta-scaled minutes
-        st, bn = y == sel.START, y == sel.BENCH
-        part = st & (mins < 90) & (mins > 0)
-        on = bn & (mins > 0)
-        c0 = pm.Normal("c0", 0.0, 2.0, shape=n_pos)
-        g = pm.Normal("g", 0.0, 1.0, shape=Xm.shape[1])
-        s_f = pm.HalfNormal("s_f", 1.0)
-        zf = pm.Normal("zf", 0.0, 1.0, shape=n_pl)
-        pm.Bernoulli("full", logit_p=c0[pos[st]] + pt.dot(Xm[st], g) + s_f * zf[pid[st]],
-                     observed=(mins[st] >= 90).astype(int))  # fmt: skip
-        e0 = pm.Normal("e0", 0.0, 2.0, shape=n_pos)
-        k = pm.Normal("k", 0.0, 1.0, shape=Xm.shape[1])
-        s_o = pm.HalfNormal("s_o", 1.0)
-        zo = pm.Normal("zo", 0.0, 1.0, shape=n_pl)
-        pm.Bernoulli("on", logit_p=e0[pos[bn]] + pt.dot(Xm[bn], k) + s_o * zo[pid[bn]],
-                     observed=(mins[bn] > 0).astype(int))  # fmt: skip
-        for name, mask in (("start_m", part), ("on_m", on)):
+    models["select"] = m
+    # minutes: full 90 given a start; coming on given the bench; Beta-scaled minutes
+    st, bn = y == sel.START, y == sel.BENCH
+    for name, mask, obs, c in (("full", st, (mins >= 90), "c0"), ("on", bn, (mins > 0), "e0")):
+        coef = "g" if name == "full" else "k"
+        with pm.Model() as m:
+            c0 = pm.Normal(c, 0.0, 2.0, shape=n_pos)
+            g = pm.Normal(coef, 0.0, 1.0, shape=Xm.shape[1])
+            pm.Bernoulli(name, logit_p=c0[pos[mask]] + pt.dot(Xm[mask], g),
+                         observed=obs[mask].astype(int))  # fmt: skip
+        models[name] = m
+    part = st & (mins < 90) & (mins > 0)
+    on = bn & (mins > 0)
+    for name, mask in (("start_m", part), ("on_m", on)):
+        with pm.Model() as m:
             d0 = pm.Normal(f"{name}_d0", 0.0, 2.0, shape=n_pos)
             h = pm.Normal(f"{name}_h", 0.0, 1.0, shape=Xm.shape[1])
             phi = pm.LogNormal(f"{name}_phi", np.log(5.0), 1.0, shape=n_pos)
@@ -124,38 +128,66 @@ def build_model(d: Design, train: pl.DataFrame) -> Any:
             frac = np.clip(mins[mask] / 90.0, 0.005, 0.995)
             pm.Beta(name, alpha=mu * phi[pos[mask]], beta=(1 - mu) * phi[pos[mask]],
                     observed=frac)  # fmt: skip
-    return m
+        models[name] = m
+    return models
 
 
-def fit(d: Design, train: pl.DataFrame, draws: int = DRAWS, seed: int = SEED) -> Any:
+def fit(d: Design, train: pl.DataFrame, draws: int = DRAWS, seed: int = SEED,
+        timings: dict[str, float] | None = None) -> dict[str, Any]:  # fmt: skip
+    """Sample each sub-model; `timings` (if given) receives seconds per sub-model."""
     import pymc as pm
 
-    with build_model(d, train):
-        return pm.sample(draws=draws, tune=draws, chains=CHAINS, nuts_sampler="numpyro",
-                         random_seed=seed, target_accept=0.9, progressbar=False)  # fmt: skip
-
-
-def posterior(idata: Any, n: int = PRED_DRAWS) -> dict[str, Arr]:
-    post = idata["posterior"]
-    post = post.to_dataset() if hasattr(post, "to_dataset") else post
     out = {}
-    for v in post.data_vars:
-        arr = np.asarray(post[v].values)
-        flat = arr.reshape(-1, *arr.shape[2:])
-        step = max(len(flat) // n, 1)
-        out[str(v)] = flat[::step][:n]
+    for k, (name, model) in enumerate(build_models(d, train).items()):
+        t0 = time.monotonic()
+        with model:
+            out[name] = pm.sample(draws=draws, tune=draws, chains=CHAINS,
+                                  nuts_sampler="numpyro", random_seed=seed + k,
+                                  target_accept=0.9, progressbar=False)  # fmt: skip
+        if timings is not None:
+            timings[name] = time.monotonic() - t0
+    return out
+
+
+def posterior(fits: dict[str, Any], n: int = PRED_DRAWS) -> dict[str, Arr]:
+    """Thinned draws of every sub-model's parameters. The sub-models are independent, so
+    pairing their i-th draws is a draw from the joint posterior."""
+    out = {}
+    for idata in fits.values():
+        post = idata["posterior"]
+        post = post.to_dataset() if hasattr(post, "to_dataset") else post
+        for v in post.data_vars:
+            arr = np.asarray(post[v].values)
+            flat = arr.reshape(-1, *arr.shape[2:])
+            step = max(len(flat) // n, 1)
+            out[str(v)] = flat[::step][:n]
+    return out
+
+
+def convergence(fits: dict[str, Any]) -> list[Any]:
+    """The inference gates over all sub-models: worst R-hat and ESS, total divergences."""
+    from adatta.model import diagnostics as dg
+
+    per = {name: {c.name: c for c in dg.convergence(idata)} for name, idata in fits.items()}
+    out = []
+    for check, worst in (("rhat", max), ("ess_bulk", min), ("ess_tail", min)):
+        name = worst(per, key=lambda m: per[m][check].value)
+        c = per[name][check]
+        out.append(dg.Check(check, c.passed, c.value, f"{name}: {c.detail}".rstrip(": ")))
+    div = sum(per[m]["divergences"].value for m in per)
+    out.append(dg.Check("divergences", all(per[m]["divergences"].passed for m in per), div))
     return out
 
 
 def raw_probs(d: Design, post: dict[str, Arr], rows: pl.DataFrame) -> Arr:
-    """(draws, n, 3) softmax probabilities (start, bench, out); an unseen player has z = 0."""
+    """(draws, n, 3) softmax probabilities (start, bench, out)."""
     X = matrix(d, rows)
-    lg, pid = _codes(d, rows)
+    lg = _leagues(d, rows)
     pos = _pos(rows)
-    tau = post["tau"][:, None, :]
-    z = np.where(pid[None, :, None] >= 0, post["z"][:, np.maximum(pid, 0), :], 0.0)
+    pr = post["pos_raw"]
+    pos_eff = np.concatenate([np.zeros((len(pr), 1, 2)), pr], axis=1)
     eta = (post["a"][:, lg, :] + np.einsum("nf,dfk->dnk", X, post["b"])
-           + post["pos_eff"][:, pos, :] * tau + z * post["sigma"][:, None, :])  # fmt: skip
+           + pos_eff[:, pos, :])  # fmt: skip
     full = np.concatenate([eta, np.zeros((*eta.shape[:2], 1))], axis=2)
     full -= full.max(axis=2, keepdims=True)
     e = np.exp(full)
@@ -169,14 +201,10 @@ def _sig(x: Arr) -> Arr:
 def minutes_params(d: Design, post: dict[str, Arr], rows: pl.DataFrame) -> dict[str, Arr]:
     """Per draw and row: q_full, q_on, and the two Beta means and precisions."""
     Xm = matrix(d, rows, MINUTES_X)
-    _, pid = _codes(d, rows)
     pos = _pos(rows)
-    seen = pid >= 0
-    zf = np.where(seen[None], post["zf"][:, np.maximum(pid, 0)], 0.0)
-    zo = np.where(seen[None], post["zo"][:, np.maximum(pid, 0)], 0.0)
     return {
-        "q_full": _sig(post["c0"][:, pos] + (post["g"] @ Xm.T) + post["s_f"][:, None] * zf),
-        "q_on": _sig(post["e0"][:, pos] + (post["k"] @ Xm.T) + post["s_o"][:, None] * zo),
+        "q_full": _sig(post["c0"][:, pos] + (post["g"] @ Xm.T)),
+        "q_on": _sig(post["e0"][:, pos] + (post["k"] @ Xm.T)),
         "start_mu": _sig(post["start_m_d0"][:, pos] + (post["start_m_h"] @ Xm.T)),
         "start_phi": post["start_m_phi"][:, pos],
         "on_mu": _sig(post["on_m_d0"][:, pos] + (post["on_m_h"] @ Xm.T)),
@@ -240,10 +268,12 @@ def with_times(players: pl.DataFrame, teams: pl.DataFrame) -> pl.DataFrame:
 
 def run_part(players: pl.DataFrame, teams: pl.DataFrame, leagues: list[str], season: int,
              draws: int = DRAWS, part: tuple[int, int] = (0, 1),
+             on_refit: Callable[[pl.DataFrame, list[dict[str, Any]]], None] | None = None,
              ) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
     """Score one dev season of one bundle: baselines from warm-up, the model refitted every
-    28 days on everything final by the refit time. `part` (i, n) takes every n-th refit
-    block of the season from the i-th, so n jobs share a season."""
+    28 days on the TRAIN_DAYS of rows final by the refit time. `part` (i, n) takes every
+    n-th refit block of the season from the i-th, so n jobs share a season. `on_refit` is
+    called after each refit with everything scored so far (so a cut-off job keeps it)."""
     if season not in ev.DEV:
         raise ev.HoldoutRefused(f"season {season} is not a dev season")
     rows = with_times(players.filter(pl.col("league_ref").is_in(leagues)), teams)
@@ -262,17 +292,16 @@ def run_part(players: pl.DataFrame, teams: pl.DataFrame, leagues: list[str], sea
         if not block.is_empty():
             blocks.append((t, block))
     for t, block in blocks[part[0] :: part[1]]:
-        train = rows.filter(pl.col("final_at") <= t)
+        train = rows.filter((pl.col("final_at") <= t)
+                            & (pl.col("as_of") > t - timedelta(days=TRAIN_DAYS)))  # fmt: skip
         tm_train = teams.join(train.select("match_id", "team_id").unique(),
                               on=["match_id", "team_id"])  # fmt: skip
         d = design(train)
-        t0 = time.monotonic()
-        idata = fit(d, train, draws)
-        fit_s = time.monotonic() - t0
-        from adatta.model import diagnostics as dg
-
-        checks = dg.convergence(idata)
-        post = posterior(idata)
+        timings: dict[str, float] = {}
+        fits = fit(d, train, draws, timings=timings)
+        fit_s = sum(timings.values())
+        checks = convergence(fits)
+        post = posterior(fits)
         ppc = ppc_starts(d, post, train.sample(min(len(train), 50_000), seed=SEED),
                          np.random.default_rng(SEED))  # fmt: skip
         nu = ev.newcomer_rates(tm_train)
@@ -287,11 +316,21 @@ def run_part(players: pl.DataFrame, teams: pl.DataFrame, leagues: list[str], sea
         out.append(pl.concat(parts))
         diags.append({
             "refit": t.isoformat(), "train_rows": len(train), "rows": len(block),
-            "fit_s": fit_s, **{c.name: c.value for c in checks},
+            "fit_s": fit_s, **{f"fit_s_{k}": v for k, v in timings.items()},
+            **{c.name: c.value for c in checks},
+            "worst": {c.name: c.detail for c in checks if c.detail},
             "gates_ok": all(c.passed for c in checks if c.blocking)
             and 0.05 <= ppc["ppc_starts_q"] <= 0.95 and 0.05 <= ppc["ppc_bench_q"] <= 0.95,
             **ppc,
         })  # fmt: skip
+        g = diags[-1]
+        print(f"refit {t:%Y-%m-%d}: train {len(train)} rows, fit {fit_s:.0f} s "
+              f"({', '.join(f'{k} {v:.0f}' for k, v in timings.items())}); "
+              f"rhat {g['rhat']:.3f}, ess {min(g['ess_bulk'], g['ess_tail']):.0f}, "
+              f"div {g['divergences']:.0f}, ppc q {g['ppc_starts_q']:.2f}/{g['ppc_bench_q']:.2f}; "
+              f"gates {'ok' if g['gates_ok'] else 'FAIL'}", flush=True)  # fmt: skip
+        if on_refit is not None:
+            on_refit(pl.concat(out), diags)
     return (pl.concat(out) if out else pl.DataFrame()), diags
 
 
@@ -345,10 +384,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.cmd == "run":
         leagues = [str(x) for x in cfg.bundles[args.bundle]]
         i, n = (int(x) for x in args.part.split("/"))
-        scored, diags = run_part(players, teams, leagues, args.season, args.draws, (i, n))
         key = f"{PREFIX}/parts/{args.upload}/{args.bundle}_{args.season}_{i}of{n}"
-        store.put(f"{key}.parquet", _parquet(scored))
-        store.put(f"{key}.json", json.dumps({"table": digest, "diags": diags}).encode())
+
+        def save(scored: pl.DataFrame, diags: list[dict[str, Any]]) -> None:
+            store.put(f"{key}.parquet", _parquet(scored))
+            store.put(f"{key}.json", json.dumps({"table": digest, "diags": diags}).encode())
+
+        scored, diags = run_part(players, teams, leagues, args.season, args.draws, (i, n),
+                                 on_refit=save)  # fmt: skip
+        save(scored, diags)
         ok = sum(d["gates_ok"] for d in diags)
         print(f"{args.bundle} {args.season}: {len(diags)} refits, {ok} pass the gates; "
               f"median fit {np.median([d['fit_s'] for d in diags]):.0f} s")  # fmt: skip

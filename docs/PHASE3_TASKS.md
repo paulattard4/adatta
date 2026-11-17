@@ -275,7 +275,30 @@ Consequences:
          200 thinned draws, and the minutes pmf 50 of them.
       6. **Jobs.** Each bundle-season runs in parts (`--part i/n`) to keep jobs under 6 h.
 
-      **Built 2026-11-16, run pending:**
+      *Amended 2026-11-17 after the first timing pilot (run 43931271338, England 2019,
+      part 0/4), before any model or baseline score on dev was seen:*
+      7. **Feasibility.** The pilot's first refit took 5 h 3 min and failed the R-hat and
+         ESS gates (R-hat > 1.01, ESS < 100 per chain, 1 divergence). The second refit was
+         cut off by the 6 h job limit, so no part finished and nothing was scored. The
+         model as built could not run the dev walk-forward (about 325 refits). Three
+         changes; the pass rule (a)-(g) and the baselines stay as stated:
+         - **No per-player effects.** The player's own tendency enters through the
+           covariates (`ew_start`, `ew_squad`, `last_start`, `never_started`, ...). The
+           position effect is a fixed offset with the goalkeeper as the reference level
+           (the hierarchical position scale on 5 levels, with a free league intercept,
+           was weakly identified).
+         - **Five separate fits.** The selection logit, full 90, coming on and the two
+           minutes Betas share no parameter, so each is sampled on its own. The joint
+           posterior is their product, so the predictions are the same as one joint fit.
+           The inference gates are taken over all five (worst R-hat and ESS, total
+           divergences).
+         - **Training window.** Each refit trains on rows final by the refit time and
+           with an as-of time in the 730 days before it (was: all history from 2016/17).
+
+         Each refit now prints its time per sub-model and its gate values, and saves its
+         part to R2 as it goes, so a job cut off at 6 h keeps the refits it finished.
+
+      **Built 2026-11-16, reworked 2026-11-17 (amendment 7), run pending:**
       - Code: `adatta/features/selection.py` (pool, covariates, outcome),
         `adatta/eval/selection.py` (inputs, table store, leakage check, baselines,
         coherent probabilities, minutes pmf, metrics, verdict, report) and

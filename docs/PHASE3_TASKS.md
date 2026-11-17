@@ -168,7 +168,7 @@ Consequences:
           its current list. The rest are mostly expected to be players who have since
           left.
         - From the next push the capture tick runs it daily.
-- [ ] **P3-b Availability, selection and minutes, validated standalone (§7.1-§7.2).**
+- [x] **P3-b Availability, selection and minutes, validated standalone (§7.1-§7.2).**
       `P(start | available)` and an expected-minutes distribution per player.
       **Acceptance stated 2026-11-16, before building and before any selection result is
       seen.** This is a standalone component study on dev only. It changes no production
@@ -335,8 +335,14 @@ Consequences:
          in log loss over B2.
 
       **Dev run 2026-11-17 (run 44033304307, 50 jobs, 283 refits, median fit 17 min):**
-      verdict fail on (g)5 only, 11 refits at R-hat 1.010-1.011; rerun per amendment 9
-      pending. Every other check passed:
+      verdict fail on (g)5 only, 11 refits at R-hat 1.010-1.011. Every other check
+      passed (below).
+
+      **Result 2026-11-17: pass** (rerun 44110912496 per amendment 9, assembled over the
+      dev run). The 11 refits redone at 2,000 draws all pass the gates, so all 283 refits
+      do; all 27 checks of (g) pass. The redone refits barely move the scores (log loss
+      vs B2 per team-match -2.7324 [-2.8021, -2.6627], was -2.7321). Production is
+      unchanged: P3-b is validated standalone and feeds P3-d0/P3-d. Figures:
       - three-way log loss per player row 0.591 against B1 0.693 and B2 0.672, the
         paired interval clear of zero against both; below B2 in all 10 leagues, every
         position, cold-start and returning players;

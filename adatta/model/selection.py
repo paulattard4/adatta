@@ -270,11 +270,13 @@ def with_times(players: pl.DataFrame, teams: pl.DataFrame) -> pl.DataFrame:
 def run_part(players: pl.DataFrame, teams: pl.DataFrame, leagues: list[str], season: int,
              draws: int = DRAWS, part: tuple[int, int] = (0, 1),
              on_refit: Callable[[pl.DataFrame, list[dict[str, Any]]], None] | None = None,
+             only: set[str] | None = None,
              ) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
     """Score one dev season of one bundle: baselines from warm-up, the model refitted every
     28 days on the TRAIN_DAYS of rows final by the refit time. `part` (i, n) takes every
     n-th refit block of the season from the i-th, so n jobs share a season. `on_refit` is
-    called after each refit with everything scored so far (so a cut-off job keeps it)."""
+    called after each refit with everything scored so far (so a cut-off job keeps it).
+    `only` (refit dates, YYYY-MM-DD) keeps just those refits of the part (amendment 9)."""
     if season not in ev.DEV:
         raise ev.HoldoutRefused(f"season {season} is not a dev season")
     rows = with_times(players.filter(pl.col("league_ref").is_in(leagues)), teams)
@@ -292,7 +294,13 @@ def run_part(players: pl.DataFrame, teams: pl.DataFrame, leagues: list[str], sea
         block = target.filter((pl.col("as_of") >= t) & (pl.col("as_of") < nxt))
         if not block.is_empty():
             blocks.append((t, block))
-    for t, block in blocks[part[0] :: part[1]]:
+    picked = blocks[part[0] :: part[1]]
+    if only is not None:
+        picked = [(t, b) for t, b in picked if f"{t:%Y-%m-%d}" in only]
+        missing = only - {f"{t:%Y-%m-%d}" for t, _ in picked}
+        if missing:
+            raise ValueError(f"refits not in this part: {sorted(missing)}")
+    for t, block in picked:
         train = rows.filter((pl.col("final_at") <= t)
                             & (pl.col("as_of") > t - timedelta(days=TRAIN_DAYS)))  # fmt: skip
         tm_train = teams.join(train.select("match_id", "team_id").unique(),
@@ -340,6 +348,20 @@ def run_part(players: pl.DataFrame, teams: pl.DataFrame, leagues: list[str], sea
     return (pl.concat(out) if out else pl.DataFrame()), diags
 
 
+def merge_override(base: pl.DataFrame, base_diags: list[dict[str, Any]], over: pl.DataFrame,
+                   over_diags: list[dict[str, Any]],
+                   ) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
+    """One part with some refits redone (amendment 9): the rerun's team-matches and refit
+    diagnostics replace the base run's; everything else is kept as it was."""
+    redone = {g["refit"] for g in over_diags}
+    if not redone <= {g["refit"] for g in base_diags}:
+        raise ValueError("an override refit is not in the base part")
+    keys = over.select("match_id", "team_id").unique()
+    kept = base.join(keys, on=["match_id", "team_id"], how="anti")
+    diags = [g for g in base_diags if g["refit"] not in redone] + list(over_diags)
+    return pl.concat([kept, over.select(base.columns)]), sorted(diags, key=lambda g: g["refit"])
+
+
 def _parquet(df: pl.DataFrame) -> bytes:
     buf = io.BytesIO()
     df.write_parquet(buf, compression="zstd")
@@ -364,7 +386,7 @@ def strong_baseline(players: pl.DataFrame, teams: pl.DataFrame) -> str:
 def main(argv: Sequence[str] | None = None) -> None:
     import argparse
 
-    from adatta.adapters.storage import make_store
+    from adatta.adapters.storage import make_store, try_get
     from adatta.config import get_settings
     from adatta.eval import harness
 
@@ -377,12 +399,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     r.add_argument("--upload", required=True)
     r.add_argument("--table", default="latest")
     r.add_argument("--part", default="0/1", help="i/n: every n-th refit block from the i-th")
+    r.add_argument("--only", default="", help="comma-separated refit dates (a rerun)")
     a = sub.add_parser("assemble")
     a.add_argument("--fetch", required=True)
     a.add_argument("--bundles", required=True)
     a.add_argument("--seasons", required=True)
     a.add_argument("--table", default="latest")
     a.add_argument("--parts", type=int, default=1)
+    a.add_argument("--override", default="", help="a rerun whose refits replace the base's")
     args = p.parse_args(argv)
     store = make_store(get_settings())
     players, teams, digest = ev.load_table(store, args.table)
@@ -396,26 +420,41 @@ def main(argv: Sequence[str] | None = None) -> None:
             store.put(f"{key}.parquet", _parquet(scored))
             store.put(f"{key}.json", json.dumps({"table": digest, "diags": diags}).encode())
 
+        only = set(args.only.split(",")) if args.only else None
         scored, diags = run_part(players, teams, leagues, args.season, args.draws, (i, n),
-                                 on_refit=save)  # fmt: skip
+                                 on_refit=save, only=only)  # fmt: skip
         save(scored, diags)
         ok = sum(d["gates_ok"] for d in diags)
         print(f"{args.bundle} {args.season}: {len(diags)} refits, {ok} pass the gates; "
               f"median fit {np.median([d['fit_s'] for d in diags]):.0f} s")  # fmt: skip
         return
-    parts, diags = [], []
+    parts, diags, redone = [], [], 0
     for b in args.bundles.split(","):
         for s in args.seasons.split(","):
             for i in range(args.parts):
-                key = f"{PREFIX}/parts/{args.fetch}/{b}_{s}_{i}of{args.parts}"
-                parts.append(pl.read_parquet(io.BytesIO(store.get(f"{key}.parquet"))))
-                diags += json.loads(store.get(f"{key}.json"))["diags"]
+                name = f"{b}_{s}_{i}of{args.parts}"
+                key = f"{PREFIX}/parts/{args.fetch}/{name}"
+                part_rows = pl.read_parquet(io.BytesIO(store.get(f"{key}.parquet")))
+                part_diags = json.loads(store.get(f"{key}.json"))["diags"]
+                over = try_get(store, f"{PREFIX}/parts/{args.override}/{name}.json")
+                if args.override and over is not None:
+                    o_rows = pl.read_parquet(
+                        io.BytesIO(store.get(f"{PREFIX}/parts/{args.override}/{name}.parquet"))
+                    )
+                    o_diags = json.loads(over)["diags"]
+                    part_rows, part_diags = merge_override(part_rows, part_diags, o_rows, o_diags)
+                    redone += len(o_diags)
+                parts.append(part_rows)
+                diags += part_diags
     scored = pl.concat(parts)
     meta = json.loads(store.get(f"{sel.PREFIX}/{digest}/meta.json"))
     v = ev.verdict(scored, strong_baseline(players, teams),
                    all(d["gates_ok"] for d in diags), bool(meta.get("leakage_ok")))  # fmt: skip
     print(ev.markdown(scored, v, diags, digest))
-    store.put(f"{PREFIX}/reports/{args.fetch}/scored.parquet", _parquet(scored))
+    if args.override:
+        print(f"\nRefits redone by run {args.override} (amendment 9): {redone}.")
+    report = args.override or args.fetch
+    store.put(f"{PREFIX}/reports/{report}/scored.parquet", _parquet(scored))
 
 
 if __name__ == "__main__":

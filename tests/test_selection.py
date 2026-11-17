@@ -179,3 +179,20 @@ def test_verdict_needs_every_check() -> None:
     text = ev.markdown(scored, v, diags, "digest")
     assert "PPC (warning only" in text and "| starts | 50.0% |" in text
     assert "| bench | 0.0% |" in text and "passing the gates: 4" in text
+
+
+def test_a_rerun_replaces_only_its_refits() -> None:
+    from adatta.model import selection as ms
+
+    def part(rows: list[tuple[int, int, float]]) -> pl.DataFrame:
+        return pl.DataFrame(rows, schema=["match_id", "team_id", "log_loss"], orient="row")
+
+    base = part([(1, 1, 0.5), (1, 2, 0.5), (2, 1, 0.5), (3, 1, 0.5)])
+    base_d = [{"refit": "2019-08-05", "gates_ok": True}, {"refit": "2019-09-02", "gates_ok": False}]
+    over = part([(2, 1, 0.4), (3, 1, 0.4)])
+    over_d = [{"refit": "2019-09-02", "gates_ok": True}]
+    rows, diags = ms.merge_override(base, base_d, over, over_d)
+    assert rows.sort("match_id", "team_id")["log_loss"].to_list() == [0.5, 0.5, 0.4, 0.4]
+    assert [g["gates_ok"] for g in diags] == [True, True]
+    with pytest.raises(ValueError):
+        ms.merge_override(base, base_d, over, [{"refit": "2019-10-01", "gates_ok": True}])

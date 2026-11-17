@@ -1,0 +1,81 @@
+# P3-b amendment 9 (docs/PHASE3_TASKS.md): redo chosen refits of a finished selection run
+# with more draws, then assemble the base run with the redone refits swapped in. Manual
+# dispatch only. Same rules as selection.yml: the repo is public, so logs carry metrics
+# only and scored rows stay in R2; holdout seasons are refused by the code.
+# One backtest-type run at a time (backtest, gate, holdout, timing, cups, selection,
+# selection_rerun).
+name: selection_rerun
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "run id of the finished selection run"
+        required: true
+      refits:
+        description: 'JSON list of {"bundle","season","part","only"} (only = comma-separated refit dates)'
+        required: true
+      draws:
+        description: "NUTS draws per chain for the redone refits"
+        default: "2000"
+      bundles:
+        description: "the base run's bundles (comma-separated)"
+        default: "england,spain,italy,germany,france"
+      seasons:
+        description: "the base run's seasons (comma-separated)"
+        default: "2019,2020,2021,2022,2023"
+      parts:
+        description: "the base run's parts per season"
+        default: "2"
+      table:
+        description: "selection table digest (the base run's)"
+        default: "latest"
+permissions:
+  contents: read
+concurrency:
+  group: selection
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  fit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        include: ${{ fromJSON(inputs.refits) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: refit and score
+        run: >-
+          uv run --frozen --group model python -m adatta.model.selection run
+          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }} --part ${{ matrix.part }}
+          --only ${{ matrix.only }} --draws ${{ inputs.draws }} --table ${{ inputs.table }}
+          --upload ${{ github.run_id }}
+  assemble:
+    needs: fit
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: assemble
+        run: |
+          uv run --frozen --group model python -m adatta.model.selection assemble \
+            --fetch ${{ inputs.base }} --override ${{ github.run_id }} \
+            --bundles "${{ inputs.bundles }}" --seasons "${{ inputs.seasons }}" \
+            --parts ${{ inputs.parts }} --table ${{ inputs.table }} | tee -a "$GITHUB_STEP_SUMMARY"

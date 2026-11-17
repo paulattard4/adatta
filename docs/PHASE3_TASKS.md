@@ -321,7 +321,31 @@ Consequences:
          expected) and the q deciles. Calibration stays gated by ECE on dev outcomes
          (g)4.
 
-      **Built 2026-11-16, reworked 2026-11-17 (amendment 7), run pending:**
+      *Amended 2026-11-17 after the dev run (run 44033304307), whose scores had been seen;
+      owner: "Yes, rerun the 11":*
+      9. **Longer sampling for marginal refits.** The run failed only (g)5: 11 of 283
+         refits each had one parameter at R-hat 1.010-1.011 (limit 1.01), with bulk and
+         tail ESS 587 or more and no divergences in the whole run. Those 11 refits are
+         redone with 2,000 draws per chain after 2,000 tuning steps (was 500/500), and
+         their team-matches and diagnostics replace the first run's
+         (`.github/workflows/selection_rerun.yml`, `assemble --override`). The model,
+         baselines, gates and pass rule are unchanged; only sampler length changes, and
+         only for those refits. Scores were seen before this choice, so it is disclosed
+         here: it touches 11 of 283 four-week blocks, against a model margin of about 12%
+         in log loss over B2.
+
+      **Dev run 2026-11-17 (run 44033304307, 50 jobs, 283 refits, median fit 17 min):**
+      verdict fail on (g)5 only, 11 refits at R-hat 1.010-1.011; rerun per amendment 9
+      pending. Every other check passed:
+      - three-way log loss per player row 0.591 against B1 0.693 and B2 0.672, the
+        paired interval clear of zero against both; below B2 in all 10 leagues, every
+        position, cold-start and returning players;
+      - minutes CRPS 9.50 against 11.61 (B1 and B2 share the minutes baseline);
+      - ECE of P(start) 0.0077 overall, at most 0.011 per league;
+      - XI overlap 8.49 against 8.13 (B1) and 8.08 (B2); leakage 0 of 100;
+      - PPC warning: 0.7% (starts) and 0.4% (bench) of refits outside the central 90%.
+
+      **Built 2026-11-16, reworked 2026-11-17 (amendment 7):**
       - Code: `adatta/features/selection.py` (pool, covariates, outcome),
         `adatta/eval/selection.py` (inputs, table store, leakage check, baselines,
         coherent probabilities, minutes pmf, metrics, verdict, report) and

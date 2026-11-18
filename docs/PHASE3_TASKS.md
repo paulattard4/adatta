@@ -536,7 +536,7 @@ Consequences:
       - CI: `.github/workflows/formation.yml`. Tests: `tests/test_lineups.py` (25),
         `tests/test_tenure.py` (2), `tests/test_formation.py` (7),
         `tests/test_formation_model.py` (CI model job).
-- [ ] **P3-d0 Player rates, Layer 5 (§7.4).** Per-90 rates pooled player → position →
+- [x] **P3-d0 Player rates, Layer 5 (§7.4).** Per-90 rates pooled player → position →
       league, with a dispersion test by position and statistic (§7.4). Market-value prior
       only after the licensing review.
       Acceptance (stated 2026-11-18, before building; no rate figure on dev has been
@@ -744,6 +744,16 @@ Consequences:
         about 500k appearances per window, a small misfit in the zero share or
         variance-to-mean puts the observed value outside the predictive band; reported
         as a limitation, not gating ((f)5).
+
+      **Result 2026-11-18: pass** (run 44289602612, amendment 2: the whole dev run at
+      2,000 draws, 15 jobs, median fit 112 s, longest 747 s, about 3 h 50 min). All 534
+      fits pass the inference gates and every check of (f) passes. Scores are essentially
+      unchanged from the first run: the six-statistic sum vs R1 -0.52% (paired difference
+      [-0.0196, -0.0181]), every statistic vs R0 -1.48% to -6.96%, goals vs R1 +0.15%
+      (within 1.0%), E/O 0.959-1.020, ECE at most 0.012, slot codes -0.22% against
+      line-only and adopted for 2022-2023. The PPC warning stands (98-100% of refits
+      outside the band). Nothing reaches production: the rates, the dispersion choices,
+      R1's c and the slot codes feed P3-d and P3-e.
 - [ ] **P3-d Lineup offset: in the likelihood vs serving-only (§7.5).** Both variants
       against the production 1b. Dev walk-forward at the lineups-known horizon, then the
       earlier horizons with P3-b's projected XI. Gate in the D18 form (1X2 log loss and

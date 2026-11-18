@@ -874,5 +874,66 @@ Consequences:
       attack-only, and defensive absences that still reach the walk are flagged in the
       confidence profile. A defensive-impact term (B.1 or B.2) is a later challenger
       against the passed P3-d model, with its own acceptance test.
+
+      *Amended 2026-11-18 while building, before any offset or P3-d score was computed:*
+      1. **Line-level quality.** Player quality uses P3-d0's line-level goals model, with
+         no slot codes. The reasons:
+         - T-24h has no slot, and one definition keeps Δ comparable across horizons;
+         - goals gained only 0.35% from slot codes in P3-d0;
+         - the slot variant would double the quality refits.
+      2. **P3-b export rerun.** P3-b's stored dev outputs hold p_start and the scores
+         only; there is no bench probability and no minutes given the role. P3-b's dev
+         run is therefore repeated with nothing changed: model, table, seeds, 500 draws,
+         and its 11 refits at 2,000 draws as in amendment 9. Its model rows add three
+         exported columns:
+         - `p_bench`;
+         - `emin_start`, the expected minutes as a starter (90 with q_full, else the start
+           Beta);
+         - `emin_bench`, the expected minutes from the bench (q_on times the on Beta).
+
+         Its verdict must reproduce P3-b's (a check that nothing changed). These columns
+         give the lk and T-24h minutes of (b).
+      3. **Announced players outside P3-b's pool** (newcomers) have no P3-b row. Their
+         expected minutes are the mean exported minutes for their line and role, over
+         P3-b rows of team-matches that kicked off strictly earlier, so nothing later
+         leaks in. With none earlier they add nothing. They are counted per team-match and
+         reported.
+      4. **S's training rates.** P's posterior-mean λ per training match is the mean of
+         its 8,000 posterior-predictive goal draws. The fitter keeps them as
+         `train_lam_home` and `train_lam_away`.
+      5. **Quality refits** use 2,000 draws per chain, as P3-d0 amendment 2. They are the
+         warm-up refit plus P3-d0's 28-day dev grid, goals only.
+      6. **P is refitted for every dev refit.** The L term edits `team_strength.py`,
+         which is part of the fit hash, so no cached P draws apply. The production model
+         is unchanged: no variable is added without `lineup`
+         (`tests/test_lineup_model.py`).
+      7. **Jobs.** Each bundle-season runs in 4 parts, so 100 fit jobs. Every refit fits P
+         and L.
+
+      **Build (2026-11-18), before any run:**
+      - **Code:**
+        - `adatta/features/lineup_offset.py`: squads, the previous-10 baseline,
+          quality as of kickoff - 24 h, A, Ā and Δ for real, lk and T-24h, the table
+          store and `attach`;
+        - `adatta/eval/lineup.py`: β_S, the pass rule (e) and the report;
+        - `adatta/model/lineup.py`: quality refits, the table build with its leakage
+          check, the P/L/S runner and assemble;
+        - `team_strength`: `lineup` (β_lineup ~ Normal(1, 0.5) on lu_home and lu_away);
+        - `backtest`: `RunSpec.lineup` and `lineup_table` (model tag `_lu`), the
+          fitter's training means, and `score_targets(extra_offset=)`;
+        - `model.selection.role_minutes`, the export of amendment 2.
+      - **CI:** `.github/workflows/lineup.yml`, run in three stages: quality, table, fit
+        (with assemble).
+      - **Tests:**
+        - `tests/test_lineup_offset.py` (10);
+        - `tests/test_lineup_model.py` and a `role_minutes` check in
+          `tests/test_selection_model.py`, both in the CI model job.
+      - **Order of runs,** one at a time:
+        1. the P3-b export rerun (`selection.yml`, about 6 h), then its 11 refits
+           (`selection_rerun.yml`, about 2.5 h);
+        2. quality (about 1-2 h);
+        3. table;
+        4. a timing pilot (one bundle-season part);
+        5. the dev run (about 12-15 h).
 - [ ] **P3-e Feedback loop into Layer 6 (§7.5 steps 1-4).** Player goal shares sum to the
       team's non-own-goal rate by construction; own goals stay outside the allocation.

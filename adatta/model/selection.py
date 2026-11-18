@@ -229,6 +229,21 @@ def predict(d: Design, post: dict[str, Arr], rows: pl.DataFrame, teams: pl.DataF
     return coh.mean(axis=0), pmf / n
 
 
+def role_minutes(d: Design, post: dict[str, Arr], rows: pl.DataFrame) -> tuple[Arr, Arr]:
+    """Expected normal-time minutes given the role, mean over PMF_DRAWS draws (exported
+    for P3-d's lineup offset): a starter plays 90 with q_full, else the start Beta; a bench
+    player comes on with q_on and then plays the on Beta. Same grid as `predict`."""
+    mp = minutes_params(d, post, rows)
+    n = min(PMF_DRAWS, len(mp["q_full"]))
+    e_start, e_bench = np.zeros(len(rows)), np.zeros(len(rows))
+    for i in range(n):
+        sb = ev.beta_grid(mp["start_mu"][i], mp["start_phi"][i]) @ ev.MINUTES
+        ob = ev.beta_grid(mp["on_mu"][i], mp["on_phi"][i]) @ ev.MINUTES
+        e_start += mp["q_full"][i] * 90.0 + (1.0 - mp["q_full"][i]) * sb
+        e_bench += mp["q_on"][i] * ob
+    return e_start / n, e_bench / n
+
+
 def ppc_starts(d: Design, post: dict[str, Arr], train: pl.DataFrame,
                rng: np.random.Generator) -> dict[str, float]:  # fmt: skip
     """The training team-matches' mean pool starts and bench places, observed against the
@@ -318,11 +333,15 @@ def run_part(players: pl.DataFrame, teams: pl.DataFrame, leagues: list[str], sea
         p_model, pmf_model = predict(d, post, block, tm, nu)
         raws = ev.baseline_raw(base, block)
         mins_b = ev.baseline_minutes(base, block)
-        parts = [ev.score(block, p_model, pmf_model).with_columns(model=pl.lit("model"))]
+        e_start, e_bench = role_minutes(d, post, block)
+        # P3-d export: bench probability and minutes given the role, model rows only
+        parts = [ev.score(block, p_model, pmf_model).with_columns(
+            model=pl.lit("model"), p_bench=p_model[:, 1], emin_start=e_start,
+            emin_bench=e_bench)]  # fmt: skip
         for name, r in raws.items():
             p = ev.coherent_all(block, r, tm, nu_warm)
             parts.append(ev.score(block, p, mins_b).with_columns(model=pl.lit(name)))
-        out.append(pl.concat(parts))
+        out.append(pl.concat(parts, how="diagonal"))
         diags.append({
             "refit": t.isoformat(), "train_rows": len(train), "rows": len(block),
             "fit_s": fit_s, **{f"fit_s_{k}": v for k, v in timings.items()},

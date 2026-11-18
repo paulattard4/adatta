@@ -49,6 +49,14 @@ innovations are re-centred over teams so the walk stays zero-sum. change_weeks ~
 LogNormal(log 8, 0.75). Prediction reads the last state, so it is unchanged. Kept only if it
 passes its acceptance test.
 
+Lineup offset (Phase 3 P3-d, `lineup=True`, strength_open, §7.5 "offset inside the
+likelihood"): each training match carries its sides' historical lineup offsets lu_home and
+lu_away (log of the lineup's expected-goals index over the team's typical one, from realised
+minutes; `adatta.features.lineup_offset`), and log lambda_home += beta_lineup * lu_home,
+log lambda_away += beta_lineup * lu_away, beta_lineup ~ Normal(1, 0.5). The walk then tracks
+strength with a typical lineup. Prediction adds beta_lineup * the target's offset
+(`backtest.score_targets`). Without it nothing is added: the 1b model, draw for draw.
+
 Context covariates (Phase 2, `adatta.model.covariates`, groups G1-G7): with design blocks
 in `fd.cov`, each group adds a coefficient vector beta_<group> (shared by the bundle's
 leagues) and log lambda_home += x_home @ beta, log lambda_away += x_away @ beta. With no
@@ -105,6 +113,9 @@ class FitData:
     mgr: NDArray[np.float64] | None = None
     # Phase 2 context covariates, one block per group in the training rows' order
     cov: cv.Design = ()
+    # P3-d historical lineup offset per training match, 0 where absent (None: not loaded)
+    lu_home: NDArray[np.float64] | None = None
+    lu_away: NDArray[np.float64] | None = None
 
     @property
     def xg_rows(self) -> IntArr:
@@ -177,6 +188,8 @@ def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days
     if groups:
         cv.check_as_of(d)
         cov = cv.design(d, groups)
+    lu = {c: d[c].cast(pl.Float64).fill_null(0.0).fill_nan(0.0).to_numpy()
+          if c in d.columns else None for c in ("lu_home", "lu_away")}  # fmt: skip
     return FitData(
         home=np.array([tix[int(t)] for t in d["home"]], dtype=np.int64),
         away=np.array([tix[int(t)] for t in d["away"]], dtype=np.int64),
@@ -185,7 +198,7 @@ def prepare(df: pl.DataFrame, leagues: list[int], as_of: datetime, lookback_days
         season_start=season_start, team_ids=teams.astype(np.int64), leagues=leagues,
         start=start, n_steps=n_steps, moved_up=moved[1], moved_down=moved[2],
         team_seasons=seasons_seen, xg_home=xg["xg_home"], xg_away=xg["xg_away"], mgr=mgr,
-        cov=cov,
+        cov=cov, lu_home=lu["lu_home"], lu_away=lu["lu_away"],
     )  # fmt: skip
 
 
@@ -204,7 +217,7 @@ def coach_changes(hist: pl.DataFrame) -> list[tuple[int, datetime]]:
 
 def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
           shifts: bool = False, form: bool = False, xg: bool = False,
-          manager: bool = False) -> Any:  # fmt: skip
+          manager: bool = False, lineup: bool = False) -> Any:  # fmt: skip
     """`prior_scale` multiplies every prior scale (the §14.5 prior-sensitivity check uses 0.5
     and 2); 1.0 is the production model. `structure` is "independent" (spec §5.1) or
     "strength_open" (D15)."""
@@ -218,6 +231,8 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
         raise ValueError("the xG signal needs structure='strength_open'")
     if manager and structure != "strength_open":
         raise ValueError("manager-change widening needs structure='strength_open'")
+    if lineup and (structure != "strength_open" or fd.lu_home is None or fd.lu_away is None):
+        raise ValueError("the lineup offset needs structure='strength_open' and lu_home/lu_away")
     import pymc as pm
     import pytensor.tensor as pt
 
@@ -300,6 +315,10 @@ def build(fd: FitData, prior_scale: float = 1.0, structure: str = "independent",
         if fd.cov:  # Phase 2 context terms; nothing at all is added without groups
             off_h, off_a = covariate_terms(fd.cov, k)
             log_lam, log_mu = log_lam + off_h, log_mu + off_a
+        if lineup:  # P3-d: the historical lineup offset, inside the likelihood (§7.5)
+            beta_lu = pm.Normal("beta_lineup", 1.0, 0.5 * k)
+            log_lam = log_lam + beta_lu * pt.as_tensor(fd.lu_home)
+            log_mu = log_mu + beta_lu * pt.as_tensor(fd.lu_away)
         lam, mu_ = pt.exp(log_lam), pt.exp(log_mu)
         pm.Poisson("home_goals", lam, observed=fd.hg)
         pm.Poisson("away_goals", mu_, observed=fd.ag)
@@ -392,12 +411,12 @@ def sample(fd: FitData, seed: int, *, prior_scale: float = 1.0, draws: int = 100
            chains: int = 4, target_accept: float = 0.95,
            structure: str = "independent", tune: int | None = None,
            shifts: bool = False, form: bool = False, xg: bool = False,
-           manager: bool = False) -> Any:  # fmt: skip
+           manager: bool = False, lineup: bool = False) -> Any:  # fmt: skip
     """NUTS via NumPyro (D10), posterior predictive goals included. Returns InferenceData.
     `tune` defaults to `draws`; a longer warm-up improves adaptation without a larger trace."""
     import pymc as pm
 
-    with build(fd, prior_scale, structure, shifts, form, xg, manager):
+    with build(fd, prior_scale, structure, shifts, form, xg, manager, lineup):
         idata = pm.sample(
             draws=draws, tune=draws if tune is None else tune, chains=chains,
             nuts_sampler="numpyro", random_seed=seed, target_accept=target_accept,
@@ -428,7 +447,8 @@ def slim(idata: Any, max_draws: int = 400) -> dict[str, NDArray[np.float64]]:
     take = np.linspace(0, n - 1, min(max_draws, n)).astype(int)
     # optional: delta (D16), form_last and phi (AR(1) form), xg_shape and xg_bias (xG)
     # sigma_walk: the weekly strength step, for matches ahead of the last step (D34)
-    extra = ("delta", "form_last", "phi", "xg_shape", "xg_bias", "change_weeks", "sigma_walk")
+    extra = ("delta", "form_last", "phi", "xg_shape", "xg_bias", "change_weeks", "sigma_walk",
+             "beta_lineup")  # fmt: skip
     names = [v for v in (*SLIM_VARS, *extra) if v in post.data_vars]
     # Phase 2 context coefficients (not the horseshoe's auxiliary variables)
     names += [b for b in map(cv.beta_name, cv.GROUPS.values()) if b in post.data_vars]

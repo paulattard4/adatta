@@ -75,6 +75,10 @@ class RunSpec:
     grid: str = "weekly"
     # strength drift for matches ahead of the last refit step (D34)
     widen: bool = False
+    # P3-d: historical lineup offset inside the likelihood (§7.5), and the digest of the
+    # offset table its training rows read (features.lineup_offset)
+    lineup: bool = False
+    lineup_table: str = ""
 
     @property
     def model_name(self) -> str:
@@ -85,6 +89,7 @@ class RunSpec:
         tags += f"_ctx-{'-'.join(self.groups)}" if self.groups else ""
         tags += "_hz" if self.widen else ""
         tags += "_rd" if self.grid == "results" else ""
+        tags += "_lu" if self.lineup else ""
         return f"phase1b_{self.structure}{tags}{k}"
 
 
@@ -129,6 +134,9 @@ def config_hash(spec: RunSpec) -> str:
         del fields["grid"]
     if not fields["widen"]:  # and one without D34
         del fields["widen"]
+    for name in ("lineup", "lineup_table"):  # and one without the P3-d offset
+        if not fields[name]:
+            del fields[name]
     blob = json.dumps({"spec": fields, "files": {f: _file_hash(f) for f in HASHED_FILES}},
                       sort_keys=True)  # fmt: skip
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
@@ -160,8 +168,10 @@ def decode(data: bytes) -> tuple[Draws, Diag]:
     return draws, diag
 
 
-def nuts_fitter(spec: RunSpec) -> Fitter:
-    """The production fitter: NUTS via NumPyro, then the §14.5 convergence numbers."""
+def nuts_fitter(spec: RunSpec, train_means: bool = False) -> Fitter:
+    """The production fitter: NUTS via NumPyro, then the §14.5 convergence numbers.
+    `train_means` (P3-d serving-only variant) also keeps each training match's posterior
+    mean goal rates (`train_lam_home`, `train_lam_away`, from the posterior predictive)."""
 
     def fit(fd: ts.FitData, seed: int) -> tuple[Draws, Diag]:
         from adatta.model import diagnostics as dg
@@ -171,7 +181,7 @@ def nuts_fitter(spec: RunSpec) -> Fitter:
                           chains=spec.chains, target_accept=spec.target_accept,
                           structure=spec.structure, tune=spec.tune,
                           shifts=spec.shifts, form=spec.form, xg=spec.xg,
-                          manager=spec.manager)  # fmt: skip
+                          manager=spec.manager, lineup=spec.lineup)  # fmt: skip
         checks = dg.convergence(idata)
         conv = {c.name: c.value for c in checks}
         # parameter names only (metrics, no data): which parameter is slowest to mix
@@ -181,6 +191,11 @@ def nuts_fitter(spec: RunSpec) -> Fitter:
                 "ess_tail_min": conv["ess_tail"], "divergences": conv["divergences"],
                 "fit_s": round(time.time() - t0)}  # fmt: skip
         out = ts.slim(idata, spec.max_pred_draws), diag
+        if train_means:
+            pp = ts.stacked(idata, "posterior_predictive")
+            for side, var in (("home", "home_goals"), ("away", "away_goals")):
+                out[0][f"train_lam_{side}"] = np.asarray(pp[var].mean("sample").values,
+                                                         dtype=np.float64)  # fmt: skip
         # A 7-day job runs ~36 refits in one process; without this, memory grows until the
         # runner is shut down (run 42385535603 lost every job two-thirds through).
         del idata
@@ -217,6 +232,7 @@ def coefficient_summary(draws: Draws, groups: Sequence[str]) -> dict[str, float]
 def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals: int,
                   groups: Sequence[str] = (), horizon_ctx: timedelta = cv.HEADLINE_HORIZON,
                   walk: hz.Walk | None = None, exact: bool = False,
+                  extra_offset: tuple[NDArray[np.float64], NDArray[np.float64]] | None = None,
                   ) -> list[dict[str, Any]]:  # fmt: skip
     """Per target: markets from the posterior-mean score matrix, their scores, tail mass.
     Prediction time (Phase 2, M1): the refit's draws (fitted as of the plan date) with each
@@ -224,7 +240,9 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
     `groups` () scores the 1b model unchanged. `walk` (D34) adds the strength drift for
     matches ahead of the last refit step; None scores them from the last step as is.
     `exact` adds the 90' score's log loss, -log P(hg, ag), and each draw's rates, rho and
-    kappa (`draws_*`), so a later term can rescore the target (Stage A, A1 and A2)."""
+    kappa (`draws_*`), so a later term can rescore the target (Stage A, A1 and A2).
+    `extra_offset` (P3-d): per (match, draw) terms on log lambda_home and log lambda_away,
+    added to the others (the lineup offset times its coefficient)."""
     tix = {int(t): i for i, t in enumerate(fd.team_ids)}
     lix = {lid: i for i, lid in enumerate(fd.leagues)}
     home = np.array([tix.get(int(t), -1) for t in targets["home"]], dtype=np.int64)
@@ -252,6 +270,8 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
     if walk is not None:
         weeks = hz.weeks_ahead(horizon, hz.new_season(fd, targets["season"].to_numpy()))
         offset = hz.combine(offset, hz.offsets(draws, fd, home, away, weeks, walk))
+    if extra_offset is not None:
+        offset = hz.combine(offset, extra_offset)
     lam, mu_ = ts.rates_from_draws(draws, fd, home, away, league, pending[0], pending[1],
                                    horizon, offset)  # fmt: skip
     rho = np.asarray(draws["rho"])

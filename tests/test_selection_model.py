@@ -66,6 +66,9 @@ def test_the_model_samples_and_predicts_coherently() -> None:
         tm = teams.join(block.select("match_id", "team_id").unique(), on=["match_id", "team_id"])
         p, pmf = ms.predict(d, post, block, tm, {"39": (0.0, 0.0), "40": (0.0, 0.0)})
         assert np.allclose(pmf.sum(axis=1), 1.0)
+        # P3-d export: minutes given the role
+        e_start, e_bench = ms.role_minutes(d, post, block)
+        assert ((e_start > 0) & (e_start <= 90)).all() and ((e_bench >= 0) & (e_bench < 90)).all()
         for _, g in block.with_row_index("i").group_by("match_id", "team_id"):
             i = g["i"].to_numpy()
             assert p[i, 0].sum() == pytest.approx(11.0, abs=1e-3)

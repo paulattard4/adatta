@@ -760,7 +760,7 @@ Consequences:
       RPS, paired 95% interval excluding 0, no league x market segment worse than 1.0%
       per D28, §14.5 inference gates, feasibility). σ_walk is reported for both variants.
       Promotion window per D38. Acceptance stated in full before building.
-      Acceptance (draft 2026-11-18, before building; no offset or P3-d score has been
+      Acceptance (stated 2026-11-18, before building; no offset or P3-d score has been
       computed. Seen so far: P3-d0's dev result, including summed player expected goals
       per team-match against team goals, correlation 0.160):
 
@@ -799,9 +799,8 @@ Consequences:
       - **Where inputs are missing** (no lineup, fewer than 3 earlier matches for Ā, no
         player rows), Δ = 0 and the match is flagged. The share is reported per
         league-season (rule 8: no imputed offset).
-      - **Defence:** see the spec point raised below. As drafted, the offset is attack-only
-        (§7.5 builds it from Layer 5 rate quality, and P3-d0 has no defensive quality
-        rate).
+      - **Defence:** none. The offset is attack-only; see the spec point below (owner,
+        2026-11-18).
 
       (c) **Fits.**
       - **L:** β enters the NUTS fit with the other 1b parameters (2,000 draws, seed
@@ -870,5 +869,10 @@ Consequences:
         B.1 and B.2, which are now §20.2 backlog. This pulls a backlog item forward and
         adds a non-rate input.
       - **Defence later.** A defensive-impact term as a later challenger, after P3-d.
+
+      Resolved 2026-11-18 by the owner, "Attack-only, defence later": the offset is
+      attack-only, and defensive absences that still reach the walk are flagged in the
+      confidence profile. A defensive-impact term (B.1 or B.2) is a later challenger
+      against the passed P3-d model, with its own acceptance test.
 - [ ] **P3-e Feedback loop into Layer 6 (§7.5 steps 1-4).** Player goal shares sum to the
       team's non-own-goal rate by construction; own goals stay outside the allocation.

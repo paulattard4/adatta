@@ -706,6 +706,44 @@ Consequences:
         warm-up, and in 5% of Serie B 2019; those rows drop out of tackles only.
       - **Leakage:** 0 of 100. The first build reported 82 changed, an artefact of the
         check running after the drops; it now runs before them.
+
+      *Amended 2026-11-18 after the dev run (run 44251237152), whose scores had been
+      seen; owner: "Yes, rerun at 2,000":*
+      2. **Longer sampling.** The run failed only (f)5: 22 of 534 fits had R-hat
+         1.010-1.018 (limit 1.01), 21 of them slot-variant fits in 2022-2023 (mostly
+         goals and shots on target) and one line-only fit (goals, refit 2020-05-25, R-hat
+         1.010), with ESS 395 or more and no divergences. As P3-c amendment 2, the whole
+         dev run is repeated with 2,000 draws per chain after 2,000 tuning steps (was
+         1,000/1,000), the workflow's `draws` input, reusing the same warm-up choices
+         (run 44248965961). Each season is split into three parts instead of two so the
+         longest job stays inside the 6-hour limit; parts only interleave the refits, each
+         with the same fixed seed. Nothing else changes. If fits still fail, the model is
+         respecified on dev rather than sampled longer.
+
+      **Dev run 2026-11-18 (run 44251237152, 10 jobs, 534 fits, median fit
+      59 s, longest job 156 min):** verdict fail on (f)5 only. Every other check passed:
+      - every statistic beats R0 (95% intervals exclude 0): goals -2.30%, assists -2.08%,
+        shots on target -3.39%, key passes -6.96%, tackles -4.25%, yellows -1.48%;
+      - the six-statistic sum beats R1, -0.52% (paired difference in summed log loss per
+        appearance [-0.0196, -0.0181]); by statistic -0.84% (tackles) to +0.15% (goals), by league
+        -0.46% to -0.63%;
+      - E/O 0.959 (tackles) to 1.021 (goals); ECE of P(≥1) at most 0.012 (key passes);
+      - (a) checks pass with goals dropped in 135/136/140 2019; leakage 0 of 100;
+      - slot codes in 2022-2023: sum -0.22% against line-only, interval excluding 0, so
+        adopted subject to their fits passing the gates;
+      - dispersion (warm-up): NB for key passes and tackles on D, M and F, Poisson
+        elsewhere; R1's c in 90s: goals 20, assists 50, shots on target 10, key passes 5,
+        tackles 10, yellows 50;
+      - reported: by line vs R1 goalkeepers -3.94%, D -0.62%, F -0.48%, M -0.42%; sparse
+        players -0.96%, new to the ten leagues -1.47%, new signings -0.96%, returners
+        -0.98%, substitute appearances -1.76%; multipliers b_sub +0.28 to +0.60, b_new
+        and b_ret -0.08 to +0.05 on the log scale;
+      - for P3-e: summed player expected goals per team-match E/O 1.021, correlation
+        with team goals 0.160 (36,484 team-matches);
+      - **PPC warning:** 97-100% of refits outside the band for every statistic. With
+        about 500k appearances per window, a small misfit in the zero share or
+        variance-to-mean puts the observed value outside the predictive band; reported
+        as a limitation, not gating ((f)5).
 - [ ] **P3-d Lineup offset: in the likelihood vs serving-only (§7.5).** Both variants
       against the production 1b. Dev walk-forward at the lineups-known horizon, then the
       earlier horizons with P3-b's projected XI. Gate in the D18 form (1X2 log loss and

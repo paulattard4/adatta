@@ -538,7 +538,128 @@ Consequences:
         `tests/test_formation_model.py` (CI model job).
 - [ ] **P3-d0 Player rates, Layer 5 (§7.4).** Per-90 rates pooled player → position →
       league, with a dispersion test by position and statistic (§7.4). Market-value prior
-      only after the licensing review. Acceptance stated before building.
+      only after the licensing review.
+      Acceptance (stated 2026-11-18, before building; no rate figure on dev has been
+      looked at. Only null handling was measured, on four league-seasons, as coverage: in
+      the provider's per-player statistics a null means zero. For example, `goals` is
+      null for 28-29% of appearances with minutes, and only 0-8 of those players per
+      league-season have a goal event; assists are null for 41-46%):
+
+      **Scope.** Per-appearance rates for the six statistics of §7.4:
+      - goals (own goals excluded, from goal events as in P3-0);
+      - assists;
+      - shots;
+      - key passes;
+      - tackles;
+      - yellow cards. Red cards are too rare per player and are left to discipline (5c,
+        §8.4).
+      A rate is judged given the realised appearance (minutes, starter or substitute,
+      line, slot code). This measures it apart from selection and minutes (P3-b); P3-d
+      and P3-e combine the two. The data is the ten bundle leagues, league matches only.
+      Dev seasons are 2019-2023 and warm-up 2016-2018; no holdout season is loaded.
+      Nothing reaches production. Outputs are per player and stay internal (R2 only),
+      under-18 players included (CLAUDE.md rule 10).
+
+      (a) **Counts (data).** From the stored appearances (P3-0), 0 requests.
+      - **Exposure** is event minutes / 90, for appearances with minutes > 0.
+      - **Nulls.** A statistic is collected in a team-match when at least one of its
+        players has a value. Assists and yellow cards can be zero for a whole team, so
+        for them it is enough that the team-match has a statistics block.
+        - Where the statistic is collected, a null counts as 0.
+        - Where it is not, the appearance drops out of that statistic and is never
+          filled.
+      - **Checks,** per dev league-season and statistic:
+        - player goals plus the opponent's own goals equal the team's score in at
+          least 99.5% of team-matches;
+        - provider assists agree with the goal events' assist field, and provider
+          yellows with card events, for at least 95% of appearances;
+        - summed player shots agree with the team's shots (`team_match_stat`) within 1
+          in at least 95% of team-matches where both exist.
+        A statistic that fails in a league-season drops out there and is reported.
+
+      (b) **Model.** For player i in appearance m and statistic s:
+          E[y] = e_m · μ[s, line] · ℓ[s, league] · ρ_m · θ[i, s],
+          θ[i, s] ~ Gamma(k[s, line], k[s, line])   (mean 1).
+      - **Terms:**
+        - line is the provider's G/D/M/F code for the appearance, or the player's most
+          common one where it is missing;
+        - ℓ is per bundle league;
+        - ρ_m holds the appearance multipliers: a substitute appearance; the first 5
+          appearances for a new club (no appearance for it in the previous 365 days);
+          and the first 3 after a return. A return means the player was out of the
+          matchday squad for at least 3 consecutive league matches of the club. This is
+          a proxy: the reason for an absence isn't known in dev (D39).
+      - **Fitting.** Counts are Poisson within a player, and θ is marginalised in
+        closed form (the Poisson-Gamma marginal on per-appearance counts). So only the
+        hyperparameters μ, ℓ, ρ and k are sampled, with NumPyro. Each player's posterior
+        is Gamma(k + Y_i, k + Λ_i), where Y_i is their count and Λ_i their expected count
+        at θ = 1 in the window.
+      - **One fit across the ten leagues,** so a player who moves between them keeps
+        their history. Players arriving from elsewhere start at θ = 1 (the line × league
+        rate) and are flagged; there is no market-value prior (register 5.3).
+      - **Goalkeepers** get a player term for yellow cards only. For the other five
+        statistics they get the GK line rate: their counts are almost all zero, so a
+        spread between players is not identified.
+      - **Walk-forward.** The hyperparameters are refitted every 28 days on the 730
+        days of appearances final by the refit time (as P3-b and P3-c). Each player's
+        posterior and the ramps are updated at kickoff - 24 h, in closed form with the
+        hyperparameters fixed, from appearances final by then.
+      - **Dispersion test** (§7.4), per line × statistic, fixed on warm-up:
+        - fit on 2016-2017 and score on 2018: Poisson within a player against negative
+          binomial (a per-appearance dispersion φ[s, line] on top of θ, fitted by
+          maximum likelihood with θ at its posterior mean);
+        - NB is chosen where its paired log-loss gain has a 95% interval excluding zero,
+          Poisson otherwise;
+        - the choice is then fixed for dev, and φ is re-estimated at each refit.
+
+      (c) **Baselines,** refitted with the model on the same window:
+      - **R0:** the line × league per-90 rate, with no player term. Poisson.
+      - **R1:** the player's own per-90 rate, shrunk towards R0 by a fixed
+        pseudo-exposure c[s] (in 90s). c is chosen on warm-up (fit 2016-2017, score
+        2018). Poisson.
+
+      (d) **Slot codes** (§7.3), in positional league-seasons (2022-2023):
+      - an appearance multiplier per slot code relative to its line, pooled code → line
+        (log multiplier ~ Normal(0, τ[s]));
+      - compared with the line-only model on those appearances, and adopted for
+        positional seasons if its summed log loss is better with the paired 95% interval
+        excluding zero. Otherwise rates stay at line level;
+      - reported with the codes whose rates move most (for example RB against RWB on
+        key passes and assists);
+      - not part of the pass rule, except that its refits must pass the inference gates.
+
+      (e) **Metrics:**
+      - per-appearance log loss of the realised count given the realised appearance,
+        paired by appearance and summed over the six statistics for the overall
+        comparison;
+      - E/O: the sum of predicted means over the realised sum;
+      - ECE of P(count ≥ 1).
+
+      (f) **Pass.** All of the following must hold:
+      1. The (a) checks pass in every dev league-season, or the failing statistic drops
+         out there and is reported.
+      2. Every statistic beats R0, with the paired 95% interval excluding zero.
+      3. The six-statistic sum beats R1, with the paired 95% interval excluding zero.
+         No statistic and no bundle league is worse than R1 by more than 1.0% (point
+         estimate, as D28).
+      4. For every statistic, E/O is between 0.95 and 1.05 overall, and the ECE of
+         P(count ≥ 1) is at most 0.02.
+      5. Inference gates (R-hat, ESS, divergences) pass in every refit. The PPC (share of
+         zero counts and variance-to-mean per line × statistic) is a reported warning,
+         as in P3-b amendment 8.
+      6. Leakage: nothing final after the as-of time changes any rate input (100 sampled
+         appearances, as P3-b).
+
+      **Reported, not gating:**
+      - the dispersion table;
+      - sparse players (under 900 minutes in the window), players new to the ten
+        leagues, new signings and returners;
+      - results by line, league and season;
+      - the ramp and substitute multipliers;
+      - for P3-e, summed player expected goals against team goals per team-match.
+
+      **Cost:** 0 API requests. One CI walk-forward run (one backtest-type run at a
+      time).
 - [ ] **P3-d Lineup offset: in the likelihood vs serving-only (§7.5).** Both variants
       against the production 1b. Dev walk-forward at the lineups-known horizon, then the
       earlier horizons with P3-b's projected XI. Gate in the D18 form (1X2 log loss and

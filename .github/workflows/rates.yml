@@ -1,0 +1,103 @@
+# P3-d0 (docs/PHASE3_TASKS.md): the Layer 5 player rates on the dev walk-forward, against
+# baselines R0 and R1. Manual dispatch only. A warm-up job fixes the dispersion family and
+# R1's c (fit 2016-2017, score 2018); one matrix job per dev season (x part) fits that
+# season's 28-day refits (python -m adatta.model.rates run) from the stored counts table,
+# one fit across the ten bundle leagues per refit; a final job applies the pass rule.
+# The repo is public: logs and artifacts carry metrics only. Scored rows go to R2
+# (rates/parts, rates/reports), never to workflow artifacts. Holdout seasons are refused.
+# One backtest-type run at a time (backtest, gate, holdout, timing, cups, selection,
+# selection_rerun, formation, rates): two runs together fill the account's 20 job slots
+# and starve the capture.
+name: rates
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "JSON list of dev seasons"
+        default: "[2019,2020,2021,2022,2023]"
+      parts:
+        description: "JSON list of parts (i/n) per season"
+        default: '["0/1"]'
+      draws:
+        description: "NUTS draws per chain"
+        default: "1000"
+      table:
+        description: "counts table digest (latest = the newest stored)"
+        default: "latest"
+      warmup:
+        description: "new = run the warm-up job here; else the run id whose choices to reuse"
+        default: "new"
+      assemble:
+        description: "apply the pass rule after the fits (false for a timing pilot)"
+        default: "true"
+permissions:
+  contents: read
+concurrency:
+  group: rates
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+  WARMUP_RUN: ${{ inputs.warmup == 'new' && github.run_id || inputs.warmup }}
+jobs:
+  warmup:
+    if: ${{ inputs.warmup == 'new' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: warm-up choices
+        run: >-
+          uv run --frozen --group model python -m adatta.model.rates warmup
+          --upload ${{ github.run_id }} --draws ${{ inputs.draws }} --table ${{ inputs.table }}
+  fit:
+    needs: warmup
+    if: ${{ !cancelled() && (needs.warmup.result == 'success' || needs.warmup.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        season: ${{ fromJSON(inputs.seasons) }}
+        part: ${{ fromJSON(inputs.parts) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: fit and score
+        run: >-
+          uv run --frozen --group model python -m adatta.model.rates run
+          --season ${{ matrix.season }} --part ${{ matrix.part }} --draws ${{ inputs.draws }}
+          --table ${{ inputs.table }} --upload ${{ github.run_id }} --warmup "$WARMUP_RUN"
+  assemble:
+    needs: fit
+    if: ${{ !cancelled() && inputs.assemble == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: assemble
+        env:
+          SEASONS: ${{ inputs.seasons }}
+          PARTS: ${{ inputs.parts }}
+        run: |
+          s=$(echo "$SEASONS" | uv run python -c "import json,sys; print(','.join(map(str, json.load(sys.stdin))))")
+          n=$(echo "$PARTS" | uv run python -c "import json,sys; print(len(json.load(sys.stdin)))")
+          uv run --frozen --group model python -m adatta.model.rates assemble \
+            --fetch ${{ github.run_id }} --warmup "$WARMUP_RUN" --seasons "$s" --parts "$n" \
+            --table ${{ inputs.table }} | tee -a "$GITHUB_STEP_SUMMARY"

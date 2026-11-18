@@ -660,6 +660,52 @@ Consequences:
 
       **Cost:** 0 API requests. One CI walk-forward run (one backtest-type run at a
       time).
+
+      *Amended 2026-11-18 while building, before any rate result on dev was seen; owner:
+      "Shots on target":*
+      1. **Shots are shots on target.** The first table build failed the (a) shots check
+         in every bundle league from 2020/21 (15-39% of team-matches within 1, against
+         96-100% in 2019). The provider changed its per-player `shots.total`:
+         - up to 2019 it includes blocked shots and equals the team's Total Shots;
+         - from 2020 it leaves them out and equals Shots on Goal + Shots off Goal,
+           about 3.3 fewer per team-match.
+         Per-player shots on target equal the team's Shots on Goal in 99.3-100% of
+         team-matches in every season checked (2018-2022). As stated, total shots would
+         have dropped out of 2020-2023 and been judged on 2019 only.
+         - The statistic is shots on target (`shots.on`), and the (a) check compares the
+           players' sum with the team's Shots on Goal.
+         - **Null rule:** a team with no shots on target leaves every player null, so a
+           null counts as 0 for a player with a statistics block in a team-match whose
+           shots were collected (any player has a shots value).
+         - The other five statistics are unchanged.
+
+      **Build (2026-11-18), before any dev run:**
+      - **Code:**
+        - `adatta/features/rates.py`: the counts table and the (a) checks;
+        - `adatta/eval/rates.py`: design, as-of history, predictive, baselines, the
+          dispersion choice, the pass rule, leakage and the report;
+        - `adatta/model/rates.py`: the NumPyro fit, warm-up, walk-forward and CLI;
+        - `api_football_stats.event_counts` (assists and yellows from the events, for
+          the check).
+      - **CI:** `.github/workflows/rates.yml`, with a warm-up job, then one job per dev
+        season, then assemble.
+      - **Tests:** `tests/test_rates.py` (10), and `tests/test_rates_model.py` in the CI
+        model job.
+      - **Counts table `8254f5e405c0eb4d`** (R2 only): 895,287 played appearances in
+        the ten bundle leagues 2016-2023, 572,899 of them in dev. 4,182 appearances
+        with no line, now or earlier, were dropped. There are 16 slot codes.
+      - **(a) checks on dev**, 50 league-seasons:
+        - shots on target vs the team: at least 98.8% everywhere;
+        - assists vs the events: at least 99.5%;
+        - yellows vs the events: at least 99.6%;
+        - goals vs the score: fails only in Serie A, Serie B and La Liga 2019 (98.2%,
+          99.4%, 99.2%). About 1 team-match in 50 there has one more goal event than
+          the score (probably goals cancelled later), so goals drop out in those three
+          league-seasons.
+      - **Coverage:** tackles are missing in most leagues' 2016 and part of 2017
+        warm-up, and in 5% of Serie B 2019; those rows drop out of tackles only.
+      - **Leakage:** 0 of 100. The first build reported 82 changed, an artefact of the
+        check running after the drops; it now runs before them.
 - [ ] **P3-d Lineup offset: in the likelihood vs serving-only (§7.5).** Both variants
       against the production 1b. Dev walk-forward at the lineups-known horizon, then the
       earlier horizons with P3-b's projected XI. Gate in the D18 form (1X2 log loss and

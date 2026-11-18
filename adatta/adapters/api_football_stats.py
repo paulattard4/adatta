@@ -248,6 +248,29 @@ def player_appearances(
     return list(out.values()), counts
 
 
+def event_counts(fx: dict[str, Any]) -> dict[tuple[str, str], dict[str, int]]:
+    """(team_ref, player_ref) -> assists, yellow cards and second yellows counted from the
+    events (P3-d0 (a) check). An assist is the `assist` player of a goal event that is not
+    an own goal, a missed penalty or a shootout kick; a yellow is a "Yellow Card" event, a
+    second yellow a "Second Yellow card" event."""
+    out: dict[tuple[str, str], dict[str, int]] = {}
+    for e in fx.get("events") or []:
+        team = str((e.get("team") or {}).get("id"))
+        kind, detail = e.get("type"), e.get("detail")
+        if kind == "Goal" and detail not in (OWN_GOAL, "Missed Penalty") \
+                and e.get("comments") != SHOOTOUT:  # fmt: skip
+            who, field = (e.get("assist") or {}).get("id"), "assists"
+        elif kind == "Card" and detail in ("Yellow Card", "Second Yellow card"):
+            who = (e.get("player") or {}).get("id")
+            field = "yellow" if detail == "Yellow Card" else "second_yellow"
+        else:
+            continue
+        if who is not None:
+            row = out.setdefault((team, str(who)), {"assists": 0, "yellow": 0, "second_yellow": 0})
+            row[field] += 1
+    return out
+
+
 def match_coaches(fx: dict[str, Any]) -> list[dict[str, Any]]:
     """One dict per team whose lineup names a coach: team_ref, coach_ref, coach_name (D12).
     A lineup without a coach id gives no row (absent, never imputed)."""

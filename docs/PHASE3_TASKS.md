@@ -760,5 +760,115 @@ Consequences:
       RPS, paired 95% interval excluding 0, no league x market segment worse than 1.0%
       per D28, §14.5 inference gates, feasibility). σ_walk is reported for both variants.
       Promotion window per D38. Acceptance stated in full before building.
+      Acceptance (draft 2026-11-18, before building; no offset or P3-d score has been
+      computed. Seen so far: P3-d0's dev result, including summed player expected goals
+      per team-match against team goals, correlation 0.160):
+
+      **Scope.** Three team models on the same weekly walk-forward grid (D11, D14 final
+      runs), dev seasons 2019-2023, the ten bundle leagues, league matches only:
+      - **P**, the production `phase1b_strength_open_xg`, unchanged;
+      - **S**, serving-only: P's fits, with the offset added at prediction only;
+      - **L**, offset in the likelihood (§7.5, adopted design): P refitted with the
+        historical offset in every training match, and the offset at prediction.
+      Holdout seasons are not loaded. Nothing reaches production; wiring is P3-e, after
+      the live verdict below.
+
+      (a) **Player quality** comes from P3-d0 as passed (line, league, multipliers, slot
+      codes in 2022-2023, θ in closed form). A player's quality is their posterior-mean
+      expected goals per 90 at their line (own goals excluded, §7.4). It is taken as of
+      the match's kickoff - 24 h, from the latest P3-d0 hyperparameter refit before then,
+      for training matches as well as targets. Quality as of the refit time would credit
+      a player's past games to his later-estimated θ, which is circular. Training matches
+      before the first P3-d0 refit (2018-07-01) use that refit's hyperparameters with
+      player posteriors as of the match. This is disclosed: population-level parameters
+      only, all final before every dev target.
+
+      (b) **Offset.** For team T in match m:
+      - **Lineup attack index** A = Σ over outfield players of (minutes / 90) x quality.
+        Goalkeepers are left out (their goal rate is the GK line rate).
+      - **Baseline** Ā is the mean of A over T's previous 10 league matches, with their
+        realised lineups and minutes and the same as-of quality. This is the "typical
+        lineup" the walk tracks (§7.5).
+      - **Δ = log(A / Ā)**, and log λ_T += β x Δ_T. β ~ Normal(1, 0.5): a lineup with
+        10% more expected goals than usual scores about 10% more at β = 1.
+      - **Minutes:**
+        - in training matches, the realised minutes;
+        - at the lineups-known horizon, the announced XI and bench, with P3-b's minutes
+          model given the role;
+        - at T-24h, P3-b's start and bench probabilities times those minutes.
+      - **Where inputs are missing** (no lineup, fewer than 3 earlier matches for Ā, no
+        player rows), Δ = 0 and the match is flagged. The share is reported per
+        league-season (rule 8: no imputed offset).
+      - **Defence:** see the spec point raised below. As drafted, the offset is attack-only
+        (§7.5 builds it from Layer 5 rate quality, and P3-d0 has no defensive quality
+        rate).
+
+      (c) **Fits.**
+      - **L:** β enters the NUTS fit with the other 1b parameters (2,000 draws, seed
+        20261105), so the walk is fitted net of lineup changes.
+      - **S:** uses P's refit draws, cached in R2 by fit hash where present. Under the
+        current hash, R2 holds only 109-118 refits per bundle, mostly after dev, so the
+        run refits P where its draws are missing. P's draws are needed anyway to score P.
+        β_S is fitted per refit by maximum likelihood on the training matches' goals, with
+        P's posterior-mean log λ as an offset. S then adds β_S x Δ to each draw at
+        prediction.
+      - The §14.5 inference gates apply to every L refit. σ_walk is reported per refit for
+        P and L (expected lower in L, not gating), and β and β_S over time.
+
+      (d) **Metrics.** As the 1b harness, warm matches:
+      - 1X2 log loss and RPS, paired by match;
+      - the D28 segment metrics per league (OU2.5 and BTTS log loss, total CRPS);
+      - ECE of each 1X2 outcome.
+      Reported:
+      - at both horizons, overall and by league and season;
+      - for matches with a big lineup change (|Δ| above its 90th percentile), where the
+        offset should matter most.
+
+      (e) **Pass on dev.** All of the following must hold:
+      1. At the lineups-known horizon, L beats P in the D18 form: 1X2 log loss and RPS
+         each better, with the paired 95% interval excluding 0. No league x market segment
+         is worse than 1.0% (D28, point estimate).
+      2. At the lineups-known horizon, L's point estimates beat S on both 1X2 log loss and
+         RPS (§7.5: the in-likelihood design must beat serving-only). The interval is
+         reported.
+      3. At T-24h, L is no worse than P on 1X2 log loss and RPS (point estimates ≤ 0), with
+         the intervals reported.
+      4. The inference gates pass in every L refit, with the PPC a warning as in Phase 1b.
+         L runs within the production budget (median refit no more than 1.5x P's on the
+         same runner class).
+      5. Leakage: for 100 sampled dev targets, nothing final after the as-of time changes
+         Δ, A, Ā or any quality input.
+      If S passes 1 and L doesn't, S is not adopted silently: it is reported and raised,
+      since the spec adopts L. A fail is reported with its segment. Respecification is on
+      dev only and disclosed.
+
+      (f) **Promotion (D38, pre-registered here, judged later).**
+      - L, S and P are scored on arrival on live 2026/27 bundle league matches, from the
+        day the live shadow starts. The XI comes from `lineup_snapshot` (as-of), and
+        status from `player_status_snapshot` where present.
+      - The same criteria as (e)1 and (e)2 at the lineups-known horizon, judged once, after
+        the last matchday of the 2026/27 bundle league seasons.
+      - The feedback loop is not wired into production (P3-e's production step) before a
+        pass.
+
+      **Cost:**
+      - 0 API requests.
+      - One CI walk-forward that fits L, and P where uncached. A Phase 2 weekly run was
+        about 50 jobs at about 2.5 h each, and this is up to about twice that: roughly 100
+        jobs in parts, five or six waves of 18, about 12-15 h wall time. It runs after a
+        timing pilot on one bundle-season part.
+      - S adds no NUTS: it is rescoring plus a one-parameter fit per refit.
+      - One backtest-type run at a time.
+
+      **Spec point raised (defence).** §7.5 builds Δ_lineup from Layer 5 rate quality.
+      Of P3-d0's six statistics, only goals (and assists, shots on target) measure
+      attacking quality, and none measures defending. Tackles are a volume statistic, not
+      a quality one. The options:
+      - **Attack-only (as drafted).** The spec's letter. Defensive absences still leak into
+        the walk, and that is flagged.
+      - **A defensive proxy now.** Lineup continuity or with-without-you impact, register
+        B.1 and B.2, which are now §20.2 backlog. This pulls a backlog item forward and
+        adds a non-rate input.
+      - **Defence later.** A defensive-impact term as a later challenger, after P3-d.
 - [ ] **P3-e Feedback loop into Layer 6 (§7.5 steps 1-4).** Player goal shares sum to the
       team's non-own-goal rate by construction; own goals stay outside the allocation.

@@ -73,6 +73,11 @@ Consequences:
   The full probe is about 40 requests (10 bundle leagues x 2020-2023, holdout seasons not
   needed), under 1% of a day's quota. Dev seasons 2019 and 2020 (probably) and warm-up
   have no labels.
+- **D40 (resolved 2026-11-19, owner):** P3-d is closed as failed on dev, with no
+  respecification. The honest offset signal is small (β about 0.15), so variants tried on
+  the same dev seasons would be fitting to them. P stays production, the offset is not
+  served, and under P3-d (f) the feedback loop is not wired into production. What P3-e
+  and the rest of Phase 3 become without a passed offset is open.
 
 ## Tasks
 
@@ -1072,5 +1077,10 @@ Consequences:
       - **Consequence:** P stays production. Under (f) the feedback loop is not wired
         into production. Any respecification is on dev only and disclosed, and is the
         owner's call.
+
+      **Closed 2026-11-19 as failed (owner, D40), no respecification.** Not ticked: its
+      acceptance check did not pass. The live shadow in (f) is not started.
 - [ ] **P3-e Feedback loop into Layer 6 (§7.5 steps 1-4).** Player goal shares sum to the
       team's non-own-goal rate by construction; own goals stay outside the allocation.
+      *On hold 2026-11-19 (D40):* P3-d failed, so there is no passed offset to wire. Its
+      scope is to be restated before any build.

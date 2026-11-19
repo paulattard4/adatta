@@ -1019,5 +1019,58 @@ Consequences:
         - The dev run was held. The owner chose to train on Δ_lk (amendment 8).
         - Cold-start rows are 21,674 here and 22,540 in the first run. The data captured
           since then is the likely cause. This is recorded, not investigated.
+      - **Dev run** 44467720850 (53d091b, table 6c35e11357c8313d, 100 jobs, 928 weekly
+        refits per model, fits 64-248 min per job), finished 2026-11-19 20:21 UTC.
+        Verdict fail on (e)1, (e)2, (e)3 and (e)4's gates: 9 of 928 L refits failed,
+        each at R-hat 1.010-1.012 or with 1 divergence; 7 in Spain 2022, 1 in England
+        2023, 1 in Italy 2019.
+      - **Redo** 44608051780 (amendment 9, 5 jobs, assembled over the dev run): all 9
+        redone L refits pass, so (e)4 passes. The other checks are unchanged.
+
+      **Result 2026-11-19: fail** on (e)1, (e)2 and (e)3. 18,682 warm matches;
+      relative, negative = first model better:
+
+      | horizon | comparison | 1X2 log loss | 95% interval | RPS | 95% interval |
+      |---|---|---|---|---|---|
+      | lk | L vs P | +0.01% | [-0.03%, +0.05%] | +0.02% | [-0.04%, +0.08%] |
+      | lk | S vs P | +0.01% | [-0.02%, +0.03%] | +0.02% | [-0.02%, +0.05%] |
+      | lk | L vs S | -0.00% | [-0.03%, +0.03%] | +0.00% | [-0.05%, +0.06%] |
+      | 24 | L vs P | +0.05% | [+0.01%, +0.08%] | +0.08% | [+0.03%, +0.13%] |
+      | 24 | S vs P | +0.02% | [+0.00%, +0.04%] | +0.04% | [+0.01%, +0.07%] |
+      | 24 | L vs S | +0.02% | [-0.00%, +0.05%] | +0.04% | [-0.00%, +0.08%] |
+
+      - (e)1 fail: L does not beat P at lineups-known; both intervals include 0. No
+        league x market segment is worse than 1.0% (the worst is +0.16%, league 79 total
+        CRPS), so the segment part holds.
+      - (e)2 fail: L ties S (log loss -0.00%, RPS +0.00%).
+      - (e)3 fail: L is worse than P at T-24h, the intervals clear of 0.
+      - (e)4 pass after the redo: every L refit passes the gates (worst R-hat 1.010,
+        min ESS 508, 0 divergences). L's median fit is 449 s vs P's 438 s (1.03x).
+      - (e)5 pass: leakage 0 of 100.
+      - S does not pass (e)1 either, so the S-without-L case of (e) does not arise.
+      - By league at lk, L vs P log loss runs from -0.05% (62) to +0.07% (135); by
+        season from -0.03% (2023) to +0.04% (2019).
+      - Big lineup changes (top 10% |Δ|, 1,869 matches): at lk L vs P is +0.02%
+        [-0.25%, +0.29%]; at T-24h L vs P is +0.30% [+0.08%, +0.51%] and L vs S
+        +0.24% [+0.03%, +0.44%]. The T-24h loss comes from the matches where the
+        projected XI moves the offset most.
+      - β_lineup is far below the prior's centre of 1. Median per season, with the range
+        over refits:
+
+        | season | β_L median | range | refits | β_S median |
+        |---|---|---|---|---|
+        | 2019 | 0.27 | -0.06 to 1.08 | 178 | 0.05 |
+        | 2020 | 0.15 | -0.08 to 0.35 | 177 | 0.08 |
+        | 2021 | 0.08 | -0.03 to 0.25 | 189 | 0.01 |
+        | 2022 | 0.12 | -0.13 to 0.29 | 194 | 0.04 |
+        | 2023 | 0.14 | -0.04 to 0.33 | 190 | 0.03 |
+
+        2019 is highest because its early refits have few Δ_lk rows and rest more on the
+        prior (amendment 8). σ_walk is the same in P and L (mean 0.0163).
+      - P itself had 7 of 928 refits failing the gates (worst R-hat 1.016, 1
+        divergence). P is production and not judged here; this is recorded.
+      - **Consequence:** P stays production. Under (f) the feedback loop is not wired
+        into production. Any respecification is on dev only and disclosed, and is the
+        owner's call.
 - [ ] **P3-e Feedback loop into Layer 6 (§7.5 steps 1-4).** Player goal shares sum to the
       team's non-own-goal rate by construction; own goals stay outside the allocation.

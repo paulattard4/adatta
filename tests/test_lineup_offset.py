@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import numpy as np
 import polars as pl
@@ -211,3 +212,61 @@ def test_newcomer_fallback_uses_earlier_matches_only() -> None:
     assert fb[0] is None  # nothing earlier
     assert fb[1] == pytest.approx(75.0)  # same-time rows excluded
     assert fb[2] == pytest.approx(10.0)
+
+
+def _part(
+    t0: datetime, n: int, ok: list[bool], tag: str
+) -> tuple[pl.DataFrame, list[dict[str, Any]]]:
+    """A stored part: n refits a week apart, rows for P, S_lk and L_lk, L gates as given."""
+    times = [t0 + timedelta(days=7 * k) for k in range(n)]
+    rows = pl.DataFrame([{"match_id": k, "as_of": t, "model": m, "1X2:log_loss": 1.0, "src": tag}
+                         for k, t in enumerate(times) for m in ("P", "S_lk", "L_lk")],
+                        schema_overrides={"as_of": pl.Datetime("us", "UTC")})  # fmt: skip
+    diags = [{"model": m, "as_of": t.isoformat(), "gates_ok": m == "P" or ok[k],
+              "fit_s": 100.0, "cached": False, "src": tag}
+             for k, t in enumerate(times) for m in ("P", "L")]  # fmt: skip
+    return rows, diags
+
+
+def test_redo_merge_replaces_only_the_redone_l_refits() -> None:
+    from adatta.model import lineup as ml
+
+    base, bd = _part(T0, 3, [True, False, True], "base")
+    t1 = T0 + timedelta(days=7)
+    over, od = _part(t1, 1, [True], "redo")
+    for g in od:
+        g["redone"] = g["model"] == "L"
+    rows, diags = ml.merge_redo(base, bd, over, od)
+    assert rows.height == base.height
+    src = dict(zip(rows["model"] + "@" + rows["match_id"].cast(str), rows["src"], strict=True))
+    # only L at the redone refit comes from the redo; P and S stay from the base run
+    assert src["L_lk@0"] == "redo" and src["P@0"] == "base"
+    assert sum(v == "redo" for v in src.values()) == 1
+    assert sum(g["src"] == "redo" for g in diags) == 1 and len(diags) == len(bd)
+    assert all(g["gates_ok"] for g in diags if g["model"] == "L")
+    with pytest.raises(ValueError):
+        ml.merge_redo(base, bd, *_part(T0 + timedelta(days=70), 1, [True], "x"))
+
+
+def test_failing_lists_l_refits_per_part(tmp_path: object) -> None:
+    import json as js
+
+    from adatta.adapters.storage import LocalStore
+    from adatta.model import lineup as ml
+
+    store = LocalStore(str(tmp_path))
+    for i, ok in enumerate(([True, True], [False, True])):
+        _, d = _part(T0, 2, ok, "base")
+        store.put(f"lineup/parts/R/england_2019_{i}of2.json", js.dumps({"diags": d}).encode())
+    assert ml.failing(store, "R", ["england"], [2019], 2) == [
+        {"bundle": "england", "season": 2019, "part": "1/2", "only": f"{T0:%Y-%m-%d}"}
+    ]
+
+
+def test_redone_refits_are_not_timed() -> None:
+    d = _diags()
+    d.append({"model": "L", "gates_ok": True, "fit_s": 10_000.0, "cached": False,
+              "redone": True})  # fmt: skip
+    v = el.verdict(_pred(0.02), d, True)
+    timing = next(c for c in v.checks if "median refit" in c["check"])
+    assert timing["value"] == pytest.approx(100.0 / 90.0)

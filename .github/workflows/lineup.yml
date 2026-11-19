@@ -5,6 +5,9 @@
 #   table    the offset table from those, the counts table and P3-b's export rerun
 #   fit      one job per bundle x dev season x part (P and L fitted per weekly refit, S
 #            rescored from P), then the pass rule (e)
+#   redo     amendment 9: the base fit run's L refits that fail the gates, redone once with
+#            target_accept 0.99 and 4,000 draws (the list read from R2, not typed), then
+#            the pass rule over the base run with them swapped in
 # The repo is public: logs and artifacts carry metrics only. Per-player and per-match rows
 # go to R2 (lineup/...), never to workflow artifacts. Holdout seasons are refused.
 # One backtest-type run at a time (backtest, gate, holdout, timing, cups, selection,
@@ -15,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       stage:
-        description: "quality | table | fit"
+        description: "quality | table | fit | redo"
         required: true
       quality_parts:
         description: "quality: JSON list of parts (i/n)"
@@ -41,6 +44,9 @@ on:
       assemble:
         description: "fit: apply the pass rule after the fits (false for a timing pilot)"
         default: "true"
+      base:
+        description: "redo: the finished fit run whose failing L refits are redone"
+        default: ""
 permissions:
   contents: read
 concurrency:
@@ -131,3 +137,73 @@ jobs:
           uv run --frozen --group model python -m adatta.model.lineup assemble \
             --fetch ${{ github.run_id }} --bundles "$b" --seasons "$s" --parts "$n" \
             --table ${{ inputs.table }} | tee -a "$GITHUB_STEP_SUMMARY"
+  plan:
+    if: ${{ inputs.stage == 'redo' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      refits: ${{ steps.failing.outputs.refits }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: failing L refits of the base run
+        id: failing
+        env:
+          BUNDLES: ${{ inputs.bundles }}
+          SEASONS: ${{ inputs.seasons }}
+          PARTS: ${{ inputs.parts }}
+        run: |
+          b=$(echo "$BUNDLES" | uv run python -c "import json,sys; print(','.join(json.load(sys.stdin)))")
+          s=$(echo "$SEASONS" | uv run python -c "import json,sys; print(','.join(map(str, json.load(sys.stdin))))")
+          n=$(echo "$PARTS" | uv run python -c "import json,sys; print(len(json.load(sys.stdin)))")
+          r=$(uv run --frozen --group model python -m adatta.model.lineup failing \
+            --fetch ${{ inputs.base }} --bundles "$b" --seasons "$s" --parts "$n" | tail -1)
+          echo "$r" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "refits=$r" >> "$GITHUB_OUTPUT"
+  redo:
+    needs: plan
+    if: ${{ inputs.stage == 'redo' && needs.plan.outputs.refits != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.refits) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: redo L and score
+        run: >-
+          uv run --frozen --group model python -m adatta.model.lineup run
+          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }} --part ${{ matrix.part }}
+          --only ${{ matrix.only }} --table ${{ inputs.table }} --upload ${{ github.run_id }}
+  assemble_redo:
+    needs: [plan, redo]
+    if: ${{ !cancelled() && inputs.stage == 'redo' && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: assemble over the base run
+        env:
+          BUNDLES: ${{ inputs.bundles }}
+          SEASONS: ${{ inputs.seasons }}
+          PARTS: ${{ inputs.parts }}
+        run: |
+          b=$(echo "$BUNDLES" | uv run python -c "import json,sys; print(','.join(json.load(sys.stdin)))")
+          s=$(echo "$SEASONS" | uv run python -c "import json,sys; print(','.join(map(str, json.load(sys.stdin))))")
+          n=$(echo "$PARTS" | uv run python -c "import json,sys; print(len(json.load(sys.stdin)))")
+          uv run --frozen --group model python -m adatta.model.lineup assemble \
+            --fetch ${{ inputs.base }} --override ${{ github.run_id }} --bundles "$b" \
+            --seasons "$s" --parts "$n" --table ${{ inputs.table }} | tee -a "$GITHUB_STEP_SUMMARY"

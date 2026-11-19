@@ -98,7 +98,9 @@ def verdict(pred: pl.DataFrame, diags: list[dict[str, Any]], leakage_ok: bool) -
     failing = [g for g in gates if not g["gates_ok"]]
     checks.append({"check": "(e)4 inference gates, every L refit", "value": float(len(failing)),
                    "passed": bool(gates) and not failing})  # fmt: skip
-    t_l = float(np.median([g["fit_s"] for g in gates])) if gates else float("nan")
+    # amendment 9: redone refits (more draws) are reported, not timed
+    timed = [g["fit_s"] for g in gates if not g.get("redone")]
+    t_l = float(np.median(timed)) if timed else float("nan")
     p_fits = [g["fit_s"] for g in diags if g["model"] == "P" and not g["cached"]]
     t_p = float(np.median(p_fits)) if p_fits else float("nan")
     checks.append({"check": f"(e)4 L median refit within {BUDGET}x P's", "value": t_l / t_p,

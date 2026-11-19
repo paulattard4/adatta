@@ -8,8 +8,12 @@ CLI (CI, model group; one backtest-type run at a time):
            the offset table (features.lineup_offset) and its leakage check, to R2
   run      --bundle B --season S --part i/n --table DIGEST --upload RUN
            P, L and S on the weekly dev grid (lineup/parts/RUN/...)
-  assemble --fetch RUN --bundles ... --seasons ... --parts N --table DIGEST
-           the pass rule (e); metrics only to stdout, scored rows to R2
+           [--only DATES]: just those refits, L redone with REDO settings (amendment 9)
+  failing  --fetch RUN --bundles ... --seasons ... --parts N
+           the L refits failing the gates, as the JSON list a redo run takes
+  assemble --fetch RUN --bundles ... --seasons ... --parts N --table DIGEST [--override R]
+           the pass rule (e); metrics only to stdout, scored rows to R2. With --override,
+           the redo run's L refits replace the base run's (amendment 9)
 Holdout seasons are refused. The repo is public: logs carry metrics, never data.
 """
 
@@ -41,6 +45,9 @@ PREFIX = "lineup"
 QUALITY_DRAWS = 2000  # as P3-d0 amendment 2
 LEAKAGE_N = 100
 SEED = 20261118
+# amendment 9: an L refit failing the gates is redone once with these, and nothing else
+REDO_TARGET_ACCEPT = 0.99
+REDO_DRAWS = 4000
 
 
 # ------------------------------------------------------------------------------ quality
@@ -195,8 +202,11 @@ def gates_ok(diag: dict[str, float]) -> bool:
 
 def run_part(df: pl.DataFrame, leagues: list[int], bundle: str, season: int,
              store: RawStore, table_digest: str, part: tuple[int, int],
-             on_refit: Any = None) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
-    """P, L and S on one dev bundle-season's weekly refits (every part[1]-th from part[0])."""
+             on_refit: Any = None, only: set[str] | None = None,
+             ) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
+    """P, L and S on one dev bundle-season's weekly refits (every part[1]-th from part[0]).
+    `only` (refit dates, YYYY-MM-DD) keeps just those refits and refits L with the
+    amendment 9 settings; P comes from its cache as before."""
     from adatta.eval import harness
     from adatta.model import backtest as bt
     from adatta.model import team_strength as ts
@@ -209,6 +219,12 @@ def run_part(df: pl.DataFrame, leagues: list[int], bundle: str, season: int,
     L = replace(P, lineup=True, lineup_table=f"{table_digest}:{lo.TRAIN}")
     plan = harness.refit_plan(df, cfg, [season], P.every_days, None, P.grid)
     plan = plan[part[0] :: part[1]]
+    if only is not None:
+        plan = [x for x in plan if f"{x[0]:%Y-%m-%d}" in only]
+        missing = only - {f"{x[0]:%Y-%m-%d}" for x in plan}
+        if missing:
+            raise ValueError(f"refits not in this part: {sorted(missing)}")
+        L = replace(L, target_accept=REDO_TARGET_ACCEPT, draws=REDO_DRAWS)
     mh, ma = harness.mover_codes(df, leagues)
     df = df.with_columns(mover_home=pl.Series(mh), mover_away=pl.Series(ma))
     lag = cfg.result_available_after_hours
@@ -280,6 +296,7 @@ def run_part(df: pl.DataFrame, leagues: list[int], bundle: str, season: int,
                 "sigma_walk": sw,
             }
             if name == "L":
+                g["redone"] = only is not None
                 g["beta_lineup"] = float(beta_l.mean())
                 g["beta_lineup_sd"] = float(beta_l.std())
             else:
@@ -310,25 +327,77 @@ def _parquet(df: pl.DataFrame) -> bytes:
 # ----------------------------------------------------------------------------- assemble
 
 
+def merge_redo(base: pl.DataFrame, base_diags: list[dict[str, Any]], over: pl.DataFrame,
+               over_diags: list[dict[str, Any]],
+               ) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
+    """One part with some L refits redone (amendment 9): the redo's L rows (L_lk, L_24)
+    and L diagnostics replace the base run's for those refits. P and S are kept from the
+    base run (P's draws are the same cached ones, and S does not depend on L)."""
+    redone = {g["as_of"] for g in over_diags if g["model"] == "L"}
+    if not redone <= {g["as_of"] for g in base_diags if g["model"] == "L"}:
+        raise ValueError("a redone refit is not in the base part")
+    times = [datetime.fromisoformat(t) for t in redone]
+    is_l = pl.col("model").str.starts_with("L_")
+    kept = base.filter(~(is_l & pl.col("as_of").is_in(times)))
+    new = over.filter(is_l & pl.col("as_of").is_in(times)).select(base.columns)
+    diags = [g for g in base_diags if not (g["model"] == "L" and g["as_of"] in redone)]
+    diags += [g for g in over_diags if g["model"] == "L"]
+    return pl.concat([kept, new]), diags
+
+
+def _part_keys(run: str, bundles: Sequence[str], seasons: Sequence[int],
+               parts: int) -> list[tuple[str, int, int, str]]:  # fmt: skip
+    return [(b, s, i, f"{PREFIX}/parts/{run}/{b}_{s}_{i}of{parts}")
+            for b in bundles for s in seasons for i in range(parts)]  # fmt: skip
+
+
+def failing(store: RawStore, run: str, bundles: Sequence[str], seasons: Sequence[int],
+            parts: int) -> list[dict[str, Any]]:  # fmt: skip
+    """The L refits of a run that fail the gates, one entry per part (amendment 9)."""
+    out = []
+    for b, s, i, key in _part_keys(run, bundles, seasons, parts):
+        raw = try_get(store, f"{key}.json")
+        if raw is None:
+            raise SystemExit(f"missing part {key}")
+        bad = sorted(g["as_of"][:10] for g in json.loads(raw)["diags"]
+                     if g["model"] == "L" and not g["gates_ok"])  # fmt: skip
+        if bad:
+            out.append({"bundle": b, "season": s, "part": f"{i}/{parts}", "only": ",".join(bad)})
+    return out
+
+
 def assemble(store: RawStore, run: str, bundles: Sequence[str], seasons: Sequence[int],
-             parts: int, table_ref: str) -> str:  # fmt: skip
+             parts: int, table_ref: str, override: str = "") -> str:  # fmt: skip
     table, meta, digest = lo.load(store, table_ref)
     preds, diags, missing = [], [], []
-    for b in bundles:
-        for s in seasons:
-            for i in range(parts):
-                key = f"{PREFIX}/parts/{run}/{b}_{s}_{i}of{parts}"
-                data = try_get(store, f"{key}.parquet")
-                if data is None:
-                    missing.append(key)
-                    continue
-                preds.append(pl.read_parquet(io.BytesIO(data)))
-                diags += json.loads(store.get(f"{key}.json"))["diags"]
+    redone = 0
+    for b, s, i, key in _part_keys(run, bundles, seasons, parts):
+        data = try_get(store, f"{key}.parquet")
+        if data is None:
+            missing.append(key)
+            continue
+        rows = pl.read_parquet(io.BytesIO(data))
+        dg = json.loads(store.get(f"{key}.json"))["diags"]
+        okey = f"{PREFIX}/parts/{override}/{b}_{s}_{i}of{parts}"
+        over = try_get(store, f"{okey}.json") if override else None
+        if over is not None:
+            o_dg = json.loads(over)["diags"]
+            o_rows = pl.read_parquet(io.BytesIO(store.get(f"{okey}.parquet")))
+            rows, dg = merge_redo(rows, dg, o_rows, o_dg)
+            redone += sum(g["model"] == "L" for g in o_dg)
+        preds.append(rows)
+        diags += dg
     if missing:
         raise SystemExit(f"missing parts: {len(missing)} (first {missing[0]})")
     pred = pl.concat(preds, how="diagonal")
     v = el.verdict(pred, diags, bool(meta.get("leakage_ok")))
     out = el.markdown(pred, v, diags, meta, digest)
+    if override:
+        out += (
+            f"\nL refits redone by run {override} (amendment 9: target_accept "
+            f"{REDO_TARGET_ACCEPT}, {REDO_DRAWS} draws): {redone}.\n"
+        )
+    run = override or run
     store.put(f"{PREFIX}/reports/{run}/pred.parquet", _parquet(pred))
     store.put(
         f"{PREFIX}/reports/{run}/verdict.json",
@@ -358,12 +427,19 @@ def main(argv: Sequence[str] | None = None) -> None:
     r.add_argument("--part", default="0/1")
     r.add_argument("--table", default="latest")
     r.add_argument("--upload", required=True)
+    r.add_argument("--only", default="", help="comma-separated refit dates (amendment 9)")
+    f = sub.add_parser("failing")
+    f.add_argument("--fetch", required=True)
+    f.add_argument("--bundles", required=True)
+    f.add_argument("--seasons", required=True)
+    f.add_argument("--parts", type=int, default=1)
     a = sub.add_parser("assemble")
     a.add_argument("--fetch", required=True)
     a.add_argument("--bundles", required=True)
     a.add_argument("--seasons", required=True)
     a.add_argument("--parts", type=int, default=1)
     a.add_argument("--table", default="latest")
+    a.add_argument("--override", default="", help="a redo run whose L refits replace the base's")
     args = p.parse_args(argv)
     store = make_store(get_settings())
     if args.cmd == "quality":
@@ -386,14 +462,20 @@ def main(argv: Sequence[str] | None = None) -> None:
             store.put(f"{key}.json", json.dumps({"table": digest, "diags": diags},
                                                 default=str).encode())  # fmt: skip
 
-        rows, diags = run_part(df, leagues, args.bundle, args.season, store, digest, (i, n), save)
+        only = set(args.only.split(",")) if args.only else None
+        rows, diags = run_part(df, leagues, args.bundle, args.season, store, digest, (i, n),
+                               save, only)  # fmt: skip
         save(rows, diags)
         ok = sum(d["gates_ok"] for d in diags if d["model"] == "L")
         print(f"{args.bundle} {args.season}: {len(diags) // 2} refits, L passing the gates {ok}")
+    elif args.cmd == "failing":
+        seasons = [int(s) for s in args.seasons.split(",")]
+        print(json.dumps(failing(store, args.fetch, args.bundles.split(","), seasons,
+                                 args.parts)))  # fmt: skip
     else:
         seasons = [int(s) for s in args.seasons.split(",")]
         print(assemble(store, args.fetch, args.bundles.split(","), seasons, args.parts,
-                       args.table))  # fmt: skip
+                       args.table, args.override))  # fmt: skip
 
 
 if __name__ == "__main__":

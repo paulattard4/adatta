@@ -925,6 +925,28 @@ Consequences:
            rows before then have Δ = 0 (rule 8), so β in the early 2019 refits rests
            mostly on the prior, and the per-season β is reported.
          - The quality refits and offset table 6c35e11357c8313d are unchanged and reused.
+      9. **L refits that fail the gates are redone once** (owner, 2026-11-19, written
+         while dev run 44467720850 was still running, before assemble and before any
+         P3-d score was seen).
+         - **Seen so far, mid-run:** 9 of 462 finished L refits fail the gates. Most
+           have a single divergence, mostly in Spain 2022, where σ_walk is about 0.007.
+         - **Rule:**
+           - every L refit of the dev run that fails (e)4's gates (R-hat ≤ 1.01, ESS ≥
+             400, no divergences) is refitted once with `target_accept` 0.99 (was 0.95)
+             and 4,000 draws per chain (was 2,000);
+           - the same data, offset table, seed and everything else;
+           - one setting for every redone refit, fixed now, not chosen per failure;
+           - P is not refitted: its cached draws are reused, so P and S score the same
+             as before.
+         - **Merge:** the redone refits' rows and diagnostics replace the base run's,
+           as P3-b amendment 9 did. The verdict is assembled over the base run with
+           them swapped in.
+         - **If a redone refit still fails, (e)4 fails.** There is no third attempt and
+           no other change.
+         - **Which refits:** the list is taken mechanically from the base run's stored
+           diagnostics (`lineup failing`), not picked by hand.
+         - **Timing gate:** L's fit time in (e)4 is the base run's median. The redone
+           refits are reported, not used in the timing gate.
 
       **Build (2026-11-18), before any run:**
       - **Code:**

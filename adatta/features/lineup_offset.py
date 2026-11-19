@@ -10,7 +10,8 @@ For team T in match m, with t = kickoff - 24 h (P3-d0's as-of time):
                  realised lineups and minutes and the same as-of quality (the typical lineup)
   delta          log(A / A_bar)
 Three versions of A:
-  real   the realised minutes of m (training matches only: a post-match fact, like xG)
+  real   the realised minutes of m (reported only: substitutions follow the score, so it
+         carries the outcome; P3-d amendment 8)
   lk     lineups-known: the announced XI and bench, with P3-b's expected minutes given
          the role (exported by the P3-b rerun, `model.selection.role_minutes`)
   t24    T-24h: P3-b's start and bench probabilities times those minutes, over its pool
@@ -44,6 +45,7 @@ MIN_PREV = 3  # fewer previous matches: no baseline, delta = 0 (flagged)
 STAT = "goals"
 OUTFIELD = ("D", "M", "F")
 CHUNK = 40_000  # quality rows per predict call (memory)
+TRAIN = "lk"  # the version training rows read (amendment 8: pre-kickoff, as served at lk)
 KEY = ["match_id", "team_id"]
 
 
@@ -262,16 +264,17 @@ def load(store: RawStore, ref: str = "latest") -> tuple[pl.DataFrame, dict[str, 
 
 def attach(df: pl.DataFrame, table: pl.DataFrame, horizons: tuple[str, ...] = ()) -> pl.DataFrame:
     """Joins a match frame (match_id, home, away) with each side's delta: lu_home / lu_away
-    from the realised version (what training rows read), and for each horizon h in
+    from the TRAIN version (what training rows read), and for each horizon h in
     `horizons` ("lk", "24") the target's own version as d{h}_home / d{h}_away. 0 where
     absent (rule 8: the term falls back to the 1b model)."""
-    cols = {"delta_real": "lu"} | {f"delta_{h}": f"d{h}" for h in horizons}
+    # pairs, not a dict: the training version is also a horizon's
+    cols = [(f"delta_{TRAIN}", "lu"), *[(f"delta_{h}", f"d{h}") for h in horizons]]
     out = df
     for side in ("home", "away"):
         sel = table.select(
             pl.col("match_id"), pl.col("team_id").alias(side),
-            *[pl.col(c).alias(f"{p}_{side}") for c, p in cols.items()],
+            *[pl.col(c).alias(f"{p}_{side}") for c, p in cols],
         )  # fmt: skip
         out = out.join(sel, on=["match_id", side], how="left")
-    return out.with_columns([pl.col(f"{p}_{s}").fill_null(0.0) for p in cols.values()
+    return out.with_columns([pl.col(f"{p}_{s}").fill_null(0.0) for _, p in cols
                              for s in ("home", "away")])  # fmt: skip

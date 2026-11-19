@@ -120,7 +120,8 @@ def test_attach_fills_zero() -> None:
     table = pl.DataFrame({"match_id": [100], "team_id": [1], "delta_real": [0.1],
                           "delta_lk": [0.2], "delta_24": [0.3]})  # fmt: skip
     out = lo.attach(df, table, ("lk", "24")).sort("match_id")
-    assert out["lu_home"].to_list() == [0.1, 0.0]
+    # training rows read the lineups-known version, never the realised one (amendment 8)
+    assert out["lu_home"].to_list() == [0.2, 0.0]
     assert out["dlk_home"].to_list() == [0.2, 0.0]
     assert out["d24_away"].to_list() == [0.0, 0.0]
 

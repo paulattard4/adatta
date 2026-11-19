@@ -51,11 +51,12 @@ passes its acceptance test.
 
 Lineup offset (Phase 3 P3-d, `lineup=True`, strength_open, §7.5 "offset inside the
 likelihood"): each training match carries its sides' historical lineup offsets lu_home and
-lu_away (log of the lineup's expected-goals index over the team's typical one, from realised
-minutes; `adatta.features.lineup_offset`), and log lambda_home += beta_lineup * lu_home,
-log lambda_away += beta_lineup * lu_away, beta_lineup ~ Normal(1, 0.5). The walk then tracks
-strength with a typical lineup. Prediction adds beta_lineup * the target's offset
-(`backtest.score_targets`). Without it nothing is added: the 1b model, draw for draw.
+lu_away (log of the lineup's expected-goals index over the team's typical one, from the
+announced XI and bench with P3-b's role minutes; `adatta.features.lineup_offset`), and
+log lambda_home += beta_lineup * lu_home, log lambda_away += beta_lineup * lu_away,
+beta_lineup ~ Normal(1, 0.5). The walk then tracks strength with a typical lineup.
+Prediction adds beta_lineup * the target's offset (`backtest.score_targets`). Without it
+nothing is added: the 1b model, draw for draw.
 
 Context covariates (Phase 2, `adatta.model.covariates`, groups G1-G7): with design blocks
 in `fd.cov`, each group adds a coefficient vector beta_<group> (shared by the bundle's

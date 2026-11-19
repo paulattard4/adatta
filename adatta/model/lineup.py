@@ -205,7 +205,8 @@ def run_part(df: pl.DataFrame, leagues: list[int], bundle: str, season: int,
         raise HoldoutRefused(f"season {season} is not a dev season")
     cfg = harness.load_config()
     P = bt.production_spec(cfg)
-    L = replace(P, lineup=True, lineup_table=table_digest)
+    # the training version is part of L's cache key (lineup_offset.py is not hashed)
+    L = replace(P, lineup=True, lineup_table=f"{table_digest}:{lo.TRAIN}")
     plan = harness.refit_plan(df, cfg, [season], P.every_days, None, P.grid)
     plan = plan[part[0] :: part[1]]
     mh, ma = harness.mover_codes(df, leagues)

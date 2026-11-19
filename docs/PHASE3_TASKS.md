@@ -792,7 +792,8 @@ Consequences:
       - **Δ = log(A / Ā)**, and log λ_T += β x Δ_T. β ~ Normal(1, 0.5): a lineup with
         10% more expected goals than usual scores about 10% more at β = 1.
       - **Minutes:**
-        - in training matches, the realised minutes;
+        - in training matches, ~~the realised minutes~~ the lineups-known construction
+          below (amendment 8);
         - at the lineups-known horizon, the announced XI and bench, with P3-b's minutes
           model given the role;
         - at T-24h, P3-b's start and bench probabilities times those minutes.
@@ -909,6 +910,21 @@ Consequences:
          (`tests/test_lineup_model.py`).
       7. **Jobs.** Each bundle-season runs in 4 parts, so 100 fit jobs. Every refit fits P
          and L.
+      8. **Training rows use Δ_lk, not Δ_real** (owner, 2026-11-19, after the timing
+         pilot; see Runs).
+         - **Why:** realised minutes follow the score through substitutions, so Δ_real
+           carries the outcome and gives a negative β.
+         - **What changes:**
+           - training matches read the announced XI and bench with P3-b's role minutes,
+             the same construction served at lk;
+           - Δ_real stays in the table, for reporting only;
+           - β_S is fitted on the same Δ_lk;
+           - L's cache key carries the training version (`<table>:lk`), so the pilot's
+             L fits are not reused. P is unchanged and its pilot fits are reused.
+         - **Coverage:** Δ_lk needs P3-b's export, which starts with 2019/20. Training
+           rows before then have Δ = 0 (rule 8), so β in the early 2019 refits rests
+           mostly on the prior, and the per-season β is reported.
+         - The quality refits and offset table 6c35e11357c8313d are unchanged and reused.
 
       **Build (2026-11-18), before any run:**
       - **Code:**
@@ -935,5 +951,51 @@ Consequences:
         3. table;
         4. a timing pilot (one bundle-season part);
         5. the dev run (about 12-15 h).
+
+      **Runs:**
+      - **P3-b export rerun,** run 44339699090 (d422509, table 061ebfdb66114294,
+        500 draws), success. Its verdict matches P3-b's first run (44033304307): every
+        check is the same apart from (g)5, and the metrics agree to about 0.001. For
+        example, log loss vs B2 is -2.7305 here and -2.7321 in the first run, and
+        minutes CRPS vs B1 is -70.640 and -70.642. Sampling is not bit-for-bit
+        reproducible across runners, so the refits that fail the gates are not the same
+        as the first run's 11.
+        - 13 of the 283 refits fail the gates here, all at R-hat 1.010-1.011, with ESS
+          668 or more and no divergences. Only 6 of them are among the first run's 11.
+        - Following amendment 9's rule (redo the refits that fail the gates, at 2,000
+          draws), the rerun redoes these 13 in 11 jobs: run 44406512773.
+        - A first rerun dispatched on the old list of 11 (44405614135) was cancelled
+          within minutes.
+        - **Rerun 44406512773: verdict pass.** All 283 refits now pass the gates.
+          Against B2, log loss is -2.7311 [-2.8009, -2.6613] and minutes CRPS is
+          -70.644. Leakage passes. This run's report is the export that the offset table
+          reads.
+      - **Quality:** run 44431797480. All 64 refits pass the gates, with R-hat 1.006
+        or less and fits of 60-115 s.
+      - **Table:** run 44436106852, offset table 6c35e11357c8313d, 62,498
+        team-matches. Leakage: 0 of 100 changed.
+      - **Timing pilot:** run 44437167996, England 2022 part 0/4, 3 h 18 min for 10
+        refits. All P and L refits pass the gates. Median fit is P 556 s and L 592 s
+        (1.06×).
+        - **Problem: β is negative.** β_lineup is -0.10 to -0.22 and β_S is -0.14 to
+          -0.26, against a prior centred on 1.
+        - **Diagnosis** (dev 2019-2023, all bundles, the Poisson slope of a team's goals
+          on Δ with the team-season mean as offset):
+
+          | Δ | slope | se |
+          |---|---|---|
+          | real | -0.141 | 0.037 |
+          | lk | +0.132 | 0.037 |
+          | 24 | +0.080 | 0.041 |
+
+        - **Cause.** Realised minutes depend on the score. A team that is behind brings
+          on attackers and a team that is ahead brings on defenders, so Δ_real − Δ_lk
+          correlates -0.10 with goal difference. Training on Δ_real, as (b) specifies,
+          lets the outcome leak into the covariate through substitutions. L and S
+          therefore learn a negative β, which then gets applied to the pre-kickoff Δ_lk
+          and Δ_24 when serving. The fault is in the spec, not the code.
+        - The dev run was held. The owner chose to train on Δ_lk (amendment 8).
+        - Cold-start rows are 21,674 here and 22,540 in the first run. The data captured
+          since then is the likely cause. This is recorded, not investigated.
 - [ ] **P3-e Feedback loop into Layer 6 (§7.5 steps 1-4).** Player goal shares sum to the
       team's non-own-goal rate by construction; own goals stay outside the allocation.

@@ -1761,3 +1761,21 @@ Consequences:
         distribution equal P3-c's; the panel shows the latest projection's top three and
         the pitch.
       - The workflow steps (refit, project) are added only once the rerun passes.
+
+      **Amendment 1 rerun (2026-11-20): pass** (run 44785445515, table bd4423912693aa6d,
+      2,000 draws). All 19 checks of P3-c's (e) pass, with every refit passing the gates.
+      Log loss 1.460 against F1 1.710 and F2 1.526 (vs F2 -4.35% [-4.71%, -4.00%]; with
+      tier, -4.69%). It beats F2 in every league. Family log loss 0.497; top-class ECE
+      0.0205 (with tier, 0.018); top-class accuracy 0.584. Dropping tier costs 0.005 in log
+      loss, so P3-c is served with tier unknown.
+
+      **Ready to serve (2026-11-20).** Migration 0018 applied. The refit and project steps
+      are added to `projected_lineups.yml`; each runs even if P3-b's step fails. Local
+      smoke test on live data, writing nothing (no refits yet, so every bundle reports no
+      refit):
+      - 121 fixtures, 242 team rows, tier unknown on all, every team with formation
+        history;
+      - a last lineup in the formation was found for all 242. Positional ones are 70: the
+        grid test on everything loaded (all stored competitions, as P3-c's build) passes
+        2026 in 135, 140, 141, 78 and 80. The bundle-only pre-check also passed 39 and 40;
+        the build's set is what's served.

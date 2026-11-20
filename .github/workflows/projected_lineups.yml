@@ -3,6 +3,9 @@
 # per bundle when its latest passing serving refit is 28 days old (a refit failing the gates
 # is stored but not served, and the job fails so the alert email goes out); then project
 # every regular-season bundle fixture of the next 7 days into lineup_projection.
+# P3-h (docs/PHASE3_TASKS.md): the same for P3-c (formation, tier unknown), refitted per
+# bundle every 28 days, projected with the last lineup in that formation into
+# formation_projection.
 # The repo is public: logs carry counts only. The refit job is a backtest-type load (five
 # PyMC fits); it runs only when due, at 04:41 UTC, away from the usual backtest hours.
 name: projected_lineups
@@ -61,6 +64,13 @@ jobs:
           if [ "${{ inputs.force_refit }}" = "true" ]; then force="--force"; fi
           uv run --frozen --group model python -m adatta.model.selection serve-refit \
             --bundle ${{ matrix.bundle }} $force
+      - name: formation serving refit when due (P3-h)
+        if: ${{ !cancelled() }}
+        run: |
+          force=""
+          if [ "${{ inputs.force_refit }}" = "true" ]; then force="--force"; fi
+          uv run --frozen --group model python -m adatta.model.formation serve-refit \
+            --bundle ${{ matrix.bundle }} $force
   project:
     needs: [appearances, refit]
     if: ${{ !cancelled() && needs.appearances.result == 'success' }}
@@ -74,3 +84,6 @@ jobs:
       - run: uv sync --frozen --group model
       - name: project the next 7 days
         run: uv run --frozen --group model adatta lineups-project
+      - name: project formations, next 7 days (P3-h)
+        if: ${{ !cancelled() }}
+        run: uv run --frozen --group model adatta formations-project

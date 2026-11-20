@@ -193,6 +193,9 @@ def score(rows: pl.DataFrame, p: Arr, vocab: list[str]) -> pl.DataFrame:
         fam_log_loss=-np.log(pf[np.arange(len(y)), y] + EPS),
         p_top=p.max(axis=1),
         top_correct=top == y,
+        # P3-g: the predicted class and the whole distribution (vocab order)
+        top=pl.Series([vocab[int(i)] for i in top], dtype=pl.Utf8),
+        p=pl.Series([list(map(float, r)) for r in p], dtype=pl.List(pl.Float64)),
     )
 
 

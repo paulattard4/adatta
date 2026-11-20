@@ -1533,3 +1533,28 @@ Consequences:
 
       **Cost:** 0 API requests. The dev check reuses stored outputs; serving adds P3-c
       refits (median 103 s on dev) to the daily workflow when due.
+
+      *Amended 2026-11-20 while building, before any P3-g score was computed:*
+      1. **P3-c's dev predictions are rerun, not reused.** P3-c's stored dev rows hold
+         each team-match's scores (log loss, the top class's probability, whether it was
+         right), not which formation it predicted. So (c) can't read the projected
+         formation from them, as the cost line assumed. P3-c's scoring now also stores the
+         predicted class and its distribution (`top`, `p`; nothing else changes). Its dev
+         walk-forward is rerun on the positional league-seasons only (all bundles in
+         2022-2023, and La Liga 2019), at 2,000 draws as it passed, without its pass rule.
+         The P3-g check reads those rows.
+      2. **Player totals for the scaling are rescaled to the slots.** P3-b's starts sum to
+         11 minus the newcomer allowance, but the formation has 11 slots, so the two
+         margins of W can't both hold as stated. Within keepers, P(start) is rescaled to
+         the one GK slot; within outfield players, to the other 10. A player's share of his
+         group is unchanged.
+
+      **Build (2026-11-20), before any P3-g score:**
+      - `adatta/eval/positions.py`: slot codes per formation (P3-c's rules), the as-of
+        position history and fit, W and its scaling, the Hungarian XI, B_top and B_last,
+        the evaluation, calibration, leakage, the verdict and the report;
+        `python -m adatta.eval.positions --formation-runs RUNS` prints metrics only.
+      - `eval.formation.score` stores `top` and `p` (amendment 1).
+      - `tests/test_positions.py` (5): slot codes, the scaling's margins and the single
+        keeper, the fit's smoothing, a settled team's evaluation and leakage, and that the
+        target match's own positions are never in its history.

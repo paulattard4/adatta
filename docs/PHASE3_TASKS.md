@@ -1080,7 +1080,8 @@ Consequences:
 
       **Closed 2026-11-19 as failed (owner, D40), no respecification.** Not ticked: its
       acceptance check did not pass. The live shadow in (f) is not started.
-- [ ] **P3-e Feedback loop into Layer 6 (§7.5 steps 1-4).** Player goal shares sum to the
+- [x] **P3-e Feedback loop into Layer 6 (§7.5 steps 1-4).** *Dev pass 2026-11-20 as
+      restated (scorers); the live verdict (f) is pending.* Player goal shares sum to the
       team's non-own-goal rate by construction; own goals stay outside the allocation.
       *On hold 2026-11-19 (D40):* P3-d failed, so there is no passed offset to wire. Its
       scope is to be restated before any build.
@@ -1246,3 +1247,36 @@ Consequences:
          count and realised goals are reported.
       Nothing else changes: the baselines, the gates, the rates, P and the pmf run
       (44688838616) are reused. The table and the verdict are rerun.
+
+      **Result 2026-11-20: pass, goals and assists** (table rerun 44693306106, player
+      table 0e81c3ec404d3635, leakage 0 of 100; verdict run 44694616526, both on 8fa7de3,
+      amendments 1-2). Relative P(at least one) log loss, negative = M better, paired by
+      player row at lineups-known:
+
+      | | goals | assists |
+      |---|---|---|
+      | rows (realised) | 733,137 (46,033) | 780,653 (33,734) |
+      | (e)1 vs B0 | -0.79% [-0.86%, -0.71%] | -0.64% [-0.71%, -0.56%] |
+      | (e)2 vs B_line | -1.93% [-2.04%, -1.81%] | -1.64% [-1.76%, -1.53%] |
+      | (e)3 vs B_R1 | -0.00% [-0.07%, +0.07%] | -0.18% [-0.24%, -0.12%] |
+      | (e)3 worst league vs B_R1 | +0.19% (62) | -0.05% (140) |
+      | (e)4 E/O | 1.002 | 0.996 |
+      | (e)4 ECE, worst league | 0.0014, 0.0031 (61) | 0.0003, 0.0019 (78) |
+      | (e)5 largest gap | 0.0000 | 0.0000 |
+
+      - α after amendment 1 is 0.65-0.72 per league (0.78-0.80 before); goals' scores are
+        unchanged from the first verdict.
+      - Left out under amendment 2: 1 team-match (1 goal, 1 assist). P's distribution exists
+        for 38,504 of 38,784 squad team-matches.
+      - Reported, not gating:
+        - **T-24h** (P3-b's pool): goals vs B0 -0.71%, vs B_line -1.83%, vs B_R1 +0.17%
+          [+0.11%, +0.22%]; assists vs B0 -0.58%, vs B_line -1.37%, vs B_R1 +0.03%. A day
+          out, the player's own shrunk rate is as good or slightly better than P3-d0's.
+        - **Penalties:** 4,285 of 46,033 goals; on the 4,175 rows with a penalty goal M is
+          +0.78% against B_R1 (penalty takers are §8.3, Phase 3b).
+        - **Goalkeepers:** goal E/O 1.80 on rare counts (GK line rate); the GK rows' log
+          loss is far below B_line's and B_R1's.
+        - **By line,** goals vs B_R1: D -1.18%, F -0.00%, M +0.53%.
+      - **Next, per (f):** M is scored on arrival on live 2026/27 bundle league matches at
+        lineups-known, against the same baselines, with bookmaker anytime-scorer prices for
+        Edge and CLV only. Nothing is shown to users before the live verdict.

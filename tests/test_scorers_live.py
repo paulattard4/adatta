@@ -150,3 +150,18 @@ def test_p_as_served_reproduces_the_forecast_before_the_lineup(tmp_path: Path) -
     assert pm.height == 2 and set(pm["milestone"]) == {"T-24h"}
     for p in pm["pmf"].to_list():
         assert np.isclose(sum(p), 1.0)
+
+
+def test_auc_ignores_a_margin_that_keeps_the_order() -> None:
+    from adatta.edge import scorers as ed
+
+    rng = np.random.default_rng(3)
+    p = rng.uniform(0.01, 0.4, 2000)
+    hit = rng.uniform(size=2000) < p
+    assert ed.auc(p, hit) == pytest.approx(ed.auc(1.5 * p + 0.02, hit))  # order kept
+    assert ed.auc(np.array([0.9, 0.1, 0.5]), np.array([True, False, False])) == 1.0
+    match = np.repeat(np.arange(100), 20)
+    d, lo, hi = ed.auc_diff(p, 3 * p, hit, match, n=200)
+    assert d == pytest.approx(0.0) and lo <= 0.0 <= hi
+    d, lo, hi = ed.auc_diff(p, rng.uniform(size=2000), hit, match, n=200)
+    assert d > 0 and lo > 0  # a random ranking is worse

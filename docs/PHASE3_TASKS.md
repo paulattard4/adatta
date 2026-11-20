@@ -1394,6 +1394,14 @@ Consequences:
         - **Market comparison as stated is not informative.** Without margin removal the
           anytime-scorer prices imply 0.184 on average against 0.066 observed (and M's
           0.061), so M "beats" the market by the bookmakers' margin alone (log loss 0.215
-          against 0.287). Raised with the owner; no change made.
+          against 0.287). Raised with the owner.
         - The report's footer counted the 91 table matches; it now counts the matches
           scored.
+
+      *Amended 2026-11-20 after interim 1 (owner: "Yes, add AUC"):*
+      1. **(d) adds AUC.** The market comparison also reports the AUC of M and of the
+         market on the same rows: the chance a scorer is ranked above a non-scorer. A
+         margin that keeps the market's order of players leaves it unchanged. It is
+         reported with the difference and a 95% interval from 1,000 resamples of whole
+         matches. The log loss stays as stated. Both remain reported only, never part
+         of (c).

@@ -261,3 +261,10 @@ table.scores th { color: var(--dim); font-weight: 500; font-size: 11px; }
 .squad-foot { font-size: 12px; margin-top: 10px; }
 @media (max-width: 760px) { .squad { grid-template-columns: 1fr; } }
 .squad-sub { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; margin: 8px 0 2px; }
+.proj { width: 100%; border-collapse: collapse; font-size: 13px; }
+.proj th { text-align: left; font-weight: 500; color: var(--dim); font-size: 11px; text-transform: uppercase; padding: 2px 4px; border-bottom: 1px solid var(--line); }
+.proj td { padding: 2px 4px; }
+.proj .r { text-align: right; }
+.proj .proj-pos { display: inline-block; width: 14px; }
+.proj .absence-tag { margin-left: 6px; }
+.proj tr.proj-cut td { border-top: 1px dashed var(--line); } /* below: outside the most likely XI */

@@ -96,19 +96,29 @@ def build(inp: Inputs) -> tuple[pl.DataFrame, pl.DataFrame]:
     """(player rows, team-match rows) for every target team-match whose team has a lineup in
     that match. Player rows: the pool with FEATURES, pos, y (OUT/BENCH/START) and minutes_nt.
     Team-match rows: pool size, the squad's newcomers (not in the pool) by outcome, actual
-    and expected bench size (mean of the team's last 5 matches)."""
+    and expected bench size (mean of the team's last 5 matches).
+    A target with an `as_of` (served projections, a fixture not played yet) is built as of
+    that time instead of kickoff - 24 h, with or without a lineup; its outcomes are -1 / NaN."""
     app = inp.appearances.sort("kickoff", "match_id")
     us = 1_000_000
     ctx = _ctx_sides(inp.context)
     coach = {(m, t): c for m, t, c in inp.coaches.select("match_id", "team_id", "coach_ref")
              .iter_rows()}  # fmt: skip
     clubs = _other_club_times(app)
-    want: dict[int, list[tuple[int, str, int, str]]] = defaultdict(list)
-    for m, lg, yr, h, a in inp.targets.select(
-        "match_id", "league_ref", "season", "home_team_id", "away_team_id"
+    want: dict[int, list[tuple[int, str, int, str, int | None]]] = defaultdict(list)
+    tg = inp.targets
+    if "as_of" not in tg.columns:
+        tg = tg.with_columns(as_of=pl.lit(None, pl.Datetime("us", "UTC")))
+    for m, lg, yr, h, a, t in tg.select(
+        "match_id",
+        "league_ref",
+        "season",
+        "home_team_id",
+        "away_team_id",
+        pl.col("as_of").dt.epoch("us"),
     ).iter_rows():
-        want[h].append((m, lg, yr, "home"))
-        want[a].append((m, lg, yr, "away"))
+        want[h].append((m, lg, yr, "home", t))
+        want[a].append((m, lg, yr, "away", t))
     rows: list[pl.DataFrame] = []
     tms: list[dict[str, object]] = []
     for (team,), g in app.filter(pl.col("team_id").is_in(list(want))).group_by(
@@ -136,11 +146,14 @@ def build(inp: Inputs) -> tuple[pl.DataFrame, pl.DataFrame]:
             posn[i, k] = POS.index(ps) if ps in POS else -1
         coaches = [coach.get((int(m), team)) for m in mids]
         squad = o > OUT
-        for m, lg, yr, side in want[team]:
-            if m not in col:
+        for m, lg, yr, side, t_given in want[team]:
+            j = col.get(m)
+            if t_given is not None:
+                as_of = int(t_given)  # a served projection: as of its generation time
+            elif j is None:
                 continue  # no lineup for this team in this match
-            j = col[m]
-            as_of = times[j] - int(HORIZON.total_seconds()) * us
+            else:
+                as_of = times[j] - int(HORIZON.total_seconds()) * us
             cutoff = as_of - int(RESULT_LAG.total_seconds()) * us
             p_idx = int(np.searchsorted(times, cutoff, "right")) - 1
             if p_idx < 0:
@@ -215,7 +228,8 @@ def build(inp: Inputs) -> tuple[pl.DataFrame, pl.DataFrame]:
                 "next_continental": np.full(n, float(nk == "continental")),
                 "dead_rubber": np.full(n, float(imp == "dead_rubber")),
                 "must_win": np.full(n, float(imp == "must_win")),
-                "y": o[idx, j].astype(np.int64), "minutes_nt": mins[idx, j],
+                "y": o[idx, j].astype(np.int64) if j is not None else np.full(len(idx), -1),
+                "minutes_nt": mins[idx, j] if j is not None else np.full(len(idx), np.nan),
                 # minutes in the team's last EW_SPAN matches (NaN before the team's history)
                 "m_hist": np.concatenate(
                     [mins[np.ix_(idx, ks)], np.full((n, EW_SPAN - len(ks)), np.nan)], axis=1
@@ -223,16 +237,19 @@ def build(inp: Inputs) -> tuple[pl.DataFrame, pl.DataFrame]:
                 "n_club": np.minimum(p_idx - first + 1, EW_SPAN),
             })  # fmt: skip
             rows.append(df)
-            new = squad[:, j] & ~pool
             bench_hist = (o[:, max(p_idx - 4, 0) : p_idx + 1] == BENCH).sum(axis=0)
+            if j is not None:
+                new = squad[:, j] & ~pool
+                out_j = {"new_start": int((o[new, j] == START).sum()),
+                         "new_bench": int((o[new, j] == BENCH).sum()),
+                         "bench_actual": int((o[:, j] == BENCH).sum()),
+                         "starters": int((o[:, j] == START).sum())}  # fmt: skip
+            else:
+                out_j = {"new_start": -1, "new_bench": -1, "bench_actual": -1, "starters": -1}
             tms.append({
                 "match_id": m, "team_id": team, "league_ref": lg, "season": yr,
                 "as_of_us": int(as_of), "pool": n,
-                "new_start": int((o[new, j] == START).sum()),
-                "new_bench": int((o[new, j] == BENCH).sum()),
-                "bench_actual": int((o[:, j] == BENCH).sum()),
-                "bench_expected": float(bench_hist.mean()),
-                "starters": int((o[:, j] == START).sum()),
+                "bench_expected": float(bench_hist.mean()), **out_j,
             })  # fmt: skip
     players_df = pl.concat(rows) if rows else pl.DataFrame()
     return players_df, pl.DataFrame(tms)

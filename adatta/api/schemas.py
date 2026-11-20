@@ -191,10 +191,29 @@ class Absence(BaseModel):
     since: datetime  # the spell's start: when the feed first listed it
 
 
+class ProjectedPlayer(BaseModel):
+    """P3-b's projection for one pool player (no injury input: `status` is the feed's, shown
+    beside it, not used by the model)."""
+
+    name: str
+    pos: str
+    p_start: float
+    p_bench: float
+    emin: float  # expected minutes overall
+    status: str | None  # "out" / "doubtful" from the injury feed, else None
+
+
+class Projection(BaseModel):
+    generated_at: datetime
+    as_of: datetime
+    refit_as_of: datetime
+
+
 class TeamSquad(BaseModel):
     team: str
     lineup: Lineup | None
     absences: list[Absence]
+    projected: list[ProjectedPlayer] = []
 
 
 class Squad(BaseModel):
@@ -204,6 +223,7 @@ class Squad(BaseModel):
     status_checked_at: datetime | None  # last successful status capture of the competition
     lineup_note: str | None  # why there is no lineup yet, when there isn't one
     hidden_reason: str | None  # set (and no players listed) for non-senior team levels
+    projection: Projection | None = None  # the latest projected lineup run shown
     home: TeamSquad
     away: TeamSquad
 

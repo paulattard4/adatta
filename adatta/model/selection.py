@@ -373,6 +373,40 @@ def run_part(players: pl.DataFrame, teams: pl.DataFrame, leagues: list[str], sea
     return (pl.concat(out) if out else pl.DataFrame()), diags
 
 
+def serve_refit(store: Any, session: Any, bundle: str, leagues: list[str], now: datetime,
+                draws: int = DRAWS, force: bool = False) -> dict[str, Any]:  # fmt: skip
+    """The serving refit of one bundle (docs/DASHBOARD_TASKS.md, projected lineups): P3-b
+    as on dev, fitted at the latest time of the dev 28-day grid at or before `now` on the
+    TRAIN_DAYS of rows final by then; stored and made the bundle's latest only if it passes
+    the gates. Skipped unless the latest passing refit is REFIT_DAYS old (or `force`)."""
+    from adatta.sim import lineups as sl
+
+    if not force and not sl.due(store, bundle, now):
+        return {"bundle": bundle, "skipped": "not due"}
+    season = now.year if now.month >= 7 else now.year - 1
+    inp = ev.load_inputs(session, store, leagues, max(season, ev.LIVE_FROM), live=True)
+    players, teams = sel.build(inp)
+    rows = with_times(players.filter(pl.col("league_ref").is_in(leagues)), teams)
+    rows = rows.with_columns(final_at=rows["as_of"] + sel.HORIZON + RESULT_LAG)
+    first = rows.filter(pl.col("season").is_in(ev.DEV))["as_of"].min()
+    t = refit_times(pl.DataFrame({"as_of": [first, now]}))[-1]
+    train = rows.filter((pl.col("final_at") <= t)
+                        & (pl.col("as_of") > t - timedelta(days=TRAIN_DAYS)))  # fmt: skip
+    tm_train = teams.join(train.select("match_id", "team_id").unique(), on=["match_id", "team_id"])
+    d = design(train)
+    timings: dict[str, float] = {}
+    fits = fit(d, train, draws, timings=timings)
+    checks = convergence(fits)
+    ok = all(c.passed for c in checks if c.blocking)
+    meta = {"bundle": bundle, "as_of": t.isoformat(), "train_rows": len(train), "gates_ok": ok,
+            "fit_s": sum(timings.values()), **{c.name: c.value for c in checks}}  # fmt: skip
+    key = sl.refit_key(bundle, t)
+    store.put(key, sl.encode(posterior(fits), d, ev.newcomer_rates(tm_train), meta))
+    if ok:
+        store.put(sl.latest_key(bundle), json.dumps({"key": key, "as_of": t.isoformat()}).encode())
+    return meta
+
+
 def merge_override(base: pl.DataFrame, base_diags: list[dict[str, Any]], over: pl.DataFrame,
                    over_diags: list[dict[str, Any]],
                    ) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
@@ -426,6 +460,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     r.add_argument("--part", default="0/1", help="i/n: every n-th refit block from the i-th")
     r.add_argument("--only", default="", help="comma-separated refit dates (a rerun)")
     r.add_argument("--live", action="store_true", help="P3-e (f): a live season")
+    sr = sub.add_parser("serve-refit", help="the serving refit of one bundle (projected lineups)")
+    sr.add_argument("--bundle", required=True)
+    sr.add_argument("--force", action="store_true", help="refit even if not due")
     a = sub.add_parser("assemble")
     a.add_argument("--fetch", required=True)
     a.add_argument("--bundles", required=True)
@@ -435,8 +472,19 @@ def main(argv: Sequence[str] | None = None) -> None:
     a.add_argument("--override", default="", help="a rerun whose refits replace the base's")
     args = p.parse_args(argv)
     store = make_store(get_settings())
-    players, teams, digest = ev.load_table(store, args.table)
     cfg = harness.load_config()
+    if args.cmd == "serve-refit":
+        from adatta.db.session import get_session
+
+        with get_session() as session:
+            meta = serve_refit(store, session, args.bundle,
+                               [str(x) for x in cfg.bundles[args.bundle]], datetime.now(UTC),
+                               force=args.force)  # fmt: skip
+        print(json.dumps(meta, default=str))
+        if meta.get("gates_ok") is False:
+            raise SystemExit(f"serving refit {args.bundle} failed the gates: not served")
+        return
+    players, teams, digest = ev.load_table(store, args.table)
     if args.cmd == "run":
         leagues = [str(x) for x in cfg.bundles[args.bundle]]
         i, n = (int(x) for x in args.part.split("/"))

@@ -64,9 +64,12 @@ export interface Unavailable { panel: string; reason: string }
 export interface SquadPlayer { name: string; number: number | null; pos: string | null }
 export interface Lineup { observed_at: string; formation: string | null; coach: string | null; starters: SquadPlayer[]; bench: SquadPlayer[] }
 export interface Absence { name: string; status: "out" | "doubtful" | string; reason: string | null; since: string }
-export interface TeamSquad { team: string; lineup: Lineup | null; absences: Absence[] }
+export interface ProjectedPlayer { name: string; pos: string; p_start: number; p_bench: number; emin: number; status: string | null }
+export interface Projection { generated_at: string; as_of: string; refit_as_of: string }
+export interface TeamSquad { team: string; lineup: Lineup | null; absences: Absence[]; projected: ProjectedPlayer[] }
 export interface Squad {
   as_of: string; status_checked_at: string | null; lineup_note: string | null; hidden_reason: string | null;
+  projection: Projection | null;
   home: TeamSquad; away: TeamSquad;
 }
 

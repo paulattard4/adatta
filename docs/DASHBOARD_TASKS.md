@@ -396,3 +396,57 @@ Acceptance, refit milestone (D41, stated 2026-11-20, before building):
       forecasts 10-11 days old with the 16 Nov refit named (the list said 4.3 days for all of
       them before); match 108 page and row agree. The first capture tick after the push writes
       the refit milestones.
+
+## Projected lineups (requested 2026-11-20)
+
+Owner: "yes simple first then proceed with using injury feed". Before the lineup is
+announced, show each upcoming fixture's projected XI, bench and minutes from P3-b, which
+passed on dev (docs/PHASE3_TASKS.md) but is not served. P3-b does not use the injury feed:
+status cannot be reconstructed for past seasons (D39). So this first version shows the feed
+next to the projection and says plainly that the model doesn't use it. A status-informed
+version follows with its own acceptance, judged on live data (D39).
+
+Acceptance (stated 2026-11-20, before building):
+1. **The validated model, unchanged.** Projections are P3-b as it passed on dev: the same
+   features, design, sub-models, coherence (11 starters with one goalkeeper, the expected
+   bench size, the newcomer allowance) and minutes. Fitted on CI every 28 days on the 730
+   days of rows final by the refit time, 500 draws per chain. A refit that fails the gates
+   (R-hat, ESS, divergences) is not served; the previous passing one is used, and an alert
+   says so. Tested: the serving path gives exactly the dev path's numbers for the same
+   rows and draws.
+2. **Features for fixtures not played yet.** The pool and every feature are built as of
+   the generation time t (at most kickoff - 24 h, as on dev, or earlier): appearances final
+   by t - RESULT_LAG, the same 365-day pool rule. The h48 context snapshot gives rest days,
+   days to next and the next match's kind where it has the fixture. Where it doesn't, the
+   value is missing and takes the training mean, as on dev, and the count is reported.
+   Tested: a played match rebuilt as "not played yet" gives the dev features, and nothing
+   after t changes them.
+3. **Daily, stored, as of.** A daily job projects every regular-season bundle fixture
+   kicking off in the next 7 days, after rebuilding the live season's appearances. Rows go
+   to a new table `lineup_projection` (forward-only migration): match, team, player,
+   generated_at, the serving refit, P(start), P(bench), P(out), and expected minutes as a
+   starter, from the bench, and overall. Each run adds rows and never edits earlier ones,
+   so what was shown can be scored later.
+4. **Shown honestly.** The match page's squad panel adds "Projected lineup (P3-b)" per
+   side: players by P(start) with P(start), P(bench) and expected minutes, the generation
+   time and the refit date. A player the injury feed lists as out or doubtful carries that
+   tag with "not used by the model". Once the lineup is announced the announced one leads
+   and the projection stays below it, labelled as the pre-announcement projection. Senior
+   team levels only (principle 10). No odds.
+5. Read-only API and no odds (existing tests); ruff, mypy, pytest, lint and typecheck pass;
+   checked in the browser on an upcoming fixture at desktop and phone width.
+- **Built 2026-11-20 (runs and the browser check pending):**
+  - `features.selection.build` takes an `as_of` per target, for a fixture not played yet;
+    dev targets build exactly as before;
+  - `model.selection serve-refit --bundle B`: the serving refit (dev grid, 730 days, 500
+    draws, gates). It is stored under `serving/lineups/<bundle>/`, and made the bundle's
+    latest only if it passes;
+  - `adatta/sim/lineups.py` and `adatta lineups-project`: the daily projection into
+    `lineup_projection` (migration 0016, applied 2026-11-20);
+  - the squad panel's "Projected lineup (P3-b)" block, with injury tags marked as not used
+    by the model;
+  - `.github/workflows/projected_lineups.yml`: daily at 04:41 UTC. It rebuilds the
+    appearances, refits when due, then projects;
+  - `tests/test_projected_lineups.py` (5): unplayed-fixture features against dev; the
+    serving path against the dev path, and the refit's storage; refits due every 28 days;
+    which fixtures are projected and their as-of; the panel's latest run and injury tags.

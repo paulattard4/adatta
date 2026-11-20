@@ -1209,6 +1209,23 @@ def appearances_build(
     typer.echo(counts)
 
 
+@app.command("lineups-project")
+def lineups_project() -> None:
+    """Projected lineups (docs/DASHBOARD_TASKS.md): P3-b's selection and minutes for every
+    regular-season bundle fixture of the next 7 days, from each bundle's latest passing
+    serving refit, appended to lineup_projection. No API requests. Counts only."""
+    from adatta.eval import harness
+    from adatta.sim import lineups
+
+    cfg = harness.load_config()
+    with get_session() as session:
+        rep = lineups.run(session, make_store(get_settings()), cfg.bundles)
+        session.commit()
+    typer.echo(json.dumps(rep))
+    if rep["no_refit"]:
+        raise typer.Exit(code=1)  # a bundle with fixtures but no passing serving refit
+
+
 @app.command("appearances-report")
 def appearances_report(
     max_season: int = typer.Option(2023, help="last season reported (dev ends 2023)"),

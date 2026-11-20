@@ -1,0 +1,76 @@
+# Projected lineups (docs/DASHBOARD_TASKS.md): P3-b served for upcoming fixtures. Daily:
+# rebuild the live season's appearances from stored payloads (no API requests); refit P3-b
+# per bundle when its latest passing serving refit is 28 days old (a refit failing the gates
+# is stored but not served, and the job fails so the alert email goes out); then project
+# every regular-season bundle fixture of the next 7 days into lineup_projection.
+# The repo is public: logs carry counts only. The refit job is a backtest-type load (five
+# PyMC fits); it runs only when due, at 04:41 UTC, away from the usual backtest hours.
+name: projected_lineups
+on:
+  schedule:
+    - cron: "41 4 * * *"
+  workflow_dispatch:
+    inputs:
+      force_refit:
+        description: "refit every bundle now, due or not"
+        default: "false"
+permissions:
+  contents: read
+concurrency:
+  group: projected_lineups
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  appearances:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: live season appearances
+        run: |
+          y=$(date -u +%Y); m=$(date -u +%m)
+          if [ "$m" -lt 7 ]; then y=$((y - 1)); fi
+          uv run --frozen adatta appearances-build --season "$y" --rebuild
+  refit:
+    needs: appearances
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        bundle: ["england", "spain", "italy", "germany", "france"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: serving refit when due
+        run: |
+          force=""
+          if [ "${{ inputs.force_refit }}" = "true" ]; then force="--force"; fi
+          uv run --frozen --group model python -m adatta.model.selection serve-refit \
+            --bundle ${{ matrix.bundle }} $force
+  project:
+    needs: [appearances, refit]
+    if: ${{ !cancelled() && needs.appearances.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: project the next 7 days
+        run: uv run --frozen --group model adatta lineups-project

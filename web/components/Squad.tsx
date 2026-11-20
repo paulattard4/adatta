@@ -1,5 +1,37 @@
-import { kickoffLocal } from "@/lib/format";
-import type { Absence, Lineup, Squad, SquadPlayer, TeamSquad } from "@/lib/types";
+import { dateLocal, kickoffLocal, pct } from "@/lib/format";
+import type { Absence, Lineup, ProjectedPlayer, Projection, Squad, SquadPlayer, TeamSquad } from "@/lib/types";
+
+const SHOW_MIN = 0.1; // pool players with P(start) + P(bench) below this are left out of the list
+
+function Projected({ xs, pr, announced }: { xs: ProjectedPlayer[]; pr: Projection; announced: boolean }) {
+  const shown = xs.filter((p) => p.p_start + p.p_bench >= SHOW_MIN);
+  return (
+    <>
+      <h4>{announced ? "Projected before the announcement" : "Projected lineup"} <span className="dim">· P3-b</span></h4>
+      <p className="squad-meta dim">
+        As of <span className="num">{kickoffLocal(pr.as_of)}</span> · refit <span className="num">{dateLocal(pr.refit_as_of)}</span>
+        {" "}· the model does not use the injury feed
+      </p>
+      <table className="proj">
+        <thead><tr><th>Player</th><th className="r">Start</th><th className="r">Bench</th><th className="r">Min</th></tr></thead>
+        <tbody>
+          {shown.map((p, i) => (
+            <tr key={`${p.name}-${i}`} className={i === 10 ? "proj-cut" : undefined}>
+              <td>
+                <span className="num dim proj-pos">{p.pos}</span> {p.name}
+                {p.status && <span className={`absence-tag ${p.status}`} title="listed by the injury feed; not used by the model">{p.status}</span>}
+              </td>
+              <td className="num r">{pct(p.p_start, 0)}%</td>
+              <td className="num r dim">{pct(p.p_bench, 0)}%</td>
+              <td className="num r dim">{p.emin.toFixed(0)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {shown.length < xs.length && <p className="squad-meta dim">{xs.length - shown.length} more in the pool, each under {pct(SHOW_MIN, 0)}% to be named.</p>}
+    </>
+  );
+}
 
 function Players({ xs }: { xs: SquadPlayer[] }) {
   return (
@@ -45,7 +77,7 @@ function Absences({ xs }: { xs: Absence[] }) {
   );
 }
 
-function Side({ t, checked, note }: { t: TeamSquad; checked: boolean; note: string | null }) {
+function Side({ t, checked, note, pr }: { t: TeamSquad; checked: boolean; note: string | null; pr: Projection | null }) {
   return (
     <div className="squad-side">
       <div className="squad-team">{t.team}</div>
@@ -54,6 +86,7 @@ function Side({ t, checked, note }: { t: TeamSquad; checked: boolean; note: stri
         : t.absences.length === 0 ? <p className="dim squad-meta">No absences listed by the feed.</p>
         : <Absences xs={t.absences} />}
       {t.lineup ? <LineupBlock lu={t.lineup} /> : <><h4>Lineup</h4><p className="dim squad-meta">{note ?? "No lineup captured."}</p></>}
+      {pr && t.projected.length > 0 && <Projected xs={t.projected} pr={pr} announced={t.lineup !== null} />}
     </div>
   );
 }
@@ -65,8 +98,8 @@ export function SquadPanel({ s }: { s: Squad }) {
   return (
     <>
       <div className="squad">
-        <Side t={s.home} checked={checked} note={s.lineup_note} />
-        <Side t={s.away} checked={checked} note={s.lineup_note} />
+        <Side t={s.home} checked={checked} note={s.lineup_note} pr={s.projection} />
+        <Side t={s.away} checked={checked} note={s.lineup_note} pr={s.projection} />
       </div>
       <p className="squad-foot dim">
         As of <span className="num">{kickoffLocal(s.as_of)}</span>

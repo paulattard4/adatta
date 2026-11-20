@@ -576,6 +576,35 @@ class MarketProjection(Base):
     )
 
 
+class LineupProjection(Base):
+    """P3-b's projected selection and minutes for one player of an upcoming fixture, as of
+    `as_of` (docs/DASHBOARD_TASKS.md, projected lineups). Append-only: a later run adds rows
+    and never edits earlier ones, so what was shown can be scored. No odds, no injury input
+    (P3-b uses neither); `refit_key` names the serving refit's stored draws."""
+
+    __tablename__ = "lineup_projection"
+    lineup_projection_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True,
+                                                      autoincrement=True)  # fmt: skip
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    team_id: Mapped[int] = mapped_column(ForeignKey("team.team_id"))
+    player_id: Mapped[int] = mapped_column(ForeignKey("player.player_id"))
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    refit_key: Mapped[str] = mapped_column(String(255))
+    refit_as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    pos: Mapped[str] = mapped_column(String(4))  # G / D / M / F / U (the player's usual line)
+    p_start: Mapped[float] = mapped_column(Float)
+    p_bench: Mapped[float] = mapped_column(Float)
+    p_out: Mapped[float] = mapped_column(Float)
+    emin_start: Mapped[float] = mapped_column(Float)  # expected minutes given a start
+    emin_bench: Mapped[float] = mapped_column(Float)  # expected minutes given the bench
+    emin: Mapped[float] = mapped_column(Float)  # expected minutes overall
+    __table_args__ = (
+        CheckConstraint("p_start >= 0 AND p_start <= 1", name="ck_lineup_proj_start"),
+        Index("ix_lineup_projection_match", "match_id", "generated_at"),
+    )
+
+
 class MatchCoach(Temporal, Base):
     """The coach named in a team's lineup for one match (Phase 1b, D12), parsed from the
     stored detail payload. Known from the lineup release, about an hour before kickoff; the

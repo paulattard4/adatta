@@ -1484,7 +1484,8 @@ Consequences:
       (passed on dev) and the slot codes, combined with P3-b's starts into a lineup slot by
       slot.
 
-      Acceptance (draft, stated 2026-11-20 before building; no P3-g score has been computed.
+      Acceptance (stated 2026-11-20 before building, owner: "Approve as drafted"; no P3-g
+      score has been computed.
       Seen so far: P3-c's dev results, including role assignment 88.3% given the actual XI
       and formation; P3-b's dev results):
 

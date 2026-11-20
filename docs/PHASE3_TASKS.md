@@ -1092,9 +1092,9 @@ Consequences:
       unchanged, and no lineup offset enters it (D40).
 
       Acceptance (stated 2026-11-19 before building, owner: "Approve as drafted"; no
-      P3-e score has been computed. Seen so far: P3-d0's dev result, including goals vs R1 +0.15% and summed
-      player expected goals per team-match E/O 1.021, correlation 0.160 with team goals;
-      P3-d's dev result):
+      P3-e score has been computed. Seen so far: P3-d0's dev result, including goals vs R1
+      +0.15% and summed player expected goals per team-match E/O 1.021, correlation 0.160
+      with team goals; P3-d's dev result):
 
       **Scope.**
       - Two statistics: goals (own goals excluded, §7.4) and assists. Shots on target,
@@ -1185,3 +1185,27 @@ Consequences:
       P is read from the fit cache, with no refits. The cache stays valid while
       `team_strength.py`, `covariates.py`, `config/evaluation.yml` and `uv.lock` are
       unchanged since 53d091b. Each is one backtest-type run, one at a time.
+
+      **Build (2026-11-20), before any run:**
+      - **Code:**
+        - `adatta/features/scorers.py`: the player table (squad and P3-b pool rows, e at
+          lk and T-24h, q as starter and substitute, R0 and R1, outcomes with P3-d0's
+          null rule, penalty goals, o and α as of each target, the under-18 flag);
+        - `adatta/eval/scorers.py`: the thinned allocation, B0, B_line and B_R1, the
+          metrics, consistency, the pass rule (e) and the report;
+        - `adatta/model/scorers.py`: the pmf stage (P from the fit cache; a missing fit
+          stops the job, never refits), the table with its leakage check, and assemble;
+        - `lineup quality --stat assists`, and `lineup_offset.quality` takes the statistic
+          and the substitute flag (P3-d's defaults unchanged);
+        - `backtest.score_targets(pmf=True)`: each side's goal distribution, the margins
+          of the posterior-mean score matrix.
+      - **CI:** `.github/workflows/scorers.yml`, run in four stages: quality (assists),
+        pmf, table, assemble.
+      - **Tests:** `tests/test_scorers.py` (7): the table's minutes, rates, outcomes and
+        shares; nothing from the match or later changes an input; the under-18 flag;
+        thinning against the binomial and Poisson closed forms; the allocation sums to
+        the team rate; the T-24h population; the pass rule.
+      - **Fit cache checked:** P's hash is a215d52e759864ed now and in P3-d's dev run, so
+        the pmf stage reads its 928 fits.
+      - **Order of runs,** one at a time: quality (assists, about 1-2 h), pmf (25 jobs),
+        table, assemble.

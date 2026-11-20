@@ -1,8 +1,9 @@
 """P3-d: lineup offset in the likelihood vs serving-only (docs/PHASE3_TASKS.md P3-d; §7.5).
 
 CLI (CI, model group; one backtest-type run at a time):
-  quality  --upload RUN [--part i/n] [--draws 2000]
-           the P3-d0 goals hyperparameters at the warm-up refit and every dev refit
+  quality  --upload RUN [--part i/n] [--draws 2000] [--stat goals|assists]
+           the P3-d0 goals (or assists, P3-e) hyperparameters at the warm-up refit and
+           every dev refit
            (posterior draws to R2: lineup/quality/RUN/<time>.npz)
   table    --quality RUN --export REPORT [--rates latest]
            the offset table (features.lineup_offset) and its leakage check, to R2
@@ -87,7 +88,9 @@ def load_posts(store: RawStore, run: str,
 
 
 def run_quality(store: RawStore, run: str, part: tuple[int, int], draws: int,
-                rates_ref: str) -> None:  # fmt: skip
+                rates_ref: str, stat: str = lo.STAT) -> None:  # fmt: skip
+    """P3-d0's hyperparameters for `stat` (goals for P3-d; assists for P3-e) at the warm-up
+    refit and every dev refit, line level."""
     from adatta.model import rates as mr
 
     table, _, digest = fr.load(store, rates_ref)
@@ -97,15 +100,16 @@ def run_quality(store: RawStore, run: str, part: tuple[int, int], draws: int,
     times = quality_times(rows)
     diags = []
     for t in times[part[0] :: part[1]]:
-        _, post, diag = mr.one_fit(mr._window(rows, t), d, lo.STAT, draws)
+        _, post, diag = mr.one_fit(mr._window(rows, t), d, stat, draws)
         keep = ("log_mu", "log_l", "b", "log_k")
         store.put(quality_key(run, t), _npz({k: post[k] for k in keep}))
         diags.append({**diag, "refit": t.isoformat()})
-        print(f"quality refit {t:%Y-%m-%d}: fit {diag['fit_s']:.0f} s, rhat {diag['rhat']:.3f}, "
-              f"gates {'ok' if diag['gates_ok'] else 'FAIL'}", flush=True)  # fmt: skip
+        print(f"quality {stat} refit {t:%Y-%m-%d}: fit {diag['fit_s']:.0f} s, "
+              f"rhat {diag['rhat']:.3f}, gates {'ok' if diag['gates_ok'] else 'FAIL'}",
+              flush=True)  # fmt: skip
     store.put(
         f"{PREFIX}/quality/{run}/diags_{part[0]}of{part[1]}.json",
-        json.dumps({"rates": digest, "diags": diags}, default=str).encode(),
+        json.dumps({"rates": digest, "stat": stat, "diags": diags}, default=str).encode(),
     )
 
 
@@ -417,6 +421,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     q.add_argument("--part", default="0/1")
     q.add_argument("--draws", type=int, default=QUALITY_DRAWS)
     q.add_argument("--rates", default="latest")
+    q.add_argument("--stat", default=lo.STAT, choices=("goals", "assists"))
     t = sub.add_parser("table")
     t.add_argument("--quality", required=True)
     t.add_argument("--export", required=True, help="selection report id with the P3-d export")
@@ -444,7 +449,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     store = make_store(get_settings())
     if args.cmd == "quality":
         i, n = (int(x) for x in args.part.split("/"))
-        run_quality(store, args.upload, (i, n), args.draws, args.rates)
+        run_quality(store, args.upload, (i, n), args.draws, args.rates, args.stat)
     elif args.cmd == "table":
         build_table(store, args.quality, args.export, args.rates)
     elif args.cmd == "run":

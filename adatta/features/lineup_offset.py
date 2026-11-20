@@ -94,17 +94,20 @@ def refit_for(times: list[datetime], t: datetime) -> datetime:
 
 
 def quality(rows: pl.DataFrame, hist: pl.DataFrame, posts: Mapping[datetime, dict[str, Arr]],
-            leagues: tuple[str, ...]) -> pl.DataFrame:  # fmt: skip
-    """q per row of (match_id, team_id, player_id, line, kickoff, league_ref): expected goals
-    per 90 as of kickoff - 24 h. `hist` is the P3-d0 counts table; `posts` maps each goals
-    refit time to its hyperparameter draws (log_mu, log_l, b, log_k)."""
+            leagues: tuple[str, ...], stat: str = STAT, sub: bool = False,
+            ) -> pl.DataFrame:  # fmt: skip
+    """q per row of (match_id, team_id, player_id, line, kickoff, league_ref): expected
+    `stat` per 90 as of kickoff - 24 h (a substitute appearance with `sub`). `hist` is the
+    P3-d0 counts table; `posts` maps each refit time of that statistic to its
+    hyperparameter draws (log_mu, log_l, b, log_k). Also the as-of history: hist_e (90s)
+    and hist_y (count)."""
     d = er.Design(leagues)
     h = d.frame(hist)
     times = sorted(posts)
     keys = ["match_id", "team_id", "player_id", "line"]
     base = rows.select(*keys, "kickoff", "league_ref").unique(keys).with_columns(
-        sub=pl.lit(False), new_club=pl.lit(False), ret=pl.lit(False), slot=pl.lit(None, pl.Utf8),
-        e=pl.lit(1.0), **{f"y_{STAT}": pl.lit(0, pl.Int32)},
+        sub=pl.lit(sub), new_club=pl.lit(False), ret=pl.lit(False), slot=pl.lit(None, pl.Utf8),
+        e=pl.lit(1.0), **{f"y_{stat}": pl.lit(0, pl.Int32)},
     )  # fmt: skip
     ref = [refit_for(times, k - fr.HORIZON) for k in base["kickoff"].to_list()]
     base = base.with_columns(ref=pl.Series(ref, dtype=pl.Datetime("us", "UTC")))
@@ -113,13 +116,14 @@ def quality(rows: pl.DataFrame, hist: pl.DataFrame, posts: Mapping[datetime, dic
         post = posts[r]
         for i in range(0, g.height, CHUNK):
             chunk = d.frame(g.slice(i, CHUNK))
-            b = er.block_arrays(h, chunk, STAT)
-            p = er.predict(post, d, b, STAT)
-            out.append(b.rows.select(*keys).with_columns(q=pl.Series(p.mean),
-                                                         hist_e=pl.Series(b.E90)))  # fmt: skip
-    return pl.concat(out) if out else pl.DataFrame(
-        schema={**{k: rows.schema[k] for k in keys}, "q": pl.Float64, "hist_e": pl.Float64}
-    )  # fmt: skip
+            b = er.block_arrays(h, chunk, stat)
+            p = er.predict(post, d, b, stat)
+            out.append(b.rows.select(*keys).with_columns(
+                q=pl.Series(p.mean), hist_e=pl.Series(b.E90), hist_y=pl.Series(b.Y),
+            ))  # fmt: skip
+    schema: dict[str, Any] = {**{k: rows.schema[k] for k in keys}, "q": pl.Float64,
+                              "hist_e": pl.Float64, "hist_y": pl.Float64}  # fmt: skip
+    return pl.concat(out) if out else pl.DataFrame(schema=schema)
 
 
 # ------------------------------------------------------------------------------- table

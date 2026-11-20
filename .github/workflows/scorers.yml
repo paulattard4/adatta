@@ -1,0 +1,130 @@
+# P3-e (docs/PHASE3_TASKS.md, restated 2026-11-19): goalscorer and assist forecasts allocated
+# from P's team goals, against B0, B_line and B_R1 on the dev seasons. Manual dispatch only,
+# one stage per run:
+#   quality  the P3-d0 assists hyperparameters at the warm-up refit and every dev refit
+#            (goals reuse P3-d's quality run)
+#   pmf      P's team goal distributions per bundle x dev season, from the fit cache only
+#   table    the player table and its leakage check
+#   assemble the pass rule (e) over a pmf run and a player table
+# The repo is public: logs and artifacts carry metrics only. Per-player and per-match rows
+# go to R2 (scorers/..., features/scorers/...), never to workflow artifacts. Holdout seasons
+# are refused. One backtest-type run at a time (backtest, gate, holdout, timing, cups,
+# selection, selection_rerun, formation, rates, lineup, scorers): two runs together fill the
+# account's 20 job slots and starve the capture.
+name: scorers
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "quality | pmf | table | assemble"
+        required: true
+      quality_parts:
+        description: "quality: JSON list of parts (i/n)"
+        default: '["0/4","1/4","2/4","3/4"]'
+      goals_quality:
+        description: "table: the goals quality run id (P3-d's)"
+        default: "44431797480"
+      assists_quality:
+        description: "table: the assists quality run id"
+        default: ""
+      export:
+        description: "table: the selection report id holding the P3-d export"
+        default: "44406512773"
+      pmf_run:
+        description: "assemble: the pmf run id"
+        default: ""
+      table:
+        description: "assemble: player table digest (latest = the newest stored)"
+        default: "latest"
+      bundles:
+        description: "pmf, assemble: JSON list of bundles"
+        default: '["england","spain","italy","germany","france"]'
+      seasons:
+        description: "pmf, assemble: JSON list of dev seasons"
+        default: "[2019,2020,2021,2022,2023]"
+permissions:
+  contents: read
+concurrency:
+  group: scorers
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  quality:
+    if: ${{ inputs.stage == 'quality' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        part: ${{ fromJSON(inputs.quality_parts) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: assists hyperparameters
+        run: >-
+          uv run --frozen --group model python -m adatta.model.lineup quality --stat assists
+          --upload ${{ github.run_id }} --part ${{ matrix.part }}
+  pmf:
+    if: ${{ inputs.stage == 'pmf' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        bundle: ${{ fromJSON(inputs.bundles) }}
+        season: ${{ fromJSON(inputs.seasons) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: P's team goal distributions
+        run: >-
+          uv run --frozen --group model python -m adatta.model.scorers pmf
+          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }} --upload ${{ github.run_id }}
+  table:
+    if: ${{ inputs.stage == 'table' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: player table
+        run: >-
+          uv run --frozen --group model python -m adatta.model.scorers table
+          --goals ${{ inputs.goals_quality }} --assists ${{ inputs.assists_quality }}
+          --export ${{ inputs.export }}
+  assemble:
+    if: ${{ inputs.stage == 'assemble' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: assemble
+        env:
+          BUNDLES: ${{ inputs.bundles }}
+          SEASONS: ${{ inputs.seasons }}
+        run: |
+          b=$(echo "$BUNDLES" | uv run python -c "import json,sys; print(','.join(json.load(sys.stdin)))")
+          s=$(echo "$SEASONS" | uv run python -c "import json,sys; print(','.join(map(str, json.load(sys.stdin))))")
+          uv run --frozen --group model python -m adatta.model.scorers assemble \
+            --pmf ${{ inputs.pmf_run }} --bundles "$b" --seasons "$s" \
+            --table ${{ inputs.table }} | tee -a "$GITHUB_STEP_SUMMARY"

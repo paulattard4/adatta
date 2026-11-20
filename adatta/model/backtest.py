@@ -233,7 +233,7 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
                   groups: Sequence[str] = (), horizon_ctx: timedelta = cv.HEADLINE_HORIZON,
                   walk: hz.Walk | None = None, exact: bool = False,
                   extra_offset: tuple[NDArray[np.float64], NDArray[np.float64]] | None = None,
-                  ) -> list[dict[str, Any]]:  # fmt: skip
+                  pmf: bool = False) -> list[dict[str, Any]]:  # fmt: skip
     """Per target: markets from the posterior-mean score matrix, their scores, tail mass.
     Prediction time (Phase 2, M1): the refit's draws (fitted as of the plan date) with each
     target's own context row, observed by kickoff - horizon_ctx (the headline T - 1 h);
@@ -242,7 +242,9 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
     `exact` adds the 90' score's log loss, -log P(hg, ag), and each draw's rates, rho and
     kappa (`draws_*`), so a later term can rescore the target (Stage A, A1 and A2).
     `extra_offset` (P3-d): per (match, draw) terms on log lambda_home and log lambda_away,
-    added to the others (the lineup offset times its coefficient)."""
+    added to the others (the lineup offset times its coefficient).
+    `pmf` (P3-e) adds each side's goal distribution, the margins of the posterior-mean
+    score matrix (`pmf_home`, `pmf_away`)."""
     tix = {int(t): i for i, t in enumerate(fd.team_ids)}
     lix = {lid: i for i, lid in enumerate(fd.leagues)}
     home = np.array([tix.get(int(t), -1) for t in targets["home"]], dtype=np.int64)
@@ -295,6 +297,8 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
                 "draws_lam": lam[k].tolist(), "draws_mu": mu_[k].tolist(),
                 "draws_rho": np.asarray(rho[k]).tolist(),
                 "draws_kappa": np.asarray(kappa[k]).tolist()} if exact else {}),  # fmt: skip
+            **({"pmf_home": m.sum(axis=1).tolist(), "pmf_away": m.sum(axis=0).tolist()}
+               if pmf else {}),  # fmt: skip
         })  # fmt: skip
     return out
 

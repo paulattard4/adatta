@@ -305,3 +305,44 @@ Acceptance (stated 2026-11-14, before building):
   and match pages. Checked at 375, 800, 960, 1024 and 1280 px on the fixtures, played and
   three match pages (scheduled, live, finished): page width equals window width and no cell
   overflows.
+
+## Squad and availability panel (requested 2026-11-20)
+
+Owner: "Squad panel first". The match page's "Squad and lineup" entry is still in the
+not-available list, although the capture has been storing the injury feed daily since
+2026-11-05 (`player_status_snapshot`) and announced lineups from 75 minutes before kickoff
+(`lineup_snapshot`). This shows that captured data as it stood, with when it was seen. No
+model output: P3-b's selection model and P3-e's scorer forecasts are not served (P3-e (f)).
+
+Acceptance (stated 2026-11-20, before building):
+1. **Availability as of the match.** For each side, the status spells of this match valid at
+   t = min(now, kickoff): observed by t, not superseded by t, and not closed by t. Shown with
+   the player's name, "Out" (missing) or "Doubtful" (questionable), the reason, and since
+   when (the spell's start). A spell first seen after kickoff never shows; a spell the feed
+   cleared before t never shows. Unit-tested on a synthetic world, including both.
+2. **When the feed was checked.** The time of the last successful status capture of the
+   competition at or before t. Without one the panel says availability isn't captured for
+   this competition, so an empty list never reads as "no absences".
+3. **Lineups as announced.** Each side's `lineup_snapshot` observed by now: formation, coach,
+   starters and bench (number, name, position), with when it was first seen. Before one
+   exists: "not announced yet" with the polling start (75 minutes before kickoff) for a match
+   ahead, "not captured" for a match that has started.
+4. **Senior only (principle 10).** For any other team level the panel lists no players and
+   says why.
+5. The "Squad and lineup" entry leaves the not-available list. "Player projections" stays,
+   with its reason updated: P3-d failed (D40) and P3-e's scorer forecasts are not shown before
+   their live verdict.
+6. Read-only and no odds (the AST test still passes); ruff, mypy, pytest, lint and typecheck
+   pass; checked in the browser on a match with a lineup and one with absences, at desktop and
+   phone width (no sideways scroll).
+- [x] **Built 2026-11-20, passes (1–6):** `views.squad` and `MatchView.squad` (schemas
+      `Squad`, `TeamSquad`, `Lineup`, `Absence`, `SquadPlayer`), `web/components/Squad.tsx`,
+      a "Squad and availability" panel after the decomposition. `tests/test_squad_view.py`
+      (6 tests): spells as of min(now, kickoff), including one cleared before and one first
+      seen after kickoff; no capture is not "no absences"; lineups not shown before they were
+      seen; a started match without one says not captured; youth levels list no players; the
+      not-available list. `test_dashboard_api.py` now asserts the panel in place of the old
+      entry. Checked live: Bayern München v 1. FC Köln (5 absences a side, feed checked
+      03:37 UTC, lineup not announced yet) and Albacete v Celta de Vigo II on 16 Nov (both
+      lineups, first seen 23 minutes before kickoff), at desktop and phone width: no sideways
+      scroll, the two sides stack on a phone.

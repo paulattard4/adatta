@@ -31,9 +31,9 @@ COHERENCE_TOL = 1e-9
 QUANTILES = serve.INTERVAL
 
 UNAVAILABLE = [
-    sc.Unavailable(panel="Squad and lineup",
-                   reason="The lineup layer arrives in Phase 3; projections are team-level."),
-    sc.Unavailable(panel="Player projections", reason="Needs the lineup layer (Phase 3)."),
+    sc.Unavailable(panel="Player projections",
+                   reason="The lineup offset failed on dev (D40); scorer forecasts (P3-e) are "
+                          "not shown before their live verdict."),
     sc.Unavailable(panel="Half-split",
                    reason="Halves are deferred until half markets are needed (§8.2)."),
     sc.Unavailable(panel="Knockout", reason="Only regular-season fixtures are projected so far."),
@@ -504,8 +504,75 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
         milestones=milestones, matrix=matrix if coh is None or coh.coherent else None,
         decomposition=dec if coh is None or coh.coherent else [], coherence=coh,
         no_projection_reason=reason,
+        squad=squad(session, m, now),
         unavailable=UNAVAILABLE,
     )  # fmt: skip
+
+
+# --------------------------------------------------------------------------- squad panel
+
+LINEUP_POLL_FROM = timedelta(minutes=75)  # capture.snapshots.LINEUP_POLL_FROM
+STATUS_LABEL = {"missing": "out", "questionable": "doubtful"}
+
+
+def _lineup(row: models.LineupSnapshot | None) -> sc.Lineup | None:
+    if row is None:
+        return None
+
+    def players(xs: list[dict[str, Any]]) -> list[sc.SquadPlayer]:
+        return [sc.SquadPlayer(name=x.get("name") or "unnamed", number=x.get("number"),
+                               pos=x.get("pos")) for x in xs]  # fmt: skip
+
+    return sc.Lineup(observed_at=_utc(row.observed_at), formation=row.formation,
+                     coach=row.coach_name, starters=players(row.starters),
+                     bench=players(row.substitutes))  # fmt: skip
+
+
+def squad(session: Session, m: MatchRow, now: datetime) -> sc.Squad:
+    """The squad panel (docs/DASHBOARD_TASKS.md): status spells valid at min(now, kickoff),
+    the last status capture of the competition by then, and lineups seen by now. Senior
+    team levels only (principle 10)."""
+    t = min(now, m.kickoff)
+    L, P, PL, CL = (models.LineupSnapshot, models.PlayerStatusSnapshot, models.Player,
+                    models.CaptureLog)  # fmt: skip
+    checked = session.scalar(
+        select(CL.run_at).where(CL.job == "status", CL.scope == str(m.league_id),
+                                CL.outcome == "ok", CL.run_at <= t)
+        .order_by(CL.run_at.desc()).limit(1)
+    )  # fmt: skip
+    note = None
+    if m.kickoff > now:
+        note = f"Not announced yet: polled from {int(LINEUP_POLL_FROM.total_seconds() // 60)} "
+        note += "minutes before kickoff."
+    teams = {"home": (m.home_id, m.home), "away": (m.away_id, m.away)}
+    if m.team_level != "senior":
+        empty = {k: sc.TeamSquad(team=name, lineup=None, absences=[])
+                 for k, (_, name) in teams.items()}  # fmt: skip
+        return sc.Squad(as_of=t, status_checked_at=_utc(checked) if checked else None,
+                        lineup_note=None, hidden_reason="Players are not listed for "
+                        f"{m.team_level} teams (principle 10).", **empty)  # fmt: skip
+    lineups = {r.team_id: r for r in session.scalars(
+        select(L).where(L.match_id == m.match_id, L.observed_at <= now))}  # fmt: skip
+    spells = session.execute(
+        select(P, PL.name).join(PL, PL.player_id == P.player_id)
+        .where(P.match_id == m.match_id, P.observed_at <= t,
+               (P.superseded_at.is_(None)) | (P.superseded_at > t),
+               (P.valid_to.is_(None)) | (P.valid_to > t))
+        .order_by(P.status, PL.name)
+    ).all()  # fmt: skip
+    out = {}
+    for side, (tid, name) in teams.items():
+        lu = _lineup(lineups.get(tid))
+        absences = [sc.Absence(name=n, status=STATUS_LABEL.get(r.status, r.status),
+                               reason=r.reason, since=_utc(r.valid_from))
+                    for r, n in spells if r.team_id == tid]  # fmt: skip
+        out[side] = sc.TeamSquad(team=name, lineup=lu, absences=absences)
+    if note is None and (out["home"].lineup is None or out["away"].lineup is None):
+        note = "Not captured: no lineup was seen before kickoff."
+    if out["home"].lineup is not None and out["away"].lineup is not None:
+        note = None
+    return sc.Squad(as_of=t, status_checked_at=_utc(checked) if checked else None,
+                    lineup_note=note, hidden_reason=None, **out)  # fmt: skip
 
 
 # --------------------------------------------------------------------------- played view

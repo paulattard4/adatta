@@ -6,6 +6,7 @@ import { Heatmap } from "@/components/Heatmap";
 import { LIVE_REFRESH_MS, score } from "@/components/Live";
 import { MatchNav } from "@/components/MatchNav";
 import { ProbCell } from "@/components/Prob";
+import { SquadPanel } from "@/components/Squad";
 import { Waterfall } from "@/components/Waterfall";
 import { useJson, useNow } from "@/lib/fetch";
 import { cameIn, countdown, dateLocal, fairOdds, interval, kickoffLocal, liveClock, MARKET_LABEL, oddsInterval, pct, showsOdds, tierLabel } from "@/lib/format";
@@ -137,6 +138,13 @@ export default function MatchPage() {
         <section className="panel">
           <h3>Decomposition <span className="dim">· log expected goals, posterior mean and 90% interval per term</span></h3>
           <div className="waterfalls">{v.decomposition.map((d) => <Waterfall key={d.side} dec={d} />)}</div>
+        </section>
+      )}
+
+      {v.squad && (
+        <section className="panel">
+          <h3>Squad and availability <span className="dim">· as captured, not a model output</span></h3>
+          <SquadPanel s={v.squad} />
         </section>
       )}
 

@@ -85,7 +85,8 @@ def test_match_view_reproduces_the_published_milestone(tmp_path: Path) -> None:
         assert abs(sum(t.mean for t in dec.terms) - dec.log_rate.mean) < 1e-9
         assert not dec.cold_start
     assert [d.side for d in v.decomposition] == ["home", "away"]
-    assert {u.panel for u in v.unavailable} >= {"Squad and lineup", "Edge", "Override"}
+    assert {u.panel for u in v.unavailable} >= {"Player projections", "Edge", "Override"}
+    assert v.squad is not None  # the squad panel replaced the "Squad and lineup" entry
 
 
 def test_incoherent_recomputation_is_not_shown(tmp_path: Path) -> None:

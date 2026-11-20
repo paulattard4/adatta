@@ -168,6 +168,46 @@ class Unavailable(BaseModel):
     reason: str
 
 
+class SquadPlayer(BaseModel):
+    name: str
+    number: int | None
+    pos: str | None
+
+
+class Lineup(BaseModel):
+    """As announced: the lineup snapshot first seen before kickoff."""
+
+    observed_at: datetime
+    formation: str | None
+    coach: str | None
+    starters: list[SquadPlayer]
+    bench: list[SquadPlayer]
+
+
+class Absence(BaseModel):
+    name: str
+    status: str  # "out" (missing) or "doubtful" (questionable)
+    reason: str | None
+    since: datetime  # the spell's start: when the feed first listed it
+
+
+class TeamSquad(BaseModel):
+    team: str
+    lineup: Lineup | None
+    absences: list[Absence]
+
+
+class Squad(BaseModel):
+    """Captured availability and lineups as they stood at `as_of` = min(now, kickoff)."""
+
+    as_of: datetime
+    status_checked_at: datetime | None  # last successful status capture of the competition
+    lineup_note: str | None  # why there is no lineup yet, when there isn't one
+    hidden_reason: str | None  # set (and no players listed) for non-senior team levels
+    home: TeamSquad
+    away: TeamSquad
+
+
 class MatchView(BaseModel):
     generated_at: datetime
     header: Header
@@ -178,6 +218,7 @@ class MatchView(BaseModel):
     decomposition: list[Decomposition]
     coherence: Coherence | None
     no_projection_reason: str | None
+    squad: Squad | None = None
     unavailable: list[Unavailable]
 
 

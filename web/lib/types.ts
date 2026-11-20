@@ -61,10 +61,19 @@ export interface Coherence { milestone: string; coherent: boolean; max_abs_diff:
 
 export interface Unavailable { panel: string; reason: string }
 
+export interface SquadPlayer { name: string; number: number | null; pos: string | null }
+export interface Lineup { observed_at: string; formation: string | null; coach: string | null; starters: SquadPlayer[]; bench: SquadPlayer[] }
+export interface Absence { name: string; status: "out" | "doubtful" | string; reason: string | null; since: string }
+export interface TeamSquad { team: string; lineup: Lineup | null; absences: Absence[] }
+export interface Squad {
+  as_of: string; status_checked_at: string | null; lineup_note: string | null; hidden_reason: string | null;
+  home: TeamSquad; away: TeamSquad;
+}
+
 export interface MatchView {
   generated_at: string; header: Header; freshness: Freshness; confidence: Component[];
   milestones: Milestone[]; matrix: ScoreMatrix | null; decomposition: Decomposition[];
-  coherence: Coherence | null; no_projection_reason: string | null; unavailable: Unavailable[];
+  coherence: Coherence | null; no_projection_reason: string | null; squad: Squad | null; unavailable: Unavailable[];
 }
 
 export interface PlayedScores {

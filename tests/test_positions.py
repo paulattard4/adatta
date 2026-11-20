@@ -103,3 +103,57 @@ def test_history_is_as_of_the_target() -> None:
                          pl.DataFrame({"match_id": [105], "team_id": [1]}))  # fmt: skip
     r = res.row(0, named=True)
     assert r["overlap_g"] == 11 and r["slot_g"] == pytest.approx(9 / 11)
+
+
+# ------------------------------------------------------------------- restated: arrange B_top
+
+
+def test_arrange_puts_the_keeper_in_goal_and_never_an_outfielder() -> None:
+    slots = ps.slots_of(F433)
+    slot_gk = np.array([c == "GK" for c in slots])
+    rng = np.random.default_rng(1)
+    fits = rng.uniform(0.01, 1, (11, 11))
+    is_gk = np.zeros(11, bool)
+    is_gk[3] = True
+    out = ps.arrange(fits, is_gk, slot_gk)
+    assert out[0] == 3 and sorted(out.tolist()) == list(range(11))
+    none = ps.arrange(fits, np.zeros(11, bool), slot_gk)  # no keeper in the squad list
+    assert none[0] == -1 and (none[1:] >= 0).all() and len(set(none[1:].tolist())) == 10
+
+
+def test_place_last_keeps_last_codes_and_fills_the_rest_by_fit() -> None:
+    slots = ps.slots_of(F433)
+    is_gk = np.array([True] + [False] * 10)
+    fits = np.full((11, 11), 0.01)
+    for r in range(11):
+        fits[r, r] = 0.9  # every player fits his own slot best
+    codes: list[str | None] = [slots[0], slots[2], slots[1]] + [None] * 8
+    out = ps.place_last(codes, fits, is_gk, slots)
+    assert out[0] == 0 and out[2] == 1 and out[1] == 2  # swapped by last match
+    assert [int(out[s]) for s in range(3, 11)] == list(range(3, 11))  # the rest by fit
+
+
+def test_arranged_evaluation_on_a_settled_team() -> None:
+    inp = _world()
+    key = pl.DataFrame({"match_id": [105], "team_id": [1]})
+    res, calib = ps.evaluate(inp, key)
+    r = res.row(0, named=True)
+    assert r["overlap_a"] == r["overlap_top"] == 11 and r["placed_in_top"]
+    assert r["slot_a"] == pytest.approx(1.0) and r["slot_xl"] == pytest.approx(1.0)
+    assert r["gk_empty"] == 0 and r["a_G"] == 1 and r["n_D"] == 4
+    v = ps.verdict_arranged(res, calib, ps.leakage(inp, key, res))
+    assert v.checks[1]["pass"] and v.checks[3]["pass"]  # the XI is B_top's; leakage
+    assert "B_xi_last" in ps.markdown_arranged(res, v)
+
+
+def test_arranged_history_is_as_of_the_target() -> None:
+    inp = _world()
+    lu = inp.lineups.with_columns(
+        slot=pl.when((pl.col("match_id") == 105) & (pl.col("slot") == "LB")).then(pl.lit("RB"))
+        .when((pl.col("match_id") == 105) & (pl.col("slot") == "RB")).then(pl.lit("LB"))
+        .otherwise(pl.col("slot"))
+    )  # fmt: skip
+    res, _ = ps.evaluate(ps.Inputs(lu, inp.pool, inp.formations, inp.vocab),
+                         pl.DataFrame({"match_id": [105], "team_id": [1]}))  # fmt: skip
+    r = res.row(0, named=True)
+    assert r["slot_a"] == pytest.approx(9 / 11) and r["slot_xl"] == pytest.approx(9 / 11)

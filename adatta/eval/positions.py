@@ -12,6 +12,11 @@ For a team-match as of t (kickoff - 24 h, P3-b's horizon):
   XI          the one-player-per-slot assignment maximising sum log W (Hungarian)
 Baselines: B_top, the keeper plus the 10 outfield players most likely to start (the panel
 before P3-g); B_last, each slot's player in the team's last match in that formation.
+
+Restated (failed as above): the XI is B_top, and P3-g only arranges it - the keeper in the
+GK slot, the outfield players in the other slots by the assignment maximising sum log fit.
+B_xi_last places the same XI by each player's code in the team's last match in that
+formation, the rest by fit.
 Dev only (positional league-seasons); reads stored tables; metrics only.
 """
 
@@ -42,6 +47,8 @@ IPF_TOL = 1e-10
 OVERLAP_MAX = 0.05  # (d)1: players a team-match
 ECE_MAX = 0.03
 EPS = 1e-12
+BIG = 1e9  # cost of a forbidden (player, slot) pair
+LINES = ("G", "D", "M", "F")
 
 
 def slots_of(formation: str) -> list[str]:
@@ -142,10 +149,55 @@ def assign(w: Arr) -> NDArray[np.int64]:
 
 def b_top(p_start: Arr, is_gk: NDArray[np.bool_]) -> set[int]:
     """The keeper most likely to start and the 10 outfield players most likely to start."""
+    return set(b_top_ordered(p_start, is_gk))
+
+
+def b_top_ordered(p_start: Arr, is_gk: NDArray[np.bool_]) -> list[int]:
+    """B_top's players, most likely to start first."""
     order = np.argsort(-p_start, kind="stable")
     gk = next((int(i) for i in order if is_gk[i]), None)
     out = [int(i) for i in order if not is_gk[i]][: 10 if gk is not None else 11]
-    return set(out) | ({gk} if gk is not None else set())
+    xi = set(out) | ({gk} if gk is not None else set())
+    return [int(i) for i in order if int(i) in xi]
+
+
+def arrange(fits: Arr, is_gk: NDArray[np.bool_], slot_gk: NDArray[np.bool_],
+            ) -> NDArray[np.int64]:  # fmt: skip
+    """Row (player) per slot maximising sum log fit; keepers only in GK slots and outfield
+    players never. A slot no allowed player can take stays -1 (no keeper: GK empty, and an
+    outfield player is left unplaced, still in the XI)."""
+    allowed = (is_gk[:, None] & slot_gk[None, :]) | (~is_gk[:, None] & ~slot_gk[None, :])
+    cost = np.where(allowed, -np.log(np.maximum(fits, FLOOR)), BIG)
+    rows, cols = linear_sum_assignment(cost)
+    out = np.full(fits.shape[1], -1, dtype=np.int64)
+    for r, c in zip(rows, cols, strict=True):
+        if allowed[r, c]:
+            out[c] = r
+    return out
+
+
+def place_last(codes: Sequence[str | None], fits: Arr, is_gk: NDArray[np.bool_],
+               slots: Sequence[str]) -> NDArray[np.int64]:  # fmt: skip
+    """B_xi_last: in row order (most likely to start first), each player takes a free slot
+    of his code in the team's last match in that formation (codes[r], None if he wasn't in
+    it); the rest are arranged by fit over the free slots."""
+    slot_gk = np.array([c == "GK" for c in slots])
+    out = np.full(len(slots), -1, dtype=np.int64)
+    free = list(range(len(slots)))
+    rest: list[int] = []
+    for r, code in enumerate(codes):
+        s = next((s for s in free if slots[s] == code and slot_gk[s] == is_gk[r]), None)
+        if s is None:
+            rest.append(r)
+        else:
+            out[s] = r
+            free.remove(s)
+    if rest and free:
+        sub = arrange(fits[np.ix_(rest, free)], is_gk[rest], slot_gk[free])
+        for j, r in enumerate(sub):
+            if r >= 0:
+                out[free[j]] = rest[int(r)]
+    return out
 
 
 # ------------------------------------------------------------------------------- dev
@@ -209,31 +261,44 @@ def evaluate(inp: Inputs, targets: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataF
                 row_targets(p_start, is_gk, int(slot_gk.sum()), len(slots)))  # fmt: skip
         pick = assign(w)
         xi = {int(pids[i]) for i in pick if i >= 0}
-        top = {int(pids[i]) for i in b_top(p_start, is_gk)}
+        top_rows = b_top_ordered(p_start, is_gk)
+        top = {int(pids[i]) for i in top_rows}
+        xi_gk = is_gk[top_rows]
+        arr = arrange(fits[top_rows], xi_gk, slot_gk)
+        placed = {int(pids[top_rows[r]]) for r in arr if r >= 0}
         starters = set(actual)
         same = f_hat == g["formation"][0]
         res: dict[str, Any] = {
             "match_id": mk[0], "team_id": team, "league_ref": g["league_ref"][0],
             "season": g["season"][0], "formation_hit": same,
             "overlap_g": len(xi & starters), "overlap_top": len(top & starters),
+            "overlap_a": len(top & starters), "placed_in_top": placed <= top,
             "gk_in_xi": int(sum(1 for i in pick if i >= 0 and is_gk[i])),
-            "slot_g": None, "slot_last": None,
+            "gk_empty": int((arr[slot_gk] < 0).sum()),
+            "slot_g": None, "slot_last": None, "slot_a": None, "slot_xl": None,
         }  # fmt: skip
         if same:
-            act_code = defaultdict(set)
+            act_code: dict[str, set[int]] = defaultdict(set)
             for pid, code in actual.items():
                 act_code[code].add(pid)
-            got = defaultdict(set)
-            for s_i, i in enumerate(pick):
-                if i >= 0:
-                    got[slots[s_i]].add(int(pids[i]))
-            res["slot_g"] = sum(len(got[c] & act_code[c]) for c in set(slots)) / 11.0
+            got = _by_code(slots, [int(pids[i]) if i >= 0 else None for i in pick])
+            res["slot_g"] = _hits(got, act_code, slots)[0]
+            a_ids = [int(pids[top_rows[r]]) if r >= 0 else None for r in arr]
+            res["slot_a"], a_line = _hits(_by_code(slots, a_ids), act_code, slots)
+            res |= {f"a_{ln}": a_line[ln] for ln in LINES}
+            res |= {f"n_{ln}": sum(1 for c in slots if fl.CODE_LINE[c] == ln) for ln in LINES}
             prev = last_in.get((team, f_hat))
             if prev is not None:
-                pc = defaultdict(set)
+                pc: dict[str, set[int]] = defaultdict(set)
                 for code, pid in prev:
                     pc[code].add(int(pid))
-                res["slot_last"] = sum(len(pc[c] & act_code[c]) for c in set(slots)) / 11.0
+                res["slot_last"], l_line = _hits(pc, act_code, slots)
+                res |= {f"l_{ln}": l_line[ln] for ln in LINES}
+                prev_code = {int(pid): code for code, pid in prev}
+                xl = place_last([prev_code.get(int(pids[r])) for r in top_rows],
+                                fits[top_rows], xi_gk, slots)  # fmt: skip
+                xl_ids = [int(pids[top_rows[r]]) if r >= 0 else None for r in xl]
+                res["slot_xl"] = _hits(_by_code(slots, xl_ids), act_code, slots)[0]
             # calibration: P(player i starts in code c) = sum of W over that code's slots
             for c in set(slots):
                 col = np.array([x == c for x in slots])
@@ -243,6 +308,26 @@ def evaluate(inp: Inputs, targets: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataF
                         calib.append({"p": float(pc_[j]), "y": actual.get(int(pid)) == c})
         rows.append(res)
     return pl.DataFrame(rows), pl.DataFrame(calib, schema={"p": pl.Float64, "y": pl.Boolean})
+
+
+def _by_code(slots: Sequence[str], ids: Sequence[int | None]) -> dict[str, set[int]]:
+    out: dict[str, set[int]] = defaultdict(set)
+    for code, pid in zip(slots, ids, strict=True):
+        if pid is not None:
+            out[code].add(pid)
+    return out
+
+
+def _hits(got: dict[str, set[int]], act: dict[str, set[int]], slots: Sequence[str],
+          ) -> tuple[float, dict[str, int]]:  # fmt: skip
+    """(share of the 11 slots whose player started in that code, hits per line)."""
+    line = dict.fromkeys(LINES, 0)
+    total = 0
+    for c in set(slots):
+        h = len(got.get(c, set()) & act.get(c, set()))
+        total += h
+        line[fl.CODE_LINE[c]] += h
+    return total / 11.0, line
 
 
 def ece(calib: pl.DataFrame, bins: int = 10) -> float:
@@ -286,6 +371,61 @@ def verdict(res: pl.DataFrame, calib: pl.DataFrame, leakage_ok: bool) -> Verdict
          "pass": bool(gk.all())},
     ]  # fmt: skip
     return Verdict(all(c["pass"] for c in checks), checks)
+
+
+def verdict_arranged(res: pl.DataFrame, calib: pl.DataFrame, leakage_ok: bool) -> Verdict:
+    """The restated pass (d)1-4: the arrangement of B_top against B_last."""
+    both = res.filter(pl.col("slot_a").is_not_null() & pl.col("slot_last").is_not_null())
+    sl = _paired(both["slot_a"].to_numpy(), both["slot_last"].to_numpy())
+    same_xi = bool((res["overlap_a"] == res["overlap_top"]).all()
+                   and res["placed_in_top"].all())  # fmt: skip
+    e = ece(calib)
+    checks = [
+        {"check": "(d)1 slot accuracy, arranged B_top - B_last", "value": sl["mean"],
+         "lo": sl["lo"], "hi": sl["hi"], "pass": sl["lo"] > 0},
+        {"check": "(d)2 XI is B_top's in every team-match", "value": float(same_xi),
+         "pass": same_xi},
+        {"check": "(d)3 per-slot ECE of W", "value": e, "pass": e <= ECE_MAX},
+        {"check": "(d)4 leakage", "value": float(leakage_ok), "pass": leakage_ok},
+    ]  # fmt: skip
+    return Verdict(all(c["pass"] for c in checks), checks)
+
+
+def markdown_arranged(res: pl.DataFrame, v: Verdict) -> str:
+    out = ["# P3-g restated: B_top arranged in the projected formation — dev", "",
+           f"**Verdict: {'pass' if v.passed else 'fail'}**", "",
+           "| check | value | 95% interval | pass |", "|---|---|---|---|"]  # fmt: skip
+    for c in v.checks:
+        iv = f"[{c['lo']:+.4f}, {c['hi']:+.4f}]" if "lo" in c else ""
+        out.append(f"| {c['check']} | {c['value']:+.4f} | {iv} | {'yes' if c['pass'] else 'NO'} |")
+    both = res.filter(pl.col("slot_a").is_not_null() & pl.col("slot_last").is_not_null())
+    xl = both.filter(pl.col("slot_xl").is_not_null())
+    d = _paired(xl["slot_a"].to_numpy(), xl["slot_xl"].to_numpy())
+
+    def m(x: pl.Series) -> float:
+        a = x.drop_nulls().to_numpy().astype(float)
+        return float(a.mean()) if len(a) else float("nan")
+
+    out += ["",
+            f"Team-matches {res.height}; projected formation right in "
+            f"{m(res['formation_hit']):.3f}; paired with B_last {both.height}. "
+            f"GK slot empty (no keeper in P3-b's pool): {int(res['gk_empty'].sum())}.",
+            f"Mean slot accuracy: arranged {m(both['slot_a']):.3f}, B_last "
+            f"{m(both['slot_last']):.3f}, B_xi_last {m(xl['slot_xl']):.3f}.",
+            f"Arranged - B_xi_last (same XI, placed by last match): {d['mean']:+.4f} "
+            f"[{d['lo']:+.4f}, {d['hi']:+.4f}].",
+            "Reference ceiling: P3-c's role assignment given the actual XI and formation, "
+            "0.883.", "",
+            "| line | slots | arranged | B_last |", "|---|---|---|---|"]  # fmt: skip
+    for ln in LINES:
+        n = int(both[f"n_{ln}"].sum())
+        out.append(f"| {ln} | {n} | {both[f'a_{ln}'].sum() / n:.3f} | "
+                   f"{both[f'l_{ln}'].sum() / n:.3f} |")  # fmt: skip
+    out += ["", "| league | paired | arranged | B_last | B_xi_last |", "|---|---|---|---|---|"]
+    for (lg,), g in sorted(both.group_by(["league_ref"]), key=lambda x: str(x[0][0])):
+        out.append(f"| {lg!s} | {g.height} | {m(g['slot_a']):.3f} | "
+                   f"{m(g['slot_last']):.3f} | {m(g['slot_xl']):.3f} |")  # fmt: skip
+    return "\n".join(out)
 
 
 def markdown(res: pl.DataFrame, calib: pl.DataFrame, v: Verdict) -> str:
@@ -336,7 +476,7 @@ def leakage(inp: Inputs, targets: pl.DataFrame, full: pl.DataFrame, n: int = 100
         a = full.join(key, on=["match_id", "team_id"])
         if re_.is_empty() or a.is_empty():
             continue
-        for c in ("overlap_g", "slot_g", "slot_last"):
+        for c in ("overlap_g", "slot_g", "slot_last", "slot_a", "slot_xl"):
             if re_[c][0] != a[c][0]:
                 return False
     return True
@@ -358,6 +498,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     p.add_argument("--export", default="44406512773", help="P3-b export report")
     p.add_argument("--formation-table", default="9a05c70602047e45")
     p.add_argument("--lineups", default="d1d11c0a7f3ce0a7")
+    p.add_argument(
+        "--first-statement",
+        action="store_true",
+        help="report P3-g as first stated (failed) instead of the restatement",
+    )
     args = p.parse_args(argv)
     store = make_store(get_settings())
     lineups, _, _ = fl.load(store, args.lineups)
@@ -389,9 +534,12 @@ def main(argv: Sequence[str] | None = None) -> None:
                .join(ex.select(key).unique(), on=key))  # fmt: skip
     inp = Inputs(lineups, ex, sc, vocab)
     res, calib = evaluate(inp, targets)
-    v = verdict(res, calib, leakage(inp, targets, res))
+    ok = leakage(inp, targets, res)
     print(f"positional league-seasons {pos_ls.height}")
-    print(markdown(res, calib, v))
+    if args.first_statement:
+        print(markdown(res, calib, verdict(res, calib, ok)))
+    else:
+        print(markdown_arranged(res, verdict_arranged(res, calib, ok)))
 
 
 if __name__ == "__main__":

@@ -1587,3 +1587,77 @@ Consequences:
         (25-33 players each), so there is no keeper to place. B_top has the same gap.
 
       Per (e), the panel stays as it is. Nothing was tuned; holdout untouched.
+
+      **Restated (2026-11-20, owner: "Restate: arrange B_top"). Acceptance stated before
+      building (owner: "Approve as drafted"; no restated score computed).** Informed by the failed dev check above (dev window only; holdout
+      untouched). Who starts is no longer P3-g's job:
+
+      (a) **Formation:** unchanged (P3-c's most likely class, with its probability and the
+      next two).
+
+      (b) **XI and arrangement.** The XI is B_top: the keeper and the 10 outfield players
+      most likely to start by P3-b. P3-g only places them: the keeper takes the GK slot,
+      and the 10 outfield players take the other 10 slots by the assignment with the
+      largest Σ log fit(i, s) (Hungarian algorithm; fit as before). Alternatives per slot
+      come from W as before (shown, not used to pick). If P3-b's pool has no player coded
+      G, the GK slot is shown empty, labelled "no keeper in the squad list", and never
+      filled by an outfielder.
+
+      (c) **Dev check.** Same team-matches, inputs and as-of times as above. Paired by
+      team-match, on team-matches whose projected formation was the actual one:
+      - **slot accuracy** of the arrangement against B_last;
+      - also reported: against B_xi_last, which places the same B_top XI by each player's
+        code in the team's last match in that formation (others fill the remaining slots
+        of their line by fit). This separates "better placement" from "better XI".
+
+      (d) **Pass.** All must hold:
+      1. slot accuracy beats B_last, paired 95% interval excluding 0;
+      2. the XI is B_top's in every team-match (overlap difference exactly 0);
+      3. per-slot ECE of W at most 0.03. W is unchanged, and its ECE on this dev data is
+         already known (0.017). This is a consistency check, not new evidence;
+      4. leakage: as before (100 sampled team-matches).
+      Reported: by league and position family; the keeperless count; formation top-1;
+      the reference ceiling, P3-c's role assignment given the actual XI and formation
+      (88.3%).
+
+      (e) **Then.** As before: on a pass, the panel shows the formation and the arranged
+      XI with per-slot alternatives; on a fail, the panel stays as now.
+
+      **Cost:** 0 API requests; local, minutes (the stored reruns are reused).
+
+      *Clarified 2026-11-20 while building, before any restated score:* when P3-b's pool
+      has no player coded G, B_top is 11 outfield players. The GK slot stays empty, the 10
+      outfield slots are filled from those 11 by fit, and the one left over stays in the
+      XI unplaced. (d)2 compares the XI as a set, so it holds exactly.
+
+      **Build (2026-11-20), before any restated score:**
+      - `adatta/eval/positions.py`: `arrange` (keepers only in goal, outfield never;
+        Σ log fit), `place_last` (B_xi_last), slot hits by line, `verdict_arranged` and
+        `markdown_arranged`. The CLI prints the restated report by default and the first
+        statement's report with `--first-statement`. Leakage also compares the arranged
+        and B_xi_last slot accuracies.
+      - `tests/test_positions.py` (+4): the keeper in goal and an empty GK slot when there
+        is no keeper; B_xi_last keeps last-match codes and fills the rest by fit; a
+        settled team's arranged evaluation; the target match's own positions never in
+        the arrangement's history.
+
+      **Restated result (2026-11-20): fail.** Same 16,318 dev team-matches; 9,525 paired
+      with B_last (formation right and a last match in it).
+
+      | check | value | 95% interval | pass |
+      |---|---|---|---|
+      | (d)1 slot accuracy, arranged B_top - B_last | -0.030 | [-0.034, -0.027] | no |
+      | (d)2 XI is B_top's in every team-match | yes | | yes |
+      | (d)3 per-slot ECE of W | 0.017 | | yes |
+      | (d)4 leakage (100 sampled) | clean | | yes |
+
+      Mean slot accuracy: arranged 0.679, B_last 0.709, B_xi_last 0.695 (arranged -
+      B_xi_last -0.016 [-0.019, -0.014]). Behind B_last in every line (G 0.900 vs 0.911,
+      D 0.679 vs 0.706, M 0.662 vs 0.697, F 0.610 vs 0.647) and every league. GK slot
+      empty in 4 team-matches (no keeper in P3-b's pool). Ceiling for reference: 0.883.
+
+      Reading: the smoothed as-of fit places a known XI worse than "where each played in
+      the team's last match in this formation" (B_xi_last), and B_top's XI is itself
+      behind the last XI in that formation slot for slot, keeper included. Both forms of
+      P3-g lose to the last lineup in the projected formation. Per (e), the panel stays as
+      it is. Nothing was tuned; holdout untouched.

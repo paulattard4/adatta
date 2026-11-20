@@ -1226,6 +1226,35 @@ def lineups_project() -> None:
         raise typer.Exit(code=1)  # a bundle with fixtures but no passing serving refit
 
 
+@app.command("lineups-score")
+def lineups_score(final: bool = typer.Option(False, help="the judgement (P3-f (d))")) -> None:
+    """P3-f's live comparison with P3-b on the stored projections as of kickoff - 24 h, against
+    the final record. Aggregates only."""
+    from adatta.eval import availability as av
+    from adatta.eval import harness
+    from adatta.features import appearances as ap
+    from adatta.sim import lineups
+
+    cfg = harness.load_config()
+    store = make_store(get_settings())
+    with get_session() as session:
+        rows = av.load(session)
+        spells = lineups.load_spells(session)
+        kicks = lineups._kickoffs(session, spells["match_id"].unique().to_list())
+        session.rollback()
+    if rows.is_empty():
+        typer.echo("no projections as of kickoff - 24 h yet")
+        return
+    leagues = [str(x) for ls in cfg.bundles.values() for x in ls]
+    seasons = sorted({k.year if k.month >= 7 else k.year - 1 for k in rows["kickoff"].to_list()})
+    app = ap.load(store, [(lg, y) for lg in leagues for y in seasons])
+    df = av.outcomes(rows, app)
+    v = av.verdict(df, av.leakage(df, spells))
+    now = datetime.now(UTC)
+    rhos = lineups.rho(spells, app.select("match_id", "player_id"), kicks, now)
+    typer.echo(av.report(df, v, final, rhos))
+
+
 @app.command("appearances-report")
 def appearances_report(
     max_season: int = typer.Option(2023, help="last season reported (dev ends 2023)"),

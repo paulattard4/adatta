@@ -145,3 +145,93 @@ def test_squad_panel_shows_the_latest_projection_with_injury_tags(tmp_path: Path
     # before the second run, the first is shown
     sq = views.match_view(w.s, ctx(w), mid, K - 2 * day - timedelta(hours=1)).squad
     assert sq is not None and [p.name for p in sq.home.projected] == ["Bea", "Ana"]
+
+
+# ------------------------------------------------------------------------------ P3-f
+
+DT = pl.Datetime("us", "UTC")
+
+
+def _spells(rows: list[tuple[int, int, str, object, object]]) -> pl.DataFrame:
+    return pl.DataFrame(
+        [(m, p, s, o, v, v) for m, p, s, o, v in rows], orient="row",
+        schema={"match_id": pl.Int64, "player_id": pl.Int64, "status": pl.Utf8,
+                "observed_at": DT, "valid_to": DT, "superseded_at": DT},
+    )  # fmt: skip
+
+
+def test_status_is_the_spell_open_at_the_as_of_time() -> None:
+    d = timedelta(days=1)
+    sp = _spells([
+        (1, 10, "questionable", K - 5 * d, K - 3 * d),  # then upgraded:
+        (1, 10, "missing", K - 3 * d, None),
+        (1, 11, "missing", K - 5 * d, K - 4 * d),  # cleared before
+        (1, 12, "missing", K - d, None),  # first seen later
+    ])  # fmt: skip
+    keys = pl.DataFrame({"match_id": [1, 1, 1], "player_id": [10, 11, 12],
+                         "as_of": [K - 2 * d] * 3}, schema_overrides={"as_of": DT})  # fmt: skip
+    got = dict(sl.status_as_of(sp, keys).select("player_id", "status").iter_rows())
+    assert got == {10: "missing"}
+    early = keys.with_columns(as_of=pl.lit(K - 4 * d - timedelta(hours=1), dtype=DT))
+    got = dict(sl.status_as_of(sp, early).select("player_id", "status").iter_rows())
+    assert got == {10: "questionable", 11: "missing"}
+
+
+def test_rho_is_a_beta_posterior_over_final_matches_with_known_squads() -> None:
+    assert sl.rho(_spells([]), pl.DataFrame(schema={"match_id": pl.Int64, "player_id": pl.Int64}),
+                  pl.DataFrame(schema={"match_id": pl.Int64, "kickoff": DT}), K) == {
+        "missing": pytest.approx(1 / 20), "questionable": pytest.approx(0.5)}  # fmt: skip
+    d = timedelta(days=1)
+    kicks = pl.DataFrame({"match_id": [1, 2, 3], "kickoff": [K - 9 * d, K - 8 * d, K + d]},
+                         schema_overrides={"kickoff": DT})  # fmt: skip
+    sp = _spells(
+        [
+            (1, 10, "missing", K - 12 * d, None),
+            (1, 11, "missing", K - 12 * d, None),
+            (2, 10, "missing", K - 10 * d, None),  # match 2: squads not captured
+            (3, 10, "missing", K - 2 * d, None),
+        ]
+    )  # match 3: not played by K
+    squads = pl.DataFrame({"match_id": [1, 1], "player_id": [11, 99]})  # 11 made the squad
+    r = sl.rho(sp, squads, kicks, K)
+    assert r["missing"] == pytest.approx((1 + 1) / (1 + 19 + 2))
+
+
+def test_p3f_moves_a_listed_players_chances_to_the_others() -> None:
+    players, teams = sel.build(world())
+    d = ms.design(players)
+    post, nu = _post(d), {"39": (0.0, 0.0)}
+    base = sl.project(post, d, nu, players, teams)
+    same = sl.project_f(post, d, nu, players, teams, np.ones(players.height))
+    assert np.allclose(same[:, 0], base["p_start"].to_numpy(), atol=1e-12)
+    team = (players["team_id"] == TEAM).to_numpy()
+    listed = team & (players["player_id"] == 2).to_numpy()
+    pf = sl.project_f(post, d, nu, players, teams, np.where(listed, 0.05, 1.0))
+    assert pf[listed, 0][0] < 0.2 * base["p_start"].to_numpy()[listed][0]
+    assert pf[team, 0].sum() == pytest.approx(base["p_start"].to_numpy()[team].sum())
+    assert (pf[team & ~listed, 0] >= base["p_start"].to_numpy()[team & ~listed] - 1e-12).all()
+
+
+def test_p3f_scoring_and_leakage() -> None:
+    from adatta.eval import availability as av
+
+    rows = pl.DataFrame({
+        "match_id": [1, 1, 1], "team_id": [1, 1, 1], "player_id": [10, 11, 12],
+        "as_of": [K - timedelta(days=1)] * 3, "status": ["missing", None, None],
+        "p_start": [0.6, 0.6, 0.3], "p_bench": [0.2, 0.2, 0.3], "p_out": [0.2, 0.2, 0.4],
+        "p_start_f": [0.05, 0.8, 0.4], "p_bench_f": [0.05, 0.1, 0.3], "p_out_f": [0.9, 0.1, 0.3],
+    }, schema_overrides={"as_of": DT})  # fmt: skip
+    app = pl.DataFrame(
+        {"match_id": [1, 1], "team_id": [1, 1], "player_id": [11, 12], "started": [True, False]}
+    )  # 10 was out
+    df = av.outcomes(rows, app)
+    assert df.sort("player_id")["y"].to_list() == [sel.OUT, sel.START, sel.BENCH]
+    assert av.paired(df.filter(pl.col("status").is_not_null()))["mean"] < 0
+    sp = _spells(
+        [
+            (1, 10, "missing", K - timedelta(days=3), None),
+            (1, 11, "missing", K - timedelta(hours=1), None),
+        ]
+    )  # 11 listed after as_of
+    assert av.leakage(df, sp)
+    assert not av.leakage(df.with_columns(status=pl.lit(None, pl.Utf8)), sp)

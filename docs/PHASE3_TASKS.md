@@ -1458,3 +1458,20 @@ Consequences:
 
       **Cost:** 0 API requests (the feed is already captured daily). No refits: it reuses
       the serving P3-b draws and the stored projections.
+
+      **Build (2026-11-20), before any P3-f score:**
+      - **Code:**
+        - `adatta/sim/lineups.py`: `status_as_of` (the spell open at t), `rho` (Beta
+          posterior over listed player-matches final by t whose squads are captured) and
+          `project_f` (the overlay, then P3-b's coherence per draw). P3-f is computed in
+          shadow in every daily projection and stored beside P3-b (migration 0017, applied
+          2026-11-20); the dashboard doesn't read it;
+        - `adatta/eval/availability.py` and `adatta lineups-score [--final]`: the rows
+          made as of kickoff - 24 h, outcomes from the final record, (d)1-5 and the report.
+          Aggregates only.
+      - **Tests** in `tests/test_projected_lineups.py` (4 more): the status open at t; ρ's
+        posterior, counting only final matches with captured squads; a listed player's
+        chances moving to his team-mates with the team's totals kept; scoring and the
+        leakage check.
+      - **The first shadow rows** come with the next daily run (04:41 UTC). Interim
+        reports are `adatta lineups-score`, about weekly.

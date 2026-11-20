@@ -599,6 +599,14 @@ class LineupProjection(Base):
     emin_start: Mapped[float] = mapped_column(Float)  # expected minutes given a start
     emin_bench: Mapped[float] = mapped_column(Float)  # expected minutes given the bench
     emin: Mapped[float] = mapped_column(Float)  # expected minutes overall
+    # P3-f shadow (docs/PHASE3_TASKS.md): the injury feed's status as of `as_of`, the live
+    # shares rho as of then, and P3-f's probabilities. Not shown before P3-f passes live.
+    status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    rho_missing: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rho_questionable: Mapped[float | None] = mapped_column(Float, nullable=True)
+    p_start_f: Mapped[float | None] = mapped_column(Float, nullable=True)
+    p_bench_f: Mapped[float | None] = mapped_column(Float, nullable=True)
+    p_out_f: Mapped[float | None] = mapped_column(Float, nullable=True)
     __table_args__ = (
         CheckConstraint("p_start >= 0 AND p_start <= 1", name="ck_lineup_proj_start"),
         Index("ix_lineup_projection_match", "match_id", "generated_at"),

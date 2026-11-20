@@ -3,9 +3,25 @@ import type { Absence, Lineup, ProjectedPlayer, Projection, Squad, SquadPlayer, 
 
 const SHOW_MIN = 0.1; // pool players with P(start) + P(bench) below this are left out of the list
 
+const LINE_ORDER: Record<string, number> = { G: 0, D: 1, M: 2, F: 3, U: 4 };
+
+/** The most likely XI as a lineup: the keeper most likely to start, then the 10 outfield
+ *  players most likely to start, by line. The rest follow by P(start). */
+export function likelyXi(xs: ProjectedPlayer[]): { xi: ProjectedPlayer[]; rest: ProjectedPlayer[] } {
+  const byStart = [...xs].sort((a, b) => b.p_start - a.p_start);
+  const gk = byStart.find((p) => p.pos === "G");
+  const outfield = byStart.filter((p) => p !== gk && p.pos !== "G").slice(0, gk ? 10 : 11);
+  const chosen = new Set([gk, ...outfield].filter(Boolean));
+  const xi = [...chosen].filter((p): p is ProjectedPlayer => p !== undefined)
+    .sort((a, b) => (LINE_ORDER[a.pos] ?? 4) - (LINE_ORDER[b.pos] ?? 4) || b.p_start - a.p_start);
+  return { xi, rest: byStart.filter((p) => !chosen.has(p)) };
+}
+
 function Projected({ xs, pr, announced }: { xs: ProjectedPlayer[]; pr: Projection; announced: boolean }) {
+  const { xi, rest } = likelyXi(xs);
   // players the injury feed lists are always shown, however unlikely the model makes them
-  const shown = xs.filter((p) => p.p_start + p.p_bench >= SHOW_MIN || p.status !== null);
+  const others = rest.filter((p) => p.p_start + p.p_bench >= SHOW_MIN || p.status !== null);
+  const shown = [...xi, ...others];
   return (
     <>
       <h4>{announced ? "Projected before the announcement" : "Projected lineup"} <span className="dim">· P3-b</span></h4>
@@ -14,10 +30,10 @@ function Projected({ xs, pr, announced }: { xs: ProjectedPlayer[]; pr: Projectio
         {" "}· the model does not use the injury feed
       </p>
       <table className="proj">
-        <thead><tr><th>Player</th><th className="r">Start</th><th className="r">Bench</th><th className="r">Min</th></tr></thead>
+        <thead><tr><th>Most likely XI, then the rest</th><th className="r">Start</th><th className="r">Bench</th><th className="r">Min</th></tr></thead>
         <tbody>
           {shown.map((p, i) => (
-            <tr key={`${p.name}-${i}`} className={i === 10 ? "proj-cut" : undefined}>
+            <tr key={`${p.name}-${i}`} className={i === xi.length && i > 0 ? "proj-cut" : undefined}>
               <td>
                 <span className="num dim proj-pos">{p.pos}</span> {p.name}
                 {p.status && <span className={`absence-tag ${p.status}`} title="listed by the injury feed; not used by the model">{p.status}</span>}

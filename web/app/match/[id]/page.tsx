@@ -143,7 +143,7 @@ export default function MatchPage() {
 
       {v.squad && (
         <section className="panel">
-          <h3>Squad and availability <span className="dim">· feed and lineups as captured; the projected lineup is P3-b's</span></h3>
+          <h3>Squad and availability <span className="dim">· feed and lineups as captured; the projected lineup is from P3-b</span></h3>
           <SquadPanel s={v.squad} />
         </section>
       )}

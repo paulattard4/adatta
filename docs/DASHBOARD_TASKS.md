@@ -463,3 +463,9 @@ Acceptance (stated 2026-11-20, before building):
     width with no sideways scroll. It shows why P3-f matters: players the feed lists as
     out still get 9-20% to start. Players the feed lists are now always shown (some had
     fallen under the 10% cut), and the panel heading now says the projection is P3-b's.
+- **Fix 2026-11-20 (owner: "we always need a gk projected to start"):** the panel's most
+  likely XI is now the keeper most likely to start plus the 10 outfield players most
+  likely to start, by line. Before, it was the top 11 by P(start), which picked two keepers
+  for 1 of 242 team-matches in the first run and could have picked none. The probabilities
+  were already coherent (keeper starts add up to 1); only the cut was wrong. Also fixed: an
+  unescaped apostrophe in the panel heading, which failed the web lint.

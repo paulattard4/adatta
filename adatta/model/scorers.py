@@ -218,6 +218,11 @@ def assemble(store: RawStore, pmf_run: str, bundles: list[str], seasons: list[in
     scored = pl.concat([es.score(table, pmfs, h) for h in es.HORIZONS])
     gaps = es.consistency(table, pmfs)
     v = es.verdict(scored, gaps, bool(meta.get("leakage_ok")))
+    left_out = {st: es.unallocatable(table, st, "lk").join(pmfs.select(fs.KEY), on=fs.KEY)
+                for st in es.STATS}  # fmt: skip
+    for st, lo_ in left_out.items():
+        y = table.join(lo_, on=fs.KEY).filter(pl.col("in_squad"))[f"y_{st}"].fill_null(0).sum()
+        meta[f"unallocatable_{st}"] = f"{lo_.height} team-matches (realised {int(y)})"
     squad = table.filter(pl.col("in_squad")).select(fs.KEY).unique()
     covered = squad.join(pmfs.select(fs.KEY).unique(), on=fs.KEY).height
     out = es.markdown(

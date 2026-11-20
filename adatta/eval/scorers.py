@@ -113,12 +113,21 @@ def score_rows(rows: pl.DataFrame, pmf: Arr, stat: str, model: str) -> pl.DataFr
     )  # fmt: skip
 
 
+def unallocatable(table: pl.DataFrame, stat: str, horizon: str) -> pl.DataFrame:
+    """Team-matches (KEY) whose population has no positive M weight: no shares exist, so
+    no player forecasts (amendment 2, principle 8)."""
+    w = weights(table, stat, horizon)["M"].fill_null(0.0)
+    tot = population(table, horizon).with_columns(w=w).group_by(KEY).agg(pl.col("w").sum())
+    return tot.filter(pl.col("w") <= 0).select(KEY)
+
+
 def score(table: pl.DataFrame, pmfs: pl.DataFrame, horizon: str) -> pl.DataFrame:
     """Every model and statistic at one horizon. `pmfs`: (match_id, team_id, pmf)."""
     pop = population(table, horizon).join(pmfs, on=KEY, how="inner")
     out = []
     for stat in STATS:
         rows = pop.filter(pl.col(f"y_{stat}").is_not_null() & pl.col("o").is_not_null())
+        rows = rows.join(unallocatable(pop, stat, horizon), on=KEY, how="anti")
         if stat == "assists":
             rows = rows.filter(pl.col("alpha").is_not_null())
         # shares over the whole population of the team-match (y null rows still take a share)
@@ -146,6 +155,7 @@ def consistency(table: pl.DataFrame, pmfs: pl.DataFrame) -> dict[str, float]:
     )  # fmt: skip
     out = {}
     for stat in STATS:
+        pop = pop.join(unallocatable(pop, stat, "lk"), on=KEY, how="anti")
         w = weights(pop, stat, "lk")["M"].fill_null(0.0)
         r = pop.with_columns(w=w).with_columns(share=pl.col("w") / pl.col("w").sum().over(KEY))
         pmf = pmf_matrix(r["pmf"].to_list())
@@ -328,7 +338,7 @@ def markdown(scored: pl.DataFrame, v: Verdict, meta: dict[str, Any]) -> str:
                     lines.append(f"- penalty {r['pen']}: n {r['n']}, {_f(r['rel'], True)}")
     lines += ["", f"Leakage: {meta.get('leakage_changed', '?')} of "
                   f"{meta.get('leakage_sampled', '?')} sampled rows changed."]  # fmt: skip
-    for k in ("coverage", "pmf_matches"):
+    for k in ("coverage", "pmf_matches", "unallocatable_goals", "unallocatable_assists"):
         if k in meta:
             lines.append(f"{k}: {meta[k]}")
     return "\n".join(lines)

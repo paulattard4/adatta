@@ -16,7 +16,8 @@ population). For player i, with t = kickoff - 24 h (P3-d0's as-of time):
                did not play, null where the statistic is not collected (P3-d0's rule)
 and per team-match the league shares over the 730 days final by t:
   o            own goals / all goals
-  alpha        assists / non-own goals (team-matches with assists collected)
+  alpha        assists / non-own goals over team-matches with a statistics block (P3-d0's
+               collected rule, null assists counting as 0; P3-e amendment 1)
 Pure polars / numpy (runs on the Mac); the P3-d0 hyperparameter draws come from CI.
 """
 
@@ -183,7 +184,9 @@ def shares(app: pl.DataFrame, targets: pl.DataFrame) -> pl.DataFrame:
         pl.col("goals").fill_null(0).sum().alias("g"),
         pl.col("own_goals").fill_null(0).sum().alias("og"),
         pl.col("assists").fill_null(0).sum().alias("a"),
-        pl.col("assists").is_not_null().any().alias("a_ok"),
+        # P3-d0's collected rule: a statistics block, a null assist counting as 0 (the
+        # provider leaves zero assists null; amendment 1)
+        pl.col("minutes_provider").is_not_null().any().alias("a_ok"),
     ).sort("league_ref", "kickoff")  # fmt: skip
     cut, start = _cut(pl.col("kickoff"))
     tg = targets.select(*KEY, "kickoff", "league_ref").with_columns(_cut=cut, _start=start)

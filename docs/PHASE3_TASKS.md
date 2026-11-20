@@ -1209,3 +1209,40 @@ Consequences:
         the pmf stage reads its 928 fits.
       - **Order of runs,** one at a time: quality (assists, about 1-2 h), pmf (25 jobs),
         table, assemble.
+
+      **Runs:**
+      - **Quality (assists):** run 44684594053, 05:59-06:34 UTC. All refits pass the
+        gates, worst R-hat 1.005.
+      - **pmf:** run 44688838616, 25 jobs, all success, P read from the fit cache with no
+        refits.
+      - **Table:** run 44689625188, player table 33d106c3b5f490c3: 1,292,331 rows, 38,784
+        team-matches, built in 71 s. Leakage 0 of 100. Announced players outside P3-b's
+        pool (role fallback) 1.5-3.0% per league; o 0.022-0.034, α 0.78-0.80.
+      - **First verdict,** run 44690643347: **goals fail, assists fail.**
+        - Goals pass (e)1-4 and (e)6: vs B0 -0.79% [-0.86%, -0.71%], vs B_line -1.93%
+          [-2.04%, -1.81%], vs B_R1 -0.00% (leagues -0.21% to +0.19%), E/O 1.002, ECE
+          0.0014 (worst league 0.0031). They fail (e)5: largest gap 1.19.
+        - Assists pass (e)1-3 (vs B0 -0.32%, vs B_line -1.65%, vs B_R1 -0.18%) and ECE
+          0.0062. They fail E/O (1.147, 1.09-1.21 in every league) and (e)5 (gap 0.93).
+        - Reported: penalty goals 4,285 of 46,034, M vs B_R1 +0.78% on those rows;
+          goalkeepers' goal E/O 1.80 (rare counts).
+        - **Cause of the assists E/O (a bug):** the provider leaves a player's assists null
+          when they are zero. `shares` counted a team-match as having assists collected only
+          when some player's value was non-null, which keeps mostly team-matches where
+          someone assisted. So α came out 0.78-0.80; the realised assisted share is
+          0.66-0.72 per league (2022: 6,754 assists for 9,772 goals). The acceptance says
+          "collected", meaning P3-d0's rule (the team-match has a statistics block), which
+          the code did not implement.
+        - **Cause of the (e)5 gap:** one team-match of 38,784 has 7 squad rows, all with
+          zero expected minutes, so the shares are undefined and nothing is allocated.
+
+      *Amended 2026-11-20 after the first verdict, whose scores had been seen; owner: "Yes,
+      fix and rerun":*
+      1. **α uses P3-d0's collected rule.** A team-match counts towards α when it has a
+         statistics block (any player's `minutes_provider` is non-null), with null assists
+         counted as 0. This is what (a) stated; the code now does it.
+      2. **A team-match with no positive weight gets no player forecasts** (principle 8:
+         no imputed shares). It is left out of every model's scoring and of (e)5, and its
+         count and realised goals are reported.
+      Nothing else changes: the baselines, the gates, the rates, P and the pmf run
+      (44688838616) are reused. The table and the verdict are rerun.

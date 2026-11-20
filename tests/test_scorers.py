@@ -34,8 +34,9 @@ SQUAD = [(1, "G", True), *[(p, "D", True) for p in range(2, 6)],
 
 def _app(n: int = 6) -> pl.DataFrame:
     """Team 1's matches a week apart: the starters play 90, the bench F (12) never plays.
-    Player 10 scores once in every match (a penalty in the last), 11 assists it, and
-    defender 2 scores an own goal in the first."""
+    Player 10 scores once in every match (a penalty in the last), 11 assists it in the
+    first three only, and defender 2 scores an own goal in the first. As the provider, a
+    zero assist count is null; every played row has a statistics block."""
     rows = []
     for m in range(n):
         for pid, pos, st in SQUAD:
@@ -43,10 +44,15 @@ def _app(n: int = 6) -> pl.DataFrame:
                 "match_id": 100 + m, "team_id": 1, "player_id": pid, "league_ref": "39",
                 "season": 2019, "kickoff": T0 + timedelta(days=7 * m), "started": st,
                 "pos": pos, "minutes": 90 if st else 0, "goals": int(pid == 10),
-                "own_goals": int(pid == 2 and m == 0), "assists": int(pid == 11),
+                "own_goals": int(pid == 2 and m == 0),
+                "assists": 1 if pid == 11 and m < 3 else None,
+                "minutes_provider": 90 if st else None,
                 "pen_scored": int(pid == 10 and m == n - 1),
             })  # fmt: skip
-    ints = {c: pl.Int32 for c in ("minutes", "goals", "own_goals", "assists", "pen_scored")}
+    ints = {
+        c: pl.Int32
+        for c in ("minutes", "goals", "own_goals", "assists", "pen_scored", "minutes_provider")
+    }
     return pl.DataFrame(rows, schema_overrides=ints)
 
 
@@ -58,7 +64,7 @@ def _hist(app: pl.DataFrame) -> pl.DataFrame:
         "match_id", "team_id", "player_id", "league_ref", "season", "kickoff",
         sub=~pl.col("started"), e=pl.col("minutes").cast(pl.Float64) / 90, line="pos",
         new_club=pl.lit(False), ret=pl.lit(False), slot=pl.lit(None, pl.Utf8),
-        y_goals="goals", y_assists="assists",
+        y_goals="goals", y_assists=pl.col("assists").fill_null(0),  # P3-d0's null rule
     )  # fmt: skip
     old = pl.DataFrame({
         "match_id": [1], "team_id": [99], "player_id": [9999], "league_ref": ["39"],
@@ -101,8 +107,9 @@ def test_player_table_minutes_rates_outcomes_and_shares() -> None:
     # outcomes: the scorer, a bench player who never came on (0), a penalty
     assert (r10["y_goals"], r10["y_pen"]) == (1, 1)
     assert r12["y_goals"] == 0 and r12["y_assists"] == 0
-    # league shares over matches 100-104: 5 player goals, 1 own goal, 5 assists
-    assert r10["o"] == pytest.approx(1 / 6) and r10["alpha"] == pytest.approx(1.0)
+    # league shares over matches 100-104: 5 player goals, 1 own goal, 3 assists. Counting
+    # only team-matches with a non-null assist would give 3 / 3 (the first run's bug)
+    assert r10["o"] == pytest.approx(1 / 6) and r10["alpha"] == pytest.approx(3 / 5)
 
 
 def test_player_table_ignores_the_match_and_later_rows() -> None:
@@ -113,7 +120,8 @@ def test_player_table_ignores_the_match_and_later_rows() -> None:
         app.filter(~own),
         app.filter(pl.col("match_id") == 105).with_columns(
             [pl.lit(None, pl.Int32).alias(c) for c in ("minutes", "goals", "own_goals",
-                                                         "assists", "pen_scored")]),
+                                                         "assists", "pen_scored",
+                                                         "minutes_provider")]),
     ])  # fmt: skip
     re_ = _build(cut).sort("player_id")
     for c in ("e_lk", "e24_start", "q_goals_start", "q_assists_sub", "r0_goals", "r1_assists",
@@ -187,6 +195,18 @@ def test_allocation_sums_to_the_team_rate() -> None:
     # the zero-weight row is floored the same in every model
     z = s.filter((pl.col("player_id") == 113) & (pl.col("stat") == "goals"))
     assert z["zero_w"].all() and z["log_loss"].n_unique() <= 2
+
+
+def test_a_team_match_without_weights_gets_no_forecasts() -> None:
+    t, pmfs = _table()
+    dead = (pl.col("match_id") == 7) & (pl.col("team_id") == 2)
+    t = t.with_columns(e_lk=pl.when(dead).then(0.0).otherwise(pl.col("e_lk")))
+    assert es.unallocatable(t, "goals", "lk").rows() == [(7, 2)]
+    s = es.score(t, pmfs, "lk")
+    assert s.filter((pl.col("match_id") == 7) & (pl.col("team_id") == 2)).is_empty()
+    assert s.filter((pl.col("match_id") == 7) & (pl.col("team_id") == 1)).height > 0
+    gaps = es.consistency(t, pmfs)
+    assert gaps["goals"] < 1e-12 and gaps["assists"] < 1e-12
 
 
 def test_t24_population_is_the_pool() -> None:

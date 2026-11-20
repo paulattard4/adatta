@@ -1411,8 +1411,9 @@ Consequences:
       served, the feed shown beside it, docs/DASHBOARD_TASKS.md) runs meanwhile.
 
       Acceptance (stated 2026-11-20 before building, owner: "Approve as drafted"; no
-      P3-f score has been computed. Seen so far: the counts of captured spells, 958 "missing" over 328 matches
-      and 177 "questionable" over 57 matches, 2026-11-05 to 2026-11-20):
+      P3-f score has been computed. Seen so far: the counts of captured spells, 958
+      "missing" over 328 matches and 177 "questionable" over 57 matches, 2026-11-05 to
+      2026-11-20):
 
       *Why an overlay, not a refit with status covariates.* Status can't be reconstructed
       for past seasons (D39), so a status term can only be learned from live captures, two
@@ -1475,3 +1476,59 @@ Consequences:
         leakage check.
       - **The first shadow rows** come with the next daily run (04:41 UTC). Interim
         reports are `adatta lineups-score`, about weekly.
+- [ ] **P3-g Projected formation and XI by position (§7.3).** Owner, 2026-11-20: "we
+      always need a gk projected to start, we need a projected formation based on previous
+      matches and thus we need more specific player positions to better predict who will
+      fill the starting role for each position". The keeper part is a display fix, done the
+      same day (docs/DASHBOARD_TASKS.md). This task is the rest: P3-c's formation model
+      (passed on dev) and the slot codes, combined with P3-b's starts into a lineup slot by
+      slot.
+
+      Acceptance (draft, stated 2026-11-20 before building; no P3-g score has been computed.
+      Seen so far: P3-c's dev results, including role assignment 88.3% given the actual XI
+      and formation; P3-b's dev results):
+
+      (a) **Formation.** P3-c's model as passed, served like P3-b: refitted per bundle every
+      28 days, predicted as of the projection time. The projected formation is its most
+      likely class, shown with its probability and the next two.
+
+      (b) **Who fills each slot.** For the projected formation's 11 slot codes:
+      - **fit(i, s)** is player i's as-of share of starts in code s. It counts positional
+        matches only (P3-c amendment 1) and is smoothed towards the codes of his line, with
+        a fixed pseudo-count of 3 starts. A player with no coded starts takes his line's
+        team shares;
+      - **W(i, s) = P(start_i) · fit(i, s),** scaled by iterative proportional fitting so
+        that each slot sums to 1 over players and each player sums to P(start_i) over
+        slots. These are the per-slot probabilities;
+      - **the projected XI** is the one-player-per-slot assignment with the largest
+        Σ log W (Hungarian algorithm). The GK slot takes keepers only, so there is always
+        exactly one keeper.
+
+      (c) **Dev check, at T-24h like P3-b.** Positional dev league-seasons (2022-2023 and La
+      Liga 2019), from P3-b's export rows and P3-c's stored dev predictions, with no refits.
+      Paired by team-match:
+      - **XI overlap** (actual starters in the projected XI, out of 11): P3-g against
+        B_top, the keeper plus the top 10 by P(start) (today's panel);
+      - **slot accuracy** (slots whose projected player started in that code), on
+        team-matches whose projected formation was the actual one: P3-g against B_last,
+        each slot's player from the team's last match in that formation;
+      - **per-slot calibration:** ECE of W(i, s) for "i started in s", on the same
+        team-matches.
+
+      (d) **Pass.** All must hold:
+      1. XI overlap no worse than B_top by more than 0.05 players a team-match (point
+         estimate);
+      2. slot accuracy beats B_last, paired 95% interval excluding 0;
+      3. per-slot ECE at most 0.03;
+      4. leakage: nothing final after the as-of time changes fit, W or the formation
+         (100 sampled team-matches).
+      Reported: formation top-1 accuracy; results by league and by position family;
+      players new to the team.
+
+      (e) **Then.** On a pass, the panel shows the projected formation and, per slot, the
+      most likely player with alternatives, keeping P(start) and minutes. Live seasons need
+      to pass P3-c's positional test before full codes are used; otherwise the slots are
+      line-level (D, M, F) and say so. On a fail, the panel stays as now.
+
+      **Cost:** 0 API requests. The dev check reuses stored outputs; serving adds P3-c
+      refits (median 103 s on dev) to the daily workflow when due.

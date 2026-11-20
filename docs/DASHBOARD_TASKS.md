@@ -469,3 +469,6 @@ Acceptance (stated 2026-11-20, before building):
   for 1 of 242 team-matches in the first run and could have picked none. The probabilities
   were already coherent (keeper starts add up to 1); only the cut was wrong. Also fixed: an
   unescaped apostrophe in the panel heading, which failed the web lint.
+- **Run 2026-11-20 12:46** (44737792285, after the fix): every job succeeded, the refits
+  were skipped as not due, and 121 fixtures were projected with P3-f in shadow. 475 pool
+  players are listed by the feed; ρ so far is missing 0.076 and questionable 0.44.

@@ -78,6 +78,12 @@ Consequences:
   the same dev seasons would be fitting to them. P stays production, the offset is not
   served, and under P3-d (f) the feedback loop is not wired into production. What P3-e
   and the rest of Phase 3 become without a passed offset is open.
+- **D42 (resolved 2026-11-20, owner: "Close as failed"):** P3-g is closed as failed on dev,
+  in both forms: picking the XI slot by slot (XI overlap -0.109 vs B_top) and arranging
+  B_top (slot accuracy -0.030 vs B_last). Both lose to the team's last lineup in the
+  projected formation, so a third design on the same dev seasons would be fitting to
+  them. The panel keeps B_top with the keeper fix; no formation or slots are shown.
+  P3-c's formation model passed on its own and stays unserved.
 
 ## Tasks
 
@@ -1476,7 +1482,7 @@ Consequences:
         leakage check.
       - **The first shadow rows** come with the next daily run (04:41 UTC). Interim
         reports are `adatta lineups-score`, about weekly.
-- [ ] **P3-g Projected formation and XI by position (§7.3).** Owner, 2026-11-20: "we
+- [x] **P3-g Projected formation and XI by position (§7.3). Closed as failed (D42).** Owner, 2026-11-20: "we
       always need a gk projected to start, we need a projected formation based on previous
       matches and thus we need more specific player positions to better predict who will
       fill the starting role for each position". The keeper part is a display fix, done the
@@ -1661,3 +1667,6 @@ Consequences:
       behind the last XI in that formation slot for slot, keeper included. Both forms of
       P3-g lose to the last lineup in the projected formation. Per (e), the panel stays as
       it is. Nothing was tuned; holdout untouched.
+
+      **Closed 2026-11-20 (D42), owner: "Close as failed".** Not served; the panel is
+      unchanged.

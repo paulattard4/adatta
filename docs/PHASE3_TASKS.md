@@ -1558,3 +1558,32 @@ Consequences:
       - `tests/test_positions.py` (5): slot codes, the scaling's margins and the single
         keeper, the fit's smoothing, a settled team's evaluation and leakage, and that the
         target match's own positions are never in its history.
+
+      **Result (2026-11-20): fail.** P3-c reruns 44743758503 (2022-2023) and 44748840252
+      (La Liga 2019); 16,318 dev team-matches across 29 positional league-seasons; the
+      projected formation was right in 58.9%.
+
+      | check | value | 95% interval | pass |
+      |---|---|---|---|
+      | (d)1 XI overlap, P3-g - B_top (players) | -0.109 | [-0.121, -0.098] | no |
+      | (d)2 slot accuracy, P3-g - B_last | -0.002 | [-0.005, +0.001] | no |
+      | (d)3 per-slot ECE | 0.017 | | yes |
+      | (d)4 leakage (100 sampled) | clean | | yes |
+      | keeper in every projected XI | 0.9998 | | no |
+
+      Mean XI overlap 8.449 (P3-g) vs 8.558 (B_top) of 11; mean slot accuracy with the
+      formation right 0.704 vs 0.709 (B_last). Worse than B_top on overlap in all ten
+      leagues; on slot accuracy, ahead of B_last in leagues 135, 140 and 141, level in
+      136, behind in the other six.
+
+      Diagnosis (same inputs, aggregates only):
+      - **The slot assignment itself costs starters.** With the formation right, P3-g's
+        XI is 0.080 players behind B_top (8.633 vs 8.713, 9,611 team-matches); with it
+        wrong, 0.151 behind (8.186 vs 8.338, 6,707). Per team-match, P3-g gets more
+        starters right in 2,633, fewer in 4,224, the same in 9,461. Forcing one player per
+        slot code swaps a likely starter for a worse-fitting player's position more often
+        than it fixes a P(start) ranking.
+      - **The 4 keeperless XIs** are team-matches whose P3-b pool has no player coded G
+        (25-33 players each), so there is no keeper to place. B_top has the same gap.
+
+      Per (e), the panel stays as it is. Nothing was tuned; holdout untouched.

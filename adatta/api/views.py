@@ -235,8 +235,27 @@ def _projections(session: Session, ids: list[int]
     return out
 
 
+def _published_order(by_ms: dict[str, list[models.MarketProjection]]) -> list[str]:
+    """Milestones in the order they were published (D41: a refit milestone can fall between
+    the timed ones). Each (match, milestone) is written by one projection run, and run ids
+    increase with time."""
+    return sorted(by_ms, key=lambda ms: min(r.projection_run_id for r in by_ms[ms]))
+
+
 def _latest_milestone(by_ms: dict[str, list[models.MarketProjection]]) -> str:
-    return max(by_ms, key=lambda ms: serve.MILESTONES.index(ms))
+    return _published_order(by_ms)[-1]
+
+
+def _run_behind(session: Session, rows: list[models.MarketProjection], bundle: str,
+                cache: dict[int, models.ModelRun | None]) -> models.ModelRun | None:  # fmt: skip
+    """The refit that produced a milestone's rows (its projection run's model_run_id)."""
+    pr = session.get(models.ProjectionRun, rows[0].projection_run_id)
+    mid = (pr.component_versions or {}).get(bundle, {}).get("model_run_id") if pr else None
+    if mid is None:
+        return None
+    if mid not in cache:
+        cache[mid] = session.get(models.ModelRun, mid)
+    return cache[mid]
 
 
 def _p(r: models.MarketProjection) -> sc.Prob:
@@ -291,7 +310,8 @@ def _freshness(bundle: str, run: models.ModelRun | None, now: datetime) -> sc.Fr
 
 def confidence(m: MatchRow, refit: serve.Refit | None, fresh: sc.Freshness,
                caps: list[models.CompetitionSourceCapability],
-               champion: models.ModelRun | None, now: datetime) -> list[sc.Component]:  # fmt: skip
+               champion: models.ModelRun | None, now: datetime,
+               newer: models.ModelRun | None = None) -> list[sc.Component]:  # fmt: skip
     """The six named components of §13.2, each with a plain status. No combined score:
     §13.2 requires the combining formula to be backtested first."""
     out = []
@@ -359,7 +379,9 @@ def confidence(m: MatchRow, refit: serve.Refit | None, fresh: sc.Freshness,
             key="freshness", label="Data freshness",
             status="stale" if fresh.stale else "ok",
             value=f"refit {fresh.age_days:.1f} d old",
-            detail=f"Weekly refit as of {fresh.refit_as_of:%Y-%m-%d}"
+            detail=f"Forecast from the weekly refit as of {fresh.refit_as_of:%Y-%m-%d}"
+                   + (f"; a newer refit (as of {_utc(newer.as_of):%Y-%m-%d}) has passed and is "
+                      "used from the next capture tick" if newer and newer.as_of else "")
                    + (f"; capabilities audited {audited:%Y-%m-%d}." if audited else
                       "; capabilities never audited."),
         ))  # fmt: skip
@@ -392,6 +414,7 @@ def fixture_list(session: Session, ctx: Context, now: datetime, start: datetime 
     champ = _champion(session, ctx.model_name)
     lb = ctx.league_bundle
     groups: dict[int, sc.CompetitionGroup] = {}
+    behind: dict[int, models.ModelRun | None] = {}
     for r in rows:
         bundle = lb[r.league_id]
         run = runs.get(bundle)
@@ -408,13 +431,20 @@ def fixture_list(session: Session, ctx: Context, now: datetime, start: datetime 
         if not by_ms:
             reason = ("No passing refit for this bundle yet." if run is None else
                       "Not projected yet: the next capture tick writes it.")  # fmt: skip
+        # the row's freshness is that of the refit behind its forecast (the serving one if none)
+        src = _run_behind(session, by_ms[_latest_milestone(by_ms)], bundle, behind) if by_ms \
+            else None  # fmt: skip
+        row_run = src or run
+        newer = run if (src and run and run.as_of and src.as_of
+                        and _utc(run.as_of) > _utc(src.as_of)) else None  # fmt: skip
         g.fixtures.append(sc.FixtureRow(
             match_id=r.match_id, kickoff=r.kickoff, round=r.round, home=r.home, away=r.away,
             team_level=r.team_level,
             headline=_headline(ms := _latest_milestone(by_ms), by_ms[ms]) if by_ms else None,
             no_projection_reason=reason,
-            confidence=confidence(r, ctx.refit(run) if run else None, fresh, caps[r.season_id],
-                                  champ, now),
+            confidence=confidence(r, ctx.refit(row_run) if row_run else None,
+                                  _freshness(bundle, row_run, now), caps[r.season_id], champ,
+                                  now, newer),
         ))  # fmt: skip
     order = sorted(groups.values(), key=lambda g: competition_order(g.country, g.tier, g.name))
     return sc.FixtureList(generated_at=now, start=start, end=end, competitions=order)
@@ -464,7 +494,7 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
     runs = _serving(session, ctx, now)
     champ = _champion(session, ctx.model_name)
     milestones: list[sc.Milestone] = []
-    for ms in sorted(by_ms, key=lambda x: serve.MILESTONES.index(x)):
+    for ms in _published_order(by_ms):
         pr = session.get(models.ProjectionRun, by_ms[ms][0].projection_run_id)
         assert pr is not None
         cv = pr.component_versions.get(bundle, {})
@@ -499,7 +529,9 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
     return sc.MatchView(
         generated_at=now, header=header, freshness=fresh,
         confidence=confidence(m, refit or (ctx.refit(serving) if serving else None), fresh,
-                              caps, champ, now),
+                              caps, champ, now,
+                              serving if (run and serving and run.as_of and serving.as_of
+                                          and _utc(serving.as_of) > _utc(run.as_of)) else None),
         # an incoherent recomputation is never shown (§11.2); the coherence flag says why
         milestones=milestones, matrix=matrix if coh is None or coh.coherent else None,
         decomposition=dec if coh is None or coh.coherent else [], coherence=coh,
@@ -604,7 +636,7 @@ def _pre_kickoff_forecasts(
             slot[r.milestone] = (t, rows)
     out = {}
     for mid, slot in found.items():
-        ms = max(slot, key=lambda m: serve.MILESTONES.index(m))
+        ms = max(slot, key=lambda m: slot[m][0])  # the latest published before kickoff
         out[mid] = (ms, *slot[ms])
     return out
 

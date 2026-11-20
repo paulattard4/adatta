@@ -346,3 +346,53 @@ Acceptance (stated 2026-11-20, before building):
       03:37 UTC, lineup not announced yet) and Albacete v Celta de Vigo II on 16 Nov (both
       lineups, first seen 23 minutes before kickoff), at desktop and phone width: no sideways
       scroll, the two sides stack on a phone.
+
+## Forecast freshness (requested 2026-11-20)
+
+Owner: "data freshness is over 1 week now". The match pages for the 21-22 Nov fixtures
+showed "refit 11.3 d old, stale": their latest forecast (T-7d, written 15 Nov) came from the
+9 Nov refit, while the 16 Nov refit had passed a day later. Forecasts are only written at the
+milestones, so they kept the old refit until T-24h. The fixture list meanwhile said "4.3 d
+old" for the same forecasts: it reported the newest refit, not the one behind the
+probabilities on the row. Owner chose both fixes ("proceed"), the second as D41.
+
+Acceptance, display (stated 2026-11-20, before building):
+1. **The age shown is the age of what is shown.** A fixture row's data freshness component
+   reports the refit behind the forecast on that row (the latest milestone's projection run),
+   as the match page already does. A fixture with no forecast yet reports the serving refit.
+   The competition header keeps the serving refit (that competition's current refit).
+2. **A newer refit is named.** When the bundle's serving refit is newer than the one behind
+   the forecast, the component says so and gives its date, on the row and the match page.
+3. Tested on a synthetic world: a forecast from an older refit with a newer one serving.
+
+Acceptance, refit milestone (D41, stated 2026-11-20, before building):
+1. **When.** In a capture tick, a fixture gets a refit milestone when it already has a
+   forecast, no other milestone is due for it in that tick, and its bundle's latest passing
+   refit (as_of at or before now) is newer than every refit its forecasts came from.
+2. **What.** The same projection as any milestone (same function, same markets and
+   intervals), labelled `refit MM-DD HHh` from that refit's as_of, written once per fixture
+   and refit (idempotent like the others). Timed milestones and their windows are unchanged.
+3. **Order.** Milestones are ordered by when they were published, everywhere: the fixture
+   headline, the match page's latest milestone and history, the in-play and played views
+   (the latest published before kickoff). A refit milestone between T-7d and T-24h sorts
+   between them.
+4. **No leakage.** A refit with as_of after now is never used (as now); a refit milestone
+   written at or after kickoff is never shown or scored (the existing played-view rule).
+5. Tested on a synthetic world: T-7d from refit A, then refit B passes: the next tick writes
+   one refit milestone from B, the tick after writes nothing; when T-24h opens it uses B and
+   no refit milestone is added; the headline, match page and played view pick the latest
+   published.
+6. Read-only API and no odds (existing tests); ruff, mypy, pytest, lint, typecheck pass;
+   checked live on a 21-22 Nov fixture.
+- [x] **Built 2026-11-20, passes (display 1-3; refit milestone 1-5; 6 once pushed):**
+      `serve.refit_label`, `_refits_used` and the D41 rule in `run_projection`;
+      `views._published_order` (fixture headline, match page, in-play and played views order
+      by publication), `_run_behind` (a row's freshness from the refit behind its forecast),
+      and the "newer refit" detail. `tests/test_refit_milestone.py` (4 tests): one refit
+      milestone per newer refit, none for a fixture already projected from it or when T-24h
+      opens; none from a failed or future refit; match page, headline and played view take
+      the latest published; row and page freshness name the newer refit until the tick, then
+      not. Checked on live data before the push: of 223 fixtures on the list, 168 show
+      forecasts 10-11 days old with the 16 Nov refit named (the list said 4.3 days for all of
+      them before); match 108 page and row agree. The first capture tick after the push writes
+      the refit milestones.

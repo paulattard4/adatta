@@ -247,6 +247,32 @@ def due_milestones(kickoff: datetime, now: datetime, done: set[str]) -> list[str
     return out + snapshots.due_kinds(kickoff, now, done)
 
 
+REFIT_PREFIX = "refit "  # D41: a fresh forecast when a newer refit passes
+
+
+def refit_label(as_of: datetime) -> str:
+    """The refit milestone's name, from the refit's as_of (fits market_projection's 16)."""
+    return f"{REFIT_PREFIX}{_utc(as_of):%m-%d %H}h"
+
+
+def _refits_used(session: Session, ids: list[int], bundle_of: dict[int, str]
+                 ) -> dict[int, datetime]:  # fmt: skip
+    """Per match: the newest refit as_of among the projection runs that wrote its rows."""
+    MP, PR = models.MarketProjection, models.ProjectionRun
+    out: dict[int, datetime] = {}
+    for i in range(0, len(ids), 500):
+        for mid, cv in session.execute(
+            select(MP.match_id, PR.component_versions)
+            .join(PR, PR.projection_run_id == MP.projection_run_id)
+            .where(MP.match_id.in_(ids[i : i + 500])).distinct()
+        ):  # fmt: skip
+            v = (cv or {}).get(bundle_of[mid], {})
+            if "as_of" in v:
+                t = _utc(datetime.fromisoformat(v["as_of"]))
+                out[mid] = max(out.get(mid, t), t)
+    return out
+
+
 def upcoming(session: Session, leagues: dict[int, str], now: datetime) -> list[Fixture]:
     """Regular-season fixtures of the bundle leagues kicking off within HORIZON."""
     M, S, C = models.Match, models.Season, models.Competition
@@ -300,10 +326,23 @@ def run_projection(
     fixtures = upcoming(session, league_bundle, now)
     done = _done(session, [f.match_id for f in fixtures])
     due = {f.match_id: due_milestones(f.kickoff, now, done[f.match_id]) for f in fixtures}
+    runs, problems = latest_refits(session, now, model_name)
+    # D41: a fixture with a forecast and nothing due gets one from a newer passing refit
+    stale = [f for f in fixtures if not due[f.match_id] and done[f.match_id]
+             and league_bundle[f.league_id] in runs]  # fmt: skip
+    used = _refits_used(session, [f.match_id for f in stale],
+                        {f.match_id: league_bundle[f.league_id] for f in stale})  # fmt: skip
+    for f in stale:
+        run = runs[league_bundle[f.league_id]]
+        if run.as_of is None or f.match_id not in used:
+            continue
+        label = refit_label(run.as_of)
+        if _utc(run.as_of) > used[f.match_id] and label not in done[f.match_id]:
+            due[f.match_id] = [label]
     fixtures = [f for f in fixtures if due[f.match_id]]
     if not fixtures:
         return report
-    runs, report.problems = latest_refits(session, now, model_name)
+    report.problems = problems
     by_bundle: dict[str, list[Fixture]] = {}
     for f in fixtures:
         by_bundle.setdefault(league_bundle[f.league_id], []).append(f)

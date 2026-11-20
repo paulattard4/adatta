@@ -4,7 +4,8 @@ import type { Absence, Lineup, ProjectedPlayer, Projection, Squad, SquadPlayer, 
 const SHOW_MIN = 0.1; // pool players with P(start) + P(bench) below this are left out of the list
 
 function Projected({ xs, pr, announced }: { xs: ProjectedPlayer[]; pr: Projection; announced: boolean }) {
-  const shown = xs.filter((p) => p.p_start + p.p_bench >= SHOW_MIN);
+  // players the injury feed lists are always shown, however unlikely the model makes them
+  const shown = xs.filter((p) => p.p_start + p.p_bench >= SHOW_MIN || p.status !== null);
   return (
     <>
       <h4>{announced ? "Projected before the announcement" : "Projected lineup"} <span className="dim">· P3-b</span></h4>
@@ -28,7 +29,7 @@ function Projected({ xs, pr, announced }: { xs: ProjectedPlayer[]; pr: Projectio
           ))}
         </tbody>
       </table>
-      {shown.length < xs.length && <p className="squad-meta dim">{xs.length - shown.length} more in the pool, each under {pct(SHOW_MIN, 0)}% to be named.</p>}
+      {shown.length < xs.length && <p className="squad-meta dim">{xs.length - shown.length} more in the pool, each under {pct(SHOW_MIN, 0)}% to be named and not listed by the feed.</p>}
     </>
   );
 }

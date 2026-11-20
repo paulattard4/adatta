@@ -144,6 +144,7 @@ def run(session: Session, store: RawStore, bundles: dict[str, list[int]],
         return report
     season = max(int(x) for x in tg["season"].to_list())
     inp = ev.load_inputs(session, store, [str(x) for x in leagues], season, live=True)
+    session.rollback()  # end the read transaction before the build (Neon's idle timeout)
     players, teams = sel.build(sel.Inputs(inp.appearances, inp.coaches, inp.context,
                                           tg.drop("kickoff")))  # fmt: skip
     if players.is_empty():

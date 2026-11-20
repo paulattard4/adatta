@@ -450,3 +450,16 @@ Acceptance (stated 2026-11-20, before building):
   - `tests/test_projected_lineups.py` (5): unplayed-fixture features against dev; the
     serving path against the dev path, and the refit's storage; refits due every 28 days;
     which fixtures are projected and their as-of; the panel's latest run and injury tags.
+- **First run 2026-11-20** (projected_lineups 44729664015):
+  - **Refits:** all five passed the gates (R-hat 1.0056-1.0071, ESS 598 or more, no
+    divergences; fits 11-31 min). Each bundle keeps its own 28-day grid, as on dev, so the
+    refit dates are 26 Oct to 9 Nov. The refit jobs were marked failed after storing: the
+    DB session stayed open through the fit and Neon closed it at its idle-in-transaction
+    timeout. The read transaction now ends before the fit and before the projection's
+    build.
+  - **Projection:** 121 fixtures, 8,567 player rows, no context missing. Expected starters
+    add up to 10.91 a side (11 less the newcomer allowance).
+  - **Checked in the browser** on Hull City v Brighton (22 Nov), at desktop and phone
+    width with no sideways scroll. It shows why P3-f matters: players the feed lists as
+    out still get 9-20% to start. Players the feed lists are now always shown (some had
+    fallen under the 10% cut), and the panel heading now says the projection is P3-b's.

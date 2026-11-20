@@ -385,6 +385,7 @@ def serve_refit(store: Any, session: Any, bundle: str, leagues: list[str], now: 
         return {"bundle": bundle, "skipped": "not due"}
     season = now.year if now.month >= 7 else now.year - 1
     inp = ev.load_inputs(session, store, leagues, max(season, ev.LIVE_FROM), live=True)
+    session.rollback()  # end the read transaction: the fit takes far past Neon's idle timeout
     players, teams = sel.build(inp)
     rows = with_times(players.filter(pl.col("league_ref").is_in(leagues)), teams)
     rows = rows.with_columns(final_at=rows["as_of"] + sel.HORIZON + RESULT_LAG)

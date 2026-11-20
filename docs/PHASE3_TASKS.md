@@ -1405,3 +1405,56 @@ Consequences:
          reported with the difference and a 95% interval from 1,000 resamples of whole
          matches. The log loss stays as stated. Both remain reported only, never part
          of (c).
+- [ ] **P3-f Status-informed availability (D39: judged live).** P3-b with the injury feed:
+      players the provider lists before the match as out or doubtful. Requested 2026-11-20
+      (owner: "simple first then proceed with using injury feed"). The simple version (P3-b
+      served, the feed shown beside it, docs/DASHBOARD_TASKS.md) runs meanwhile.
+
+      Acceptance (draft, stated 2026-11-20 before building; no P3-f score has been
+      computed. Seen so far: the counts of captured spells, 958 "missing" over 328 matches
+      and 177 "questionable" over 57 matches, 2026-11-05 to 2026-11-20):
+
+      *Why an overlay, not a refit with status covariates.* Status can't be reconstructed
+      for past seasons (D39), so a status term can only be learned from live captures, two
+      weeks so far. A whole-model refit on that is out of reach. The overlay keeps P3-b as
+      validated and learns two numbers from live data.
+
+      (a) **Model.** For each pool player, P3-b's raw (start, bench, out) probabilities. If
+      the open status spell at the as-of time t (kickoff - 24 h, or the projection time)
+      lists the player:
+      - "missing": the start and bench probabilities are multiplied by ρ_m;
+      - "questionable": they are multiplied by ρ_q.
+      The rest goes to out, and P3-b's coherence step then spreads the team's 11 starts
+      and bench places over the others as on dev. Unlisted players are untouched, apart
+      from that redistribution.
+
+      (b) **ρ_m and ρ_q, learned live and as of t.** ρ_s is the posterior mean of the
+      share of listed players who were still in the matchday squad, over the listed
+      player-matches final by t (live captures only). Priors: ρ_m ~ Beta(1, 19) (mean
+      0.05), ρ_q ~ Beta(5, 5) (mean 0.5), so early estimates stay near them. Updated at
+      each projection in closed form; nothing else is fitted.
+
+      (c) **Targets and baseline.** Live bundle league team-matches with a P3-b projection
+      as of kickoff - 24 h and a captured status as of then. The comparison is paired by
+      player row:
+      - P3-f against P3-b on the same pool and draws;
+      - the realised outcome from the final record (start, bench or out).
+
+      (d) **Pass, judged once on 2027-01-04** (about seven weeks of captures), if at least
+      1,000 listed player-matches are final by then. Otherwise the judgement moves on four
+      weeks at a time, without looking at the scores. All must hold:
+      1. Three-way log loss: P3-f beats P3-b over all pool rows, with the paired 95%
+         interval excluding 0;
+      2. on the listed players' rows, P3-f beats P3-b the same way;
+      3. on unlisted rows, P3-f is no worse than P3-b by more than 1.0% (point estimate);
+      4. ECE of P(start) at most 0.02, and of P(start) on listed rows at most 0.05;
+      5. leakage: no spell observed after t changes a probability (100 sampled rows).
+      Reported: ρ_m and ρ_q over time; listed players who started; by league.
+
+      (e) **Then.** On a pass, the served projection switches to P3-f and the panel says
+      the feed is used; the simple version's label goes. On a fail, the simple version
+      stays, and any respecification is disclosed. Interim reports (about weekly) are
+      reported only; nothing is tuned on them.
+
+      **Cost:** 0 API requests (the feed is already captured daily). No refits: it reuses
+      the serving P3-b draws and the stored projections.

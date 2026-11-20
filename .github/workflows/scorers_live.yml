@@ -1,0 +1,164 @@
+# P3-e (f) live verdict (docs/PHASE3_TASKS.md): the scorer forecasts on live 2026/27 bundle
+# league matches whose lineups were captured before kickoff, as-of batch reruns judged once
+# after the season's last matchday. Manual dispatch only, one stage per run, in this order:
+#   prep      rebuild the live season's appearances from stored payloads, then the counts
+#             table and the selection table through the live season (holdout seasons as
+#             history only); prints both digests
+#   minutes   P3-b refitted on its 28-day grid continued through the live season, per bundle
+#   quality   P3-d0's hyperparameters on the live grid, one statistic per run (goals, then
+#             assists: their stored refits share a key per run)
+#   table     the live player table, P as served, leakage; then (adatta.edge, downstream)
+#             the anytime-scorer prices
+#   assemble  (e)1-5 on the live targets, interim unless final; then the market comparison
+# The repo is public: logs carry metrics only; rows go to R2. Holdout matches are never
+# targets. One backtest-type run at a time (backtest, gate, holdout, timing, cups, selection,
+# selection_rerun, formation, rates, lineup, scorers, scorers_live): two runs together fill
+# the account's 20 job slots and starve the capture.
+name: scorers_live
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "prep | minutes | quality | table | assemble"
+        required: true
+      season:
+        description: "the live season"
+        default: "2026"
+      stat:
+        description: "quality: goals | assists"
+        default: "goals"
+      rates:
+        description: "quality, table: counts table digest from prep"
+        default: ""
+      selection:
+        description: "minutes: selection table digest from prep"
+        default: ""
+      minutes:
+        description: "table: the minutes run id"
+        default: ""
+      goals:
+        description: "table: the goals quality run id"
+        default: ""
+      assists:
+        description: "table: the assists quality run id"
+        default: ""
+      table:
+        description: "assemble: live player table digest"
+        default: ""
+      final:
+        description: "assemble: true only after the season's last matchday"
+        default: "false"
+permissions:
+  contents: read
+concurrency:
+  group: scorers_live
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  prep:
+    if: ${{ inputs.stage == 'prep' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: live season appearances
+        run: uv run --frozen adatta appearances-build --season ${{ inputs.season }} --rebuild
+      - name: counts table through the live season
+        run: >-
+          uv run --frozen --group model python -m adatta.eval.rates build-table
+          --live ${{ inputs.season }}
+      - name: selection table through the live season
+        run: >-
+          uv run --frozen --group model python -m adatta.eval.selection build-table
+          --live ${{ inputs.season }}
+  minutes:
+    if: ${{ inputs.stage == 'minutes' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        bundle: ["england", "spain", "italy", "germany", "france"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: P3-b on the live grid
+        run: >-
+          uv run --frozen --group model python -m adatta.model.selection run --live
+          --bundle ${{ matrix.bundle }} --season ${{ inputs.season }}
+          --table ${{ inputs.selection }} --upload ${{ github.run_id }}
+  quality:
+    if: ${{ inputs.stage == 'quality' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        part: ["0/2", "1/2"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: P3-d0 hyperparameters on the live grid
+        run: >-
+          uv run --frozen --group model python -m adatta.model.lineup quality --live
+          --stat ${{ inputs.stat }} --rates ${{ inputs.rates }}
+          --upload ${{ github.run_id }} --part ${{ matrix.part }}
+  table:
+    if: ${{ inputs.stage == 'table' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: live player table
+        shell: bash  # -eo pipefail: a failing build is not hidden by tee
+        run: >-
+          uv run --frozen --group model python -m adatta.model.scorers_live table
+          --goals ${{ inputs.goals }} --assists ${{ inputs.assists }}
+          --minutes ${{ inputs.minutes }} --rates ${{ inputs.rates }}
+          | tee table.log
+      - name: anytime-scorer prices (downstream, adatta.edge; never a model input)
+        run: |
+          d=$(grep -o 'stored live player table [0-9a-f]*' table.log | awk '{print $5}')
+          uv run --frozen --group model python -m adatta.edge.scorers market --table "$d"
+  assemble:
+    if: ${{ inputs.stage == 'assemble' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: assemble
+        shell: bash
+        run: |
+          final=""
+          if [ "${{ inputs.final }}" = "true" ]; then final="--final"; fi
+          uv run --frozen --group model python -m adatta.model.scorers_live assemble \
+            --table ${{ inputs.table }} $final | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: market comparison (reported only, adatta.edge)
+        shell: bash
+        run: >-
+          uv run --frozen --group model python -m adatta.edge.scorers report
+          --table ${{ inputs.table }} | tee -a "$GITHUB_STEP_SUMMARY"

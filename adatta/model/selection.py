@@ -285,14 +285,17 @@ def with_times(players: pl.DataFrame, teams: pl.DataFrame) -> pl.DataFrame:
 def run_part(players: pl.DataFrame, teams: pl.DataFrame, leagues: list[str], season: int,
              draws: int = DRAWS, part: tuple[int, int] = (0, 1),
              on_refit: Callable[[pl.DataFrame, list[dict[str, Any]]], None] | None = None,
-             only: set[str] | None = None,
+             only: set[str] | None = None, live: bool = False,
              ) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
-    """Score one dev season of one bundle: baselines from warm-up, the model refitted every
-    28 days on the TRAIN_DAYS of rows final by the refit time. `part` (i, n) takes every
-    n-th refit block of the season from the i-th, so n jobs share a season. `on_refit` is
-    called after each refit with everything scored so far (so a cut-off job keeps it).
-    `only` (refit dates, YYYY-MM-DD) keeps just those refits of the part (amendment 9)."""
-    if season not in ev.DEV:
+    """Score one dev season (or with `live`, one live season: P3-e (f)) of one bundle: baselines
+    from warm-up, the model refitted every 28 days on the TRAIN_DAYS of rows final by the refit
+    time. `part` (i, n) takes every n-th refit block of the season from the i-th, so n jobs
+    share a season. `on_refit` is called after each refit with everything scored so far (so a
+    cut-off job keeps it). `only` (refit dates, YYYY-MM-DD) keeps just those refits of the part
+    (amendment 9)."""
+    if live and season < ev.LIVE_FROM:
+        raise ev.HoldoutRefused(f"season {season} is not a live season")
+    if not live and season not in ev.DEV:
         raise ev.HoldoutRefused(f"season {season} is not a dev season")
     rows = with_times(players.filter(pl.col("league_ref").is_in(leagues)), teams)
     kick = rows["as_of"] + sel.HORIZON  # the match's kickoff
@@ -302,7 +305,10 @@ def run_part(players: pl.DataFrame, teams: pl.DataFrame, leagues: list[str], sea
     nu_warm = ev.newcomer_rates(teams.filter(pl.col("season").is_in(ev.WARMUP)))
     target = rows.filter(pl.col("season") == season)
     out, diags = [], []
-    times = refit_times(rows.filter(pl.col("season").is_in(ev.DEV)))
+    # the dev grid; a live run continues it through the live season (same 28-day steps)
+    graded = pl.col("season").is_in(ev.DEV) | (pl.col("season") >= ev.LIVE_FROM if live
+                                               else pl.lit(False))  # fmt: skip
+    times = refit_times(rows.filter(graded))
     blocks = []
     for i, t in enumerate(times):
         nxt = times[i + 1] if i + 1 < len(times) else datetime.max.replace(tzinfo=UTC)
@@ -419,6 +425,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     r.add_argument("--table", default="latest")
     r.add_argument("--part", default="0/1", help="i/n: every n-th refit block from the i-th")
     r.add_argument("--only", default="", help="comma-separated refit dates (a rerun)")
+    r.add_argument("--live", action="store_true", help="P3-e (f): a live season")
     a = sub.add_parser("assemble")
     a.add_argument("--fetch", required=True)
     a.add_argument("--bundles", required=True)
@@ -441,7 +448,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
         only = set(args.only.split(",")) if args.only else None
         scored, diags = run_part(players, teams, leagues, args.season, args.draws, (i, n),
-                                 on_refit=save, only=only)  # fmt: skip
+                                 on_refit=save, only=only, live=args.live)  # fmt: skip
         save(scored, diags)
         ok = sum(d["gates_ok"] for d in diags)
         print(f"{args.bundle} {args.season}: {len(diags)} refits, {ok} pass the gates; "

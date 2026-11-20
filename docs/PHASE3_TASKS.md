@@ -1338,3 +1338,37 @@ Consequences:
       P3-d0 refits for the new 28-day steps (a few each), one table, one scoring run.
       Each is a backtest-type run, one at a time. Appearances for 2026 are rebuilt from the
       stored detail payloads before each run (`adatta appearances-build`).
+
+      **Live build (2026-11-20), before any live run:**
+      - **Code:**
+        - live mode in P3-b (`eval.selection build-table --live`, `model.selection run
+          --live`) and P3-d0 (`eval.rates build-table --live`, `lineup quality --live`).
+          `check_max_season` lets a live build load through the live season with the
+          holdout seasons as history; their matches are never targets. Live tables leave
+          the dev "latest" pointers alone. The live refit grids continue the dev 28-day
+          grids;
+        - `features.scorers`: `snapshot_squad` (the announced squad of a captured lineup
+          as the population), `name_keys` and `match_names` (odds names to players: full
+          name, then initial and surname, then surname, only when unique in the match);
+        - `api_football_capture.parse_scorer_odds` (the anytime-scorer market of a stored
+          odds payload, principle 3);
+        - `adatta/model/scorers_live.py`: live targets, snapshot squads, P as served (the
+          refit behind the latest forecast before the lineup, recomputed and checked
+          against the published 1X2), the live leakage check, the table and assemble;
+        - `adatta/edge/scorers.py`: the market and its report, in a new downstream
+          package. The principle-1 test bars odds from model, eval, sim and feature code.
+      - **CI:** `.github/workflows/scorers_live.yml`, run in five stages: prep, minutes,
+        quality (goals, then assists), table (then the edge market), assemble (then the
+        edge report).
+      - **Tests:** `tests/test_scorers_live.py` (7): season guards, the live grid, the
+        snapshot squad, the odds parser, name matching, live targets, and P as served.
+      - **Dry run on live data** (no model fits, counts only):
+        - 91 matches have both lineups captured before kickoff (from 2026-11-07);
+        - 11 of them have a forecast published before the lineup, because forecasting
+          began 2026-11-11. The other 80 have no P as served and are not targets. In
+          effect the live clock starts on 11 Nov;
+        - P as served reproduces the published 1X2 to 6e-17, from the T-60m forecast;
+        - all 91 matches are priced; 6,440 of 9,262 anytime-scorer names match a squad
+          player (the market also lists players outside the squad);
+        - 78 of about 3,850 snapshot players are not in the player table yet, so they are
+          dropped (reported each run).

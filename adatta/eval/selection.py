@@ -33,6 +33,8 @@ MINUTES = np.arange(91)  # the normal-time minutes grid, 0..90
 EPS = 1e-6
 WARMUP = (2016, 2017, 2018)
 DEV = (2019, 2020, 2021, 2022, 2023)
+HOLDOUT = (2024, 2025)  # config/evaluation.yml: history only for live targets, never scored
+LIVE_FROM = 2026  # P3-e (f): live targets; the holdout seasons before it load as history
 CONTEXT_REF = "b29bb7f0915abf76"  # the final F3 h48 snapshot (PHASE2_TASKS.md)
 
 
@@ -40,15 +42,22 @@ class HoldoutRefused(RuntimeError):
     pass
 
 
+def check_max_season(max_season: int, live: bool) -> None:
+    """Dev builds stop at the last dev season. A live build (P3-e (f)) may load through the
+    live season, the holdout seasons as history only (their matches are never targets)."""
+    if max_season > DEV[-1] and not (live and max_season >= LIVE_FROM):
+        raise HoldoutRefused(f"season {max_season} is past the dev window")
+
+
 # ----------------------------------------------------------------------------- inputs
 
 
 def load_inputs(session: Session, store: RawStore, leagues: Sequence[str],
-                max_season: int = DEV[-1]) -> sel.Inputs:  # fmt: skip
+                max_season: int = DEV[-1], live: bool = False) -> sel.Inputs:  # fmt: skip
     """Appearances of club teams (all stored competitions, seasons <= max_season), coaches,
-    the h48 context snapshot and the bundle-league targets of seasons 2016..max_season."""
-    if max_season > DEV[-1]:
-        raise HoldoutRefused(f"season {max_season} is past the dev window")
+    the h48 context snapshot and the bundle-league targets of seasons 2016..max_season.
+    `live` allows max_season up to the live season (`check_max_season`)."""
+    check_max_season(max_season, live)
     groups = [g for g in ap.targets(session) if g[1] <= max_season]
     app = ap.load(store, sorted(groups))
     T = models.Team
@@ -80,11 +89,14 @@ def load_inputs(session: Session, store: RawStore, leagues: Sequence[str],
     return sel.Inputs(app, coaches, ctx, targets)
 
 
-def save_table(store: RawStore, players: pl.DataFrame, teams: pl.DataFrame) -> str:
+def save_table(store: RawStore, players: pl.DataFrame, teams: pl.DataFrame,
+               latest: bool = True) -> str:  # fmt: skip
+    """`latest` False (a live build) leaves the dev runs' "latest" pointer alone."""
     d = sel.digest(players)
     store.put(f"{sel.PREFIX}/{d}/players.parquet", sel.to_bytes(players))
     store.put(f"{sel.PREFIX}/{d}/teams.parquet", sel.to_bytes(teams))
-    store.put(f"{sel.PREFIX}/latest.json", json.dumps({"digest": d}).encode())
+    if latest:
+        store.put(f"{sel.PREFIX}/latest.json", json.dumps({"digest": d}).encode())
     return d
 
 
@@ -464,16 +476,23 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     ap_ = argparse.ArgumentParser(prog="adatta.eval.selection")
     sub = ap_.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("build-table", help="build and store the selection table (dev seasons)")
+    bt = sub.add_parser("build-table", help="build and store the selection table (dev seasons)")
+    bt.add_argument(
+        "--live",
+        type=int,
+        default=0,
+        help="P3-e (f): build through this live season (holdout seasons as history)",
+    )
     lk = sub.add_parser("leakage", help="rerun the leakage check on a stored table")
     lk.add_argument("--table", default="latest")
     args = ap_.parse_args(argv)
     store = make_store(get_settings())
     if args.cmd == "build-table":
+        live = args.live > 0
         with get_session() as session:
-            inp = load_inputs(session, store, _leagues())
+            inp = load_inputs(session, store, _leagues(), args.live or DEV[-1], live)
         players, teams = sel.build(inp)
-        d = save_table(store, players, teams)
+        d = save_table(store, players, teams, latest=not live)
         meta = {"digest": d, "rows": players.height, "team_matches": teams.height,
                 **leakage_check(inp, players)}  # fmt: skip
         store.put(f"{sel.PREFIX}/{d}/meta.json", json.dumps(meta).encode())

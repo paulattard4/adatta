@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 
 from adatta.adapters.storage import RawStore
 from adatta.db import models
-from adatta.eval.selection import DEV, WARMUP, HoldoutRefused
+from adatta.eval.selection import DEV, LIVE_FROM, WARMUP, check_max_season
 from adatta.features import appearances as ap
 from adatta.features import lineups as lu
 from adatta.features import rates as fr
@@ -65,9 +65,9 @@ class Raw:
 
 
 def load_raw(session: Session, store: RawStore, leagues: Sequence[str],
-             max_season: int = DEV[-1]) -> Raw:  # fmt: skip
-    if max_season > DEV[-1]:
-        raise HoldoutRefused(f"season {max_season} is past the dev window")
+             max_season: int = DEV[-1], live: bool = False) -> Raw:  # fmt: skip
+    """`live` loads through the live season, the holdout seasons as history (P3-e (f))."""
+    check_max_season(max_season, live)
     groups = [(lg, y) for lg in leagues for y in range(WARMUP[0], max_season + 1)]
     app = ap.load(store, groups)
     lineups, _, _ = lu.load(store)
@@ -633,17 +633,26 @@ def main(argv: Sequence[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="adatta.eval.rates")
     p.add_argument("cmd", choices=["build-table"])
     p.add_argument("--leakage-n", type=int, default=100)
+    p.add_argument(
+        "--live",
+        type=int,
+        default=0,
+        help="P3-e (f): build through this live season (holdout seasons as history)",
+    )
     args = p.parse_args(argv)
     store = make_store(get_settings())
     lg = leagues()
+    live = args.live > 0
     with get_session() as session:
-        raw = load_raw(session, store, lg)
+        raw = load_raw(session, store, lg, args.live or DEV[-1], live)
     app = raw.appearances
     start = cast(datetime, app.filter(pl.col("minutes") > 0)["kickoff"].min())
     table = fr.build(app, raw.lineups, data_start=start)
     chk = fr.checks(fr.goal_check(app, raw.scores), fr.shots_check(app, raw.team_shots),
                     fr.event_sample(store, app))  # fmt: skip
-    chk = chk.filter(pl.col("season").is_in(DEV))
+    # the (a) checks drop a failing statistic in the scored seasons: dev, and live ones
+    scored = pl.col("season").is_in(DEV) | ((pl.col("season") >= LIVE_FROM) & pl.lit(live))
+    chk = chk.filter(scored)
     leak = leakage_check(app, raw.lineups, table, lg, n=args.leakage_n)  # before the drops
     table = fr.apply_drops(table, chk)
     meta: dict[str, Any] = {
@@ -653,7 +662,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         "slots": sorted(x for x in table["slot"].drop_nulls().unique().to_list()),
         **leak,
     }  # fmt: skip
-    digest = fr.save(store, table, meta)
+    digest = fr.save(store, table, meta, latest=not live)
     print(json.dumps({"digest": digest, "rows": len(table),
                       "dropped_no_line": meta["dropped_no_line"],
                       "checks_failed": [f"{c['league_ref']} {c['season']} {c['check']}"

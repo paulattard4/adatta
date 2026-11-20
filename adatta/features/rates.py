@@ -255,11 +255,14 @@ def to_bytes(df: pl.DataFrame) -> bytes:
     return buf.getvalue()
 
 
-def save(store: RawStore, table: pl.DataFrame, meta: dict[str, Any]) -> str:
+def save(store: RawStore, table: pl.DataFrame, meta: dict[str, Any],
+         latest: bool = True) -> str:  # fmt: skip
+    """`latest` False (a live build, P3-e (f)) leaves the dev runs' pointer alone."""
     d = digest(table)
     store.put(f"{PREFIX}/{d}/table.parquet", to_bytes(table))
     store.put(f"{PREFIX}/{d}/meta.json", json.dumps(meta).encode())
-    store.put(f"{PREFIX}/latest.json", json.dumps({"digest": d}).encode())
+    if latest:
+        store.put(f"{PREFIX}/latest.json", json.dumps({"digest": d}).encode())
     return d
 
 

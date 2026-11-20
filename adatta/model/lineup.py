@@ -36,7 +36,7 @@ from adatta.adapters.storage import RawStore, make_store, try_get
 from adatta.config import get_settings
 from adatta.eval import lineup as el
 from adatta.eval import rates as er
-from adatta.eval.selection import DEV, WARMUP, HoldoutRefused
+from adatta.eval.selection import DEV, LIVE_FROM, WARMUP, HoldoutRefused
 from adatta.features import appearances as ap
 from adatta.features import lineup_offset as lo
 from adatta.features import rates as fr
@@ -54,14 +54,25 @@ REDO_DRAWS = 4000
 # ------------------------------------------------------------------------------ quality
 
 
-def quality_times(rows: pl.DataFrame) -> list[datetime]:
-    """The warm-up refit and P3-d0's dev refit times (28-day grid over dev as-of times)."""
+def quality_times(rows: pl.DataFrame, live: bool = False) -> list[datetime]:
+    """The warm-up refit and P3-d0's dev refit times (28-day grid over dev as-of times).
+    `live` (P3-e (f)): the same grid continued through the live season, only the refits from
+    the last one at or before the first live as-of time onwards."""
     from adatta.eval import harness
     from adatta.model import rates as mr
 
-    dev = rows.filter(pl.col("season").is_in(DEV))
-    times = harness.as_of_times(dev["as_of"].min(), dev["as_of"].max(), mr.REFIT_DAYS)  # type: ignore[arg-type]
-    return sorted({mr.WARMUP_REFIT, *times})
+    graded = pl.col("season").is_in(DEV)
+    if live:
+        graded = graded | (pl.col("season") >= LIVE_FROM)
+    g = rows.filter(graded)
+    times = harness.as_of_times(g["as_of"].min(), g["as_of"].max(), mr.REFIT_DAYS)  # type: ignore[arg-type]
+    if not live:
+        return sorted({mr.WARMUP_REFIT, *times})
+    first = rows.filter(pl.col("season") >= LIVE_FROM)["as_of"].min()
+    if first is None:
+        raise SystemExit("no live rows in the counts table")
+    start = max(t for t in times if t <= first)  # type: ignore[operator]
+    return [t for t in times if t >= start]
 
 
 def _stamp(t: datetime) -> str:
@@ -88,7 +99,7 @@ def load_posts(store: RawStore, run: str,
 
 
 def run_quality(store: RawStore, run: str, part: tuple[int, int], draws: int,
-                rates_ref: str, stat: str = lo.STAT) -> None:  # fmt: skip
+                rates_ref: str, stat: str = lo.STAT, live: bool = False) -> None:  # fmt: skip
     """P3-d0's hyperparameters for `stat` (goals for P3-d; assists for P3-e) at the warm-up
     refit and every dev refit, line level."""
     from adatta.model import rates as mr
@@ -97,7 +108,7 @@ def run_quality(store: RawStore, run: str, part: tuple[int, int], draws: int,
     leagues = tuple(er.leagues())
     d = er.Design(leagues)
     rows = mr._frame(table, d)
-    times = quality_times(rows)
+    times = quality_times(rows, live)
     diags = []
     for t in times[part[0] :: part[1]]:
         _, post, diag = mr.one_fit(mr._window(rows, t), d, stat, draws)
@@ -422,6 +433,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     q.add_argument("--draws", type=int, default=QUALITY_DRAWS)
     q.add_argument("--rates", default="latest")
     q.add_argument("--stat", default=lo.STAT, choices=("goals", "assists"))
+    q.add_argument("--live", action="store_true", help="P3-e (f): the live refit grid")
     t = sub.add_parser("table")
     t.add_argument("--quality", required=True)
     t.add_argument("--export", required=True, help="selection report id with the P3-d export")
@@ -449,7 +461,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     store = make_store(get_settings())
     if args.cmd == "quality":
         i, n = (int(x) for x in args.part.split("/"))
-        run_quality(store, args.upload, (i, n), args.draws, args.rates, args.stat)
+        run_quality(store, args.upload, (i, n), args.draws, args.rates, args.stat, args.live)
     elif args.cmd == "table":
         build_table(store, args.quality, args.export, args.rates)
     elif args.cmd == "run":

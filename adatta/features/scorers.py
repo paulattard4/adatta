@@ -59,12 +59,33 @@ def _cut(kickoff: pl.Expr) -> tuple[pl.Expr, pl.Expr]:
 # ------------------------------------------------------------------------- population
 
 
-def population(app: pl.DataFrame, export: pl.DataFrame | None,
-               targets: pl.DataFrame) -> pl.DataFrame:  # fmt: skip
-    """Squad and pool rows of the target team-matches (KEY), with roles and minutes."""
-    sq = lo.squads(app).join(targets.select(KEY), on=KEY)
-    tm = lo.team_matches(lo.squads(app)).select(*KEY, "kickoff", "league_ref", "season")
-    sq = sq.select(*PKEY, "line", "started", played=pl.col("e") > 0, in_squad=pl.lit(True))
+def snapshot_squad(app: pl.DataFrame, squad: pl.DataFrame,
+                   targets: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:  # fmt: skip
+    """Live (P3-e (f)): the announced squad of a captured lineup snapshot in place of the
+    final record. `squad`: match_id, team_id, player_id, started, pos (the provider's G/D/M/F
+    code as announced); `targets`: KEY, kickoff, league_ref, season. Whether a player came on
+    is read from the appearances (an outcome, never an input)."""
+    played = app.filter(pl.col("minutes").fill_null(0) > 0).select(PKEY).unique()
+    sq = squad.join(targets.select(KEY), on=KEY).join(
+        played.with_columns(_p=pl.lit(True)), on=PKEY, how="left"
+    ).select(
+        *PKEY, line=pl.when(pl.col("pos").is_in(fr.LINES)).then(pl.col("pos")),
+        started="started", played=pl.col("_p").fill_null(False), in_squad=pl.lit(True),
+    ).unique(PKEY, keep="first", maintain_order=True)  # fmt: skip
+    return sq, targets.select(*KEY, "kickoff", "league_ref", "season")
+
+
+def population(app: pl.DataFrame, export: pl.DataFrame | None, targets: pl.DataFrame,
+               squad: pl.DataFrame | None = None) -> pl.DataFrame:  # fmt: skip
+    """Squad and pool rows of the target team-matches (KEY), with roles and minutes. The
+    squad is the final record's matchday squad, or with `squad` a captured lineup's
+    (`snapshot_squad`; `targets` then carries kickoff, league_ref and season)."""
+    if squad is not None:
+        sq, tm = snapshot_squad(app, squad, targets)
+    else:
+        sq = lo.squads(app).join(targets.select(KEY), on=KEY)
+        tm = lo.team_matches(lo.squads(app)).select(*KEY, "kickoff", "league_ref", "season")
+        sq = sq.select(*PKEY, "line", "started", played=pl.col("e") > 0, in_squad=pl.lit(True))
     if export is None:
         f64 = ("p_start", "p_bench", "emin_start", "emin_bench")
         schema = {
@@ -86,7 +107,8 @@ def population(app: pl.DataFrame, export: pl.DataFrame | None,
     rows = rows.filter(pl.col("line").is_not_null() & pl.col("kickoff").is_not_null())
     rows = rows.unique(PKEY, keep="first", maintain_order=True)
     if export is not None:
-        p3b_all = lo.p3b_rows(export).join(tm.select(*KEY, "kickoff"), on=KEY)
+        tm_all = tm if squad is not None else lo.team_matches(lo.squads(app))
+        p3b_all = lo.p3b_rows(export).join(tm_all.select(*KEY, "kickoff"), on=KEY)
         fallback = lo.role_fallback(p3b_all, rows)
     else:
         fallback = pl.Series([None] * rows.height, dtype=pl.Float64)
@@ -218,11 +240,13 @@ def shares(app: pl.DataFrame, targets: pl.DataFrame) -> pl.DataFrame:
 
 def build(app: pl.DataFrame, hist: pl.DataFrame, posts: Mapping[str, Mapping[datetime, Any]],
           leagues: tuple[str, ...], export: pl.DataFrame | None, targets: pl.DataFrame,
-          birth: pl.DataFrame | None = None) -> pl.DataFrame:  # fmt: skip
+          birth: pl.DataFrame | None = None,
+          squad: pl.DataFrame | None = None) -> pl.DataFrame:  # fmt: skip
     """The player table for `targets` (KEY). `app` holds the ten leagues' squad rows, `hist`
     the P3-d0 counts table, `posts` each statistic's refit draws, `export` P3-b's scored
-    rows from the export rerun, `birth` (player_id, birth_date) for the under-18 flag."""
-    rows = population(app, export, targets)
+    rows from the export rerun, `birth` (player_id, birth_date) for the under-18 flag, and
+    `squad` a captured lineup's squad for live targets (`snapshot_squad`)."""
+    rows = population(app, export, targets, squad)
     r = rates(rows, hist, posts, leagues)
     rows = rows.join(r, on=["match_id", "team_id", "player_id", "line"], how="left")
     rows = penalties(outcomes(rows, hist, tuple(posts)), app)
@@ -239,6 +263,49 @@ def build(app: pl.DataFrame, hist: pl.DataFrame, posts: Mapping[str, Mapping[dat
     return rows.sort("kickoff", *PKEY)
 
 
+# ------------------------------------------------------------------------- name match
+
+
+def name_keys(name: str | None) -> tuple[str, str, str]:
+    """(full, initial + surname, surname) of a player name, accents and punctuation removed,
+    lower case: "Ángel Cano" and "A. Cano" share the second key."""
+    import re
+    import unicodedata
+
+    if not name:
+        return ("", "", "")
+    t = unicodedata.normalize("NFKD", name)
+    t = "".join(c for c in t if not unicodedata.combining(c)).lower()
+    toks = [x for x in re.split(r"[^a-z0-9]+", t) if x]
+    if not toks:
+        return ("", "", "")
+    full = " ".join(toks)
+    return (full, f"{toks[0][0]} {toks[-1]}" if len(toks) > 1 else "", toks[-1])
+
+
+def match_names(odds_names: list[str], players: list[tuple[int, list[str]]]
+                ) -> dict[str, int]:  # fmt: skip
+    """Odds name -> player_id within one match. `players`: (player_id, known names). Tried
+    in order: the full name, initial + surname, surname; a key counts only when exactly one
+    player of the match has it, so an ambiguous name stays unmatched."""
+    out: dict[str, int] = {}
+    for level in range(3):
+        index: dict[str, set[int]] = {}
+        for pid, names in players:
+            for n in names:
+                k = name_keys(n)[level]
+                if k:
+                    index.setdefault(k, set()).add(pid)
+        for o in odds_names:
+            if o in out:
+                continue
+            k = name_keys(o)[level]
+            hit = index.get(k, set()) if k else set()
+            if len(hit) == 1:
+                out[o] = next(iter(hit))
+    return out
+
+
 # ------------------------------------------------------------------------------ store
 
 
@@ -252,11 +319,13 @@ def to_bytes(df: pl.DataFrame) -> bytes:
     return buf.getvalue()
 
 
-def save(store: RawStore, table: pl.DataFrame, meta: dict[str, Any]) -> str:
+def save(store: RawStore, table: pl.DataFrame, meta: dict[str, Any], latest: bool = True) -> str:
+    """`latest` False (a live table) leaves the dev table's pointer alone."""
     h = digest(table)
     store.put(f"{PREFIX}/{h}/table.parquet", to_bytes(table))
     store.put(f"{PREFIX}/{h}/meta.json", json.dumps({**meta, "digest": h}, default=str).encode())
-    store.put(f"{PREFIX}/latest", h.encode())
+    if latest:
+        store.put(f"{PREFIX}/latest", h.encode())
     return h
 
 

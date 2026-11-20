@@ -93,6 +93,41 @@ def odds_published_at(odds: dict[str, Any]) -> datetime | None:
     return datetime.fromisoformat(upd) if upd else None
 
 
+SCORER_MARKET = "Anytime Goal Scorer"  # P3-e (f): read from kept raw snapshots, Edge only
+
+
+def parse_scorer_odds(payload: dict[str, Any]) -> list[Price]:
+    """Anytime goalscorer prices from a stored /odds payload (raw snapshot), one Price per
+    bookmaker x player (selection = the provider's player name). Never a model input
+    (principle 1): read only for P3-e's market comparison."""
+    out: list[Price] = []
+
+    def items(o: Any) -> Any:
+        if isinstance(o, dict):
+            if "bookmakers" in o:
+                yield o
+            for v in o.values():
+                yield from items(v)
+        elif isinstance(o, list):
+            for v in o:
+                yield from items(v)
+
+    for it in items(payload):
+        for book in it.get("bookmakers") or []:
+            for bet in book.get("bets") or []:
+                if bet.get("name") != SCORER_MARKET:
+                    continue
+                for v in bet.get("values") or []:
+                    try:
+                        price = float(v["odd"])
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    name = v.get("value")
+                    if name and price > 1.0:
+                        out.append(Price(str(book.get("name")), "ANYTIME", None, str(name), price))
+    return out
+
+
 def parse_odds(odds: dict[str, Any]) -> list[Price]:
     """Normalised prices for NORMALISED_MARKETS from one /odds?fixture response item."""
     out: list[Price] = []

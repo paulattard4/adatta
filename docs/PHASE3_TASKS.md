@@ -1410,8 +1410,8 @@ Consequences:
       (owner: "simple first then proceed with using injury feed"). The simple version (P3-b
       served, the feed shown beside it, docs/DASHBOARD_TASKS.md) runs meanwhile.
 
-      Acceptance (draft, stated 2026-11-20 before building; no P3-f score has been
-      computed. Seen so far: the counts of captured spells, 958 "missing" over 328 matches
+      Acceptance (stated 2026-11-20 before building, owner: "Approve as drafted"; no
+      P3-f score has been computed. Seen so far: the counts of captured spells, 958 "missing" over 328 matches
       and 177 "questionable" over 57 matches, 2026-11-05 to 2026-11-20):
 
       *Why an overlay, not a refit with status covariates.* Status can't be reconstructed

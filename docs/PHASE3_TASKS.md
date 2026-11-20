@@ -1372,3 +1372,28 @@ Consequences:
           player (the market also lists players outside the squad);
         - 78 of about 3,850 snapshot players are not in the player table yet, so they are
           dropped (reported each run).
+
+      **Live runs:**
+      - **Interim 1 (2026-11-20, reported only):**
+        - prep 44699330567: counts table 71358817b70d0753 (leakage ok), selection table
+          399fb6ab0b584233 (79,771 team-matches, leakage 0). Goals drop out for Ligue 1
+          2026 under the (a) check: 1 of 180 team-matches has a goal event missing
+          (99.44%, the bar is 99.5%). This is a small-sample effect and clears once one
+          miss falls under 0.5%;
+        - minutes 44701271574: 22 P3-b refits, 20 pass the gates (England 3 of 4, Italy
+          3 of 4). As on dev (P3-b amendment 9), refits failing the gates are redone before
+          the final verdict;
+        - quality 44712775639 (goals) and 44713867390 (assists): 5 refits each, all pass
+          (R-hat 1.005 or less);
+        - table 44715008063, live player table 28fc9a2dbbe6f5d6: leakage 0 of 100, P as
+          served for 11 of 91 matches, reproduced to 5.6e-17;
+        - assemble 44716136377: 11 matches (464 player rows, 27 goals, 20 assists, all
+          from 7-16 Nov). Goals vs B0 +0.16% [-2.73%, +3.05%], vs B_line +1.44%, vs B_R1
+          +1.33%; E/O 0.996. Assists E/O 0.927. Every interval spans zero widely; nothing
+          is read from it.
+        - **Market comparison as stated is not informative.** Without margin removal the
+          anytime-scorer prices imply 0.184 on average against 0.066 observed (and M's
+          0.061), so M "beats" the market by the bookmakers' margin alone (log loss 0.215
+          against 0.287). Raised with the owner; no change made.
+        - The report's footer counted the 91 table matches; it now counts the matches
+          scored.

@@ -330,8 +330,14 @@ def assemble(store: RawStore, table_ref: str, final: bool) -> str:
     label = "FINAL live verdict" if final else "INTERIM (reported only; judged once at season end)"
     md = es.markdown(scored, v, {**meta, "table": digest})
     md = md.replace("# P3-e scorers — dev", f"# P3-e scorers — live, {label}", 1)
-    k = table["kickoff"].dt.strftime("%Y-%m-%d")
-    md += f"\n\nMatches: {table['match_id'].n_unique()}, kickoffs {k.min()!s} to {k.max()!s}."
+    scored_ids = scored["match_id"].unique()
+    hit = table.filter(pl.col("match_id").is_in(scored_ids.implode()))
+    k = hit["kickoff"].dt.strftime("%Y-%m-%d")
+    md += (
+        f"\n\nMatches scored: {scored_ids.len()} (with P as served) of "
+        f"{table['match_id'].n_unique()} with lineups captured before kickoff; kickoffs "
+        f"{k.min()!s} to {k.max()!s}."
+    )
     store.put(f"{PREFIX}/reports/{digest}/scored.parquet", _parquet(scored))
     store.put(f"{PREFIX}/reports/{digest}/verdict.json",
               json.dumps({"final": final, "passed": v.passed, "checks": v.checks},

@@ -66,7 +66,14 @@ export interface Lineup { observed_at: string; formation: string | null; coach: 
 export interface Absence { name: string; status: "out" | "doubtful" | string; reason: string | null; since: string }
 export interface ProjectedPlayer { name: string; pos: string; p_start: number; p_bench: number; emin: number; status: string | null }
 export interface Projection { generated_at: string; as_of: string; refit_as_of: string }
-export interface TeamSquad { team: string; lineup: Lineup | null; absences: Absence[]; projected: ProjectedPlayer[] }
+export interface FormationOption { formation: string; p: number }
+export interface PitchPlayer { name: string; code: string; row: number; col: number; p_start: number | null; status: string | null }
+export interface FormationView {
+  generated_at: string; as_of: string; refit_as_of: string;
+  options: FormationOption[]; pitch_formation: string;
+  last_kickoff: string | null; positional: boolean; pitch: PitchPlayer[];
+}
+export interface TeamSquad { team: string; lineup: Lineup | null; absences: Absence[]; projected: ProjectedPlayer[]; formation?: FormationView | null }
 export interface Squad {
   as_of: string; status_checked_at: string | null; lineup_note: string | null; hidden_reason: string | null;
   projection: Projection | null;

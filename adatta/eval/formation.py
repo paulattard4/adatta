@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from adatta.adapters.storage import RawStore, try_get
 from adatta.db import models
-from adatta.eval.selection import CONTEXT_REF, DEV, WARMUP, HoldoutRefused
+from adatta.eval.selection import CONTEXT_REF, DEV, WARMUP, check_max_season
 from adatta.features import appearances as ap
 from adatta.features import context_table as ct
 from adatta.features import formation as fe
@@ -85,9 +85,11 @@ def tier_predictions(store: RawStore, bundles: Sequence[str]) -> pl.DataFrame:
 
 
 def load_raw(session: Session, store: RawStore, leagues: Sequence[str],
-             bundles: Sequence[str], max_season: int = DEV[-1]) -> Raw:  # fmt: skip
-    if max_season > DEV[-1]:
-        raise HoldoutRefused(f"season {max_season} is past the dev window")
+             bundles: Sequence[str], max_season: int = DEV[-1],
+             live: bool = False) -> Raw:  # fmt: skip
+    """`live` (P3-h serving) loads through the live season with opponent tier unknown
+    (amendment 1: no tier source covers a served refit's training window)."""
+    check_max_season(max_season, live)
     groups = [g for g in ap.targets(session) if g[1] <= max_season]
     app = ap.load(store, sorted(groups))
     T = models.Team
@@ -106,20 +108,33 @@ def load_raw(session: Session, store: RawStore, leagues: Sequence[str],
         "match_id": pl.Int64, "team_id": pl.Int64, "kickoff": pl.Datetime("us", "UTC"),
         "formation": pl.Utf8,
     })  # fmt: skip
-    inp = fe.Inputs(empty, coaches, ctx, tier_predictions(store, bundles),
-                    _targets(session, leagues, max_season))  # fmt: skip
+    tier = no_tier_input() if live else tier_predictions(store, bundles)
+    inp = fe.Inputs(empty, coaches, ctx, tier, _targets(session, leagues, max_season))
     return Raw(app, inp)
 
 
 # ------------------------------------------------------------------------------ the store
 
 
-def save_table(store: RawStore, table: pl.DataFrame, meta: dict[str, Any]) -> str:
+def save_table(store: RawStore, table: pl.DataFrame, meta: dict[str, Any],
+               latest: bool = True) -> str:  # fmt: skip
     d = fe.digest(table)
     store.put(f"{fe.PREFIX}/{d}/table.parquet", fe.to_bytes(table))
     store.put(f"{fe.PREFIX}/{d}/meta.json", json.dumps(meta).encode())
-    store.put(f"{fe.PREFIX}/latest.json", json.dumps({"digest": d}).encode())
+    if latest:
+        store.put(f"{fe.PREFIX}/latest.json", json.dumps({"digest": d}).encode())
     return d
+
+
+def no_tier_input() -> pl.DataFrame:
+    return pl.DataFrame(schema={"match_id": pl.Int64, "as_of": pl.Datetime("us", "UTC"),
+                                "p_home": pl.Float64, "p_away": pl.Float64})  # fmt: skip
+
+
+def no_tier(table: pl.DataFrame) -> pl.DataFrame:
+    """P3-h amendment 1: opponent tier unknown on every row (as `fe.build` with no tier
+    input gives), so a served refit trains and predicts alike."""
+    return table.with_columns(tier=pl.lit(0.0), tier_known=pl.lit(0.0))
 
 
 def load_table(store: RawStore, ref: str = "latest") -> tuple[pl.DataFrame, dict[str, Any], str]:
@@ -449,10 +464,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     from adatta.db.session import get_session
 
     p = argparse.ArgumentParser(prog="adatta.eval.formation")
-    p.add_argument("cmd", choices=["build-table"])
+    p.add_argument("cmd", choices=["build-table", "no-tier"])
+    p.add_argument("--table", default="latest", help="no-tier: the table to derive from")
     args = p.parse_args(argv)
-    del args
     store = make_store(get_settings())
+    if args.cmd == "no-tier":
+        table, meta, ref = load_table(store, args.table)
+        d = save_table(store, no_tier(table), {**meta, "no_tier_of": ref}, latest=False)
+        print(json.dumps({"digest": d, "from": ref, "rows": len(table)}))
+        return
     leagues, bundles = _leagues_and_bundles()
     with get_session() as session:
         raw = load_raw(session, store, leagues, bundles)

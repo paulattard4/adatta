@@ -84,6 +84,10 @@ Consequences:
   projected formation, so a third design on the same dev seasons would be fitting to
   them. The panel keeps B_top with the keeper fix; no formation or slots are shown.
   P3-c's formation model passed on its own and stays unserved.
+  *Amended 2026-11-20 (owner: "so youre saying we cant have a predicted formation with
+  positions? thats very poor"):* D42 closes P3-g's two placement models only. A formation
+  view built from what did pass (P3-c, and the last lineup in the projected formation,
+  the stronger baseline) is P3-h.
 
 ## Tasks
 
@@ -1670,3 +1674,90 @@ Consequences:
 
       **Closed 2026-11-20 (D42), owner: "Close as failed".** Not served; the panel is
       unchanged.
+
+- [ ] **P3-h Formation view: P3-c served, and the last lineup in that formation.** Owner,
+      2026-11-20: "i will want to display the probability of the selected formation along
+      with the two next best options".
+
+      Acceptance (stated 2026-11-20 before building, owner: "Approve as drafted"). Seen so far: P3-c's
+      dev results (top class right 58.9% on the positional dev seasons, top-class ECE
+      0.018); P3-g's dev results (slot accuracy of the last lineup in the projected
+      formation 0.709 when the formation is right); and a pre-check (2026-11-20, metrics
+      only):
+      - the last lineup in the projected formation exists in 98.1% of dev team-matches. It
+        has 8.29 of the 11 actual starters against 8.59 for B_top (-0.30 ± 0.02). So it is
+        better at where players line up and worse at who starts;
+      - live 2026 grid test: positional in 135, 140, 141, 39, 40 and 78; not yet in 61, 62,
+        136 and 79 (full-backs on their side 0.72-0.87 against 0.90 required, on 60-99
+        rows; it may pass as the season fills).
+
+      (a) **Formation served.** P3-c's model as passed, refitted per bundle every 28 days
+      at 2,000 draws in the daily projected-lineups workflow (dev 28-day grid, as P3-b).
+      A refit must pass P3-c's inference gates (R-hat, ESS, divergences, top-class PPC).
+      Otherwise the previous passing refit stays, and with none the view shows no
+      formation. Predicted as of the projection time for the same fixtures as P3-b (the
+      next 7 days). Inputs are final before that time only: formation and coach history,
+      and the 1X2 probabilities of the forecast published before it.
+      Stored with run id, refit id and as-of time in a new table (forward-only migration
+      0018, nothing dropped).
+
+      (b) **Shown.** The most likely formation with its probability, and the next two with
+      theirs ("other" shown as "other shape"). The pitch uses the most likely named
+      formation, the next one when the top is "other", as P3-g did.
+
+      (c) **Pitch.** The team's last lineup in the pitch formation, as of the projection
+      time, labelled "last lineup in this formation (dd Mon)". Each player shows his P3-b
+      start probability and any status tag (missing or questionable).
+      - In league-seasons passing the grid test, it is laid out by slot code (LB, LCB...).
+      - Elsewhere it is laid out by line only, labelled "positions by line only".
+      - With no previous lineup in that formation, the formation is shown without a pitch.
+      P3-b's starts list stays as it is, beside the pitch. The pitch is history, not a
+      forecast of who starts. No player is swapped in or out.
+
+      (d) **Checks.**
+      1. Serving: the stored predictions equal P3-c's on the same rows and refit, and are
+         unchanged if lineups or coaches after the as-of time are added (tests and 20
+         sampled live fixtures).
+      2. Live monitoring, reported, not a gate: top-1 accuracy and top-class ECE on 2026
+         team-matches as they finish, at the P3-e/P3-f interim reports. If top-class ECE
+         exceeds 0.05 on at least 1,000 team-matches, I raise it with you and the
+         probabilities come off the panel until it is resolved.
+
+      (e) **Then.** On (d)1 passing, the panel shows (b) and (c) on the match page.
+
+      **Cost:** 0 API requests. Refits about 2 minutes per bundle when due; migration
+      0018 (new table).
+
+      *Amended 2026-11-20 while building, before anything was served (owner: "Yes, rerun
+      without it"):*
+      1. **No opponent tier when served.** P3-c's tier came from a stored dev backtest.
+         Published forecasts start 2026-11-11, so a served refit's 730 training days would
+         have almost no tier while the fixtures it predicts would; trained one way and
+         predicted another, its probabilities could be off. Served P3-c sets tier unknown
+         (tier = 0, tier_known = 0) in training and prediction. Before serving, P3-c's dev
+         walk-forward is rerun the same way (table bd4423912693aa6d = 9a05c70602047e45
+         with tier unknown on every row; all bundles, 2019-2023, 2,000 draws; run
+         44785445515). It must pass P3-c's rule (e) again; otherwise no formation
+         probabilities are served and this comes back to the owner.
+
+      **Build (2026-11-20), nothing served yet:**
+      - `adatta/features/formation.py`: `build(..., unplayed=True)` keeps fixtures with no
+        lineup yet (outcome -1) and honours a target's own `as_of`. The dev path is
+        unchanged.
+      - `adatta/eval/formation.py`: `load_raw(..., live=True)` loads through the live
+        season with tier unknown; `no_tier` and `python -m adatta.eval.formation no-tier`
+        derive amendment 1's dev table; `save_table(..., latest=False)`.
+      - `adatta/model/formation.py`: `serve_refit` (dev 28-day grid, 730 days, 2,000
+        draws, gates; stored, and latest only on a pass) and CLI `serve-refit`.
+      - `adatta/sim/formations.py`: refit store, `last_lineups`/`pitch` (final by as_of -
+        RESULT_LAG), `distribution`, and `run`, which appends to `formation_projection`;
+        CLI `adatta formations-project`.
+      - `adatta/db/models.py` + `migrations/versions/0018_formation_projection.py`.
+      - API: `TeamSquad.formation` (three most likely, the pitch with P3-b's P(start) and
+        feed tags). Web: `FormationBlock` in `web/components/Squad.tsx`.
+      - `tests/test_formation_view.py` (4): tier-unknown rows equal the rerun's table;
+        unplayed rows, their own as-of, and later formations changing nothing; the pitch
+        as of the projection (lines only when not positional); the refit store and the
+        distribution equal P3-c's; the panel shows the latest projection's top three and
+        the pitch.
+      - The workflow steps (refit, project) are added only once the rerun passes.

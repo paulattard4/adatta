@@ -209,11 +209,42 @@ class Projection(BaseModel):
     refit_as_of: datetime
 
 
+class FormationOption(BaseModel):
+    formation: str  # "other" for the formations outside P3-c's vocabulary
+    p: float
+
+
+class PitchPlayer(BaseModel):
+    """One starter of the last lineup in the pitch formation (history, not a forecast)."""
+
+    name: str
+    code: str  # slot code (LB, LCB...) if positional, else the line (G / D / M / F)
+    row: int  # provider grid row, 1 = goalkeeper
+    col: int
+    p_start: float | None  # P3-b's, if in this fixture's projected pool
+    status: str | None  # "out" / "doubtful" from the injury feed
+
+
+class FormationView(BaseModel):
+    """P3-h: P3-c's three most likely formations, and the team's last lineup in the most
+    likely named one as of the projection time."""
+
+    generated_at: datetime
+    as_of: datetime
+    refit_as_of: datetime
+    options: list[FormationOption]
+    pitch_formation: str
+    last_kickoff: datetime | None  # None: no previous lineup in this formation
+    positional: bool
+    pitch: list[PitchPlayer]
+
+
 class TeamSquad(BaseModel):
     team: str
     lineup: Lineup | None
     absences: list[Absence]
     projected: list[ProjectedPlayer] = []
+    formation: FormationView | None = None
 
 
 class Squad(BaseModel):

@@ -73,7 +73,10 @@ def _ew(idx: NDArray[np.int64], k: int, decay: float) -> NDArray[np.float64]:
     return out / w.sum()
 
 
-def build(inp: Inputs, vocab: list[str]) -> pl.DataFrame:
+def build(inp: Inputs, vocab: list[str], unplayed: bool = False) -> pl.DataFrame:
+    """The table. A target may carry its own `as_of` (serving: min(now, kickoff - HORIZON));
+    otherwise kickoff - HORIZON. `unplayed` keeps targets with no lineup yet, outcome -1
+    (P3-h serving); the dev table never sets it."""
     k = len(vocab)
     code = {f: i for i, f in enumerate(vocab)}
     fm = (
@@ -101,12 +104,13 @@ def build(inp: Inputs, vocab: list[str]) -> pl.DataFrame:
     own = {(r[0], r[1]): r[2] for r in fm.select("match_id", "team_id", "cls").iter_rows()}
     out = []
     for r in inp.targets.iter_rows(named=True):
-        as_of = r["kickoff"] - HORIZON
+        as_of = r.get("as_of") or r["kickoff"] - HORIZON
         cut = int((as_of - RESULT_LAG).timestamp() * 1e6)
         for side, tid in (("home", r["home_team_id"]), ("away", r["away_team_id"])):
             y = own.get((r["match_id"], tid))
-            if y is None:
+            if y is None and not unplayed:
                 continue  # no complete lineup: no outcome
+            y = -1 if y is None else y
             ix = t_idx.get(tid, np.array([], dtype=np.int64))
             hist = ix[: int(np.searchsorted(ko_us[ix], cut, side="right"))] if len(ix) else ix
             ts = _ew(cls[hist[-TEAM_SPAN:]], k, TEAM_DECAY)

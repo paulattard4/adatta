@@ -1226,6 +1226,27 @@ def lineups_project() -> None:
         raise typer.Exit(code=1)  # a bundle with fixtures but no passing serving refit
 
 
+@app.command("formations-project")
+def formations_project() -> None:
+    """P3-h (docs/PHASE3_TASKS.md): P3-c's formation distribution and the last lineup in
+    the most likely formation for every regular-season bundle fixture of the next 7 days,
+    from each bundle's latest passing serving refit, appended to formation_projection. No
+    API requests. Counts only."""
+    from datetime import UTC, datetime
+
+    from adatta.eval import harness
+    from adatta.sim import formations
+
+    cfg = harness.load_config()
+    with get_session() as session:
+        rep = formations.run(session, make_store(get_settings()), cfg.bundles,
+                             datetime.now(UTC))  # fmt: skip
+        session.commit()
+    typer.echo(json.dumps(rep))
+    if rep["no_refit"]:
+        raise typer.Exit(code=1)  # a bundle with fixtures but no passing serving refit
+
+
 @app.command("lineups-score")
 def lineups_score(final: bool = typer.Option(False, help="the judgement (P3-f (d))")) -> None:
     """P3-f's live comparison with P3-b on the stored projections as of kickoff - 24 h, against

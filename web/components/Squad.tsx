@@ -1,5 +1,5 @@
 import { dateLocal, kickoffLocal, pct } from "@/lib/format";
-import type { Absence, Lineup, ProjectedPlayer, Projection, Squad, SquadPlayer, TeamSquad } from "@/lib/types";
+import type { Absence, FormationView, Lineup, PitchPlayer, ProjectedPlayer, Projection, Squad, SquadPlayer, TeamSquad } from "@/lib/types";
 
 const SHOW_MIN = 0.1; // pool players with P(start) + P(bench) below this are left out of the list
 
@@ -46,6 +46,58 @@ function Projected({ xs, pr, announced }: { xs: ProjectedPlayer[]; pr: Projectio
         </tbody>
       </table>
       {shown.length < xs.length && <p className="squad-meta dim">{xs.length - shown.length} more in the pool, each under {pct(SHOW_MIN, 0)}% to be named and not listed by the feed.</p>}
+    </>
+  );
+}
+
+const LINE_LABEL: Record<string, string> = { G: "GK", D: "D", M: "M", F: "F" };
+
+/** Grid rows, forwards on top; within a row, column 1 (the team's left) first. */
+export function pitchRows(xs: PitchPlayer[]): PitchPlayer[][] {
+  const rows = new Map<number, PitchPlayer[]>();
+  for (const p of xs) rows.set(p.row, [...(rows.get(p.row) ?? []), p]);
+  return [...rows.keys()].sort((a, b) => b - a).map((r) => rows.get(r)!.sort((a, b) => a.col - b.col));
+}
+
+function FormationBlock({ f }: { f: FormationView }) {
+  const label = (x: string) => (x === "other" ? "other shape" : x);
+  return (
+    <>
+      <h4>Projected formation <span className="dim">· P3-c</span></h4>
+      <div className="form-opts">
+        {f.options.map((o, i) => (
+          <span key={o.formation} className={`form-opt${i === 0 ? " top" : ""}`}>
+            <span className="num">{label(o.formation)}</span><span className="num">{pct(o.p, 0)}%</span>
+          </span>
+        ))}
+      </div>
+      <p className="squad-meta dim">
+        As of <span className="num">{kickoffLocal(f.as_of)}</span> · refit <span className="num">{dateLocal(f.refit_as_of)}</span>
+        {" "}· the model does not use opponent strength
+      </p>
+      {f.last_kickoff ? (
+        <>
+          <div className="squad-sub dim">
+            Last lineup in <span className="num">{f.pitch_formation}</span> (<span className="num">{dateLocal(f.last_kickoff)}</span>)
+            {!f.positional && " · positions by line only"}
+          </div>
+          <div className="pitch" aria-label={`last lineup in ${f.pitch_formation}`}>
+            {pitchRows(f.pitch).map((row) => (
+              <div className="pitch-row" key={row[0].row}>
+                {row.map((p) => (
+                  <div className="pitch-player" key={`${p.row}-${p.col}`}>
+                    <span className="pitch-code num">{f.positional ? p.code : (LINE_LABEL[p.code] ?? p.code)}</span>
+                    <span className="pitch-name" title={p.name}>{p.name}</span>
+                    <span className="num dim">{p.p_start !== null ? `${pct(p.p_start, 0)}%` : "–"}</span>
+                    {p.status && <span className={`absence-tag ${p.status}`} title="listed by the injury feed">{p.status}</span>}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+          <p className="squad-meta dim">History, not a forecast of who starts: the percentages are P3-b&apos;s chance to start (– not in this fixture&apos;s pool).</p>
+        </>
+      ) : <p className="squad-meta dim">No previous lineup in <span className="num">{f.pitch_formation}</span>.</p>}
     </>
   );
 }
@@ -103,6 +155,7 @@ function Side({ t, checked, note, pr }: { t: TeamSquad; checked: boolean; note: 
         : t.absences.length === 0 ? <p className="dim squad-meta">No absences listed by the feed.</p>
         : <Absences xs={t.absences} />}
       {t.lineup ? <LineupBlock lu={t.lineup} /> : <><h4>Lineup</h4><p className="dim squad-meta">{note ?? "No lineup captured."}</p></>}
+      {t.formation && <FormationBlock f={t.formation} />}
       {pr && t.projected.length > 0 && <Projected xs={t.projected} pr={pr} announced={t.lineup !== null} />}
     </div>
   );

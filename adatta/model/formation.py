@@ -192,6 +192,56 @@ def strong_baseline(table: pl.DataFrame, k: int) -> str:
     return "F2" if ll["F2"] <= ll["F1"] else "F1"
 
 
+def serve_refit(store: Any, session: Any, bundle: str, leagues: list[str], now: datetime,
+                draws: int = 2000, force: bool = False) -> dict[str, Any]:  # fmt: skip
+    """P3-h's serving refit of one bundle: P3-c as on dev (2,000 draws, as it passed) with
+    opponent tier unknown (amendment 1), fitted at the latest time of the dev 28-day grid
+    at or before `now` on the TRAIN_DAYS of team-matches final by then; stored, and made
+    the bundle's latest only if it passes the inference gates. Skipped unless the latest
+    passing refit is REFIT_DAYS old (or `force`)."""
+    from adatta.eval import harness
+    from adatta.eval.selection import LIVE_FROM
+    from adatta.features import lineups as lu
+    from adatta.model import diagnostics as dg
+    from adatta.sim import formations as sf
+
+    if not force and not sf.due(store, bundle, now):
+        return {"bundle": bundle, "skipped": "not due"}
+    season = now.year if now.month >= 7 else now.year - 1
+    raw = ev.load_raw(session, store, leagues, [bundle], max(season, LIVE_FROM), live=True)
+    session.rollback()  # end the read transaction: the fit takes far past Neon's idle timeout
+    _, formations, _ = lu.build(raw.appearances)
+    _, fmeta, _ = ev.load_table(store, sf.DEV_TABLE)
+    vocab = list(fmeta["vocab"])
+    k = len(vocab)
+    r_in = raw.inputs
+    inp = fe.Inputs(formations.select("match_id", "team_id", "kickoff", "formation"),
+                    r_in.coaches, r_in.context, r_in.tier, r_in.targets)  # fmt: skip
+    rows = (
+        fe.build(inp, vocab)
+        .filter(pl.col("league_ref").is_in(leagues))
+        .with_columns(as_of=pl.col("kickoff") - fe.HORIZON, final_at=pl.col("kickoff") + RESULT_LAG)
+    )
+    first = rows.filter(pl.col("season").is_in(DEV))["as_of"].min()
+    t = harness.as_of_times(first, now, REFIT_DAYS)[-1]  # type: ignore[arg-type]
+    train = rows.filter((pl.col("final_at") <= t)
+                        & (pl.col("kickoff") > t - timedelta(days=TRAIN_DAYS)))  # fmt: skip
+    t0 = time.monotonic()
+    idata = fit(train, k, draws)
+    checks = dg.convergence(idata)
+    post = posterior(idata)
+    q = ppc_top(post, train, k, np.random.default_rng(SEED))
+    ok = all(c.passed for c in checks if c.blocking)
+    meta = {"bundle": bundle, "as_of": t.isoformat(), "train_rows": len(train), "gates_ok": ok,
+            "fit_s": time.monotonic() - t0, "ppc_q": q, "tier": "unknown",
+            **{c.name: c.value for c in checks}}  # fmt: skip
+    key = sf.refit_key(bundle, t)
+    store.put(key, sf.encode(post, vocab, meta))
+    if ok:
+        store.put(sf.latest_key(bundle), json.dumps({"key": key, "as_of": t.isoformat()}).encode())
+    return meta
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     import argparse
 
@@ -214,8 +264,23 @@ def main(argv: Sequence[str] | None = None) -> None:
     a.add_argument("--seasons", required=True)
     a.add_argument("--table", default="latest")
     a.add_argument("--parts", type=int, default=1)
+    sr = sub.add_parser("serve-refit")
+    sr.add_argument("--bundle", required=True)
+    sr.add_argument("--force", action="store_true")
     args = p.parse_args(argv)
     store = make_store(get_settings())
+    if args.cmd == "serve-refit":
+        from adatta.db.session import get_session
+
+        cfg = harness.load_config()
+        with get_session() as session:
+            got = serve_refit(store, session, args.bundle,
+                              [str(x) for x in cfg.bundles[args.bundle]], datetime.now(UTC),
+                              force=args.force)  # fmt: skip
+        print(json.dumps({k: v for k, v in got.items() if k != "worst"}, default=str))
+        if got.get("gates_ok") is False:
+            raise SystemExit(1)  # stored, not served: the alert email goes out
+        return
     table, meta, digest = ev.load_table(store, args.table)
     vocab = meta["vocab"]
     k = len(vocab)

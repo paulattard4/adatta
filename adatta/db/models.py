@@ -613,6 +613,32 @@ class LineupProjection(Base):
     )
 
 
+class FormationProjection(Base):
+    """P3-h (docs/PHASE3_TASKS.md): P3-c's formation distribution for one team of an
+    upcoming fixture as of `as_of`, and the pitch shown with it: the team's last lineup in
+    the pitch formation as of then (history, not a forecast of who starts). Append-only,
+    like lineup_projection. P3-c is served with opponent tier unknown (amendment 1); no
+    odds."""
+
+    __tablename__ = "formation_projection"
+    formation_projection_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True,
+                                                         autoincrement=True)  # fmt: skip
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    team_id: Mapped[int] = mapped_column(ForeignKey("team.team_id"))
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    refit_key: Mapped[str] = mapped_column(String(255))
+    refit_as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    probs: Mapped[dict[str, Any]] = mapped_column(JsonType)  # formation -> probability
+    pitch_formation: Mapped[str] = mapped_column(String(16))  # the most likely named one
+    last_match_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_kickoff: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                          nullable=True)  # fmt: skip
+    positional: Mapped[bool] = mapped_column(Boolean, default=False)  # full codes vs lines
+    slots: Mapped[list[Any] | None] = mapped_column(JsonType, nullable=True)  # [{code, player_id}]
+    __table_args__ = (Index("ix_formation_projection_match", "match_id", "generated_at"),)
+
+
 class MatchCoach(Temporal, Base):
     """The coach named in a team's lineup for one match (Phase 1b, D12), parsed from the
     stored detail payload. Known from the lineup release, about an hour before kickoff; the

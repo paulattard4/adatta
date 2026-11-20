@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import io
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -106,6 +106,65 @@ def pitch(lineups: pl.DataFrame, index: dict[tuple[int, str], list[tuple[datetim
     return {"match_id": mid, "kickoff": kick, "positional": positional, "slots": slots}
 
 
+# ----------------------------------------------------------------- squad rules (panel)
+
+RULES_PREFIX = "serving/squad_rules"
+LIMIT_SHARE = 0.05  # a bench size named in at least this share of team-matches counts
+LIMIT_MIN_N = 50  # fewer team-matches this season: last season's limit
+
+
+def rules_key(generated_at: datetime) -> str:
+    """One rules file per formation run, found from any of its rows' generated_at."""
+    return f"{RULES_PREFIX}/{_utc(generated_at).astimezone(UTC):%Y%m%dT%H%M%S%f}.json"
+
+
+def bench_limits(appearances: pl.DataFrame, season: int,
+                 cutoff: datetime) -> dict[str, dict[str, int]]:  # fmt: skip
+    """Per league: the largest bench size named in at least LIMIT_SHARE of its team-matches
+    with 11 starters in `season`, final by `cutoff` (kickoff <= cutoff - RESULT_LAG); last
+    season's if fewer than LIMIT_MIN_N. {league: {limit, season, n}}."""
+    cut = _utc(cutoff).astimezone(UTC) - RESULT_LAG
+    final = appearances.filter(pl.col("kickoff") <= cut)
+    tm = final.group_by("league_ref", "season", "match_id", "team_id").agg(
+        xi=pl.col("started").sum(), bench=(~pl.col("started")).sum()
+    ).filter(pl.col("xi") == 11)  # fmt: skip
+    out: dict[str, dict[str, int]] = {}
+    for lg in sorted(tm["league_ref"].unique().to_list()):
+        for yr in (season, season - 1):
+            b = tm.filter((pl.col("league_ref") == lg) & (pl.col("season") == yr))["bench"]
+            if b.len() < LIMIT_MIN_N:
+                continue
+            counts = b.value_counts()
+            ok = counts.filter(pl.col("count") >= LIMIT_SHARE * b.len())["bench"]
+            out[str(lg)] = {"limit": int(ok.max()), "season": yr, "n": b.len()}  # type: ignore[arg-type]
+            break
+    return out
+
+
+def team_benches(appearances: pl.DataFrame, cutoff: datetime, last: int = 5) -> dict[str, float]:
+    """Per team: the mean size of its last `last` named benches final by `cutoff` (P3-b's
+    expected bench size, `features.selection`)."""
+    cut = _utc(cutoff).astimezone(UTC) - RESULT_LAG
+    tm = (appearances.filter(pl.col("kickoff") <= cut)
+          .group_by("match_id", "team_id")
+          .agg(pl.col("kickoff").first(), xi=pl.col("started").sum(),
+               bench=(~pl.col("started")).sum())
+          .filter(pl.col("xi") == 11).sort("kickoff"))  # fmt: skip
+    got = tm.group_by("team_id").agg(pl.col("bench").tail(last).mean())
+    return {str(t): round(float(b), 3) for t, b in got.iter_rows()}
+
+
+def rules(appearances: pl.DataFrame, quality: pl.DataFrame, season: int,
+          cutoff: datetime) -> dict[str, Any]:  # fmt: skip
+    """The panel's squad rules as of `cutoff`: bench limits per league, each team's
+    expected bench size, and the league-seasons whose grid passes the positional test
+    (P3-h's pitch, and announced lineups)."""
+    pos = quality.filter(pl.col("positional")).select("league_ref", "season").rows()
+    return {"cutoff": _utc(cutoff).isoformat(), "bench": bench_limits(appearances, season, cutoff),
+            "team_bench": team_benches(appearances, cutoff),
+            "positional": sorted([str(a), int(b)] for a, b in pos)}  # fmt: skip
+
+
 # ------------------------------------------------------------------------- projection
 
 
@@ -136,7 +195,11 @@ def run(session: Session, store: RawStore, bundles: dict[str, list[int]],
     raw = ef.load_raw(session, store, [str(x) for x in leagues], list(bundles), season,
                       live=True)  # fmt: skip
     session.rollback()  # end the read transaction before the build (Neon's idle timeout)
-    lineups, formations, _ = lu.build(raw.appearances)
+    lineups, formations, quality = lu.build(raw.appearances)
+    cutoff = _utc(tg["as_of"].min())  # type: ignore[arg-type]
+    rl = rules(raw.appearances, quality, season, cutoff)
+    store.put(rules_key(now), json.dumps(rl).encode())
+    report["bench_limits"] = {lg: x["limit"] for lg, x in rl["bench"].items()}
     r_in = raw.inputs
     inp = fe.Inputs(formations.select("match_id", "team_id", "kickoff", "formation"),
                     r_in.coaches, r_in.context, r_in.tier,

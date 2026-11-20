@@ -1,51 +1,71 @@
 import { dateLocal, kickoffLocal, pct } from "@/lib/format";
-import type { Absence, FormationView, Lineup, PitchPlayer, ProjectedPlayer, Projection, Squad, SquadPlayer, TeamSquad } from "@/lib/types";
+import type { Absence, FormationView, Lineup, LineupScore, PitchPlayer, ProjectedPlayer, Projection, Squad, SquadPlayer, TeamSquad } from "@/lib/types";
 
-const SHOW_MIN = 0.1; // pool players with P(start) + P(bench) below this are left out of the list
+const SECTION_LABEL: Record<ProjectedPlayer["section"], string> = {
+  xi: "Projected XI", bench: "Projected bench", out: "Not in the matchday squad", squad: "Squad, not modelled",
+};
 
-const LINE_ORDER: Record<string, number> = { G: 0, D: 1, M: 2, F: 3, U: 4 };
-
-/** The most likely XI as a lineup: the keeper most likely to start, then the 10 outfield
- *  players most likely to start, by line. The rest follow by P(start). */
-export function likelyXi(xs: ProjectedPlayer[]): { xi: ProjectedPlayer[]; rest: ProjectedPlayer[] } {
-  const byStart = [...xs].sort((a, b) => b.p_start - a.p_start);
-  const gk = byStart.find((p) => p.pos === "G");
-  const outfield = byStart.filter((p) => p !== gk && p.pos !== "G").slice(0, gk ? 10 : 11);
-  const chosen = new Set([gk, ...outfield].filter(Boolean));
-  const xi = [...chosen].filter((p): p is ProjectedPlayer => p !== undefined)
-    .sort((a, b) => (LINE_ORDER[a.pos] ?? 4) - (LINE_ORDER[b.pos] ?? 4) || b.p_start - a.p_start);
-  return { xi, rest: byStart.filter((p) => !chosen.has(p)) };
+function Tag({ p }: { p: ProjectedPlayer }) {
+  const st = p.status ?? p.status_as_of;
+  if (!st) return null;
+  // listed out only after the projection's as-of time: the next run takes them out of the XI and bench
+  const late = p.status === "out" && p.status_as_of !== "out" && (p.section === "xi" || p.section === "bench");
+  const title = late ? "listed by the injury feed after this projection's as-of time; the next daily run moves them out"
+    : p.status ? "listed by the injury feed; not used by the model" : "listed by the injury feed at the projection time";
+  return <span className={`absence-tag ${st}`} title={title}>{late ? "out since" : st}</span>;
 }
 
-function Projected({ xs, pr, announced }: { xs: ProjectedPlayer[]; pr: Projection; announced: boolean }) {
-  const { xi, rest } = likelyXi(xs);
-  // players the injury feed lists are always shown, however unlikely the model makes them
-  const others = rest.filter((p) => p.p_start + p.p_bench >= SHOW_MIN || p.status !== null);
-  const shown = [...xi, ...others];
+function Projected({ t, pr, announced }: { t: TeamSquad; pr: Projection; announced: boolean }) {
+  const order: ProjectedPlayer["section"][] = ["xi", "bench", "out", "squad"];
+  const limit = t.bench_limit !== null ? <> (league limit <span className="num">{t.bench_limit}</span>)</> : null;
   return (
     <>
       <h4>{announced ? "Projected before the announcement" : "Projected lineup"} <span className="dim">· P3-b</span></h4>
       <p className="squad-meta dim">
         As of <span className="num">{kickoffLocal(pr.as_of)}</span> · refit <span className="num">{dateLocal(pr.refit_as_of)}</span>
-        {" "}· the model does not use the injury feed
+        {" "}· the model does not use the injury feed; players it listed as out at that time are kept out of the XI and bench
+        {t.projected.some((p) => p.status === "out" && p.status_as_of !== "out" && (p.section === "xi" || p.section === "bench")) &&
+          <> (&ldquo;out since&rdquo;: listed after it)</>}
       </p>
       <table className="proj">
-        <thead><tr><th>Most likely XI, then the rest</th><th className="r">Start</th><th className="r">Bench</th><th className="r">Min</th></tr></thead>
-        <tbody>
-          {shown.map((p, i) => (
-            <tr key={`${p.name}-${i}`} className={i === xi.length && i > 0 ? "proj-cut" : undefined}>
-              <td>
-                <span className="num dim proj-pos">{p.pos}</span> {p.name}
-                {p.status && <span className={`absence-tag ${p.status}`} title="listed by the injury feed; not used by the model">{p.status}</span>}
-              </td>
-              <td className="num r">{pct(p.p_start, 0)}%</td>
-              <td className="num r dim">{pct(p.p_bench, 0)}%</td>
-              <td className="num r dim">{p.emin.toFixed(0)}</td>
-            </tr>
-          ))}
-        </tbody>
+        <thead><tr><th>Player</th><th className="r">Start</th><th className="r">Bench</th><th className="r">Min</th></tr></thead>
+        {order.map((sec) => {
+          const xs = t.projected.filter((p) => p.section === sec);
+          if (xs.length === 0) return null;
+          return (
+            <tbody key={sec}>
+              <tr className="proj-sec"><td colSpan={4}>
+                {SECTION_LABEL[sec]}{sec === "bench" && <> · <span className="num">{xs.length}</span>{limit}</>}
+                {sec === "squad" && <span className="dim"> · registered, no appearance in the last year</span>}
+              </td></tr>
+              {xs.map((p, i) => (
+                <tr key={`${p.name}-${i}`}>
+                  <td><span className="num dim proj-pos">{p.pos}</span> {p.name} <Tag p={p} /></td>
+                  <td className="num r">{p.p_start !== null ? `${pct(p.p_start, 0)}%` : "–"}</td>
+                  <td className="num r dim">{p.p_bench !== null ? `${pct(p.p_bench, 0)}%` : "–"}</td>
+                  <td className="num r dim">{p.emin !== null ? p.emin.toFixed(0) : "–"}</td>
+                </tr>
+              ))}
+            </tbody>
+          );
+        })}
       </table>
-      {shown.length < xs.length && <p className="squad-meta dim">{xs.length - shown.length} more in the pool, each under {pct(SHOW_MIN, 0)}% to be named and not listed by the feed.</p>}
+    </>
+  );
+}
+
+function Outcome({ o }: { o: LineupScore }) {
+  return (
+    <>
+      <h4>How the projection did <span className="dim">· as of kickoff − 24 h</span></h4>
+      <p className="squad-meta">
+        XI <span className="num">{o.xi_hits}/11</span> started
+        {o.xi_hits_raw !== o.xi_hits && <span className="dim"> (P3-b&apos;s own top XI: <span className="num">{o.xi_hits_raw}/11</span>)</span>}
+        {" "}· bench <span className="num">{o.bench_hits}/{o.bench_n}</span> on the bench, <span className="num">{o.bench_in_squad}/{o.bench_n}</span> named
+        {o.formation && <> · played <span className="num">{o.formation}</span>
+          {o.formation_p !== null ? <>, P3-c gave it <span className="num">{pct(o.formation_p, 0)}%</span>{o.formation_top ? " (top pick)" : ""}</> : <span className="dim"> (no formation projection)</span>}
+        </>}
+      </p>
     </>
   );
 }
@@ -59,6 +79,25 @@ export function pitchRows(xs: PitchPlayer[]): PitchPlayer[][] {
   return [...rows.keys()].sort((a, b) => b - a).map((r) => rows.get(r)!.sort((a, b) => a.col - b.col));
 }
 
+function Pitch({ xs, positional, label }: { xs: PitchPlayer[]; positional: boolean; label: string }) {
+  return (
+    <div className="pitch" aria-label={label}>
+      {pitchRows(xs).map((row) => (
+        <div className="pitch-row" key={row[0].row}>
+          {row.map((p) => (
+            <div className="pitch-player" key={`${p.row}-${p.col}`}>
+              <span className="pitch-code num">{positional ? p.code : (LINE_LABEL[p.code] ?? p.code)}</span>
+              <span className="pitch-name" title={p.name}>{p.name}</span>
+              <span className="num dim">{p.p_start !== null ? `${pct(p.p_start, 0)}%` : "–"}</span>
+              {p.status && <span className={`absence-tag ${p.status}`} title="listed by the injury feed">{p.status}</span>}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function FormationBlock({ f }: { f: FormationView }) {
   const label = (x: string) => (x === "other" ? "other shape" : x);
   return (
@@ -66,11 +105,18 @@ function FormationBlock({ f }: { f: FormationView }) {
       <h4>Projected formation <span className="dim">· P3-c</span></h4>
       <div className="form-opts">
         {f.options.map((o, i) => (
-          <span key={o.formation} className={`form-opt${i === 0 ? " top" : ""}`}>
+          <span key={o.formation} className={`form-opt${i === 0 ? " top" : ""}${o.formation === f.announced ? " played" : ""}`}>
             <span className="num">{label(o.formation)}</span><span className="num">{pct(o.p, 0)}%</span>
           </span>
         ))}
+        {f.announced && !f.options.some((o) => o.formation === f.announced) && (
+          <span className="form-opt played" title="announced; not among P3-c's three most likely">
+            <span className="num">{f.announced}</span>
+            <span className="num">{f.announced_p !== null ? `${pct(f.announced_p, 0)}%` : "–"}</span>
+          </span>
+        )}
       </div>
+      {f.announced && <p className="squad-meta dim">Announced <span className="num">{f.announced}</span> (marked): P3-c gave it {f.announced_p !== null ? <span className="num">{pct(f.announced_p, 0)}%</span> : "no probability"}{f.announced_p !== null && !f.options.some((o) => o.formation === f.announced) && f.options.some((o) => o.formation === "other") ? " as part of other shape" : ""}.</p>}
       <p className="squad-meta dim">
         As of <span className="num">{kickoffLocal(f.as_of)}</span> · refit <span className="num">{dateLocal(f.refit_as_of)}</span>
         {" "}· the model does not use opponent strength
@@ -81,20 +127,7 @@ function FormationBlock({ f }: { f: FormationView }) {
             Last lineup in <span className="num">{f.pitch_formation}</span> (<span className="num">{dateLocal(f.last_kickoff)}</span>)
             {!f.positional && " · positions by line only"}
           </div>
-          <div className="pitch" aria-label={`last lineup in ${f.pitch_formation}`}>
-            {pitchRows(f.pitch).map((row) => (
-              <div className="pitch-row" key={row[0].row}>
-                {row.map((p) => (
-                  <div className="pitch-player" key={`${p.row}-${p.col}`}>
-                    <span className="pitch-code num">{f.positional ? p.code : (LINE_LABEL[p.code] ?? p.code)}</span>
-                    <span className="pitch-name" title={p.name}>{p.name}</span>
-                    <span className="num dim">{p.p_start !== null ? `${pct(p.p_start, 0)}%` : "–"}</span>
-                    {p.status && <span className={`absence-tag ${p.status}`} title="listed by the injury feed">{p.status}</span>}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+          <Pitch xs={f.pitch} positional={f.positional} label={`last lineup in ${f.pitch_formation}`} />
           <p className="squad-meta dim">History, not a forecast of who starts: the percentages are P3-b&apos;s chance to start (– not in this fixture&apos;s pool).</p>
         </>
       ) : <p className="squad-meta dim">No previous lineup in <span className="num">{f.pitch_formation}</span>.</p>}
@@ -122,9 +155,13 @@ function LineupBlock({ lu }: { lu: Lineup }) {
       <h4>Lineup</h4>
       <p className="squad-meta dim">
         Announced, first seen <span className="num">{kickoffLocal(lu.observed_at)}</span>
-        {lu.formation && <> · <span className="num">{lu.formation}</span></>}
+        {(lu.pitch_formation ?? lu.formation) && <> · <span className="num">{lu.pitch_formation ?? lu.formation}</span></>}
         {lu.coach && <> · {lu.coach}</>}
       </p>
+      {lu.pitch.length > 0 && <>
+        <Pitch xs={lu.pitch} positional={lu.positional} label={`announced lineup in ${lu.pitch_formation}`} />
+        {!lu.positional && <p className="squad-meta dim">Positions by line only: this league-season&apos;s grid doesn&apos;t pass the positional test.</p>}
+      </>}
       <div className="squad-sub dim">Starting XI</div>
       <Players xs={lu.starters} />
       {lu.bench.length > 0 && <><div className="squad-sub dim">Bench</div><Players xs={lu.bench} /></>}
@@ -155,8 +192,9 @@ function Side({ t, checked, note, pr }: { t: TeamSquad; checked: boolean; note: 
         : t.absences.length === 0 ? <p className="dim squad-meta">No absences listed by the feed.</p>
         : <Absences xs={t.absences} />}
       {t.lineup ? <LineupBlock lu={t.lineup} /> : <><h4>Lineup</h4><p className="dim squad-meta">{note ?? "No lineup captured."}</p></>}
+      {t.outcome && <Outcome o={t.outcome} />}
       {t.formation && <FormationBlock f={t.formation} />}
-      {pr && t.projected.length > 0 && <Projected xs={t.projected} pr={pr} announced={t.lineup !== null} />}
+      {pr && t.projected.length > 0 && <Projected t={t} pr={pr} announced={t.lineup !== null} />}
     </div>
   );
 }

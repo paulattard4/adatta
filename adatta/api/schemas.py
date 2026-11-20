@@ -182,6 +182,9 @@ class Lineup(BaseModel):
     coach: str | None
     starters: list[SquadPlayer]
     bench: list[SquadPlayer]
+    pitch_formation: str | None = None  # from the grid, as the lineup table's formations
+    positional: bool = False  # slot codes (the league-season passes the grid test), else lines
+    pitch: list[PitchPlayer] = []  # empty if the grid is not a complete XI
 
 
 class Absence(BaseModel):
@@ -193,14 +196,18 @@ class Absence(BaseModel):
 
 class ProjectedPlayer(BaseModel):
     """P3-b's projection for one pool player (no injury input: `status` is the feed's, shown
-    beside it, not used by the model)."""
+    beside it, not used by the model), or a registered squad player outside the pool (no
+    numbers). The section is a display rule on P3-b's numbers: a player listed as out at
+    the projection's as-of time is never in the XI or bench."""
 
     name: str
     pos: str
-    p_start: float
-    p_bench: float
-    emin: float  # expected minutes overall
-    status: str | None  # "out" / "doubtful" from the injury feed, else None
+    p_start: float | None  # None: registered, not in the pool (not modelled)
+    p_bench: float | None
+    emin: float | None  # expected minutes overall
+    status: str | None  # "out" / "doubtful" from the injury feed now, else None
+    status_as_of: str | None = None  # the same at the projection's as-of time
+    section: Literal["xi", "bench", "out", "squad"] = "xi"
 
 
 class Projection(BaseModel):
@@ -233,10 +240,25 @@ class FormationView(BaseModel):
     as_of: datetime
     refit_as_of: datetime
     options: list[FormationOption]
+    announced: str | None = None  # the formation of the announced lineup (from its grid)
+    announced_p: float | None = None  # P3-c's probability for it ("other" if not in its list)
     pitch_formation: str
     last_kickoff: datetime | None  # None: no previous lineup in this formation
     positional: bool
     pitch: list[PitchPlayer]
+
+
+class LineupScore(BaseModel):
+    """How one side's projection as of kickoff - 24 h did against the announced lineup."""
+
+    xi_hits: int  # projected XI (out rule applied) who started, of 11
+    xi_hits_raw: int  # P3-b's own top XI (keeper + 10 outfield by P(start), no out rule)
+    bench_n: int  # projected bench size
+    bench_hits: int  # projected bench players named on the bench
+    bench_in_squad: int  # projected bench players named at all (XI or bench)
+    formation: str | None  # played, from the announced grid
+    formation_p: float | None  # P3-c's probability for it ("other" if outside the vocabulary)
+    formation_top: bool | None  # it was P3-c's top pick
 
 
 class TeamSquad(BaseModel):
@@ -244,7 +266,10 @@ class TeamSquad(BaseModel):
     lineup: Lineup | None
     absences: list[Absence]
     projected: list[ProjectedPlayer] = []
+    bench_size: int | None = None  # projected bench places shown
+    bench_limit: int | None = None  # the league's measured limit (None: not known)
     formation: FormationView | None = None
+    outcome: LineupScore | None = None  # finished matches with a projection as of kickoff - 24 h
 
 
 class Squad(BaseModel):
@@ -303,6 +328,8 @@ class PlayedMatch(BaseModel):
     over25: Prob | None
     btts: Prob | None
     scores: PlayedScores
+    home_lineup: LineupScore | None = None  # how the projection as of kickoff - 24 h did
+    away_lineup: LineupScore | None = None
 
 
 class MeanScore(BaseModel):
@@ -313,12 +340,25 @@ class MeanScore(BaseModel):
     hi: float | None
 
 
+class LineupSummary(BaseModel):
+    """Projected lineups as of kickoff - 24 h over a segment's matches (reported, not a gate)."""
+
+    n: int  # team-matches with a stored projection and an announced lineup
+    xi_mean: float  # mean projected starters who started, of 11
+    xi_raw_mean: float  # the same for P3-b's own top XI without the out rule
+    bench_hits: int
+    bench_n: int
+    n_formation: int  # team-matches with a formation projection and an announced grid
+    formation_top: float | None  # share where the played formation was P3-c's top pick
+
+
 class ScoreSummary(BaseModel):
     segment: str  # "all" or a competition name
     competition_id: int | None
     tier: str | None  # the competition's tier; None for "all"
     n: int
     scores: list[MeanScore]
+    lineup: LineupSummary | None = None
 
 
 class PlayedList(BaseModel):

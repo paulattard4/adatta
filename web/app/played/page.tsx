@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ProbCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
 import { complement, dateLocal, fairOdds, kickoffLocal, pct, showsOdds, tierLabel } from "@/lib/format";
-import type { MeanScore, PlayedList, PlayedMatch } from "@/lib/types";
+import type { MeanScore, PlayedList, PlayedMatch, ScoreSummary } from "@/lib/types";
 
 const METRIC_LABEL: Record<string, string> = {
   log_loss_1x2: "1X2 log loss", rps_1x2: "1X2 RPS", brier_1x2: "1X2 Brier",
@@ -41,6 +41,58 @@ function Side({ prob, hit, yes, no, market, ll, odds }:
     <div className="played-cell hit played-side" title={`${market}: log loss ${ll?.toFixed(3) ?? "—"}`}>
       <ProbCell prob={hit ? prob : complement(prob)} label={hit ? yes : no} compact odds={odds} />
     </div>
+  );
+}
+
+/** How each side's projected lineup (as of kickoff - 24 h) did: starters, bench, formation. */
+function LineupLine({ m }: { m: PlayedMatch }) {
+  const xs = [m.home_lineup, m.away_lineup];
+  if (!xs.some(Boolean)) return null;
+  const xi = xs.map((x) => (x ? `${x.xi_hits}` : "–")).join(" · ");
+  const bench = xs.map((x) => (x ? `${x.bench_hits}/${x.bench_n}` : "–")).join(" · ");
+  const shape = xs.map((x) => (x?.formation_top === null || !x ? "–" : x.formation_top ? "✓" : "✗")).join(" ");
+  return (
+    <span className="dim played-comp" title="projected lineup as of kickoff − 24 h, home · away: starters who started of 11, projected bench named on the bench, formation was P3-c's top pick">
+      Lineups: XI <span className="num">{xi}</span> of 11 · bench <span className="num">{bench}</span>
+      {xs.some((x) => x?.formation_top !== null && x !== null) && <> · shape <span className="num">{shape}</span></>}
+    </span>
+  );
+}
+
+function LineupScores({ summary }: { summary: ScoreSummary[] }) {
+  const rows = summary.filter((s) => s.lineup);
+  return (
+    <section className="panel">
+      <h2>Projected lineups</h2>
+      <p className="note">
+        The stored projection as of kickoff − 24 h against the announced lineup, per team-match. Players the injury feed lists as out
+        are kept out of the projected XI; the P3-b column is its own top XI without that rule. Reported, not a verdict: projections
+        start on 20 November.
+      </p>
+      <div className="table-wrap">
+        <table className="scores">
+          <thead>
+            <tr><th>Segment</th><th className="num">Team-matches</th><th>XI started, of 11</th><th>P3-b top XI, of 11</th>
+              <th>Bench named on the bench</th><th>Formation top pick</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => {
+              const l = s.lineup!;
+              return (
+                <tr key={s.segment}>
+                  <td>{s.segment === "all" ? "All" : <>{s.segment} <span className="tier">{tierLabel(s.tier)}</span></>}</td>
+                  <td className="num">{l.n}</td>
+                  <td className="num">{l.xi_mean.toFixed(2)}</td>
+                  <td className="num">{l.xi_raw_mean.toFixed(2)}</td>
+                  <td className="num">{l.bench_n > 0 ? `${pct(l.bench_hits / l.bench_n, 0)}%` : "—"} <span className="dim">({l.bench_hits}/{l.bench_n})</span></td>
+                  <td className="num">{l.formation_top !== null ? `${pct(l.formation_top, 0)}%` : "—"} <span className="dim">(n {l.n_formation})</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -106,6 +158,7 @@ export default function Played() {
           </div>
         </section>
       )}
+      {data && overall?.lineup && <LineupScores summary={data.summary} />}
       {data && data.matches.length > 0 && (
         <section className="panel">
           <h2>Matches</h2>
@@ -118,7 +171,8 @@ export default function Played() {
             <Link key={m.match_id} href={`/match/${m.match_id}`} className="played-row"
                   title={`${m.competition} (${tierLabel(m.competition_tier)}) · forecast ${m.milestone}, published ${kickoffLocal(m.generated_at)}`}>
               <span className="num kickoff">{kickoffLocal(m.kickoff)}</span>
-              <span className="teams">{m.home} <span className="dim">v</span> {m.away}<span className="dim played-comp"> · {m.competition} <span className="tier">{tierLabel(m.competition_tier)}</span></span></span>
+              <span className="teams">{m.home} <span className="dim">v</span> {m.away}<span className="dim played-comp"> · {m.competition} <span className="tier">{tierLabel(m.competition_tier)}</span></span>
+                <LineupLine m={m} /></span>
               <span className="num c result">{m.home_goals}–{m.away_goals}</span>
               <Outcome m={m} />
               <Side prob={m.over25} hit={m.home_goals + m.away_goals > 2.5} yes="Over 2.5" no="Under 2.5"

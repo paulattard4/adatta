@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from adatta.adapters.normalize import SOURCE_ID
 from adatta.adapters.storage import RawStore
+from adatta.api import lineups as al
 from adatta.api import schemas as sc
 from adatta.db import models
 from adatta.model.team_strength import FitData, rates_from_draws
@@ -350,8 +351,9 @@ def confidence(m: MatchRow, refit: serve.Refit | None, fresh: sc.Freshness,
     ))  # fmt: skip
     out.append(sc.Component(key="lineup", label="Lineup certainty", status="not_modelled",
                             value="team-level",
-                            detail="No lineup input yet (Phase 3): confirmed lineups do not "
-                                   "change these projections."))  # fmt: skip
+                            detail="The score forecasts don't use lineups: the lineup offset "
+                                   "failed on dev (D40). Projected and announced lineups are "
+                                   "shown beside the forecast, not in it."))  # fmt: skip
     out.append(sc.Component(key="cross_league", label="Cross-league prior dependence",
                             status="not_modelled", value=f"within {fresh.bundle} bundle",
                             detail="No cross-league layer yet (§10.1); both teams are rated "
@@ -536,7 +538,7 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
         milestones=milestones, matrix=matrix if coh is None or coh.coherent else None,
         decomposition=dec if coh is None or coh.coherent else [], coherence=coh,
         no_projection_reason=reason,
-        squad=squad(session, m, now),
+        squad=squad(session, m, now, ctx.store),
         unavailable=UNAVAILABLE,
     )  # fmt: skip
 
@@ -560,10 +562,13 @@ def _lineup(row: models.LineupSnapshot | None) -> sc.Lineup | None:
                      bench=players(row.substitutes))  # fmt: skip
 
 
-def squad(session: Session, m: MatchRow, now: datetime) -> sc.Squad:
+def squad(session: Session, m: MatchRow, now: datetime,
+          store: RawStore | None = None) -> sc.Squad:  # fmt: skip
     """The squad panel (docs/DASHBOARD_TASKS.md): status spells valid at min(now, kickoff),
     the last status capture of the competition by then, and lineups seen by now. Senior
     team levels only (principle 10)."""
+    from adatta.adapters.normalize import FINISHED
+
     t = min(now, m.kickoff)
     L, P, PL, CL = (models.LineupSnapshot, models.PlayerStatusSnapshot, models.Player,
                     models.CaptureLog)  # fmt: skip
@@ -593,20 +598,76 @@ def squad(session: Session, m: MatchRow, now: datetime) -> sc.Squad:
         .order_by(P.status, PL.name)
     ).all()  # fmt: skip
     status = {r.player_id: STATUS_LABEL.get(r.status, r.status) for r, _ in spells}
-    proj_rows, projection = _projected(session, m.match_id, now)
+    projection = _projected(session, m.match_id, now)
+    pool = al.pooled(session, m.match_id, None, projection.generated_at) if projection else []
+    league = str(m.league_id)
+    season = session.scalar(select(models.Season.year).where(
+        models.Season.season_id == m.season_id))  # fmt: skip
+    finished = m.status in FINISHED
+    scoring = al.scoring_runs(session, {m.match_id: m.kickoff}) if finished else ({}, {})
     out = {}
     for side, (tid, name) in teams.items():
-        lu = _lineup(lineups.get(tid))
+        snap = lineups.get(tid)
+        xs = [p for t, p, _ in pool if t == tid]
+        p_start = {p.player_id: p.p_start for p in xs}
+        fv = _formation(session, m.match_id, tid, now, p_start, status)
+        rl = al.rules(store, fv.generated_at) if store is not None and fv else None
+        limit = al.bench_limit(rl, league)
+        lu = _lineup(snap)
+        if lu is not None and snap is not None:
+            # the grid test is a display property, not a forecast: without this fixture's
+            # formation run, the latest rules by now say which league-seasons are positional
+            FP = models.FormationProjection
+            rl_pos = rl if rl is not None or store is None else al.rules(
+                store, session.scalar(select(func.max(FP.generated_at))
+                                      .where(FP.generated_at <= now)))  # fmt: skip
+            positional = al.is_positional(rl_pos, league, int(season or 0))
+            got = al.announced_pitch(snap.starters, positional)
+            if got is not None:
+                ids = al.player_ids(session, {str(x.get("player_ref")) for x, *_ in got[1]})
+                lu.pitch_formation, lu.positional = got[0], positional
+                lu.pitch = [sc.PitchPlayer(
+                    name=x.get("name") or "unnamed", code=code, row=r, col=c,
+                    p_start=p_start.get(ids.get(str(x.get("player_ref")), -1)),
+                    status=status.get(ids.get(str(x.get("player_ref")), -1)))
+                    for x, code, r, c in got[1]]  # fmt: skip
+                if fv is not None:
+                    fv.announced, fv.announced_p = (
+                        got[0],
+                        _announced_p(session, m.match_id, tid, now, got[0]),
+                    )
+        projected: list[sc.ProjectedPlayer] = []
+        bench_n = None
+        if xs:
+            sec = al.sections(xs, limit, al.team_bench(rl, tid))
+            bench_n = len(sec["bench"])
+            for key in ("xi", "bench", "out"):
+                projected += [sc.ProjectedPlayer(
+                    name=p.name, pos=p.pos, p_start=p.p_start, p_bench=p.p_bench, emin=p.emin,
+                    status=status.get(p.player_id),
+                    status_as_of=STATUS_LABEL.get(p.status_as_of or "", p.status_as_of),
+                    section=key) for p in sec[key]]  # fmt: skip
+            as_of = next(a for t, _, a in pool if t == tid)
+            in_pool = {p.player_id for p in xs}
+            projected += [sc.ProjectedPlayer(name=n, pos=pos, p_start=None, p_bench=None,
+                                             emin=None, status=status.get(pid), section="squad")
+                          for pid, n, pos in al.registered(session, tid, as_of)
+                          if pid not in in_pool]  # fmt: skip
         absences = [sc.Absence(name=n, status=STATUS_LABEL.get(r.status, r.status),
                                reason=r.reason, since=_utc(r.valid_from))
                     for r, n in spells if r.team_id == tid]  # fmt: skip
-        projected = [sc.ProjectedPlayer(name=n, pos=r.pos, p_start=r.p_start, p_bench=r.p_bench,
-                                        emin=r.emin, status=status.get(r.player_id))
-                     for r, n in proj_rows if r.team_id == tid]  # fmt: skip
-        p_start = {r.player_id: r.p_start for r, _ in proj_rows if r.team_id == tid}
-        fv = _formation(session, m.match_id, tid, now, p_start, status)
+        outcome = None
+        gen24 = scoring[0].get(m.match_id)
+        if finished and snap is not None and gen24 is not None:
+            frow = scoring[1].get((m.match_id, tid))
+            xs24 = [p for _, p, _ in al.pooled(session, m.match_id, tid, gen24)]
+            refs = {str(x.get("player_ref")) for x in [*snap.starters, *snap.substitutes]}
+            rl24 = al.rules(store, frow.generated_at) if store is not None and frow else None
+            outcome = al.score(xs24, al.bench_limit(rl24, league), al.team_bench(rl24, tid),
+                               snap, al.player_ids(session, refs), frow)  # fmt: skip
         out[side] = sc.TeamSquad(team=name, lineup=lu, absences=absences, projected=projected,
-                                 formation=fv)  # fmt: skip
+                                 bench_size=bench_n, bench_limit=limit, formation=fv,
+                                 outcome=outcome)  # fmt: skip
     if note is None and (out["home"].lineup is None or out["away"].lineup is None):
         note = "Not captured: no lineup was seen before kickoff."
     if out["home"].lineup is not None and out["away"].lineup is not None:
@@ -616,24 +677,32 @@ def squad(session: Session, m: MatchRow, now: datetime) -> sc.Squad:
                     **out)  # fmt: skip
 
 
-def _projected(session: Session, match_id: int, now: datetime,
-               ) -> tuple[list[Any], sc.Projection | None]:  # fmt: skip
+def _projected(session: Session, match_id: int, now: datetime) -> sc.Projection | None:
     """The latest projected-lineup run for a match generated by now (P3-b, append-only
-    rows), by P(start): (rows with player names, the run's times)."""
-    LP, PL = models.LineupProjection, models.Player
-    gen = session.scalar(select(func.max(LP.generated_at)).where(
-        LP.match_id == match_id, LP.generated_at <= now))  # fmt: skip
-    if gen is None:
-        return [], None
-    rows = session.execute(
-        select(LP, PL.name).join(PL, PL.player_id == LP.player_id)
-        .where(LP.match_id == match_id, LP.generated_at == gen)
-        .order_by(LP.p_start.desc(), LP.emin.desc())
-    ).all()  # fmt: skip
-    r0 = rows[0][0]
-    return [(r, n) for r, n in rows], sc.Projection(
-        generated_at=_utc(r0.generated_at), as_of=_utc(r0.as_of),
-        refit_as_of=_utc(r0.refit_as_of))  # fmt: skip
+    rows): the run's times."""
+    LP = models.LineupProjection
+    r0 = session.scalars(
+        select(LP).where(LP.match_id == match_id, LP.generated_at <= now)
+        .order_by(LP.generated_at.desc()).limit(1)
+    ).first()  # fmt: skip
+    if r0 is None:
+        return None
+    return sc.Projection(generated_at=_utc(r0.generated_at), as_of=_utc(r0.as_of),
+                         refit_as_of=_utc(r0.refit_as_of))  # fmt: skip
+
+
+def _announced_p(session: Session, match_id: int, team_id: int, now: datetime,
+                 formation: str) -> float | None:  # fmt: skip
+    """P3-c's probability for an announced formation, from the row the panel shows."""
+    FP = models.FormationProjection
+    r = session.scalars(
+        select(FP).where(FP.match_id == match_id, FP.team_id == team_id, FP.generated_at <= now)
+        .order_by(FP.generated_at.desc(), FP.formation_projection_id.desc()).limit(1)
+    ).first()  # fmt: skip
+    if r is None:
+        return None
+    key = formation if formation in r.probs else "other"
+    return float(r.probs[key]) if key in r.probs else None
 
 
 def _formation(session: Session, match_id: int, team_id: int, now: datetime,
@@ -724,6 +793,19 @@ def _mean_score(metric: str, xs: list[float]) -> sc.MeanScore:
 PLAYED_METRICS = ("log_loss_1x2", "rps_1x2", "brier_1x2", "log_loss_ou25", "log_loss_btts")
 
 
+def _lineup_summary(ms: list[sc.PlayedMatch]) -> sc.LineupSummary | None:
+    xs = [x for m in ms for x in (m.home_lineup, m.away_lineup) if x is not None]
+    if not xs:
+        return None
+    fs = [x.formation_top for x in xs if x.formation_top is not None]
+    return sc.LineupSummary(
+        n=len(xs), xi_mean=float(np.mean([x.xi_hits for x in xs])),
+        xi_raw_mean=float(np.mean([x.xi_hits_raw for x in xs])),
+        bench_hits=sum(x.bench_hits for x in xs), bench_n=sum(x.bench_n for x in xs),
+        n_formation=len(fs), formation_top=float(np.mean(fs)) if fs else None,
+    )  # fmt: skip
+
+
 def _summary(
     segment: str, cid: int | None, ms: list[sc.PlayedMatch], tier: str | None = None
 ) -> sc.ScoreSummary:
@@ -732,7 +814,34 @@ def _summary(
         xs = [v for m in ms if (v := getattr(m.scores, metric)) is not None]
         if xs:
             scores.append(_mean_score(metric, xs))
-    return sc.ScoreSummary(segment=segment, competition_id=cid, tier=tier, n=len(ms), scores=scores)
+    return sc.ScoreSummary(segment=segment, competition_id=cid, tier=tier, n=len(ms),
+                           scores=scores, lineup=_lineup_summary(ms))  # fmt: skip
+
+
+def _lineup_scores(session: Session, store: RawStore, ms: list[sc.PlayedMatch],
+                   rows: dict[int, MatchRow]) -> None:  # fmt: skip
+    """Sets each played match's home_lineup / away_lineup: the stored projections as of
+    kickoff - 24 h against the announced lineup (nothing reconstructed)."""
+    gen, form = al.scoring_runs(session, {m.match_id: m.kickoff for m in ms})
+    if not gen:
+        return
+    snaps = al.announced(session, list(gen))
+    pools = al.pooled_many(session, gen)
+    refs = {str(x.get("player_ref")) for s in snaps.values() for x in [*s.starters, *s.substitutes]}
+    ids = al.player_ids(session, refs)
+    for m in ms:
+        if m.match_id not in gen:
+            continue
+        r = rows[m.match_id]
+        for side, tid in (("home", r.home_id), ("away", r.away_id)):
+            snap, xs = snaps.get((m.match_id, tid)), pools.get((m.match_id, tid))
+            if snap is None or not xs:
+                continue
+            frow = form.get((m.match_id, tid))
+            rl = al.rules(store, frow.generated_at) if frow else None
+            got = al.score(xs, al.bench_limit(rl, str(r.league_id)), al.team_bench(rl, tid),
+                           snap, ids, frow)  # fmt: skip
+            setattr(m, f"{side}_lineup", got)
 
 
 def played(
@@ -792,6 +901,7 @@ def played(
             over25=None if over is None else _p(over), btts=None if btts is None else _p(btts),
             scores=scores,
         ))  # fmt: skip
+    _lineup_scores(session, ctx.store, out, {r.match_id: r for r in rows})
     out.sort(key=lambda m: (m.kickoff, m.match_id), reverse=True)
     summary = [_summary("all", None, out)] if out else []
     comps: dict[int, list[sc.PlayedMatch]] = {}

@@ -62,18 +62,31 @@ export interface Coherence { milestone: string; coherent: boolean; max_abs_diff:
 export interface Unavailable { panel: string; reason: string }
 
 export interface SquadPlayer { name: string; number: number | null; pos: string | null }
-export interface Lineup { observed_at: string; formation: string | null; coach: string | null; starters: SquadPlayer[]; bench: SquadPlayer[] }
+export interface Lineup {
+  observed_at: string; formation: string | null; coach: string | null; starters: SquadPlayer[]; bench: SquadPlayer[];
+  pitch_formation: string | null; positional: boolean; pitch: PitchPlayer[];
+}
 export interface Absence { name: string; status: "out" | "doubtful" | string; reason: string | null; since: string }
-export interface ProjectedPlayer { name: string; pos: string; p_start: number; p_bench: number; emin: number; status: string | null }
+export interface ProjectedPlayer {
+  name: string; pos: string; p_start: number | null; p_bench: number | null; emin: number | null;
+  status: string | null; status_as_of: string | null; section: "xi" | "bench" | "out" | "squad";
+}
 export interface Projection { generated_at: string; as_of: string; refit_as_of: string }
 export interface FormationOption { formation: string; p: number }
 export interface PitchPlayer { name: string; code: string; row: number; col: number; p_start: number | null; status: string | null }
 export interface FormationView {
   generated_at: string; as_of: string; refit_as_of: string;
-  options: FormationOption[]; pitch_formation: string;
+  options: FormationOption[]; announced: string | null; announced_p: number | null; pitch_formation: string;
   last_kickoff: string | null; positional: boolean; pitch: PitchPlayer[];
 }
-export interface TeamSquad { team: string; lineup: Lineup | null; absences: Absence[]; projected: ProjectedPlayer[]; formation?: FormationView | null }
+export interface LineupScore {
+  xi_hits: number; xi_hits_raw: number; bench_n: number; bench_hits: number; bench_in_squad: number;
+  formation: string | null; formation_p: number | null; formation_top: boolean | null;
+}
+export interface TeamSquad {
+  team: string; lineup: Lineup | null; absences: Absence[]; projected: ProjectedPlayer[];
+  bench_size: number | null; bench_limit: number | null; formation?: FormationView | null; outcome: LineupScore | null;
+}
 export interface Squad {
   as_of: string; status_checked_at: string | null; lineup_note: string | null; hidden_reason: string | null;
   projection: Projection | null;
@@ -97,11 +110,18 @@ export interface PlayedMatch {
   outcome: "home" | "draw" | "away"; milestone: string; generated_at: string;
   home_p: Prob; draw_p: Prob; away_p: Prob; over25: Prob | null; btts: Prob | null;
   scores: PlayedScores;
+  home_lineup: LineupScore | null; away_lineup: LineupScore | null;
 }
 
 export interface MeanScore { metric: string; n: number; mean: number; lo: number | null; hi: number | null } // no interval below two matches
 
-export interface ScoreSummary { segment: string; competition_id: number | null; tier: string | null; n: number; scores: MeanScore[] }
+export interface LineupSummary {
+  n: number; xi_mean: number; xi_raw_mean: number; bench_hits: number; bench_n: number;
+  n_formation: number; formation_top: number | null;
+}
+export interface ScoreSummary {
+  segment: string; competition_id: number | null; tier: string | null; n: number; scores: MeanScore[]; lineup: LineupSummary | null;
+}
 
 export interface PlayedList {
   generated_at: string; forecasts_since: string | null; start: string | null; end: string;

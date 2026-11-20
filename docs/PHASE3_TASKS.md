@@ -1779,3 +1779,23 @@ Consequences:
         grid test on everything loaded (all stored competitions, as P3-c's build) passes
         2026 in 135, 140, 141, 78 and 80. The bundle-only pre-check also passed 39 and 40;
         the build's set is what's served.
+
+      **First live run (2026-11-20, run 44823849231).** All five formation serving refits
+      pass the inference gates (tier unknown, 2,000 draws, 0 divergences):
+
+      | bundle | refit as of | train rows | R-hat max | ESS bulk min | PPC q |
+      |---|---|---|---|---|---|
+      | England | 2026-11-09 | 3,735 | 1.003 | 5,494 | 0.560 |
+      | Spain | 2026-10-26 | 3,371 | 1.002 | 4,637 | 0.525 |
+      | Italy | 2026-11-02 | 3,037 | 1.002 | 2,987 | 0.415 |
+      | Germany | 2026-11-02 | 2,457 | 1.002 | 3,693 | 0.535 |
+      | France | 2026-11-02 | 2,436 | 1.002 | 4,257 | 0.485 |
+
+      The refit time is the last point of each bundle's 28-day dev grid, as P3-b, so Spain's
+      next refit is due on 2026-11-23. The projection wrote 234 team rows for 117 fixtures:
+      every team has a last lineup in its pitch formation, 72 of them positional.
+      **(d)1 passes:** 20 sampled stored rows (18 fixtures, all five refits), recomputed from
+      the stored refit on current data at the stored as-of time, match the stored
+      probabilities to 4.95e-07 (the 6-decimal rounding), with the same pitch formation and
+      the same pitch on 20 of 20. Per (e), the panel shows the three options and the pitch on
+      the match page. Live monitoring, (d)2, starts with the interim reports.

@@ -1280,3 +1280,61 @@ Consequences:
       - **Next, per (f):** M is scored on arrival on live 2026/27 bundle league matches at
         lineups-known, against the same baselines, with bookmaker anytime-scorer prices for
         Edge and CLV only. Nothing is shown to users before the live verdict.
+
+      **Live verdict (f), acceptance (stated 2026-11-20 before building, owner: "Approve as
+      drafted"; no live P3-e score has been computed):**
+
+      *Design choice.* P3-b's minutes model and P3-d0's rates are not refitted in production.
+      Two ways to score M live:
+      - **As-of batch (this draft).** The dev pipeline, extended to season 2026, rerun on CI
+        at intervals. Every input is taken as of its time (the temporal contract). Roles are
+        those of the captured `lineup_snapshot`, first seen before kickoff. P is the
+        production refit behind the forecast actually published by then.
+      - **Frozen at lineup time.** P3-b and P3-d0 served live, and each forecast written to
+        a table when the lineup is captured. Stronger against provider revisions, but it
+        needs both models in production first. It is built only if M passes live and is to
+        be shown to users.
+
+      (a) **Targets.** Bundle league matches of season 2026 whose two lineups were captured
+      before kickoff (`lineup_snapshot`, from 2026-11-07), regular season, with a 90-minute
+      result. Population: the announced XI and bench of the snapshot. A named player who
+      doesn't come on scores 0, as on dev.
+
+      (b) **Inputs, each as of its time:**
+      - **P:** the team goal distribution from the live serving refit behind the latest
+        forecast published before the lineup was first seen (`projection_run` →
+        `model_run`). This is what was served then, D41 refit milestones included.
+      - **Minutes:** P3-b refitted on its 28-day grid continued through 2026, as on dev.
+        P3-b is fitted per refit time and its role minutes taken for the announced roles;
+        P3-d's role fallback covers players outside its pool.
+      - **Rates:** P3-d0's goals and assists hyperparameters refitted on its 28-day grid
+        continued through 2026, with the player posteriors as of kickoff - 24 h.
+      - **o and α** as on dev (amendment 1), over the 730 days final by then.
+      - **Holdout seasons (2024/25, 2025/26) are loaded as history only.** The 730-day
+        windows and P3-b's training reach back into them, as the production model's refits
+        already do. No holdout match is ever a target or scored, and the dev verdict is
+        not revisited.
+
+      (c) **Pass, judged once** after the last matchday of the 2026/27 bundle league
+      seasons, for goals and for assists separately: P3-e (e)1-5 unchanged, at lineups-known,
+      on the live targets. Interim runs (about monthly) are reported as interim; nothing is
+      tuned or changed because of them. A change of model or rule restarts the live clock.
+
+      (d) **Market, reported only (principle 1).** For goals, on players the stored odds
+      price ("Anytime Goal Scorer", raw snapshots at the T-60m and close milestones): M's
+      P(scores) against the median implied probability across books, with no margin
+      removal, plus the log loss of each. Assists have no pure market ("Player to Score or
+      Assist" is a different event), so none. Odds are read only here, downstream: never an
+      input to M, P3-b or P3-d0, and never part of (c).
+
+      (e) **Leakage:** for 100 sampled live player rows, nothing observed after each input's
+      as-of time changes e, q, o, α or P. That covers appearances, the counts table, P3-b
+      rows and serving refits. The lineup used must have been observed before kickoff.
+
+      (f) **Nothing reaches users** before a pass: no dashboard panel, no API field.
+      Outputs stay internal (R2), under-18 players flagged (CLAUDE.md rule 10).
+
+      **Cost:** 0 API requests (the odds are already captured). Per interim run: P3-b and
+      P3-d0 refits for the new 28-day steps (a few each), one table, one scoring run.
+      Each is a backtest-type run, one at a time. Appearances for 2026 are rebuilt from the
+      stored detail payloads before each run (`adatta appearances-build`).

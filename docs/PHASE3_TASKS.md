@@ -1084,3 +1084,104 @@ Consequences:
       team's non-own-goal rate by construction; own goals stay outside the allocation.
       *On hold 2026-11-19 (D40):* P3-d failed, so there is no passed offset to wire. Its
       scope is to be restated before any build.
+
+      **Restated 2026-11-19 (owner: "Restate P3-e as scorers"): goalscorer and assist
+      forecasts allocated from P (§7.5 steps 3-4, without steps 1-2).** P's team rate is
+      split among the matchday squad as normalised shares, so player expectations sum to
+      the team's non-own-goal rate by construction. Nothing goes back into Layer 6: P is
+      unchanged, and no lineup offset enters it (D40).
+
+      Acceptance (stated 2026-11-19 before building, owner: "Approve as drafted"; no
+      P3-e score has been computed. Seen so far: P3-d0's dev result, including goals vs R1 +0.15% and summed
+      player expected goals per team-match E/O 1.021, correlation 0.160 with team goals;
+      P3-d's dev result):
+
+      **Scope.**
+      - Two statistics: goals (own goals excluded, §7.4) and assists. Shots on target,
+        cards and the rest wait.
+      - The ten bundle leagues, league matches only, dev seasons 2019-2023. 2019 is the
+        first with P3-b's export, which gives the lineups-known minutes. No holdout season
+        is loaded.
+      - Every player in the announced matchday squad (XI and bench), goalkeepers
+        included. A named player who doesn't come on scores 0. Bookmakers void that bet,
+        so the conditional view is a later serving matter and is not scored here: it
+        would condition on substitutions, which follow the score (P3-d amendment 8).
+      - Outputs are per player and stay internal (R2 only). No betting-facing output, and
+        under-18 players are flagged (CLAUDE.md rule 10).
+
+      (a) **Inputs, all as of the target's own as-of times, nothing new fitted for P:**
+      - **Team goals:** P's weekly refits (`phase1b_strength_open_xg`) from the fit
+        cache, the same draws as P3-d's P. For each draw, the Dixon-Coles score matrix
+        (rho, kappa) gives each side's goal distribution, averaged over draws.
+      - **Own goals:** each goal is an own goal with probability o[league], the league's
+        own-goal share over the 730 days final by the as-of time.
+      - **Assists:** each non-own goal carries an assist with probability α[league], the
+        league's assisted share over the same 730 days.
+      - **Player weights:** w_i = e_i · q_i.
+        - e_i is the expected minutes / 90 given the announced role, from P3-b's export
+          (`role_minutes`, with the P3-d `role_fallback` for players outside its pool),
+          as P3-d's Δ_lk.
+        - q_i is P3-d0's posterior-mean per-90 rate at the player's line, in the match's
+          league, as of kickoff - 24 h. It comes from the latest P3-d0 refit at or
+          before then, with the substitute multiplier on a bench player's rate.
+        - Line level, as P3-d amendment 1.
+        - Goals reuse P3-d's quality refits (run 44431797480). Assists need the same
+          quality stage for assists: about 64 refits, 1-2 h, one CI run.
+      - **Shares:** s_i = w_i / Σ_j w_j over the team's matchday squad.
+
+      (b) **Model M.** For a side whose goal count is N under P:
+      - each goal is non-own with probability 1 - o and goes to player i with share s_i;
+      - so P(i scores 0) = E_N[(1 - (1 - o) s_i)^N], and P(i assists 0) =
+        E_N[(1 - (1 - o) α s^A_i)^N], with s^A from the assist rates;
+      - and E[goals_i] = (1 - o) s_i E[N]. Summed over the squad this is the non-own
+        part of P's team rate exactly; a test checks this to 1e-9.
+      Nothing in M is fitted on dev outcomes except o and α, which are counted in closed
+      form as of each target. So there are no inference gates beyond those P and P3-d0
+      already passed.
+
+      (c) **Baselines:**
+      - **B0, rates alone:** e_i · q_i as a Poisson mean, with no team or opponent
+        context. This is P3-d0 used directly.
+      - **B_line, shares by line:** M with q_i replaced by the line x league rate (P3-d0's
+        R0), so shares come from minutes and line only.
+      - **B_R1, shares by R1:** M with q_i replaced by P3-d0's R1 (the player's own
+        per-90 rate shrunk by c[s], with goals 20 and assists 50).
+
+      (d) **Metrics,** per player row, paired by row:
+      - **Primary:** log loss of "at least one" (anytime scorer, anytime assist).
+      - Log loss of the count (0, 1, 2, 3+).
+      - E/O of the summed expectation.
+      - ECE of P(at least one).
+      Reported:
+      - by league, line, season, starter or bench, and P(at least one) decile;
+      - P(2+ goals), against its rate;
+      - penalty goals' share of the misfit, if any (penalty takers are §8.3, Phase 3b);
+      - at T-24h with P3-b's projected squad (start and bench probabilities times those
+        minutes), not gating, as the horizon where P3-d failed.
+
+      (e) **Pass on dev,** lineups-known, for goals and for assists each:
+      1. M beats B0 on log loss of "at least one", with the paired 95% interval
+         excluding 0.
+      2. M beats B_line the same way.
+      3. M is no worse than B_R1 by more than 1.0% (point estimate), overall and in
+         every bundle league. This is P3-d0's tolerance against R1: P3-d0 goals were
+         +0.15% against R1, so M is not required to beat it.
+      4. E/O is between 0.95 and 1.05 overall, and the ECE of P(at least one) is at most
+         0.02 overall and at most 0.03 in each league.
+      5. Consistency: summed player expectations plus the own-goal expectation equal P's
+         team expectation in every team-match, to 1e-9.
+      6. Leakage: for 100 sampled player rows, nothing final after each input's as-of
+         time changes e, q, o, α or P's draws.
+      A statistic that fails is reported with its segment. Respecification is on dev
+      only and disclosed. If goals pass and assists don't, goals pass alone.
+
+      (f) **Live (pre-registered, judged later).** On a pass, M is scored on arrival on
+      live 2026/27 bundle league matches at lineups-known, with the same (e)1-4 against
+      the baselines. Bookmaker anytime-scorer prices, where the kept raw odds snapshots
+      hold them, are used for Edge and CLV only. They are never a feature (principle 1)
+      and never part of the pass. Nothing is served to users before the live verdict.
+
+      **Cost:** 0 API requests. One CI quality run for assists, then one scoring run:
+      P is read from the fit cache, with no refits. The cache stays valid while
+      `team_strength.py`, `covariates.py`, `config/evaluation.yml` and `uv.lock` are
+      unchanged since 53d091b. Each is one backtest-type run, one at a time.

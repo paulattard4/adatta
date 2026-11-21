@@ -88,6 +88,12 @@ Consequences:
   positions? thats very poor"):* D42 closes P3-g's two placement models only. A formation
   view built from what did pass (P3-c, and the last lineup in the projected formation,
   the stronger baseline) is P3-h.
+- **D43 (resolved 2026-11-21, owner: "Live shadow, attack + defence", acceptance approved
+  as drafted):** the lineup offset comes back as one pre-registered challenger, P3-i, judged
+  only on live 2026/27 matches. Its attack half is P3-d's, and it adds a defensive half,
+  the "defence later" challenger from the P3-d spec point. D40 stands for dev: P3-i
+  computes no match-forecast score on dev seasons, so there is nothing on dev to fit it
+  to. Its new defensive player rating is checked on dev on its own (P3-i0), like P3-d0.
 
 ## Tasks
 
@@ -1799,3 +1805,179 @@ Consequences:
       probabilities to 4.95e-07 (the 6-decimal rounding), with the same pitch formation and
       the same pitch on 20 of 20. Per (e), the panel shows the three options and the pitch on
       the match page. Live monitoring, (d)2, starts with the interim reports.
+- [ ] **P3-i Lineup offset with attack and defence, live shadow (D43).** Owner, 2026-11-21:
+      "any way we can have lineup projections and changes affect our match projections?",
+      then "Live shadow, attack + defence".
+
+      Acceptance (stated 2026-11-21 before building, owner: "Approve as drafted"). No P3-i
+      or P3-i0 score has been computed. Already seen:
+      - P3-d's dev result: L vs P +0.01% at lineups-known, +0.05% at T-24h, β about 0.15;
+      - P3-d0's result;
+      - P's live scores on the Played page (P only; nothing with a lineup term);
+      - counts only: 3,758 regular-season bundle league fixtures in 2026/27, 1,160
+        finished, 103 of them with both lineups captured before kickoff.
+
+      **Why it can be judged honestly.**
+      - D40's concern was variants fitted to the same dev seasons. P3-i is specified
+        once, here, and scored only on 2026/27 matches.
+      - No P3-i match score is computed on dev, at any horizon, at any stage.
+      - The holdout is not opened (D38).
+
+      **Expected power, stated now.**
+      - P3-d's dev interval on 1X2 log loss was about ±0.04% on 18,682 matches.
+      - On the roughly 3,700 live matches below, it will be about ±0.09%.
+      - So P3-i passes only if it gains about 0.1% or more. That is ten times what
+        attack alone gained on dev.
+      - Expect a fail unless the defensive half carries real signal. A fail closes the
+        question for this season.
+
+      **P3-i0: defensive player rating, checked on dev on its own** (register B.1,
+      with-without-you; 0 requests).
+      - **Data.** A stint table from the stored detail payloads: each team-match is cut
+        at every substitution and red card, in normal time (minutes 0-90). Each stint
+        records its length, the players on the pitch, and goals conceded (own goals
+        count against the team that conceded them). It is rebuilt from raw payloads
+        (principle 4) and stored next to `players/appearances`.
+      - **Expected goals conceded.** E_s = (stint length / 90) × the opponent's λ in the
+        match. λ is P's posterior mean from the latest P refit of the bundle before the
+        rating refit (its in-sample training rates, as S's in P3-d amendment 4). Only
+        matches covered by a P refit are used, which means 2019/20 on.
+      - **Model.** Per player i, a ratio θ_i ~ Gamma(k_line, k_line) with Poisson goals
+        conceded: G_s ~ Poisson(E_s × θ_i). θ_i's posterior mean is
+        (k + G_i) / (k + E_i), where G_i and E_i sum over the stints the player was on
+        the pitch for. k_line (G / D / M / F) is the maximum-marginal-likelihood fit,
+        in closed form as P3-d0. The rating is as of the refit, on P3-d0's 28-day grid
+        (2,000 draws are not needed: no sampling).
+      - **Known bias, disclosed.** Substitutions follow the score, so stints are not
+        chosen at random. This affects the standalone check only; P3-i itself uses the
+        announced XI, chosen before kickoff.
+      - **Dev check (gate).** On dev seasons 2019-2023, walk-forward on the 28-day grid:
+        - R0 predicts each held-out stint's goals conceded as E_s;
+        - R1 predicts E_s × exp(mean over the 11 on the pitch of log θ_i).
+        - It passes if R1's Poisson log loss beats R0's, with the paired 95% interval by
+          team-match excluding 0.
+        - A fail stops P3-i (it would have no defensive input) and is reported.
+
+      **P3-i model (LD), defined once.**
+      - **Attack.** Δ_A,T is P3-d's lineups-known construction unchanged: the P3-d0
+        line-level goal quality, the announced XI and bench with P3-b's role minutes,
+        and the mean over the team's previous 10 league matches as the baseline.
+      - **Defence.** Δ_D,T = Σ_j w_j log θ_j − the same over T's previous 10 league
+        matches. Here w_j = expected minutes / 990, over the announced XI and bench
+        with P3-b's role minutes (keeper included). θ is the latest P3-i0 rating before
+        kickoff - 24 h.
+      - **Offset.** For each team's goal rate, one lineup term, entered once
+        (principle 7):
+        log λ_T += β_A × Δ_A,T + β_D × Δ_D,opp(T).
+        Priors: β_A ~ Normal(1, 0.5), β_D ~ Normal(1, 0.5).
+      - **Missing inputs.** Where an input is missing, its Δ is 0 and the team-match is
+        flagged (rule 8). This covers no lineup, fewer than 3 earlier matches, or a
+        player without a rating; newcomers follow P3-d amendment 3.
+      - **Fit.** In the likelihood (§7.5), on P's model otherwise unchanged. Training
+        rows use the lineups-known construction (P3-d amendment 8). 2,000 draws, seed
+        20261105. Gate failures are redone once at target_accept 0.99 and 4,000 draws
+        (P3-d amendment 9).
+      - No other variant is fitted or scored: no serving-only version, and no attack-only
+        or defence-only version.
+
+      **Targets and horizons.**
+      - **Targets.** Every 2026/27 regular-season match of the ten bundle leagues
+        finished by the judgement date, from the season's start.
+        - Lineups-known XI: the `lineup_snapshot` first seen before kickoff where
+          captured (from 2026-11-07).
+        - Before that, the final stored XI, as P3-d on dev. A late change after release
+          is missed (rare).
+        - The captured subset is reported separately.
+      - **Refits.** P and LD are both refitted on the live weekly grid (D11), each bundle
+        from the season's start. Both use the same data and seed, with history through
+        2025/26 (holdout seasons as history only, never targets).
+      - **Horizons.**
+        - Lineups-known is primary.
+        - T-24h is secondary. It uses P3-b's projected minutes from its live 28-day grid
+          (as P3-e live). If P3-f passes on 2027-01-04, T-24h is also reported with
+          P3-f's minutes on the matches it covers.
+
+      **Pass (judged once, after the last 2026/27 regular-season matchday of the ten
+      leagues).**
+      1. At lineups-known, LD beats P in the D18 form: 1X2 log loss and RPS both better,
+         each with the paired 95% interval excluding 0. No league × market segment is
+         worse than 1.0% (D28, point estimate).
+      2. Inference gates in every LD refit (R-hat ≤ 1.01, ESS ≥ 400, no divergences,
+         PPC a warning as in 1b).
+      3. Feasibility: LD's median refit time is no more than 1.5× P's on the same runner
+         class.
+      4. Leakage: on 100 sampled targets, nothing final or observed after the as-of time
+         changes Δ_A, Δ_D, θ or any quality input.
+
+      Reported, not gating:
+      - T-24h vs P;
+      - β_A and β_D over time;
+      - the share of team-matches with Δ = 0, by league;
+      - matches with the biggest lineup changes (top 10% of |Δ|);
+      - by league and month.
+
+      **Interim reports** (monthly): coverage, gates, timing, leakage, β_A and β_D only.
+      No 1X2 or RPS comparison of LD vs P is computed before the judgement date, so
+      nothing can be tuned on it.
+
+      **Then.**
+      - **On a pass:** LD gets a serving acceptance of its own: a lineups-known forecast
+        milestone after lineups are captured, and T-24h use only if T-24h was no worse
+        than P.
+      - **On a fail:** closed and disclosed; P stays production.
+      - In neither case is anything served before the verdict. The dashboard keeps
+        saying the forecasts don't use lineups.
+
+      **Cost.**
+      - 0 API requests.
+      - P3-i0: the stint table build, plus a closed-form dev check (minutes on CI, no
+        sampling).
+      - The live shadow: about 42 weekly refits × 5 bundles × (P + LD). At P3-d's timing,
+        that is about 50 CI hours over the season, run as monthly batches.
+      - One backtest-type run at a time.
+
+      **Build, P3-i0 (2026-11-21), before any P3-i0 score:**
+      - **Code:**
+        - `adapters/api_football_stats.stints`, the stint parser. Own goals in the feed
+          are listed under the side credited (checked on 15 Premier League 2022 own
+          goals), so every goal is conceded by the other side.
+        - `features/stints.py` and `adatta stints-build`, the stint files.
+        - `eval/defence.py`: exposure, lines, the k fit, ratings, scores and the gate.
+        - `model/defence.py` and `.github/workflows/defence.yml`: `lambdas`, one job per
+          bundle, and `assemble`.
+      - **Stint files built** for the ten bundle leagues, 2016-2026 (0 requests), with
+        79,269 team-matches in all. Dropped:
+        - 562 team-matches with a substitution that couldn't be followed;
+        - 24 whose stints don't add up to the 90-minute score;
+        - 81 matches without two full XIs.
+        Holdout and live seasons are built for P3-i but not loaded by the dev check.
+      - **P's dev refits:** all 928 come from the P3-d dev run's cache, under the current
+        fit hash (8 of 8 sampled were found, each with its training rates). The job stops
+        rather than refit P if one is missing. Each refit's training rows are matched to
+        match ids with the same filter and sort as `team_strength.prepare`, reordered
+        only within one kickoff time, and checked against the fit's teams and goals.
+      - **Clarifications while building, before any score:**
+        1. *Training window.* The training stints for a rating refit are the matches in
+           the training window of the latest P refit of each bundle (1,095 days), which
+           reaches back to 2016. The draft's "2019/20 on" was wrong: every match in a
+           dev P refit's window has a rate.
+        2. *Scored per team-match.* The dev check scores each team-match's normal-time
+           goals conceded: R0's mean is the opponent's expected goals, and R1's is that
+           mean times the minute-weighted sum over its stints. It is the same model as
+           per stint, summed. The reason is that two changes in the same minute make a
+           stint of zero length, which can hold a goal. Paired by team-match as stated;
+           the interval clustered by match is reported.
+        3. *R0's expected goals.* These are the marginals of P's posterior-mean score
+           matrix from the weekly refit before the match (out of sample). The training E
+           uses P's in-sample rates, as stated.
+        4. *Targets and lines.* A target uses the latest rating refit at or before
+           kickoff - 24 h. Ratings pool a player's stints across bundles. A player's line
+           is his most frequent position in appearances final by the refit; one with
+           none is rated as M, and those are counted.
+      - **Tests:** `tests/test_defence.py` (6), covering:
+        - stint cuts, credited goals, extra time and unfollowable substitutions;
+        - the 90-minute score check;
+        - the closed-form rating and k;
+        - lines as of the cutoff;
+        - R1 against R0 and the gate;
+        - matching the fit's training rows.

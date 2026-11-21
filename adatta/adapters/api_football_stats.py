@@ -248,6 +248,80 @@ def player_appearances(
     return list(out.values()), counts
 
 
+def stints(fx: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Normal-time stints per team (P3-i0, register B.1): each team's match is cut at its own
+    substitutions and sendings-off, and each stint carries the players on the pitch and the
+    goals the team conceded in it. Events are taken in the payload's order, so a goal and a
+    substitution in the same minute fall as listed; stoppage time counts as the minute it
+    extends (45+2 is 45), and events after 90' (extra time) are left out. A goal event's
+    team is the side credited, own goals included, so the other side conceded it.
+
+    A team whose substitutions can't be followed (who went off is unclear) gets no stints,
+    and is counted. Returns (rows, counts); each row has team_ref, stint, start, end,
+    conceded and players (provider refs)."""
+    counts: dict[str, int] = {"unclear_sub": 0, "no_lineup": 0}
+    sides = [str((lu.get("team") or {}).get("id")) for lu in fx.get("lineups") or []]
+    on: dict[str, set[str]] = {}
+    squad: dict[str, set[str]] = {}
+    for lu in fx.get("lineups") or []:
+        team = str((lu.get("team") or {}).get("id"))
+        xi = {str((e.get("player") or {}).get("id")) for e in lu.get("startXI") or []}
+        subs = {str((e.get("player") or {}).get("id")) for e in lu.get("substitutes") or []}
+        on[team] = {x for x in xi if x != "None"}
+        squad[team] = on[team] | {x for x in subs if x != "None"}
+    if len(sides) != 2 or any(len(on[t]) != 11 for t in sides):
+        counts["no_lineup"] += 1
+        return [], counts
+    cur: dict[str, dict[str, Any]] = {
+        t: {"team_ref": t, "stint": 0, "start": 0, "conceded": 0, "players": sorted(on[t])}
+        for t in sides
+    }  # fmt: skip
+    done: dict[str, list[dict[str, Any]]] = {t: [] for t in sides}
+    bad: set[str] = set()
+
+    def cut(t: str, m: int) -> None:
+        s = cur[t]
+        done[t].append({**s, "end": m})
+        cur[t] = {"team_ref": t, "stint": s["stint"] + 1, "start": m, "conceded": 0,
+                  "players": sorted(on[t])}  # fmt: skip
+
+    for e in fx.get("events") or []:
+        el = (e.get("time") or {}).get("elapsed")
+        if el is None or int(el) > NORMAL_TIME:
+            continue
+        m = int(el)
+        kind, detail = e.get("type"), e.get("detail")
+        team = str((e.get("team") or {}).get("id"))
+        if team not in cur:
+            continue
+        a = str((e.get("player") or {}).get("id"))
+        if kind == "subst":
+            b = str((e.get("assist") or {}).get("id"))
+            if a in on[team] and b not in on[team] and b in squad[team]:
+                off, new = a, b
+            elif b in on[team] and a not in on[team] and a in squad[team]:
+                off, new = b, a
+            else:
+                bad.add(team)
+                continue
+            on[team].discard(off)
+            on[team].add(new)
+            cut(team, m)
+        elif kind == "Card" and detail in SENT_OFF and a in on[team]:
+            on[team].discard(a)
+            cut(team, m)
+        elif kind == "Goal" and e.get("comments") != SHOOTOUT and detail != "Missed Penalty":
+            other = sides[1] if team == sides[0] else sides[0]
+            cur[other]["conceded"] += 1
+    rows: list[dict[str, Any]] = []
+    for t in sides:
+        if t in bad:
+            counts["unclear_sub"] += 1
+            continue
+        rows += done[t] + [{**cur[t], "end": NORMAL_TIME}]
+    return rows, counts
+
+
 def event_counts(fx: dict[str, Any]) -> dict[tuple[str, str], dict[str, int]]:
     """(team_ref, player_ref) -> assists, yellow cards and second yellows counted from the
     events (P3-d0 (a) check). An assist is the `assist` player of a goal event that is not

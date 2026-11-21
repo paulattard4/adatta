@@ -1209,6 +1209,23 @@ def appearances_build(
     typer.echo(counts)
 
 
+@app.command("stints-build")
+def stints_build(
+    league: str = typer.Option(None, help="provider league id; all when omitted"),
+    season: int = typer.Option(None, help="season start year; all when omitted"),
+    rebuild: bool = typer.Option(False, help="replace files already stored"),
+    workers: int = typer.Option(8, help="parallel raw-store reads"),
+) -> None:
+    """Build normal-time stints per team-match (P3-i0) from stored detail payloads into one
+    Parquet file per competition-season in the object store. No API requests. Counts only."""
+    from adatta.features import stints
+
+    with get_session() as session:
+        counts = stints.build(session, make_store(get_settings()), league, season, rebuild,
+                              workers)  # fmt: skip
+    typer.echo(counts)
+
+
 @app.command("lineups-project")
 def lineups_project() -> None:
     """Projected lineups (docs/DASHBOARD_TASKS.md): P3-b's selection and minutes for every

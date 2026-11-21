@@ -1,0 +1,59 @@
+# P3-i0 (docs/PHASE3_TASKS.md, P3-i): the defensive player rating's dev check. Manual
+# dispatch only. One job per bundle reads P's cached dev refits (no fitting: a missing refit
+# stops the job) and stores its training rates and target expected goals; assemble rates
+# players on the 28-day grid and applies the gate.
+# The repo is public: logs and artifacts carry metrics only. Per-player and per-match rows
+# go to R2 (defence/...), never to workflow artifacts. Holdout seasons are never loaded.
+# One backtest-type run at a time (backtest, gate, holdout, timing, cups, selection,
+# selection_rerun, formation, rates, lineup, defence).
+name: defence
+on:
+  workflow_dispatch:
+    inputs:
+      bundles:
+        description: "JSON list of bundles"
+        default: '["england","spain","italy","germany","france"]'
+permissions:
+  contents: read
+concurrency:
+  group: defence
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  lambdas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        bundle: ${{ fromJSON(inputs.bundles) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: P's rates from the cached dev refits
+        run: >-
+          uv run --frozen --group model python -m adatta.model.defence lambdas
+          --bundle ${{ matrix.bundle }} --upload ${{ github.run_id }}
+  assemble:
+    needs: lambdas
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: ratings and the gate (metrics only)
+        run: >-
+          uv run --frozen --group model python -m adatta.model.defence assemble
+          --fetch ${{ github.run_id }}

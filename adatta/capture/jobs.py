@@ -53,6 +53,9 @@ from adatta.config import Competition
 from adatta.db import models
 
 DAILY = timedelta(hours=20)  # "daily" jobs re-run once this long has passed since the last ok
+# the injury feed is read about every 6 hours (owner, 2026-11-21): the squad panel's out
+# rule reads it as the page stands; the first 15-minute tick past this re-runs it
+STATUS_EVERY = timedelta(hours=5, minutes=45)
 MISSED_LOOKBACK = timedelta(days=2)
 DAILY_BUDGET_S = 480.0  # no new competition's daily jobs after this much of a run (timeout 14 min)
 RESULT_WAIT = timedelta(hours=2)  # a result is first asked for this long after kickoff
@@ -105,12 +108,13 @@ def _log(
     )  # fmt: skip
 
 
-def _ran_recently(session: Session, job: str, scope: str, now: datetime) -> bool:
+def _ran_recently(session: Session, job: str, scope: str, now: datetime,
+                  within: timedelta = DAILY) -> bool:  # fmt: skip
     L = models.CaptureLog
     return (
         session.scalar(
             select(L.log_id).where(
-                L.job == job, L.scope == scope, L.outcome == "ok", L.run_at > now - DAILY
+                L.job == job, L.scope == scope, L.outcome == "ok", L.run_at > now - within
             )
         )
         is not None
@@ -278,7 +282,7 @@ def _nothing_ahead(session: Session, season: models.Season, now: datetime) -> bo
 def capture_status(
     session: Session, client: ApiFootballClient, comp: Competition, now: datetime
 ) -> Counter[str]:
-    """Daily availability snapshot for unplayed fixtures of the current season. A
+    """Availability snapshot (about every 6 hours) for unplayed fixtures of the current season. A
     national-team competition with no season loaded or nothing ahead is skipped."""
     season = _current_season_row(session, comp)
     if comp.national and (season is None or _nothing_ahead(session, season, now)):
@@ -737,7 +741,7 @@ def run_capture(
                     "calendar", scope, lambda c=comp: capture_calendar(session, client, c, now)
                 )
                 report.actions["calendar"] += 1 if n is not None else 0
-            if not _ran_recently(session, "status", scope, now):
+            if not _ran_recently(session, "status", scope, now, STATUS_EVERY):
                 step("status", scope, lambda c=comp: capture_status(session, client, c, now))
             if not _ran_recently(session, "detail", scope, now):
                 step("detail", scope, lambda c=comp: capture_detail(session, client, c))

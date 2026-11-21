@@ -741,3 +741,9 @@ neatly with each other"). Already seen:
     and 20 Nov 22:52 UTC. It costs one request per league.
   - **Tests:** +2 (the feed now drives the out rule; the bench at the limit, ordered by
     line; the Lautaro case: starts this season before P(start)).
+  - **Cadence changed (owner, "Yes, every 6 hours"):** the status job now re-runs once
+    5 h 45 min have passed since its last success (`capture.jobs.STATUS_EVERY`), so the
+    next 15-minute tick reads the feed about every 6 hours. It runs for all 54 captured
+    competitions, not just the ten bundle leagues: about 216 requests a day instead of
+    about 57, roughly 3% of the Pro quota. The other daily jobs are unchanged. Test:
+    `test_injury_feed_is_read_about_every_6_hours`.

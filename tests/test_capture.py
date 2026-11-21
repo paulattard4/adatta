@@ -239,6 +239,18 @@ def test_daily_jobs_run_once_per_day(tmp_path: Path) -> None:
     assert sum(c.startswith("/leagues") for c in h.api.calls) == 2
 
 
+def test_injury_feed_is_read_about_every_6_hours(tmp_path: Path) -> None:
+    h = Harness(tmp_path)
+    h.tick(T0)
+    n = sum(c.startswith("/injuries") for c in h.api.calls)
+    assert n == 1
+    h.tick(T0 + timedelta(hours=3))  # too soon: not again
+    assert sum(c.startswith("/injuries") for c in h.api.calls) == 1
+    h.tick(T0 + timedelta(hours=6))
+    assert sum(c.startswith("/injuries") for c in h.api.calls) == 2
+    assert sum(c.startswith("/leagues") for c in h.api.calls) == 1  # calendar stays daily
+
+
 def test_time_critical_work_runs_before_daily_jobs(tmp_path: Path) -> None:
     """2026-11-06: overdue daily jobs used a whole 10-minute run and odds were never reached."""
     h = Harness(tmp_path)

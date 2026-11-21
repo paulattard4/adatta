@@ -79,6 +79,14 @@ def test_holdout_other_seasons_and_changed_models_are_refused(tmp_path: Path) ->
     with pytest.raises(harness.HoldoutLocked):
         cb.score_season(df, LEAGUES, "england", cfg, cfg.holdout_seasons[0], spec(), store, t,
                         FakeFitter(), log=lambda _: None)  # fmt: skip
+    # another opening's key doesn't open the cup ties; only the cup opening's does
+    with pytest.raises(harness.HoldoutLocked):
+        cb.score_season(df, LEAGUES, "england", cfg, cfg.holdout_seasons[0], spec(), store, t,
+                        FakeFitter(), log=lambda _: None,
+                        holdout=harness.HoldoutKey("1", "phase2"))  # fmt: skip
+    cb.score_season(df, LEAGUES, "england", cfg, cfg.holdout_seasons[0], spec(), store, t,
+                    FakeFitter(), log=lambda _: None,
+                    holdout=harness.HoldoutKey("1", "cups"))  # fmt: skip
     with pytest.raises(ValueError):
         cb.score_season(df, LEAGUES, "england", cfg, 2017, spec(), store, t, FakeFitter(),
                         log=lambda _: None)  # fmt: skip

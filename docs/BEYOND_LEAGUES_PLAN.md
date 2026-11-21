@@ -764,7 +764,8 @@ asked for B, C, D and then A3, in that order, each with its own acceptance.
     - B0's rules for those seasons are the ones already in `config/cup_formats.yml`,
       written from the regulations before opening;
     - B0's check runs on those ties too, with problems listed.
-  - **Calibration checks at the holdout's size (raised before opening, owner to confirm).**
+  - **Calibration checks at the holdout's size (raised before opening; owner, 2026-11-21:
+    "Use the noise floor").**
     - From dev forecasts only (no outcomes), a perfectly calibrated forecast on 300-325
       ties would show:
       - binary P(advance): mean ECE 0.058, 95th percentile 0.085;
@@ -772,7 +773,7 @@ asked for B, C, D and then A3, in that order, each with its own acceptance.
         percentile 0.083 / 0.057 / 0.078.
     - So the approved fixed limits, 0.05 for B3 and 0.06 per outcome for A1, would often
       fail a perfect model on the holdout.
-    - Proposed instead, for each: the observed ECE must be at or below the 95th percentile
+    - Adopted instead, for each: the observed ECE must be at or below the 95th percentile
       of the ECE a perfectly calibrated forecast would show on the same ties (outcomes
       drawn from the forecast, 2,000 draws). That is a test that the forecast is
       calibrated, at the 5% level, whatever the number of ties.
@@ -783,6 +784,22 @@ asked for B, C, D and then A3, in that order, each with its own acceptance.
       early ties on little history.
     - With no history, s is 1.025, not 1: the stated grid (-1.0 to 1.5) isn't symmetric
       about the prior's centre. This is noted and left as stated.
+  - **Holdout path built (2026-11-21, before opening):**
+    - **Marker:** `eval.holdout` gains the "cups" opening, claimed once by one run.
+    - **Scoring:** `cup_backtest claim` / `run --holdout RUN` scores holdout seasons only
+      with that opening's key; any other key or none is refused (tests).
+    - **Workflow:** `.github/workflows/cups_holdout.yml` (dispatch with confirm = OPEN):
+      claim, then score (bundle x 2024, 2025), assemble, and judge
+      (`python -m adatta.eval.knockout holdout`). Metrics and the verdict only in the
+      logs; B0 problems as counts.
+    - **The judge:** B3 with κ = 1 and the coin flip; B3' with s walked from the dev ties
+      on through the holdout ties. Checks:
+      1. B3' log loss no worse than the baseline;
+      2. B3' ECE within its noise floor (95th percentile);
+      3. no cup worse by more than 1.0%;
+      4-6. A1's 1X2 ECE within its noise floor for home, draw and away.
+    - **Smoke test:** the pipeline ran with dev 2023 standing in for the holdout (no
+      holdout data read). It is not a result.
     - Log loss 0.5655 against the baseline's 0.5741: -0.0086 [-0.0227, +0.0054], -1.50%.
       B3 was 0.5676; the interval is wider because of the early s.
     - ECE 0.0337 against 0.0576 for B3. A perfectly calibrated forecast here shows a mean

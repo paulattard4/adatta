@@ -69,9 +69,9 @@ class Data:
         return {x for k, h, a in self.later.get((t.cup, t.season), []) if k > end for x in (h, a)}
 
 
-def load(session: Any) -> Data:
-    """The five cups' matches of SEASONS: finished ones as ties, every one (any status) as
-    the 'later' index, and venue roles of the finished ones."""
+def load(session: Any, seasons: Sequence[int] = SEASONS) -> Data:
+    """The five cups' matches of `seasons` (SEASONS: no holdout): finished ones as ties, every
+    one (any status) as the 'later' index, and venue roles of the finished ones."""
     from sqlalchemy import select
 
     from adatta.cli import _bundle_competition_ids
@@ -89,7 +89,7 @@ def load(session: Any) -> Data:
             select(M, S.year, R).join(S, S.season_id == M.season_id)
             .join(C, C.competition_id == S.competition_id)
             .outerjoin(R, (R.match_id == M.match_id) & R.superseded_at.is_(None))
-            .where(C.source_ref == str(cup), S.year.in_(SEASONS))
+            .where(C.source_ref == str(cup), S.year.in_(list(seasons)))
         ).all()  # fmt: skip
         for m, y, r in rows:
             k = m.kickoff_time.astimezone(UTC)
@@ -395,7 +395,7 @@ def _ll(p: Arr, y: Arr) -> Arr:
 def b3(a1: pl.DataFrame, d: Data, rules: dict[int, list[knockout.Entry]],
        kappa_fits: list[tuple[datetime, float]], use_kappa: bool,
        delta_fits: list[tuple[datetime, float]], use_delta: bool,
-       ) -> tuple[pl.DataFrame, dict[str, Any]]:  # fmt: skip
+       targets: Sequence[int] = DEV) -> tuple[pl.DataFrame, dict[str, Any]]:  # fmt: skip
     """P(advance) of side A for every dev bundle tie in A1 (single and replay ties as of the
     first match, two legs before leg 2), against the baseline."""
     rows = {int(r["match_id"]): r for r in a1.iter_rows(named=True)}
@@ -403,7 +403,7 @@ def b3(a1: pl.DataFrame, d: Data, rules: dict[int, list[knockout.Entry]],
     skipped: Counter[str] = Counter()
     for t in d.ties:
         lead = t.matches[0]
-        if lead.match_id not in rows or t.season not in DEV:
+        if lead.match_id not in rows or t.season not in targets:
             continue
         rule = knockout.rule_for(rules, t.cup, t.season, t.round)
         if rule is None or knockout.check(t, rule) is not None:
@@ -582,6 +582,92 @@ def markdown(r0: dict[str, Any], r1: dict[str, Any], r2: dict[str, Any], r3: dic
     return "\n".join(lines) + "\n"
 
 
+# ------------------------------------------------------------------------------ holdout
+
+HOLDOUT = (2024, 2025)
+
+
+def ece_null(p: Arr, n_sims: int = 2000, seed: int = 20261121) -> float:
+    """95th percentile of a perfectly calibrated forecast's ECE on these forecasts."""
+    rng = np.random.default_rng(seed)
+    return float(np.quantile([ece(p, (rng.random(len(p)) < p).astype(float))
+                              for _ in range(n_sims)], 0.95))  # fmt: skip
+
+
+def a1_calibration(pred: pl.DataFrame, n_sims: int = 2000, seed: int = 20261121) -> dict[str, Any]:
+    """A1's 1X2 ECE per outcome against its noise floor (outcomes drawn from the forecast)."""
+    p = pred.select("p_home", "p_draw", "p_away").to_numpy()
+    p = p / p.sum(axis=1, keepdims=True)
+    y = np.where(pred["hg"] > pred["ag"], 0, np.where(pred["hg"] == pred["ag"], 1, 2))
+    rng = np.random.default_rng(seed)
+    cum = p.cumsum(axis=1)
+    sims = [[] for _ in range(3)]  # type: list[list[float]]
+    for _ in range(n_sims):
+        ys = (rng.random(len(p))[:, None] > cum).sum(axis=1)
+        for k in range(3):
+            sims[k].append(ece(p[:, k], (ys == k).astype(float)))
+    out: dict[str, Any] = {}
+    for k, name in enumerate(("home", "draw", "away")):
+        e = ece(p[:, k], (y == k).astype(float))
+        lim = float(np.quantile(sims[k], 0.95))
+        out[name] = {"ece": e, "limit": lim, "pass": bool(e <= lim)}
+    ll = -np.log(np.clip(p[np.arange(len(p)), y], 1e-12, 1))
+    out["n"] = len(p)
+    out["log_loss_1x2"] = float(ll.mean())
+    return out
+
+
+def judge(dev_a1: pl.DataFrame, ho_a1: pl.DataFrame, d: Data,
+          rules: dict[int, list[knockout.Entry]]) -> tuple[str, dict[str, Any]]:  # fmt: skip
+    """The Stage B promotion on the cup holdout (amendment 1, owner: noise-floor calibration).
+    B3 with kappa = 1 and the coin-flip shootout (B1 and B2 not used on dev); B3' stretches it
+    with s walk-forward through the dev ties and on through the holdout ties."""
+    a1 = pl.concat([dev_a1, ho_a1], how="diagonal_relaxed")
+    r0 = b0(Data([t for t in d.ties if t.season in HOLDOUT], d.later, d.roles, d.irregular),
+            rules, set(ho_a1["match_id"].to_list()))  # fmt: skip
+    df, _ = b3(a1, d, rules, [], False, [], False, targets=(*DEV, *HOLDOUT))
+    cal, _ = recalibrate(df)
+    hc = cal.filter(pl.col("season").is_in(list(HOLDOUT)))
+    raw = df.filter(pl.col("season").is_in(list(HOLDOUT)))
+    g = gate(hc, Counter())
+    lim = ece_null(hc["p"].to_numpy())
+    checks = {
+        "B3' log loss no worse than the baseline (point)": g["diff"] <= 0,
+        "B3' ECE within the noise floor (95th percentile)": g["ece"] <= lim,
+        "B3' no cup worse by more than 1.0%": all(v["rel"] <= CUP_WORSE_MAX
+                                                  for v in g["by_cup"].values()),
+    }  # fmt: skip
+    a1c = a1_calibration(ho_a1)
+    for o in ("home", "draw", "away"):
+        checks[f"A1 1X2 ECE ({o}) within the noise floor"] = a1c[o]["pass"]
+    graw = gate(raw, Counter())
+    rep = {"b0": r0, "n_ties": g["n"], "b3prime": g, "ece_limit": lim, "b3": graw, "a1": a1c,
+           "s_range": (float(hc["s"].min() or 0), float(hc["s"].max() or 0)),  # type: ignore[arg-type]
+           "checks": checks, "passed": all(checks.values())}  # fmt: skip
+    lines = ["# Stage A/B promotion on the cup holdout (opened once)", "",
+             f"B0: bundle ties with a problem {len(r0['bundle_problems'])}"]  # fmt: skip
+    reasons = Counter(x.split(": ", 1)[1].split(" (matches")[0] for x in r0["bundle_problems"])
+    lines += [f"  - {why}: {n}" for why, n in sorted(reasons.items())]  # counts only: CI is public
+    lines += [f"A1 on {a1c['n']} holdout bundle ties: 1X2 log loss {a1c['log_loss_1x2']:.4f}; ECE "
+              + ", ".join(f"{o} {a1c[o]['ece']:.4f} (limit {a1c[o]['limit']:.4f})"
+                          for o in ("home", "draw", "away")),
+              f"B3' on {g['n']} holdout ties (s {rep['s_range'][0]:.3f}-{rep['s_range'][1]:.3f}): "
+              f"log loss {g['ll']:.4f} against the baseline {g['ll_base']:.4f}: {g['diff']:+.5f} "
+              f"[{g['lo']:+.5f}, {g['hi']:+.5f}], {g['rel']:+.2%}; ECE {g['ece']:.4f} (limit "
+              f"{lim:.4f}); Brier {g['brier']:.4f} / {g['brier_base']:.4f}.",
+              f"B3 unstretched (reported): log loss {graw['ll']:.4f}, ECE {graw['ece']:.4f}.",
+              "By cup (B3' against the baseline): " + "; ".join(
+                  f"{CUP_NAME[c]} {v['n']} ties {v['rel']:+.2%}"
+                  for c, v in sorted(g["by_cup"].items())),
+              "", "| p(A) bin | ties | mean p | observed |", "|---|---|---|---|",
+              *[f"| {k / 10:.1f}-{(k + 1) / 10:.1f} | {n} | {mp:.3f} | {ob:.3f} |"
+                for k, n, mp, ob in g["reliability"]],
+              "", "Checks: " + "; ".join(f"{k}: {'pass' if v else 'FAIL'}"
+                                         for k, v in checks.items()),
+              f"**{'PROMOTE' if rep['passed'] else 'NOT PROMOTED'}.**"]  # fmt: skip
+    return "\n".join(lines) + "\n", rep
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     from adatta.adapters.storage import make_store, try_get
     from adatta.config import get_settings
@@ -591,8 +677,35 @@ def main(argv: Sequence[str] | None = None) -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
     r.add_argument("--a1", required=True)
+    h = sub.add_parser("holdout", help="the promotion on the opened cup holdout")
+    h.add_argument("--a1", required=True, help="the dev A1 run")
+    h.add_argument("--run", required=True, help="the run that opened the cup holdout")
     args = ap.parse_args(argv)
     store = make_store(get_settings())
+    if args.cmd == "holdout":
+        import json
+
+        from adatta.eval import harness
+        from adatta.eval import holdout as ho
+        from adatta.model import backtest as bt
+
+        model = bt.production_spec(harness.load_config()).model_name
+        ho.unlock(store, args.run, model, "cups")
+        dev_raw = try_get(store, f"cups/reports/{args.a1}/predictions.parquet")
+        ho_raw = try_get(store, f"cups/reports/{args.run}/predictions.parquet")
+        if dev_raw is None or ho_raw is None:
+            raise SystemExit("missing A1 predictions (dev or holdout)")
+        dev_a1, ho_a1 = pl.read_parquet(io.BytesIO(dev_raw)), pl.read_parquet(io.BytesIO(ho_raw))
+        if not ho_a1["season"].is_in(list(HOLDOUT)).all():
+            raise SystemExit("the holdout run holds other seasons")
+        with get_session() as s:
+            d = load(s, (*SEASONS, *HOLDOUT))
+            s.rollback()
+        text, rep = judge(dev_a1, ho_a1, d, knockout.load_rules())
+        verdict = {"passed": rep["passed"], "checks": rep["checks"]}
+        store.put(f"cups/reports/{args.run}/stage_b_verdict.json", json.dumps(verdict).encode())
+        print(text)
+        return
     raw = try_get(store, f"cups/reports/{args.a1}/predictions.parquet")
     if raw is None:
         raise SystemExit("no A1 predictions")

@@ -20,7 +20,11 @@ from adatta.eval import harness
 from adatta.eval.harness import HoldoutKey, HoldoutLocked, Phase1bGate
 
 MARKER = "backtest/holdout/opened.json"  # the Phase 1b opening (2026-11-11)
-MARKERS = {"phase1b": MARKER, "phase2": "backtest/holdout/opened_phase2.json"}  # D30
+MARKERS = {
+    "phase1b": MARKER,
+    "phase2": "backtest/holdout/opened_phase2.json",  # D30
+    "cups": "backtest/holdout/opened_cups.json",  # Stage A/B: the cup ties, once
+}
 
 
 def _marker(opening: str) -> str:

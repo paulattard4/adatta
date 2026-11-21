@@ -256,3 +256,15 @@ def test_phase2_holdout_report_end_to_end(tmp_path: Path) -> None:
     (parts / f"{promo.model_name}_england_2024.parquet").unlink()
     with pytest.raises(harness.HoldoutLocked, match="holds exactly"):
         bt.assemble(parts, tmp_path / "out2", cfg, lambda _: df, holdout=key)
+
+
+def test_cup_opening_has_its_own_marker_once(tmp_path: Path) -> None:
+    store = LocalStore(tmp_path)
+    ho.claim(store, "1", PROD, "abc")
+    first = (tmp_path / ho.MARKER).read_bytes()
+    marker = ho.claim(store, "9", PROD, "def", "cups")
+    assert marker["opening"] == "cups" and (tmp_path / ho.MARKERS["cups"]).exists()
+    assert (tmp_path / ho.MARKER).read_bytes() == first
+    with pytest.raises(harness.HoldoutLocked, match="made once"):
+        ho.claim(store, "10", PROD, "def", "cups")
+    assert ho.unlock(store, "9", PROD, "cups") == harness.HoldoutKey("9", "cups")

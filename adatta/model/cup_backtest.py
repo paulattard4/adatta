@@ -10,8 +10,9 @@ role marks `swapped` (the listed away side at its own ground) is scored with the
 swapped, so the side at home gets the home term. The tie's league (intercept and home
 advantage) is the home side's league that season.
 
-Dev seasons only: holdout seasons raise HoldoutLocked; their cup ties are opened once, with
-their own marker, for the Stage A promotion decision.
+Dev seasons only, except with the cup opening's key: holdout seasons raise HoldoutLocked;
+their cup ties are opened once, with their own marker ("cups", `eval.holdout`), for the
+Stage A and B promotion decision (`claim`, then `run --holdout RUN_ID`).
 
     # one bundle x season (a CI matrix job; fitting needs the model group)
     uv run --frozen --group model python -m adatta.model.cup_backtest run \\
@@ -142,12 +143,14 @@ def next_league_gaps(ties: pl.DataFrame, df: pl.DataFrame) -> pl.DataFrame:
 def score_season(
     df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConfig, season: int,
     spec: bt.RunSpec, store: RawStore, targets: pl.DataFrame, fitter: bt.Fitter | None = None,
-    log: Callable[[str], None] = print,
+    log: Callable[[str], None] = print, holdout: harness.HoldoutKey | None = None,
 ) -> pl.DataFrame:  # fmt: skip
-    """Score one dev season's cup targets of one bundle. Returns one row per tie."""
+    """Score one dev season's cup targets of one bundle (or, with the cup opening's key, one
+    holdout season's). Returns one row per tie."""
     if season in cfg.holdout_seasons:
-        raise harness.HoldoutLocked(f"season {season} is the locked holdout")
-    if season not in cfg.dev_seasons:
+        if holdout is None or holdout.opening != "cups":
+            raise harness.HoldoutLocked(f"season {season} is the locked holdout")
+    elif season not in cfg.dev_seasons:
         raise ValueError(f"A1 scores dev seasons {cfg.dev_seasons}, not {season}")
     if spec.groups or spec.widen or spec.grid != "weekly" or spec.every_days != 7:
         raise ValueError("A1 applies the production 1b model unchanged (weekly, no groups)")
@@ -375,6 +378,12 @@ def main() -> None:
                    help="put the part in the store under cups/parts/RUN_ID/ "
                         "(never artifacts)")  # fmt: skip
     r.add_argument("--cache", default="data/cache", help="local cache root (if not R2)")
+    r.add_argument("--holdout", default=None, metavar="RUN_ID",
+                   help="score a holdout season: the run that made the cup opening")  # fmt: skip
+    c = sub.add_parser("claim", help="open the cup holdout once (its own marker)")
+    c.add_argument("--run", required=True, metavar="RUN_ID")
+    c.add_argument("--commit", required=True)
+    c.add_argument("--cache", default="data/cache")
     p = sub.add_parser("plan", help="ties, refit weeks and cached refits; fits nothing")
     p.add_argument("--cache", default="data/cache")
     a = sub.add_parser("assemble")
@@ -389,6 +398,12 @@ def main() -> None:
     cfg = harness.load_config()
     spec = bt.production_spec(cfg)
 
+    if args.cmd == "claim":
+        from adatta.eval import holdout as ho
+
+        m = ho.claim(bt._store(args.cache), args.run, spec.model_name, args.commit, "cups")
+        print(f"cup holdout opened by run {m['run_id']} at {m['opened_at']} ({m['model']})")
+        return
     if args.cmd in ("run", "plan"):
         store = bt._store(args.cache)
         bundles = [args.bundle] if args.cmd == "run" else list(cfg.bundles)
@@ -407,7 +422,13 @@ def main() -> None:
                       f"{cached} cached under {h}")  # fmt: skip
                 continue
             sp = replace(spec, draws=args.draws)
-            pred = score_season(df, leagues, b, cfg, args.season, sp, store, targets)
+            key = None
+            if args.holdout:
+                from adatta.eval import holdout as ho
+
+                key = ho.unlock(store, args.holdout, spec.model_name, "cups")
+            pred = score_season(df, leagues, b, cfg, args.season, sp, store, targets,
+                                holdout=key)  # fmt: skip
             name = f"{b}_{args.season}.parquet"
             if args.upload:
                 store.put(f"{CUP_PREFIX}/parts/{args.upload}/{name}", _parquet(pred))

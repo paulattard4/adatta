@@ -46,6 +46,7 @@ MAX_GOALS = 10
 ELO_START, ELO_K, ELO_HOME = 1500.0, 20.0, 60.0  # fixed in the acceptance, not tuned
 ELO_FROM = datetime(2016, 7, 1, tzinfo=UTC)
 LEAKAGE_N = 50
+MIN_HISTORY = timedelta(days=365)  # a side's bundle needs this much stored league history
 
 TARGET_SCHEMA: dict[str, Any] = {
     "match_id": pl.Int64, "comp": pl.Utf8, "season": pl.Int32,
@@ -167,8 +168,14 @@ def strengths(store: RawStore, session: Any, bundle: str, part: tuple[int, int],
         tg.filter(pl.col("bundle_away") == bundle).select(
             "match_id", "monday", team="away", league="league_away", side=pl.lit("away")),
     ])  # fmt: skip
-    mondays = sorted(set(sides["monday"].to_list()))[part[0] :: part[1]]
     df = bt._load(leagues, spec.xg, spec.manager)
+    first = _utc(df["kickoff"].min())  # type: ignore[arg-type]
+    early = sides.filter(pl.col("monday") < first + MIN_HISTORY)
+    if early.height:  # under a year of the bundle's stored league history: not used
+        log(f"{bundle}: {early.height} sides before {first + MIN_HISTORY:%Y-%m-%d} skipped "
+            f"(under {MIN_HISTORY.days} days of league history)")  # fmt: skip
+    sides = sides.filter(pl.col("monday") >= first + MIN_HISTORY)
+    mondays = sorted(set(sides["monday"].to_list()))[part[0] :: part[1]]
     h, lag = bt.fit_hash(spec), cfg.result_available_after_hours
     fitter = bt.nuts_fitter(spec)
     out: list[dict[str, Any]] = []

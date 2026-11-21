@@ -862,6 +862,10 @@ asked for B, C, D and then A3, in that order, each with its own acceptance.
         amateur clubs; FA Cup 20, early rounds with lower-league sides). All 11 project
         cleanly from the serving refits. The capture tick writes them once pushed, and
         check 3 is read then.
+      - *Live, 2026-11-21:* the first capture tick on 7921dda wrote forecasts for the same
+        11 ties (DFB-Pokal 8, Coppa Italia 3), so check 3 passes. On the match page the
+        recomputation from the same refit matches the stored milestone exactly (max
+        difference 0.0), so check 1 passes, and the "Cup tie" label shows.
     - Log loss 0.5655 against the baseline's 0.5741: -0.0086 [-0.0227, +0.0054], -1.50%.
       B3 was 0.5676; the interval is wider because of the early s.
     - ECE 0.0337 against 0.0576 for B3. A perfectly calibrated forecast here shows a mean
@@ -978,6 +982,13 @@ scored.
   - **Clarification, before any score:** the C1 and B_own fits use a Poisson likelihood on
     the 90' goals, with att and def at their means. Prediction uses Dixon-Coles with the
     home side's ρ and κ draws, as the acceptance says.
+  - **Clarification 2 (2026-11-21, after the first strengths run failed, before any
+    score):** stored league data starts with 2016/17. A Monday in summer 2016 has no league
+    matches in its window, so `team_strength.prepare` fails (run 44926910073, Spain part
+    0). A UEFA match is now used only if each side's bundle has at least 365 days of stored
+    league history before its Monday. Training matches therefore start in the summer of
+    2017, not 2016. Strengths fitted on a few weeks of a new season would be noise and
+    would pull Q towards 0. Dev targets are not affected.
 
 
 ## Stage D: national teams (§10.4)

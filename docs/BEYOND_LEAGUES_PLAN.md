@@ -963,7 +963,7 @@ scored.
   - 0 API requests;
   - one backtest-type run at a time.
 
-- [ ] **C1 build (2026-11-21), before any C1 score:**
+- [x] **C1 build (2026-11-21), before any C1 score:**
   - **Code:**
     - `adatta/model/continental.py`: targets, side strengths from the Monday refit, the
       C1 / B_own fit (PyMC with NumPyro), prediction, the Elo and its ordered logit,
@@ -989,6 +989,49 @@ scored.
     league history before its Monday. Training matches therefore start in the summer of
     2017, not 2016. Strengths fitted on a few weeks of a new season would be noise and
     would pull Q towards 0. Dev targets are not affected.
+
+- **C1 dev result (2026-11-21): FAILS the gate, not promoted.** Runs: strengths 44929273283
+  (20 jobs, all succeeded), then fit 44942402950. 384 dev cross-bundle UEFA matches, 43
+  refits. The holdout ("uefa") stays closed.
+
+  | model | 1X2 log loss | RPS |
+  |---|---|---|
+  | C1 | 0.9976 | 0.2096 |
+  | B_own | 1.0078 | 0.2133 |
+  | B_elo | 1.0070 | 0.2116 |
+
+  - **C1 vs B_own:**
+    - log loss -0.0101, 95% interval [-0.0295, +0.0092] (-1.01%);
+    - RPS -0.0037, 95% interval [-0.0104, +0.0030] (-1.73%).
+  - **C1 vs B_elo:**
+    - log loss -0.0094, 95% interval [-0.0317, +0.0130] (-0.93%);
+    - RPS -0.0019, 95% interval [-0.0092, +0.0054] (-0.91%).
+  - **By competition (C1 relative to each baseline):**
+    - Champions League, n 256: -1.40% vs own, -0.73% vs Elo;
+    - Europa League, n 117: -0.74% vs own, -1.66% vs Elo;
+    - Conference League, n 11: +4.27% vs own, +2.81% vs Elo.
+  - **Calibration (ECE / noise-floor limit):** home 0.036/0.074, draw 0.013/0.048, away
+    0.043/0.069.
+  - **Q at the last refit (sd), England fixed at 0:** Spain -0.002 (0.046), Italy -0.140
+    (0.051), Germany +0.028 (0.050), France -0.169 (0.055).
+    - Q is stable across refits from 2020: Italy about -0.13 to -0.19, France about -0.13
+      to -0.18, Spain and Germany within ±0.07.
+    - Prior sensitivity (prior sd × 0.5 / × 1 / × 2) moves no Q by more than 0.005.
+  - **Inference:** worst C1 R-hat 1.001, 0 divergences. PPC of total goals: predicted
+    2.888, observed 2.887.
+  - **Checks:**
+    1. C1 beats B_own (both intervals below 0): fail;
+    2. C1 beats B_elo the same way: fail;
+    3. no competition worse than either baseline by more than 1.0%: fail (Conference League);
+    4. ECE within its noise floor: pass;
+    5. inference gates on every refit: pass;
+    6. leakage (0 of 50 sampled targets changed): pass.
+  - **Reading:** as expected at the acceptance, about 384 matches are too few for the
+    intervals. C1 is better on the point estimate against both baselines on both scores,
+    is calibrated, and its Q is stable and identified. The failure is power, not a broken
+    model. The Conference League check rests on 11 matches.
+  - Following the acceptance, the gate is not relaxed after seeing the score. UEFA matches
+    keep showing why there is no forecast (principle 8). The next step is the owner's.
 
 
 ## Stage D: national teams (§10.4)

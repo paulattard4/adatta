@@ -566,3 +566,107 @@ Acceptance (stated 2026-11-20, before building):
   - **Seen, not changed:** a few pools list the same name twice under two player ids
     (Sabadell: "J. Ortega", "Y. Owusu"), so a player can appear in two sections. This
     comes from the provider's player records, not from this panel.
+
+## Projected XI on the pitch (requested 2026-11-21)
+
+Owner: "so right now we are projecting the most likely formation then filling that
+formation for each specific position with the player most likely to fill it?", then, on
+the proposed rule, "this would make it possible for us to mark the projected specific
+position too right? not just g,d,m,f".
+
+Today the pitch (P3-h) is the team's last lineup in the most likely formation, and the
+projected XI (P3-b with the out rule) is a separate list. They can disagree: the pitch can
+hold a player who is out or outside the projected XI. This is a display rule that makes
+them agree. It is not a placement model: D42 closed those.
+
+Acceptance (stated 2026-11-21 before building, owner: "yes and i want to see projected
+formation and projected lineup match. also make sure everything is aligned and spaced
+neatly with each other"). Already seen:
+- P3-g's dev results. The nearest dev analogue, B_xi_last (the B_top XI placed by each
+  player's code in the team's last match in that formation, the rest by line), scored
+  0.695 slot accuracy against 0.709 for the last lineup unchanged (B_last). That is on
+  team-matches with the formation right, about 1.4 points worse.
+- P3-h's pre-check: the last lineup holds 8.29 of the actual starters, against 8.59 for
+  B_top.
+- So the rule is expected to trade a little slot accuracy for 0.3 more correct starters,
+  and an XI that matches the list beside it. No new dev run is made (D42).
+
+(a) **The rule.** Start from P3-h's pitch: the last lineup in the most likely formation,
+    with its slots.
+    - **Who leaves:** every player on it who is not in the projected XI section (the out
+      rule applies, so a player listed out never stays).
+    - **Who comes in:** the projected-XI players not on it, highest P(start) first.
+    - **Where they go.** Each incoming player takes a vacated slot, in this order:
+      1. the slot code he has played most often in his last 10 starts final by the
+         as-of time (positional league-seasons only);
+      2. else a vacated slot in his line (G / D / M / F), the line he has played most
+         often in those starts;
+      3. else any vacated outfield slot.
+      The keeper slot only takes a keeper. If the XI has no keeper, it stays empty, as
+      today.
+    - With no last lineup in the formation, there is no pitch, as today.
+
+(b) **What is shown.**
+    - **Labels:** slot codes (LB, LCB, ...) where the league-season passes the grid test,
+      which is 72 of the 234 sides in the first run; elsewhere lines (G / D / M / F), as
+      today.
+    - **Moved-in players:** marked, with a note under the pitch: "Projected XI placed in
+      the last lineup in this formation. Players marked ◆ replace someone from that lineup
+      and take a vacated position." Where a player's usual position differs from his
+      slot, it is shown on hover (title).
+    - **History:** the last match's date stays in the caption. The unchanged last lineup
+      is no longer drawn.
+
+(c) **Inputs.** Each pool player's usual slot code and line (from their last 10 starts
+    final by the run's earliest as-of time) are added to the formation run's squad rules
+    file. The swap is done in the API from the stored rows. No new table and no requests.
+
+(d) **Checks (on the first run after the build, all 234 team sides):**
+    1. the pitch's players are exactly the projected XI wherever there is a pitch;
+    2. no player listed out is on the pitch;
+    3. every slot is filled, except a keeper slot when the XI has no keeper (counted);
+    4. slot codes appear only for positional league-seasons;
+    5. no sideways scroll at phone width.
+    Tests cover the three placement steps, the keeper rule, the out rule and an XI that
+    already matches.
+
+(e) **Reported, not a gate.** On the Played page, for finished matches with an announced
+    lineup on the grid and P3-c's top formation right, slot accuracy of the pitch shown
+    (as of kickoff - 24 h) beside that of the last lineup unchanged, so the trade in
+    (a) is measured live.
+
+- **Built 2026-11-21:**
+  - **Code:**
+    - `sim.formations.usual_positions`: each recent starter's usual slot and line, in
+      the squad rules file;
+    - `api.lineups.place`, `grid_slots`, `slot_accuracy` and `pitch_scores`;
+    - `views._place_xi`, which builds the pitch and gives the XI list the pitch's slot
+      codes, in the pitch's order, with ◆ on the same players;
+    - the panel: two sides on shared grid rows (CSS subgrid), so each block starts level
+      across home and away; the projected table on fixed columns (Pos, Player, Start,
+      Bench, Min); the pitch with ◆ and the usual position on hover; the Played page's
+      "Positions right" column.
+  - **Amendments while building:**
+    - With no last lineup in the formation, the XI is placed on an empty grid of it by
+      the same steps (stated in the caption), so the pitch and the list always match.
+      None of the 234 sides needed it in the first run.
+    - "P3-c's top formation right" in (e) is read as the announced formation being the
+      pitch's, which is the most likely named formation.
+  - **Rules backfilled:** the 20 Nov run's rules file was rewritten with usual
+    positions. It has 12,102 recent starters, 4,935 of them with a positional slot.
+    Daily runs write their own after the push.
+  - **Checks (d), all 234 team sides, through the API:**
+    1. the pitch is the projected XI in 234 of 234, and the list's slots equal the
+       pitch's in 234;
+    2. 0 players listed out are on a pitch;
+    3. 11 slots filled in 234, with no empty keeper slot;
+    4. codes are correct in 234, with 72 positional.
+    361 players were moved in, about 1.5 a side. At phone width (375 px) there is no
+    sideways scroll.
+  - **Tests:** `tests/test_lineup_panel.py` (+2, and the panel test extended), covering:
+    - slot, then line, then any slot;
+    - a keeper only in goal, and an empty keeper slot when the XI has none;
+    - an XI that matches moves nobody;
+    - the empty grid;
+    - usual positions over the last 10 starts;
+    - slot accuracy.

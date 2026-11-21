@@ -70,18 +70,23 @@ export interface Absence { name: string; status: "out" | "doubtful" | string; re
 export interface ProjectedPlayer {
   name: string; pos: string; p_start: number | null; p_bench: number | null; emin: number | null;
   status: string | null; status_as_of: string | null; section: "xi" | "bench" | "out" | "squad";
+  slot: string | null; moved: boolean; // XI: its code on the projected pitch; placed in a vacated slot
 }
 export interface Projection { generated_at: string; as_of: string; refit_as_of: string }
 export interface FormationOption { formation: string; p: number }
-export interface PitchPlayer { name: string; code: string; row: number; col: number; p_start: number | null; status: string | null }
+export interface PitchPlayer {
+  name: string; code: string; row: number; col: number; p_start: number | null; status: string | null;
+  moved: boolean; usual: string | null; // projected XI: placed in a vacated slot; usual position if not this one
+}
 export interface FormationView {
   generated_at: string; as_of: string; refit_as_of: string;
   options: FormationOption[]; announced: string | null; announced_p: number | null; pitch_formation: string;
-  last_kickoff: string | null; positional: boolean; pitch: PitchPlayer[];
+  last_kickoff: string | null; positional: boolean; pitch: PitchPlayer[]; moved: number;
 }
 export interface LineupScore {
   xi_hits: number; xi_hits_raw: number; bench_n: number; bench_hits: number; bench_in_squad: number;
   formation: string | null; formation_p: number | null; formation_top: boolean | null;
+  slot_acc: number | null; slot_acc_last: number | null;
 }
 export interface TeamSquad {
   team: string; lineup: Lineup | null; absences: Absence[]; projected: ProjectedPlayer[];
@@ -118,6 +123,7 @@ export interface MeanScore { metric: string; n: number; mean: number; lo: number
 export interface LineupSummary {
   n: number; xi_mean: number; xi_raw_mean: number; bench_hits: number; bench_n: number;
   n_formation: number; formation_top: number | null;
+  n_slot: number; slot_acc: number | null; slot_acc_last: number | null;
 }
 export interface ScoreSummary {
   segment: string; competition_id: number | null; tier: string | null; n: number; scores: MeanScore[]; lineup: LineupSummary | null;

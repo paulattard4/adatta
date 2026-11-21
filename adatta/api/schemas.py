@@ -208,6 +208,8 @@ class ProjectedPlayer(BaseModel):
     status: str | None  # "out" / "doubtful" from the injury feed now, else None
     status_as_of: str | None = None  # the same at the projection's as-of time
     section: Literal["xi", "bench", "out", "squad"] = "xi"
+    slot: str | None = None  # XI: the code of his slot on the projected pitch
+    moved: bool = False  # XI: placed in a vacated slot of the last lineup (◆ on the pitch)
 
 
 class Projection(BaseModel):
@@ -222,7 +224,8 @@ class FormationOption(BaseModel):
 
 
 class PitchPlayer(BaseModel):
-    """One starter of the last lineup in the pitch formation (history, not a forecast)."""
+    """One player on a pitch: the projected XI placed in the last lineup in the projected
+    formation, or an announced starter."""
 
     name: str
     code: str  # slot code (LB, LCB...) if positional, else the line (G / D / M / F)
@@ -230,11 +233,13 @@ class PitchPlayer(BaseModel):
     col: int
     p_start: float | None  # P3-b's, if in this fixture's projected pool
     status: str | None  # "out" / "doubtful" from the injury feed
+    moved: bool = False  # projected XI: replaces a player of the last lineup in it
+    usual: str | None = None  # projected XI: his usual slot (or line) if not this one
 
 
 class FormationView(BaseModel):
-    """P3-h: P3-c's three most likely formations, and the team's last lineup in the most
-    likely named one as of the projection time."""
+    """P3-h: P3-c's three most likely formations, and the projected XI placed in the team's
+    last lineup in the most likely named one as of the projection time."""
 
     generated_at: datetime
     as_of: datetime
@@ -243,9 +248,10 @@ class FormationView(BaseModel):
     announced: str | None = None  # the formation of the announced lineup (from its grid)
     announced_p: float | None = None  # P3-c's probability for it ("other" if not in its list)
     pitch_formation: str
-    last_kickoff: datetime | None  # None: no previous lineup in this formation
+    last_kickoff: datetime | None  # None: no previous lineup in this formation (empty grid)
     positional: bool
     pitch: list[PitchPlayer]
+    moved: int = 0  # projected-XI players placed in a vacated slot
 
 
 class LineupScore(BaseModel):
@@ -259,6 +265,9 @@ class LineupScore(BaseModel):
     formation: str | None  # played, from the announced grid
     formation_p: float | None  # P3-c's probability for it ("other" if outside the vocabulary)
     formation_top: bool | None  # it was P3-c's top pick
+    # positional grids and the announced formation the pitch's: share of the 11 slots right
+    slot_acc: float | None = None  # the projected-XI pitch shown
+    slot_acc_last: float | None = None  # the last lineup in that formation, unchanged
 
 
 class TeamSquad(BaseModel):
@@ -350,6 +359,9 @@ class LineupSummary(BaseModel):
     bench_n: int
     n_formation: int  # team-matches with a formation projection and an announced grid
     formation_top: float | None  # share where the played formation was P3-c's top pick
+    n_slot: int = 0  # team-matches with slot accuracy (positional, formation as the pitch)
+    slot_acc: float | None = None  # mean slot accuracy of the projected-XI pitch shown
+    slot_acc_last: float | None = None  # the same for the last lineup unchanged
 
 
 class ScoreSummary(BaseModel):

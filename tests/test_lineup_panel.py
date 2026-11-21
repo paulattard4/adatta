@@ -159,6 +159,12 @@ def test_panel_sections_pitch_and_outcome(tmp_path: Path) -> None:
     assert [p.code for p in t.lineup.pitch][:2] == ["GK", "LB"]
     assert t.formation is not None and t.formation.announced == "4-4-2"
     assert t.formation.announced_p == 0.6
+    # no earlier lineup in 4-4-2: the projected XI on an empty grid, in the list's order
+    f = t.formation
+    assert f.last_kickoff is None and f.positional and len(f.pitch) == 11
+    xi = [p for p in t.projected if p.section == "xi"]
+    assert sorted((p.slot, p.name) for p in xi) == sorted((p.code, p.name) for p in f.pitch)
+    assert xi[0].slot == "GK" and xi[0].name == "p1" and all(p.moved for p in xi)
     o = t.outcome
     assert o is not None and (o.xi_hits, o.xi_hits_raw) == (11, 10)  # the out rule paid off
     assert (o.bench_n, o.bench_hits, o.bench_in_squad) == (3, 2, 2)
@@ -175,9 +181,66 @@ def test_played_scores_use_the_projection_as_of_kickoff_minus_24h(tmp_path: Path
     w.s.commit()
     m = sc.PlayedMatch.model_construct(  # type: ignore[call-arg]
         match_id=mid, kickoff=K, home_lineup=None, away_lineup=None)  # fmt: skip
-    row = SimpleNamespace(home_id=1, away_id=2, league_id=39)
+    row = SimpleNamespace(home_id=1, away_id=2, league_id=39, season_id=w.season[39])
     views._lineup_scores(w.s, w.store, [m], {mid: row})  # type: ignore[dict-item]
     assert m.home_lineup is not None and m.away_lineup is None
     assert m.home_lineup.xi_hits == 11 and m.home_lineup.bench_n == 3
     s = views._lineup_summary([m])
     assert s is not None and (s.n, s.xi_mean, s.xi_raw_mean, s.formation_top) == (1, 11, 10, 1.0)
+
+
+def _p(pid: int, pos: str, p_start: float, status: str | None = None) -> al.Pooled:
+    return al.Pooled(pid, f"p{pid}", pos, p_start, 0.1, 60, status)
+
+
+LAST_442 = [{"code": c, "row": r, "col": k, "player_id": pid} for c, r, k, pid in [
+    ("GK", 1, 1, 1), ("LB", 2, 1, 2), ("LCB", 2, 2, 3), ("RCB", 2, 3, 4), ("RB", 2, 4, 5),
+    ("LM", 3, 1, 6), ("LCM", 3, 2, 7), ("RCM", 3, 3, 8), ("RM", 3, 4, 9),
+    ("LS", 4, 1, 10), ("RS", 4, 2, 11)]]  # fmt: skip
+
+
+def test_projected_xi_is_placed_in_the_last_lineup_by_slot_then_line_then_anywhere() -> None:
+    usual = {"usual": {"20": ["RB", "D"], "21": [None, "M"], "22": [None, "F"],
+                       "30": [None, "G"]}}  # fmt: skip
+    # 5 (RB), 7 (LCM) and 10 (LS) are not in the XI; 20 usually RB, 21 a midfielder,
+    # 22 a forward; plus the keeper 1 kept
+    xi = [_p(i, "D" if i < 6 else "M" if i < 10 else "F", 0.9)
+          for i in (1, 2, 3, 4, 6, 8, 9, 11)]  # fmt: skip
+    xi = [al.Pooled(1, "p1", "G", 0.9, 0.0, 90, None), *xi[1:],
+          _p(20, "D", 0.8), _p(21, "D", 0.7), _p(22, "M", 0.6)]  # fmt: skip
+    got = {x.code: x for x in al.place(LAST_442, xi, usual, positional=True)}
+    assert got["RB"].player is not None and got["RB"].player.player_id == 20  # (1) usual slot
+    assert got["LCM"].player is not None and got["LCM"].player.player_id == 21  # (2) his line
+    assert got["LS"].player is not None and got["LS"].player.player_id == 22  # (2) usual line
+    assert [x.code for x in got.values() if x.moved] == ["RB", "LCM", "LS"]
+    assert got["LCM"].usual == "M" or got["LCM"].usual is None  # no usual slot code: no hover
+    assert {x.player.player_id for x in got.values() if x.player} == {p.player_id for p in xi}
+    # (3) any outfield slot when no slot of his line is free; a keeper only in goal
+    xi2 = [p for p in xi if p.player_id != 22] + [_p(23, "D", 0.5)]
+    got2 = {x.code: x for x in al.place(LAST_442, xi2, {}, positional=True)}
+    assert got2["LS"].player is not None and got2["LS"].player.player_id == 23
+    no_gk = [p for p in xi if p.player_id != 1] + [_p(24, "M", 0.4)]
+    got3 = {x.code: x for x in al.place(LAST_442, no_gk, {}, positional=True)}
+    assert got3["GK"].player is None and sum(x.player is not None for x in got3.values()) == 10
+    # an XI that matches the lineup moves nobody
+    same = [_p(int(str(s["player_id"])), "G" if s["code"] == "GK" else "D", 0.9) for s in LAST_442]
+    assert not any(x.moved for x in al.place(LAST_442, same, {}, positional=True))
+
+
+def test_empty_grid_usual_positions_and_slot_accuracy() -> None:
+    g = al.grid_slots("4-2-3-1", positional=True)
+    assert g is not None and [x["code"] for x in g][:7] == ["GK", "LB", "LCB", "RCB", "RB",
+                                                            "CDM", "CDM"]  # fmt: skip
+    assert al.grid_slots("4-4-3", True) is None and al.grid_slots("other", True) is None
+    lines = al.grid_slots("4-4-2", positional=False)
+    assert lines is not None and {x["code"] for x in lines} == {"G", "D", "M", "F"}
+    assert al.slot_accuracy([("LB", 2), ("RB", 3), ("GK", None)], {2: "LB", 3: "LB"}) == 0.5
+    k = datetime(2026, 9, 1, tzinfo=UTC)
+    lu = pl.DataFrame({
+        "player_id": [7] * 12 + [8],
+        "kickoff": [k - timedelta(days=i) for i in range(12)] + [k - timedelta(days=500)],
+        "slot": ["LB"] * 4 + ["RB"] * 6 + ["LB"] * 2 + ["CM"],
+        "line": ["D"] * 12 + ["M"], "positional": [True] * 11 + [False, True],
+    }, schema_overrides={"kickoff": pl.Datetime("us", "UTC")})  # fmt: skip
+    got = sf.usual_positions(lu, k + RESULT_LAG + timedelta(hours=1))
+    assert got == {"7": ["RB", "D"]}  # last 10 starts: RB 6, LB 4; 8's start is too old

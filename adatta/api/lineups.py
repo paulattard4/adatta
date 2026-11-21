@@ -161,6 +161,117 @@ def is_positional(rl: dict[str, Any] | None, league_ref: str, season: int) -> bo
     return rl is not None and [league_ref, season] in rl["positional"]
 
 
+def usual(rl: dict[str, Any] | None, player_id: int) -> tuple[str | None, str | None]:
+    """A player's usual (slot code, line) from the rules file; (None, None) if unknown."""
+    got = (rl or {}).get("usual", {}).get(str(player_id))
+    return (got[0], got[1]) if got else (None, None)
+
+
+# ------------------------------------------------------------------ projected XI pitch
+
+
+@dataclass(frozen=True)
+class Placed:
+    """One slot of the projected-XI pitch."""
+
+    code: str  # slot code if positional, else the line
+    row: int
+    col: int
+    player: Pooled | None  # None: the keeper slot when the XI has no keeper
+    moved: bool  # replaces a player of the last lineup (or fills an empty grid)
+    usual: str | None  # the player's usual slot (or line) when it differs from `code`
+
+
+def grid_slots(formation: str, positional: bool) -> list[dict[str, Any]] | None:
+    """An empty grid for a formation string ("4-2-3-1"), as the lineup table's codes."""
+    try:
+        counts = [1, *(int(x) for x in formation.split("-"))]
+        codes = flu.formation_codes(counts)
+    except ValueError:
+        return None
+    if sum(counts) != 11:
+        return None
+    return [{"code": codes[r][c] if positional else flu.row_line(r + 1, len(counts)),
+             "row": r + 1, "col": c + 1, "player_id": None}
+            for r, n in enumerate(counts) for c in range(n)]  # fmt: skip
+
+
+def place(slots: list[dict[str, Any]], xi: list[Pooled], rl: dict[str, Any] | None,
+          positional: bool) -> list[Placed]:  # fmt: skip
+    """The projected XI on a grid (docs/DASHBOARD_TASKS.md, "Projected XI on the pitch").
+    Players of the grid's lineup who are in the XI keep their slot; the rest of the XI,
+    highest P(start) first, takes the vacated slots: (1) his usual slot code (positional
+    only), (2) else a slot in his usual line, (3) else any outfield slot. The keeper slot
+    takes only a keeper; it stays empty if the XI has none. Slots in grid order."""
+    last = max(int(s["row"]) for s in slots)
+    line_of = {(int(s["row"]), int(s["col"])): flu.row_line(int(s["row"]), last) for s in slots}
+    by_id = {p.player_id: p for p in xi}
+    got: dict[tuple[int, int], tuple[Pooled, bool]] = {}
+    for s in slots:
+        pid = s.get("player_id")
+        if pid is not None and int(pid) in by_id:
+            got[(int(s["row"]), int(s["col"]))] = (by_id[int(pid)], False)
+    kept = {p.player_id for p, _ in got.values()}
+    incoming = sorted((p for p in xi if p.player_id not in kept), key=lambda p: -p.p_start)
+    free = sorted((int(s["row"]), int(s["col"])) for s in slots
+                   if (int(s["row"]), int(s["col"])) not in got)  # fmt: skip
+    code_at = {(int(s["row"]), int(s["col"])): str(s["code"]) for s in slots}
+
+    def line(p: Pooled) -> str:
+        return usual(rl, p.player_id)[1] or p.pos
+
+    def take(p: Pooled, cell: tuple[int, int]) -> None:
+        got[cell] = (p, True)
+        free.remove(cell)
+
+    waiting: list[Pooled] = []
+    for p in incoming:  # keepers only in goal, outfield players never there
+        if line(p) == "G" or p.pos == "G":
+            if (1, 1) in free:
+                take(p, (1, 1))
+        else:
+            waiting.append(p)
+    rest: list[Pooled] = []
+    for p in waiting:  # (1) his usual slot code
+        slot = usual(rl, p.player_id)[0] if positional else None
+        cell = next((c for c in free if c != (1, 1) and code_at[c] == slot), None)
+        if cell is not None:
+            take(p, cell)
+        else:
+            rest.append(p)
+    left: list[Pooled] = []
+    for p in rest:  # (2) a slot in his usual line
+        cell = next((c for c in free if c != (1, 1) and line_of[c] == line(p)), None)
+        if cell is not None:
+            take(p, cell)
+        else:
+            left.append(p)
+    for p in left:  # (3) any outfield slot
+        cell = next((c for c in free if c != (1, 1)), None)
+        if cell is not None:
+            take(p, cell)
+    out = []
+    for s in sorted(slots, key=lambda s: (int(s["row"]), int(s["col"]))):
+        cell = (int(s["row"]), int(s["col"]))
+        hit = got.get(cell)
+        who, moved = (hit[0], hit[1]) if hit else (None, False)
+        u = None
+        if who is not None:
+            u_slot, u_line = usual(rl, who.player_id)
+            mine = u_slot if positional else (u_line or who.pos)
+            u = mine if mine is not None and mine != code_at[cell] else None
+        out.append(Placed(code_at[cell], cell[0], cell[1], who, moved, u))
+    return out
+
+
+def slot_accuracy(placed: list[tuple[str, int | None]], announced: dict[int, str]) -> float | None:
+    """Share of the shown (code, player) slots whose player started in that code."""
+    xs = [(c, p) for c, p in placed if p is not None]
+    if not xs:
+        return None
+    return sum(announced.get(p) == c for c, p in xs) / len(xs)
+
+
 # ----------------------------------------------------------------------- announced pitch
 
 
@@ -257,9 +368,28 @@ def formation_played(snap: models.LineupSnapshot) -> str | None:
     return got[0] if got else None
 
 
+def pitch_scores(xi: list[Pooled], snap: models.LineupSnapshot, ids: dict[str, int],
+                 form: models.FormationProjection | None, rl: dict[str, Any] | None,
+                 positional: bool) -> tuple[float | None, float | None]:  # fmt: skip
+    """Slot accuracy of the projected-XI pitch and of the last lineup unchanged, when both
+    grids are positional and the announced formation is the pitch's (else None, None)."""
+    if form is None or not form.positional or not form.slots or not positional:
+        return None, None
+    got = announced_pitch(snap.starters, positional=True)
+    if got is None or got[0] != form.pitch_formation:
+        return None, None
+    ann = {ids[str(x["player_ref"])]: code for x, code, _, _ in got[1]
+           if str(x.get("player_ref")) in ids}  # fmt: skip
+    placed = place(form.slots, xi, rl, True)
+    shown = [(x.code, x.player.player_id if x.player else None) for x in placed]
+    last = [(str(s["code"]), int(s["player_id"])) for s in form.slots]
+    return slot_accuracy(shown, ann), slot_accuracy(last, ann)  # type: ignore[arg-type]
+
+
 def score(xs: list[Pooled], limit: int | None, expected: float | None,
           snap: models.LineupSnapshot, ids: dict[str, int],
-          form: models.FormationProjection | None) -> sc.LineupScore:  # fmt: skip
+          form: models.FormationProjection | None, rl: dict[str, Any] | None = None,
+          positional: bool = False) -> sc.LineupScore:  # fmt: skip
     """How one side's stored projection did against the announced lineup."""
     start = {ids[str(x["player_ref"])] for x in snap.starters if str(x.get("player_ref")) in ids}
     subs = {ids[str(x["player_ref"])] for x in snap.substitutes
@@ -272,12 +402,14 @@ def score(xs: list[Pooled], limit: int | None, expected: float | None,
         key = f_played if f_played in probs else "other"
         f_p = probs.get(key)
         f_top = max(probs, key=lambda k: probs[k]) == key
+    acc = pitch_scores(sec["xi"], snap, ids, form, rl, positional)
     return sc.LineupScore(
         xi_hits=len({p.player_id for p in sec["xi"]} & start),
         xi_hits_raw=len({p.player_id for p in likely_xi(xs)} & start),
         bench_n=len(bench), bench_hits=len(bench & subs),
         bench_in_squad=len(bench & (start | subs)),
         formation=f_played, formation_p=f_p, formation_top=f_top,
+        slot_acc=acc[0], slot_acc_last=acc[1],
     )  # fmt: skip
 
 

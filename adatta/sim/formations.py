@@ -154,15 +154,44 @@ def team_benches(appearances: pl.DataFrame, cutoff: datetime, last: int = 5) -> 
     return {str(t): round(float(b), 3) for t, b in got.iter_rows()}
 
 
+USUAL_STARTS = 10  # a player's usual position: his last 10 starts final by the cutoff
+USUAL_WITHIN = timedelta(days=400)  # players with a start this recent (the file stays small)
+
+
+def usual_positions(lineups: pl.DataFrame, cutoff: datetime) -> dict[str, list[str | None]]:
+    """Per player with a start within USUAL_WITHIN: [slot code, line] played most often in
+    his last USUAL_STARTS starts final by `cutoff` (ties to the most recent). The slot
+    counts only starts in positional league-seasons; None if he has none there."""
+    cut = _utc(cutoff).astimezone(UTC) - RESULT_LAG
+    s = (lineups.filter(pl.col("kickoff") <= cut)
+         .sort("kickoff", descending=True)
+         .group_by("player_id", maintain_order=True).head(USUAL_STARTS))  # fmt: skip
+    recent = s.group_by("player_id").agg(pl.col("kickoff").max()).filter(
+        pl.col("kickoff") >= cut - USUAL_WITHIN)["player_id"]  # fmt: skip
+    s = s.filter(pl.col("player_id").is_in(recent))
+
+    def mode(df: pl.DataFrame, col: str) -> dict[int, str]:
+        g = df.group_by("player_id", col).agg(n=pl.len(), last=pl.col("kickoff").max())
+        g = g.sort(["player_id", "n", "last"], descending=[False, True, True])
+        return {int(p): str(v) for p, v in
+                g.group_by("player_id", maintain_order=True).first()
+                .select("player_id", col).iter_rows()}  # fmt: skip
+
+    slot = mode(s.filter(pl.col("positional")), "slot")
+    line = mode(s, "line")
+    return {str(p): [slot.get(p), ln] for p, ln in sorted(line.items())}
+
+
 def rules(appearances: pl.DataFrame, quality: pl.DataFrame, season: int,
-          cutoff: datetime) -> dict[str, Any]:  # fmt: skip
+          cutoff: datetime, lineups: pl.DataFrame | None = None) -> dict[str, Any]:  # fmt: skip
     """The panel's squad rules as of `cutoff`: bench limits per league, each team's
-    expected bench size, and the league-seasons whose grid passes the positional test
-    (P3-h's pitch, and announced lineups)."""
+    expected bench size, the league-seasons whose grid passes the positional test (P3-h's
+    pitch, and announced lineups) and each recent starter's usual slot and line."""
     pos = quality.filter(pl.col("positional")).select("league_ref", "season").rows()
     return {"cutoff": _utc(cutoff).isoformat(), "bench": bench_limits(appearances, season, cutoff),
             "team_bench": team_benches(appearances, cutoff),
-            "positional": sorted([str(a), int(b)] for a, b in pos)}  # fmt: skip
+            "positional": sorted([str(a), int(b)] for a, b in pos),
+            "usual": usual_positions(lineups, cutoff) if lineups is not None else {}}  # fmt: skip
 
 
 # ------------------------------------------------------------------------- projection
@@ -197,7 +226,7 @@ def run(session: Session, store: RawStore, bundles: dict[str, list[int]],
     session.rollback()  # end the read transaction before the build (Neon's idle timeout)
     lineups, formations, quality = lu.build(raw.appearances)
     cutoff = _utc(tg["as_of"].min())  # type: ignore[arg-type]
-    rl = rules(raw.appearances, quality, season, cutoff)
+    rl = rules(raw.appearances, quality, season, cutoff, lineups)
     store.put(rules_key(now), json.dumps(rl).encode())
     report["bench_limits"] = {lg: x["limit"] for lg, x in rl["bench"].items()}
     r_in = raw.inputs

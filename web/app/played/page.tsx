@@ -66,14 +66,16 @@ function LineupScores({ summary }: { summary: ScoreSummary[] }) {
       <h2>Projected lineups</h2>
       <p className="note">
         The stored projection as of kickoff − 24 h against the announced lineup, per team-match. Players the injury feed lists as out
-        are kept out of the projected XI; the P3-b column is its own top XI without that rule. Reported, not a verdict: projections
-        start on 20 November.
+        are kept out of the projected XI; the P3-b column is its own top XI without that rule. Positions compare the pitch shown (the
+        projected XI placed in the last lineup in the projected formation) with that last lineup unchanged, where the league&apos;s grid
+        is positional and the announced formation is the pitch&apos;s. Reported, not a verdict: projections start on 20 November.
       </p>
       <div className="table-wrap">
         <table className="scores">
           <thead>
             <tr><th>Segment</th><th className="num">Team-matches</th><th>XI started, of 11</th><th>P3-b top XI, of 11</th>
-              <th>Bench named on the bench</th><th>Formation top pick</th></tr>
+              <th>Bench named on the bench</th><th>Formation top pick</th>
+              <th title="share of the 11 positions whose player started there; positional leagues, announced formation as the pitch's">Positions right: pitch · last lineup</th></tr>
           </thead>
           <tbody>
             {rows.map((s) => {
@@ -86,6 +88,8 @@ function LineupScores({ summary }: { summary: ScoreSummary[] }) {
                   <td className="num">{l.xi_raw_mean.toFixed(2)}</td>
                   <td className="num">{l.bench_n > 0 ? `${pct(l.bench_hits / l.bench_n, 0)}%` : "—"} <span className="dim">({l.bench_hits}/{l.bench_n})</span></td>
                   <td className="num">{l.formation_top !== null ? `${pct(l.formation_top, 0)}%` : "—"} <span className="dim">(n {l.n_formation})</span></td>
+                  <td className="num">{l.slot_acc !== null && l.slot_acc_last !== null
+                    ? <>{pct(l.slot_acc, 0)}% · {pct(l.slot_acc_last, 0)}%</> : "—"} <span className="dim">(n {l.n_slot})</span></td>
                 </tr>
               );
             })}

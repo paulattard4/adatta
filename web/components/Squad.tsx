@@ -1,6 +1,8 @@
 import { dateLocal, kickoffLocal, pct } from "@/lib/format";
 import type { Absence, FormationView, Lineup, LineupScore, PitchPlayer, ProjectedPlayer, Projection, Squad, SquadPlayer, TeamSquad } from "@/lib/types";
 
+const LINE_LABEL: Record<string, string> = { G: "GK", D: "D", M: "M", F: "F" };
+
 const SECTION_LABEL: Record<ProjectedPlayer["section"], string> = {
   xi: "Projected XI", bench: "Projected bench", out: "Not in the matchday squad", squad: "Squad, not modelled",
 };
@@ -28,19 +30,22 @@ function Projected({ t, pr, announced }: { t: TeamSquad; pr: Projection; announc
           <> (&ldquo;out since&rdquo;: listed after it)</>}
       </p>
       <table className="proj">
-        <thead><tr><th>Player</th><th className="r">Start</th><th className="r">Bench</th><th className="r">Min</th></tr></thead>
+        <colgroup><col className="c-pos" /><col /><col className="c-num" /><col className="c-num" /><col className="c-min" /></colgroup>
+        <thead><tr><th>Pos</th><th>Player</th><th className="r">Start</th><th className="r">Bench</th><th className="r">Min</th></tr></thead>
         {order.map((sec) => {
           const xs = t.projected.filter((p) => p.section === sec);
           if (xs.length === 0) return null;
           return (
             <tbody key={sec}>
-              <tr className="proj-sec"><td colSpan={4}>
-                {SECTION_LABEL[sec]}{sec === "bench" && <> · <span className="num">{xs.length}</span>{limit}</>}
+              <tr className="proj-sec"><td colSpan={5}>
+                {SECTION_LABEL[sec]}{sec === "xi" && t.formation && <> · <span className="num">{t.formation.pitch_formation}</span>, as on the pitch</>}
+                {sec === "bench" && <> · <span className="num">{xs.length}</span>{limit}</>}
                 {sec === "squad" && <span className="dim"> · registered, no appearance in the last year</span>}
               </td></tr>
               {xs.map((p, i) => (
                 <tr key={`${p.name}-${i}`}>
-                  <td><span className="num dim proj-pos">{p.pos}</span> {p.name} <Tag p={p} /></td>
+                  <td className="num dim">{p.slot ?? (LINE_LABEL[p.pos] ?? p.pos)}</td>
+                  <td><span className="proj-name"><span className="proj-name-text" title={p.name}>{p.moved && <span className="pitch-moved" aria-label="moved in">◆</span>}{p.name}</span><Tag p={p} /></span></td>
                   <td className="num r">{p.p_start !== null ? `${pct(p.p_start, 0)}%` : "–"}</td>
                   <td className="num r dim">{p.p_bench !== null ? `${pct(p.p_bench, 0)}%` : "–"}</td>
                   <td className="num r dim">{p.emin !== null ? p.emin.toFixed(0) : "–"}</td>
@@ -70,8 +75,6 @@ function Outcome({ o }: { o: LineupScore }) {
   );
 }
 
-const LINE_LABEL: Record<string, string> = { G: "GK", D: "D", M: "M", F: "F" };
-
 /** Grid rows, forwards on top; within a row, column 1 (the team's left) first. */
 export function pitchRows(xs: PitchPlayer[]): PitchPlayer[][] {
   const rows = new Map<number, PitchPlayer[]>();
@@ -85,11 +88,14 @@ function Pitch({ xs, positional, label }: { xs: PitchPlayer[]; positional: boole
       {pitchRows(xs).map((row) => (
         <div className="pitch-row" key={row[0].row}>
           {row.map((p) => (
-            <div className="pitch-player" key={`${p.row}-${p.col}`}>
+            <div className="pitch-player" key={`${p.row}-${p.col}`}
+              title={p.usual ? `${p.name}: usually ${positional ? p.usual : (LINE_LABEL[p.usual] ?? p.usual)}` : p.name}>
               <span className="pitch-code num">{positional ? p.code : (LINE_LABEL[p.code] ?? p.code)}</span>
-              <span className="pitch-name" title={p.name}>{p.name}</span>
-              <span className="num dim">{p.p_start !== null ? `${pct(p.p_start, 0)}%` : "–"}</span>
-              {p.status && <span className={`absence-tag ${p.status}`} title="listed by the injury feed">{p.status}</span>}
+              <span className="pitch-name">{p.moved && <span className="pitch-moved" aria-label="moved in">◆</span>}{p.name}</span>
+              <span className="pitch-foot">
+                <span className="num dim">{p.p_start !== null ? `${pct(p.p_start, 0)}%` : "–"}</span>
+                {p.status && <span className={`absence-tag ${p.status}`}>{p.status}</span>}
+              </span>
             </div>
           ))}
         </div>
@@ -121,16 +127,22 @@ function FormationBlock({ f }: { f: FormationView }) {
         As of <span className="num">{kickoffLocal(f.as_of)}</span> · refit <span className="num">{dateLocal(f.refit_as_of)}</span>
         {" "}· the model does not use opponent strength
       </p>
-      {f.last_kickoff ? (
+      {f.pitch.length > 0 ? (
         <>
           <div className="squad-sub dim">
-            Last lineup in <span className="num">{f.pitch_formation}</span> (<span className="num">{dateLocal(f.last_kickoff)}</span>)
-            {!f.positional && " · positions by line only"}
+            Projected XI in <span className="num">{f.pitch_formation}</span>
+            {f.last_kickoff
+              ? <> · placed in the last lineup in it (<span className="num">{dateLocal(f.last_kickoff)}</span>)</>
+              : <> · no earlier lineup in it: placed by usual position</>}
+            {!f.positional && " · by line only"}
           </div>
-          <Pitch xs={f.pitch} positional={f.positional} label={`last lineup in ${f.pitch_formation}`} />
-          <p className="squad-meta dim">History, not a forecast of who starts: the percentages are P3-b&apos;s chance to start (– not in this fixture&apos;s pool).</p>
+          <Pitch xs={f.pitch} positional={f.positional} label={`projected XI in ${f.pitch_formation}`} />
+          <p className="squad-meta dim">
+            {f.moved > 0 && <><span className="pitch-moved">◆</span> replaces a player from that lineup and takes a vacated position (<span className="num">{f.moved}</span>). </>}
+            Percentages are P3-b&apos;s chance to start; hover a player for his usual position when it differs.
+          </p>
         </>
-      ) : <p className="squad-meta dim">No previous lineup in <span className="num">{f.pitch_formation}</span>.</p>}
+      ) : <p className="squad-meta dim">No pitch for <span className="num">{f.pitch_formation}</span>.</p>}
     </>
   );
 }
@@ -184,17 +196,22 @@ function Absences({ xs }: { xs: Absence[] }) {
 }
 
 function Side({ t, checked, note, pr }: { t: TeamSquad; checked: boolean; note: string | null; pr: Projection | null }) {
+  // six blocks in a fixed order; the two sides share grid rows so each block starts level
   return (
     <div className="squad-side">
-      <div className="squad-team">{t.team}</div>
-      <h4>Availability</h4>
-      {!checked ? <p className="dim squad-meta">Not captured for this competition.</p>
-        : t.absences.length === 0 ? <p className="dim squad-meta">No absences listed by the feed.</p>
-        : <Absences xs={t.absences} />}
-      {t.lineup ? <LineupBlock lu={t.lineup} /> : <><h4>Lineup</h4><p className="dim squad-meta">{note ?? "No lineup captured."}</p></>}
-      {t.outcome && <Outcome o={t.outcome} />}
-      {t.formation && <FormationBlock f={t.formation} />}
-      {pr && t.projected.length > 0 && <Projected t={t} pr={pr} announced={t.lineup !== null} />}
+      <div className="squad-block squad-team">{t.team}</div>
+      <div className="squad-block">
+        <h4>Availability</h4>
+        {!checked ? <p className="dim squad-meta">Not captured for this competition.</p>
+          : t.absences.length === 0 ? <p className="dim squad-meta">No absences listed by the feed.</p>
+          : <Absences xs={t.absences} />}
+      </div>
+      <div className="squad-block">
+        {t.lineup ? <LineupBlock lu={t.lineup} /> : <><h4>Lineup</h4><p className="dim squad-meta">{note ?? "No lineup captured."}</p></>}
+      </div>
+      <div className="squad-block">{t.outcome && <Outcome o={t.outcome} />}</div>
+      <div className="squad-block">{t.formation && <FormationBlock f={t.formation} />}</div>
+      <div className="squad-block">{pr && t.projected.length > 0 && <Projected t={t} pr={pr} announced={t.lineup !== null} />}</div>
     </div>
   );
 }

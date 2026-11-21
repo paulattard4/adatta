@@ -1053,8 +1053,8 @@ Acceptance: beats the Elo baseline on the locked international holdout (to be de
 the start of the stage), calibrated on qualifiers and nations-league matches; friendlies
 and competitive matches reported apart.
 
-**D v0 acceptance (drafted 2026-11-21, before building, for the owner's approval).** Owner:
-"Close C1, start D" (D45).
+**D v0 acceptance (stated 2026-11-21 before building, owner: "Approve as drafted").**
+Owner before it: "Close C1, start D" (D45).
 
 *Seen so far:* counts and host roles only, no model and no outcome rate. Stored national
 matches: 10,903, of which 9,350 are finished matches between two senior men's sides with a 90'
@@ -1182,6 +1182,26 @@ score (June 2014 to 18 Nov 2026).
     about 218 × 115 walk steps;
   - one refit is timed first, and the run is planned from that (CI, 18 parallel jobs, one
     backtest-type run at a time).
+
+- [ ] **D v0 build (2026-11-21), before any score:**
+  - **Code:**
+    - `adatta/model/national.py`: targets, confederations, host roles, the v0 model
+      (PyMC with NumPyro), prediction, B_elo, the gate, prior sensitivity and leakage;
+    - `.github/workflows/national.yml` (time, refits over 18 jobs, gate);
+    - `tests/test_national.py` (6).
+  - **Targets** (loaded, counts only):
+    - 6,363 matches between 218 sides: warm-up 2,226, dev 4,137 (2,943 competitive, 1,194
+      friendlies);
+    - roles: home 3,619, neutral 1,272, swapped 77, unknown 1,395;
+    - dev competitive by competition confederation: UEFA 1,135, CAF 629, CONCACAF 554,
+      AFC 377, CONMEBOL 170, world 67 and OFC 11 (the last two reported only).
+  - **Refits:** 151 dev refits. The largest has 6,358 matches, 218 teams and 115 months.
+  - **Clarifications, before any score:**
+    - the intercept prior, not stated in the acceptance, is c ~ Normal(0.25, 0.5);
+    - prior sensitivity scales the Normal and HalfNormal sds; φ (Gamma) and ρ (Uniform)
+      keep their priors;
+    - the sensitivity check is §14.5's: every headline mean (c, g, h, h_u, conf, σ_w, σ_u,
+      σ_o) moves less than 1 posterior sd.
 
 ## Cross-cutting
 

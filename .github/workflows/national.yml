@@ -1,0 +1,92 @@
+# Stage D v0 (docs/BEYOND_LEAGUES_PLAN.md, "D v0 acceptance"): senior men's national teams,
+# team only, from results, against B_elo on the dev window (2019-2023). Manual dispatch only,
+# one stage per run:
+#   time    one refit at --at, timed and cached (plans the backtest)
+#   refits  the walk-forward refits split over 18 jobs, each scoring its weeks' targets
+#   gate    the Elo, the gate, prior sensitivity, leakage
+# The repo is public: logs carry metrics only. Match-level rows and draws go to R2
+# (national/...), never to workflow artifacts. The international holdout (2024-01-01 on) is
+# never loaded here.
+# One backtest-type run at a time (backtest, gate, holdout, timing, cups, ..., continental,
+# national): two runs together fill the account's 20 job slots and starve the capture.
+name: national
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "time | refits | gate"
+        required: true
+      at:
+        description: "time: the refit date (YYYY-MM-DD)"
+        default: "2023-12-25"
+      parts:
+        description: "refits / gate: number of parts (refits always runs 18 jobs)"
+        default: "18"
+      fetch:
+        description: "gate: the refits run id"
+        default: ""
+      friendly_weight:
+        description: "friendlies' likelihood weight (0.5 in the acceptance)"
+        default: "0.5"
+permissions:
+  contents: read
+concurrency:
+  group: national
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  time:
+    if: ${{ inputs.stage == 'time' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: one refit, timed (metrics only)
+        run: >-
+          uv run --frozen --group model python -m adatta.model.national time
+          --at ${{ inputs.at }} --friendly-weight ${{ inputs.friendly_weight }}
+  refits:
+    if: ${{ inputs.stage == 'refits' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        part: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: walk-forward refits (metrics only)
+        run: >-
+          uv run --frozen --group model python -m adatta.model.national refits
+          --part ${{ matrix.part }}/18 --upload ${{ github.run_id }}
+          --friendly-weight ${{ inputs.friendly_weight }}
+  gate:
+    if: ${{ inputs.stage == 'gate' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: v0 against B_elo, the gate (metrics only)
+        run: >-
+          uv run --frozen --group model python -m adatta.model.national gate
+          --fetch ${{ inputs.fetch }} --parts ${{ inputs.parts }}
+          --friendly-weight ${{ inputs.friendly_weight }} | tee -a "$GITHUB_STEP_SUMMARY"

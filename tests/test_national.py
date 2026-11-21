@@ -1,0 +1,95 @@
+"""Stage D v0 (docs/BEYOND_LEAGUES_PLAN.md, "D v0 acceptance"): competition rules, the
+confederation assignment, the eloratings.net Elo as of each Monday, the refit grid, the
+negative binomial score matrix and the walk carried to the match month."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+import numpy as np
+import polars as pl
+import pytest
+
+from adatta.model import continental as ct
+from adatta.model import national as nt
+
+K = datetime(2019, 3, 21, 19, tzinfo=UTC)  # a Thursday
+
+
+def _tg(rows: list[tuple[int, int, int, int, str, str, int]]) -> pl.DataFrame:
+    """(home, away, hg, ag, league id, role, days after K)."""
+    out = []
+    for i, (h, a, hg, ag, lg, role, d) in enumerate(rows):
+        k = K + timedelta(days=d)
+        out.append({"match_id": i, "league_id": lg, "type": nt.comp_type(lg),
+                    "comp_conf": nt.COMP_CONF.get(lg, "world"), "kickoff": k,
+                    "monday": ct.monday(k), "home": h, "away": a, "conf_home": "UEFA",
+                    "conf_away": "UEFA", "role": role, "hg": hg, "ag": ag})  # fmt: skip
+    return pl.DataFrame(out, schema=nt.TARGET_SCHEMA)
+
+
+def test_competition_rules() -> None:
+    assert nt.comp_type("10") == "friendly" and nt.comp_type("1") == "finals"
+    assert nt.comp_type("5") == "qualifier" and nt.comp_type("32") == "qualifier"
+    assert [nt.elo_k(x) for x in ("1", "4", "32", "10")] == [60, 50, 40, 20]
+    assert [nt.goal_mult(m) for m in (0, -1, 2, 3, -5)] == [1, 1, 1.5, 14 / 8, 16 / 8]
+    assert nt.host_sides("swapped") == (0, 1, 0) and nt.host_sides("unknown") == (0, 0, 1)
+    assert "9" not in nt.MEMBER_COMPS and "22" not in nt.MEMBER_COMPS  # guests at Copa, Gold Cup
+
+
+def test_confederations_from_member_competitions_only() -> None:
+    got = nt.assign_confederations([(1, "32"), (1, "10"), (2, "9"), (2, "34"), (3, "9")])
+    assert got == {1: "UEFA", 2: "CONMEBOL"}  # 3 only played Copa America: no confederation
+    with pytest.raises(ValueError):
+        nt.assign_confederations([(4, "32"), (4, "30")])
+
+
+def test_elo_is_as_of_the_monday_with_host_and_goal_margin() -> None:
+    tg = _tg([(1, 2, 3, 0, "32", "home", 0), (1, 2, 0, 0, "10", "neutral", 5),
+              (2, 1, 1, 1, "32", "swapped", 30)])  # fmt: skip
+    elo = nt.elo_at(tg, [(m, r) for m, r in zip(tg["match_id"], tg["monday"], strict=True)])
+    assert elo[0] == pytest.approx(nt.ELO_HOME)  # nothing final before match 0's Monday
+    we = 1 / (10 ** (-nt.ELO_HOME / 400) + 1)
+    d = 40 * (14 / 8) * (1 - we)  # qualifier, margin 3
+    assert elo[1] == pytest.approx(2 * d)  # Monday after match 0; neutral: no host term
+    # match 2 lists 2 at home but 1 hosts it: the 100 goes to the listed away side
+    assert elo[2] < -2 * d + 1e-9
+
+
+def test_refit_grid_and_training_cut() -> None:
+    tg = _tg([(1, 2, 1, 0, "32", "home", 0), (2, 1, 0, 2, "32", "home", 5),
+              (1, 3, 2, 2, "10", "home", 40)])  # fmt: skip
+    times = nt.refit_times(tg, K - timedelta(days=10), K + timedelta(days=100))
+    assert times == sorted(set(tg["monday"].to_list())) and len(times) == 3
+    tr = nt.training(tg, times[1])  # the Tuesday match sees the Thursday result
+    assert tr["match_id"].to_list() == [0]
+
+
+def test_score_matrix_normalised_heavier_tail_and_tau() -> None:
+    m = nt.score_matrix(np.array([1.4]), np.array([1.1]), np.array([5.0]), np.array([0.0]))
+    assert m.shape == (1, 21, 21) and m.sum() == pytest.approx(1.0)
+    pois = nt.score_matrix(np.array([1.4]), np.array([1.1]), np.array([1e6]), np.array([0.0]))
+    tail = np.add.outer(np.arange(21), np.arange(21)) >= 6
+    assert m[0][tail].sum() > pois[0][tail].sum()  # negative binomial: more big scores
+    r = nt.score_matrix(np.array([1.4]), np.array([1.1]), np.array([5.0]), np.array([-0.1]))
+    assert r[0, 0, 0] > m[0, 0, 0] and r[0, 1, 1] > m[0, 1, 1]  # rho < 0: more 0-0 and 1-1
+
+
+def test_predict_carries_the_walk_and_cold_sides() -> None:
+    k = 400
+    post = {"c": np.full(k, 0.25), "g": np.zeros((k, 2)), "h": np.full(k, 0.3),
+            "h_u": np.full(k, 0.2), "conf": np.zeros((k, 5)), "sigma_w": np.full(k, 0.05),
+            "sigma_u": np.full(k, 0.5), "sigma_o": np.full(k, 0.05), "phi": np.full(k, 20.0),
+            "rho": np.zeros(k), "s_last": np.tile([0.5, -0.5], (k, 1)),
+            "o_last": np.zeros((k, 2)), "teams": np.array([1.0, 2.0]),
+            "team_conf": np.zeros(2)}  # fmt: skip
+    tg = _tg([(1, 2, 0, 0, "32", "neutral", 0), (2, 1, 0, 0, "32", "neutral", 0),
+              (1, 2, 0, 0, "32", "home", 0), (1, 9, 0, 0, "32", "neutral", 0)])  # fmt: skip
+    p, xg = nt.predict(post, tg, ct.monday(K), 60)
+    assert np.allclose(p.sum(axis=1), 1)
+    assert p[0, 0] == pytest.approx(p[1, 2], abs=0.02)  # neutral: listed order doesn't matter
+    assert p[2, 0] > p[0, 0] and xg[2, 0] > xg[0, 0]  # host advantage
+    assert 0 < p[3, 0] < 1  # 9 is unseen: its confederation's level with the spreads
+    far = nt.predict(post, tg.with_columns(kickoff=pl.col("kickoff") + timedelta(days=720)),
+                     ct.monday(K), 60)[0]  # fmt: skip
+    assert far[0, 0] < p[0, 0]  # two years on, the stronger side's edge is less certain

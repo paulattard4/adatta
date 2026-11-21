@@ -385,10 +385,30 @@ HEADLINE = ("c", "g", "h", "h_u", "conf", "sigma_w", "sigma_u", "sigma_o", "phi"
 
 
 Post = tuple[dict[str, Arr], dict[str, Any]]
+TARGET_ACCEPT = 0.9
+
+
+def by_variable(idata: Any) -> dict[str, list[float]]:
+    """Per free variable: worst R-hat, worst bulk and tail ESS over its elements (metrics only),
+    and the divergence count per chain under "divergences"."""
+    import arviz as az
+
+    post = idata["posterior"]
+    post = post.to_dataset() if hasattr(post, "to_dataset") else post
+    out: dict[str, list[float]] = {}
+    for v in post.data_vars:
+        if v.endswith("_last"):
+            continue
+        sm = az.summary(idata, var_names=[v], kind="diagnostics")
+        out[str(v)] = [float(sm["r_hat"].max()), float(sm["ess_bulk"].min()),
+                       float(sm["ess_tail"].min())]  # fmt: skip
+    out["divergences"] = [float(x) for x in idata.sample_stats["diverging"].sum(axis=1).values]
+    return out
 
 
 def fit(train: pl.DataFrame, t: datetime, friendly_weight: float = FRIENDLY_WEIGHT,
-        prior_scale: float = 1.0, seed: int = SEED) -> Post:  # fmt: skip
+        prior_scale: float = 1.0, seed: int = SEED, tune: int = DRAWS,
+        target_accept: float = TARGET_ACCEPT) -> Post:  # fmt: skip
     """One refit on `train` (every match final by t, within the window). Returns KEEP draws
     of the headline parameters, s at the refit's month and o per team (with `teams`,
     `team_conf`), and the §14.5 diagnostics."""
@@ -399,10 +419,12 @@ def fit(train: pl.DataFrame, t: datetime, friendly_weight: float = FRIENDLY_WEIG
     d = design(train, t, friendly_weight)
     t0 = time.time()
     with _model(d, prior_scale):
-        idata = pm.sample(draws=DRAWS, tune=DRAWS, chains=CHAINS, nuts_sampler="numpyro",
-                          random_seed=seed, target_accept=0.9, progressbar=False)  # fmt: skip
+        idata = pm.sample(draws=DRAWS, tune=tune, chains=CHAINS, nuts_sampler="numpyro",
+                          random_seed=seed, target_accept=target_accept,
+                          progressbar=False)  # fmt: skip
     secs = time.time() - t0
     checks = dg.convergence(idata)
+    by_var = by_variable(idata)
     post = idata["posterior"]
 
     def flat(v: str) -> Arr:
@@ -452,6 +474,8 @@ def fit(train: pl.DataFrame, t: datetime, friendly_weight: float = FRIENDLY_WEIG
     diag["failed"] = [c_.name for c_ in checks if c_.blocking and not c_.passed]
     diag["warnings"] = [c_.name for c_ in checks if not c_.blocking and not c_.passed]
     diag["gates_ok"] = not diag["failed"]
+    diag["detail"] = {c_.name: c_.detail for c_ in checks if c_.detail}
+    diag["by_var"] = by_var
     diag.update(n_train=len(d.hg), n_teams=len(d.teams), n_months=d.n_months, seconds=secs,
                 train_max_kickoff=str(train["kickoff"].max()))  # fmt: skip
     return out, diag
@@ -718,6 +742,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     s0 = sub.add_parser("time")
     s0.add_argument("--at", required=True)
     s0.add_argument("--friendly-weight", type=float, default=FRIENDLY_WEIGHT)
+    s0.add_argument("--fresh", action="store_true", help="fit without the cache (diagnosis)")
+    s0.add_argument("--tune", type=int, default=DRAWS)
+    s0.add_argument("--target-accept", type=float, default=TARGET_ACCEPT)
     s1 = sub.add_parser("refits")
     s1.add_argument("--part", default="0/1")
     s1.add_argument("--upload", required=True)
@@ -737,12 +764,24 @@ def main(argv: Sequence[str] | None = None) -> None:
           f"{len(times)}; friendly weight {fw:g}", flush=True)  # fmt: skip
     if args.cmd == "time":
         at = ct.monday(datetime.fromisoformat(args.at).replace(tzinfo=UTC))
-        _, diag = cached_fit(store, tg, at, fw)
+        if args.fresh:
+            _, diag = fit(training(tg, at), at, fw, tune=args.tune,
+                          target_accept=args.target_accept)  # fmt: skip
+        else:
+            _, diag = cached_fit(store, tg, at, fw)
+        print(
+            f"sampler: tune {args.tune if args.fresh else DRAWS}, target_accept "
+            f"{args.target_accept if args.fresh else TARGET_ACCEPT}"
+        )
         print(f"refit {at:%Y-%m-%d}: {diag['n_train']} train, {diag['n_teams']} teams, "
               f"{diag['n_months']} months; {diag['seconds']:.0f} s; rhat {diag['rhat']:.3f}, "
               f"ess_bulk {diag['ess_bulk']:.0f}, divergences {diag['divergences']:.0f}; failed "
               f"{', '.join(diag['failed']) or 'none'}; warnings "
               f"{', '.join(diag['warnings']) or 'none'}")  # fmt: skip
+        for k, v in diag.get("detail", {}).items():
+            print(f"  {k}: {v}")
+        for k, v in diag.get("by_var", {}).items():
+            print(f"  {k}: " + ", ".join(f"{x:.3f}" if x < 10 else f"{x:.0f}" for x in v))
         return
     if args.cmd == "refits":
         i, n = (int(x) for x in args.part.split("/"))

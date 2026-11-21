@@ -1,7 +1,8 @@
 # Stage D v0 (docs/BEYOND_LEAGUES_PLAN.md, "D v0 acceptance"): senior men's national teams,
 # team only, from results, against B_elo on the dev window (2019-2023). Manual dispatch only,
 # one stage per run:
-#   time    one refit at --at, timed and cached (plans the backtest)
+#   time    one refit at --at, timed and cached (plans the backtest); with variants, fresh
+#           uncached fits under each sampler setting, with per-variable diagnostics
 #   refits  the walk-forward refits split over 18 jobs, each scoring its weeks' targets
 #   gate    the Elo, the gate, prior sensitivity, leakage
 # The repo is public: logs carry metrics only. Match-level rows and draws go to R2
@@ -28,6 +29,9 @@ on:
       friendly_weight:
         description: "friendlies' likelihood weight (0.5 in the acceptance)"
         default: "0.5"
+      variants:
+        description: "time: sampler variants as JSON [[tune, target_accept], ...]; empty = cached fit"
+        default: ""
 permissions:
   contents: read
 concurrency:
@@ -45,6 +49,10 @@ jobs:
     if: ${{ inputs.stage == 'time' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        v: ${{ fromJSON(inputs.variants || '[null]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -55,6 +63,7 @@ jobs:
         run: >-
           uv run --frozen --group model python -m adatta.model.national time
           --at ${{ inputs.at }} --friendly-weight ${{ inputs.friendly_weight }}
+          ${{ matrix.v && format('--fresh --tune {0} --target-accept {1}', matrix.v[0], matrix.v[1]) || '' }}
   refits:
     if: ${{ inputs.stage == 'refits' }}
     runs-on: ubuntu-latest

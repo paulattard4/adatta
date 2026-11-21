@@ -183,9 +183,14 @@ def _projector(session: Session, settings: Any) -> Any:
     spec = production_spec(cfg)
     walk = hz.Walk(spec.seed, spec.structure) if spec.widen else None
 
+    from adatta.features import cup_ties
+
+    cups = cup_ties.cup_bundles()  # Stage A's 90' cup forecasts (served 2026-11-21)
+
     def run(now: datetime) -> serve.ProjectReport:
         return serve.run_projection(session, store, cfg.bundles, spec.model_name,
-                                    cfg.max_goals, manifest, now=now, walk=walk)  # fmt: skip
+                                    cfg.max_goals, manifest, now=now, walk=walk,
+                                    cups=cups)  # fmt: skip
 
     return run
 

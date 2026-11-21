@@ -315,3 +315,44 @@ def test_serving_problems_alert_once_a_day(tmp_path: Path) -> None:
     assert _alert_once(w.s, "serve_alert", msg, K) == msg
     assert _alert_once(w.s, "serve_alert", msg, K + timedelta(hours=1)) == []
     assert _alert_once(w.s, "serve_alert", msg, K + timedelta(hours=21)) == msg
+
+
+def test_cup_ties_between_bundle_teams_are_served_as_the_home_sides_league(tmp_path: Path) -> None:
+    """Stage A's 90' cup forecasts: a tie is projected when both sides play a bundle league
+    that season, with the home side's league; a tie with an outside side is not."""
+    w = World(tmp_path)
+    w.refit(AS_OF)
+    c = models.Competition(source_id="api_football", source_ref="45", name="FA Cup",
+                           country="X", tier="cup")  # fmt: skip
+    w.s.add(c)
+    w.s.flush()
+    se = models.Season(competition_id=c.competition_id, year=2026)
+    w.s.add(se)
+    w.s.add(models.Team(team_id=7, source_id="api_football", source_ref="7", name="T7"))
+    w.s.flush()
+    w.season[45] = se.season_id
+    for h, a, lg in ((1, 2, 39), (3, 4, 39), (5, 6, 40)):  # the season's league matches
+        w.fixture(AS_OF - timedelta(days=3), league=lg, home=h, away=a, status="FT")
+    served = w.fixture(K, league=45, home=5, away=1, rnd="3rd Round")
+    outside = w.fixture(K, league=45, home=1, away=7, rnd="3rd Round")
+    ties = {t.match_id: t for t in serve.cup_ties(w.s, {45: "england"}, {"england": LEAGUES},
+                                                  match_ids=[served, outside])}  # fmt: skip
+    fx = ties[served].fixture
+    assert fx is not None and fx.league_id == 40 and (fx.home, fx.away) == (5, 1)
+    assert ties[outside].fixture is None and "not in the england bundle" in (
+        ties[outside].reason or ""
+    )
+    rep = serve.run_projection(w.s, w.store, {"england": LEAGUES}, PROD, 10,
+                               {"git_commit": "abc", "lockfile_hash": "l", "seed": 1},
+                               now=K - timedelta(days=10), cups={45: "england"})  # fmt: skip
+    w.s.commit()
+    assert rep.written.get("initial", 0) >= 1
+    assert w.milestones(served) == ["initial"] and w.milestones(outside) == []
+    # the stored rows equal the projection of the home side's league fixture
+    r = serve.load_refit(w.store, w.s.get(models.ModelRun, 2) or w.s.scalars(
+        select(models.ModelRun).where(models.ModelRun.window == "live")).one())  # fmt: skip
+    want = serve.project(r.draws, r.fd, [fx], 10)[0]
+    MP = models.MarketProjection
+    got = {(p.market_type, p.line, p.selection): p.probability
+           for p in w.s.scalars(select(MP).where(MP.match_id == served))}  # fmt: skip
+    assert all(abs(got[k] - v[0]) < 1e-12 for k, v in want.items())

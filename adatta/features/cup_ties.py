@@ -57,6 +57,12 @@ def load_formats(path: Path | str = FORMATS_PATH) -> dict[int, str]:
     return out
 
 
+def cup_bundles(path: Path | str = FORMATS_PATH) -> dict[int, str]:
+    """{cup league_id: the bundle whose teams its forecast ties are between}."""
+    raw = yaml.safe_load(Path(path).read_text()) or {}
+    return {int(k): str(v["bundle"]) for k, v in (raw.get("formats") or {}).items()}
+
+
 def is_replay(round_: str) -> bool:
     return _REPLAY.search(round_ or "") is not None
 

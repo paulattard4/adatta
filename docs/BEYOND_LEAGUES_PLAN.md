@@ -823,6 +823,45 @@ asked for B, C, D and then A3, in that order, each with its own acceptance.
       not done. The code, the format rules and the dev and holdout results stay.
       Whether A1's 90' cup forecasts, which passed their holdout checks, are served on
       their own is the owner's call.
+  - **Serving A1 on its own (owner, 2026-11-21: "Serve 90', then C1").** The rule, stated
+    before building:
+    - *Which ties:* upcoming matches of the five cups within the projection horizon where
+      both teams play a league of the cup's bundle this season (league matches of that
+      season). The tie is scored exactly as A1 was judged:
+      - the bundle's latest passing serving refit, at the same milestones as league
+        fixtures (initial, T-7d, T-24h, T-60m, close, D41);
+      - the home side's league gives the intercept and home advantage;
+      - a neutral ground keeps the home term (T2 did not pass).
+    - *Not served, with the reason shown:* ties with a side outside the bundle (principle
+      8), and ties whose venue role is "swapped" (the listed away side at its own
+      ground). Those are rare, and flipping the stored orientation is left out; they say
+      so.
+    - *Shown:* on the fixture list, the match page and the Played page as their cup. A
+      confidence component, "Cup tie", says 90' only, team-only: no lineups, no rotation
+      term, and no P(advance) (Stage B not promoted).
+    - *Checks:*
+      1. a served tie's stored milestone equals the projection from the same refit
+         (the match page's coherence check);
+      2. no tie with a non-bundle side is projected;
+      3. on the first live tick, the count of bundle ties projected against those
+         upcoming;
+      4. tests for eligibility, the league used, and the swapped/neutral handling.
+    - **Built 2026-11-21:**
+      - *Code:*
+        - `sim.serve.cup_ties` and `team_leagues`;
+        - `run_projection(cups=...)`, wired in the capture tick's projector;
+        - the views: cups in the fixture list, the match page and Played, a "Cup tie"
+          confidence component, the reason a tie isn't forecast, and the match page's
+          recomputation from the home side's league;
+        - `cup_ties.cup_bundles`.
+      - *Test:* `test_cup_ties_between_bundle_teams_are_served_as_the_home_sides_league`.
+        A tie is served with the home side's league, a tie with an outside side is not,
+        and the stored rows equal the projection.
+      - *Dry run on live data* (no writes): 77 upcoming cup matches. 11 are served (DFB-Pokal
+        8, Coppa Italia 3). 66 have a side outside the bundle (Coupe de France 46, mostly
+        amateur clubs; FA Cup 20, early rounds with lower-league sides). All 11 project
+        cleanly from the serving refits. The capture tick writes them once pushed, and
+        check 3 is read then.
     - Log loss 0.5655 against the baseline's 0.5741: -0.0086 [-0.0227, +0.0054], -1.50%.
       B3 was 0.5676; the interval is wider because of the early s.
     - ECE 0.0337 against 0.0576 for B3. A perfectly calibrated forecast here shows a mean

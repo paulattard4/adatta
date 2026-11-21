@@ -292,6 +292,88 @@ def upcoming(session: Session, leagues: dict[int, str], now: datetime) -> list[F
     ]
 
 
+# --------------------------------------------------------------------------- cup ties
+
+
+@dataclass(frozen=True)
+class CupTie:
+    """An upcoming cup match: the fixture to project (its league the home side's), or why
+    it is not forecast."""
+
+    match_id: int
+    cup_id: int
+    fixture: Fixture | None
+    reason: str | None
+
+
+def team_leagues(session: Session, league_ids: list[int], season: int) -> dict[int, int]:
+    """Team -> the bundle league it plays in the season (league matches; the most frequent
+    if more than one, as A1's targets)."""
+    M, S, C = models.Match, models.Season, models.Competition
+    count: dict[tuple[int, int], int] = {}
+    for h, a, lg in session.execute(
+        select(M.home_team_id, M.away_team_id, C.source_ref).join(S, S.season_id == M.season_id)
+        .join(C, C.competition_id == S.competition_id)
+        .where(C.source_id == SOURCE_ID, C.source_ref.in_([str(x) for x in league_ids]),
+               S.year == season)
+    ):  # fmt: skip
+        for t in (h, a):
+            count[(int(t), int(lg))] = count.get((int(t), int(lg)), 0) + 1
+    best: dict[int, tuple[int, int]] = {}
+    for (team, league), n in count.items():
+        if team not in best or n > best[team][1]:
+            best[team] = (league, n)
+    return {team: league for team, (league, _) in best.items()}
+
+
+def cup_ties(session: Session, cups: dict[int, str], bundles: dict[str, list[int]],
+             match_ids: list[int] | None = None, now: datetime | None = None,
+             ) -> list[CupTie]:  # fmt: skip
+    """Cup matches (the given ids, or those kicking off within HORIZON of now) with the
+    fixture A1 scores (docs/BEYOND_LEAGUES_PLAN.md, Stage B, serving A1): both sides in a
+    league of the cup's bundle that season; the home side's league; a "swapped" venue is
+    not served."""
+    from adatta.cli import _bundle_competition_ids
+    from adatta.features import neutral
+
+    M, S, C = models.Match, models.Season, models.Competition
+    q = (select(M, C.source_ref, S.year).join(S, S.season_id == M.season_id)
+         .join(C, C.competition_id == S.competition_id)
+         .where(C.source_id == SOURCE_ID, C.source_ref.in_([str(c) for c in cups])))  # fmt: skip
+    if match_ids is not None:
+        q = q.where(M.match_id.in_(match_ids))
+    else:
+        assert now is not None
+        q = q.where(M.kickoff_time > now, M.kickoff_time <= now + HORIZON)
+    rows = [r for r in session.execute(q.order_by(M.kickoff_time, M.match_id)).all()
+            if r[0].status not in NO_MATCH]  # fmt: skip
+    if not rows:
+        return []
+    league_ids, _ = _bundle_competition_ids(session)
+    roles = neutral.venue_roles(session, [r[0] for r in rows], league_ids, neutral.load_rules(),
+                                {r[0].season_id: int(r[1]) for r in rows})  # fmt: skip
+    role = dict(zip(roles["match_id"].to_list(), roles["role"].to_list(), strict=True))
+    leagues_of: dict[tuple[str, int], dict[int, int]] = {}
+    out = []
+    for m, ref, year in rows:
+        cup, b = int(ref), cups[int(ref)]
+        key = (b, int(year))
+        if key not in leagues_of:
+            leagues_of[key] = team_leagues(session, bundles[b], int(year))
+        tl = leagues_of[key]
+        if m.home_team_id not in tl or m.away_team_id not in tl:
+            why = f"Not forecast: a side is not in the {b} bundle this season (principle 8)."
+            out.append(CupTie(m.match_id, cup, None, why))
+        elif role.get(m.match_id) == "swapped":
+            out.append(CupTie(m.match_id, cup, None, "Not forecast: the listed away side is at "
+                              "its own ground (swapped venue), which is not served."))  # fmt: skip
+        else:
+            fx = Fixture(m.match_id, _utc(m.kickoff_time), tl[m.home_team_id], m.home_team_id,
+                         m.away_team_id, int(year))  # fmt: skip
+            out.append(CupTie(m.match_id, cup, fx, None))
+    return out
+
+
 def _done(session: Session, ids: list[int]) -> dict[int, set[str]]:
     MP = models.MarketProjection
     out: dict[int, set[str]] = {i: set() for i in ids}
@@ -315,7 +397,7 @@ def run_projection(
     session: Session, store: RawStore, bundles: dict[str, list[int]], model_name: str,
     max_goals: int, manifest: dict[str, Any], now: datetime | None = None,
     loader: Callable[[RawStore, models.ModelRun], Refit] = load_refit,
-    walk: hz.Walk | None = None,
+    walk: hz.Walk | None = None, cups: dict[int, str] | None = None,
 ) -> ProjectReport:  # fmt: skip
     """Write the due milestone projections for every upcoming bundle fixture. Idempotent:
     a (match, milestone) already in market_projection is never written again. `manifest`
@@ -324,6 +406,9 @@ def run_projection(
     report = ProjectReport()
     league_bundle = {lid: b for b, ls in bundles.items() for lid in ls}
     fixtures = upcoming(session, league_bundle, now)
+    if cups:  # A1: cup ties between bundle teams, scored as the home side's league fixture
+        fixtures += [t.fixture for t in cup_ties(session, cups, bundles, now=now)
+                     if t.fixture is not None]  # fmt: skip
     done = _done(session, [f.match_id for f in fixtures])
     due = {f.match_id: due_milestones(f.kickoff, now, done[f.match_id]) for f in fixtures}
     runs, problems = latest_refits(session, now, model_name)

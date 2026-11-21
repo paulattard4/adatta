@@ -78,7 +78,16 @@ class Context:
 
     @property
     def league_bundle(self) -> dict[int, str]:
-        return {lid: b for b, ls in self.bundles.items() for lid in ls}
+        """Provider id -> bundle, for the bundle leagues and their cups (Stage A's 90' cup
+        forecasts are served from the bundle's refit)."""
+        out = {lid: b for b, ls in self.bundles.items() for lid in ls}
+        return out | {c: b for c, b in self.cups.items() if b in self.bundles}
+
+    @property
+    def cups(self) -> dict[int, str]:
+        from adatta.features import cup_ties
+
+        return cup_ties.cup_bundles()
 
 
 def horizon_weeks(fd: FitData, kickoff: datetime) -> int:
@@ -226,6 +235,14 @@ def _matches(session: Session, ctx: Context, where: list[Any]) -> list[MatchRow]
             for r in rows]  # fmt: skip
 
 
+def _cup_reasons(session: Session, ctx: Context, ids: list[int]) -> dict[int, str]:
+    """Why a cup tie is not forecast (a side outside the bundle, a swapped venue)."""
+    if not ids:
+        return {}
+    return {t.match_id: t.reason for t in serve.cup_ties(session, ctx.cups, ctx.bundles,
+                                                         match_ids=ids) if t.reason}  # fmt: skip
+
+
 def _projections(session: Session, ids: list[int]
                  ) -> dict[int, dict[str, list[models.MarketProjection]]]:  # fmt: skip
     MP = models.MarketProjection
@@ -316,6 +333,13 @@ def confidence(m: MatchRow, refit: serve.Refit | None, fresh: sc.Freshness,
     """The six named components of §13.2, each with a plain status. No combined score:
     §13.2 requires the combining formula to be backtested first."""
     out = []
+    if m.tier == "cup":
+        out.append(sc.Component(
+            key="cup", label="Cup tie", status="limited", value="90' only, team-only",
+            detail="The bundle's league model applied unchanged to the 90 minutes (Stage A, "
+                   "passed on the cup holdout): no lineups, no rotation term, and no chance "
+                   "of going through (Stage B was not promoted).",
+        ))  # fmt: skip
     if refit is None:
         out.append(sc.Component(key="history", label="Historical data strength",
                                 status="missing", value="no refit",
@@ -408,9 +432,11 @@ def fixture_list(session: Session, ctx: Context, now: datetime, start: datetime 
     if competition_id is not None:
         where.append(C.competition_id == competition_id)
     rows = [r for r in _matches(session, ctx, where)
-            if (r.round or "").startswith("Regular Season") and r.status not in serve.NO_MATCH
+            if ((r.round or "").startswith("Regular Season") or r.tier == "cup")
+            and r.status not in serve.NO_MATCH
             and (team_level is None or r.team_level == team_level)]  # fmt: skip
     proj = _projections(session, [r.match_id for r in rows])
+    cup_why = _cup_reasons(session, ctx, [r.match_id for r in rows if r.tier == "cup"])
     caps = _capabilities(session, {r.season_id for r in rows})
     runs = _serving(session, ctx, now)
     champ = _champion(session, ctx.model_name)
@@ -431,8 +457,9 @@ def fixture_list(session: Session, ctx: Context, now: datetime, start: datetime 
         by_ms = proj.get(r.match_id)
         reason = None
         if not by_ms:
-            reason = ("No passing refit for this bundle yet." if run is None else
-                      "Not projected yet: the next capture tick writes it.")  # fmt: skip
+            reason = cup_why.get(r.match_id) or (
+                "No passing refit for this bundle yet." if run is None else
+                "Not projected yet: the next capture tick writes it.")  # fmt: skip
         # the row's freshness is that of the refit behind its forecast (the serving one if none)
         src = _run_behind(session, by_ms[_latest_milestone(by_ms)], bundle, behind) if by_ms \
             else None  # fmt: skip
@@ -517,8 +544,13 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
     matrix, dec, coh, reason = None, [], None, None
     if refit is not None and milestones:
         last = milestones[-1]
+        league = m.league_id
+        if m.tier == "cup":  # scored as the home side's league fixture (Stage A)
+            tie = serve.cup_ties(session, ctx.cups, ctx.bundles, match_ids=[m.match_id])
+            if tie and tie[0].fixture is not None:
+                league = tie[0].fixture.league_id
         fx = serve.Fixture(m.match_id, _kickoff_then(session, m, last.generated_at),
-                           m.league_id, m.home_id, m.away_id)  # fmt: skip
+                           league, m.home_id, m.away_id)  # fmt: skip
         rc = recompute(refit, fx, (m.home, m.away), ctx.max_goals)
         matrix, dec = rc.matrix, rc.decomposition
         diff = max(abs(float(rc.markets[(s.market, s.line, s.selection)].mean()) - s.prob.p)
@@ -526,8 +558,10 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
         coh = sc.Coherence(milestone=last.milestone, coherent=diff <= COHERENCE_TOL,
                            max_abs_diff=diff)  # fmt: skip
     else:
-        reason = ("No passing refit for this bundle yet." if serving is None else
-                  "Not projected yet: the next capture tick writes it.")  # fmt: skip
+        reason = _cup_reasons(session, ctx, [m.match_id]).get(m.match_id) if m.tier == "cup" \
+            else None  # fmt: skip
+        reason = reason or ("No passing refit for this bundle yet." if serving is None else
+                            "Not projected yet: the next capture tick writes it.")  # fmt: skip
     return sc.MatchView(
         generated_at=now, header=header, freshness=fresh,
         confidence=confidence(m, refit or (ctx.refit(serving) if serving else None), fresh,
@@ -915,7 +949,8 @@ def played(
     if competition_id is not None:
         where.append(C.competition_id == competition_id)
     rows = [r for r in _matches(session, ctx, where)
-            if (r.round or "").startswith("Regular Season")] if since else []  # fmt: skip
+            if (r.round or "").startswith("Regular Season") or r.tier == "cup"] \
+        if since else []  # fmt: skip
     results = _results(session, [r.match_id for r in rows])
     forecasts = _pre_kickoff_forecasts(
         session, {r.match_id: r.kickoff for r in rows if r.match_id in results}

@@ -800,6 +800,29 @@ asked for B, C, D and then A3, in that order, each with its own acceptance.
       4-6. A1's 1X2 ECE within its noise floor for home, draw and away.
     - **Smoke test:** the pipeline ran with dev 2023 standing in for the holdout (no
       holdout data read). It is not a result.
+  - **Holdout result (2026-11-21, run 44913949061; the cup opening, made once): NOT
+    PROMOTED.**
+    - **Fits:** 82 production refits across 10 jobs, all successful.
+    - **B0:** 0 holdout bundle ties with a problem.
+    - **A1 on 317 holdout bundle ties:** 1X2 log loss 0.9859 (dev 0.9510). ECE home 0.033,
+      draw 0.020, away 0.042, each within its noise floor (0.084 / 0.059 / 0.077), so
+      checks 4-6 pass. By pairing, 1v2 draws were 0.238 predicted against 0.149
+      observed, and 2v2 (45 ties) had log loss 1.22.
+    - **B3' on 309 holdout ties** (s 1.14-1.30):
+      - log loss 0.6184 against the baseline's 0.6119: +0.0066 [-0.0109, +0.0241],
+        +1.07%. **Check 1 fails.**
+      - ECE 0.060 within its noise floor of 0.085, so check 2 passes. Brier 0.2093 against
+        0.2097.
+      - By cup: FA Cup +6.94% (74 ties), Coupe de France +3.22% (49), Coppa Italia -1.21%
+        (75), Copa del Rey -0.58% (54), DFB-Pokal -6.15% (57). **Check 3 fails.**
+    - **Reported, not a check:** B3 unstretched had log loss 0.6107 and ECE 0.052. The
+      favourites' edge seen on dev didn't repeat (0.8-0.9: predicted 0.851, observed
+      0.737), so the stretch fitted on dev hurt here.
+    - **Consequence (pre-registered):** P(advance) is not served. Choosing B3 now,
+      because it did better on the holdout, would be choosing on the holdout, so it is
+      not done. The code, the format rules and the dev and holdout results stay.
+      Whether A1's 90' cup forecasts, which passed their holdout checks, are served on
+      their own is the owner's call.
     - Log loss 0.5655 against the baseline's 0.5741: -0.0086 [-0.0227, +0.0054], -1.50%.
       B3 was 0.5676; the interval is wider because of the early s.
     - ECE 0.0337 against 0.0576 for B3. A perfectly calibrated forecast here shows a mean

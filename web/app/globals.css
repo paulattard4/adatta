@@ -284,7 +284,8 @@ table.scores th { color: var(--dim); font-weight: 500; font-size: 11px; }
 .form-opt.top { color: var(--text); border-color: var(--accent); }
 .form-opt.played { box-shadow: inset 0 -2px 0 var(--ok); color: var(--text); } /* the announced formation */
 .proj tr.proj-sec td { padding-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); border-bottom: 1px solid var(--line); }
-.pitch { display: flex; flex-direction: column; gap: 10px; padding: 12px 6px; margin: 4px 0 8px; border: 1px solid var(--line); border-radius: 6px; background: linear-gradient(180deg, rgba(60, 207, 145, .05), rgba(60, 207, 145, .02)); }
+/* one size for every formation (up to six rows, 4-1-2-1-2): rows spread evenly over it */
+.pitch { display: flex; flex-direction: column; justify-content: space-evenly; height: 320px; box-sizing: border-box; padding: 8px 6px; margin: 4px 0 8px; border: 1px solid var(--line); border-radius: 6px; background: linear-gradient(180deg, rgba(60, 207, 145, .05), rgba(60, 207, 145, .02)); }
 .pitch-row { display: flex; justify-content: center; gap: 4px; }
 .pitch-player { flex: 0 1 25%; min-width: 0; display: flex; flex-direction: column; align-items: center; text-align: center; font-size: 12px; line-height: 1.3; }
 .pitch-code { font-size: 10px; color: var(--dim); letter-spacing: .04em; }

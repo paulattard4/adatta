@@ -26,7 +26,13 @@ from adatta.sim import formations as sf
 def _pool(out: set[int] = frozenset()) -> list[al.Pooled]:  # type: ignore[assignment]
     """Keepers 1 and 13; outfield 2-12 most likely to start in that order, then 14-16."""
     xs = [al.Pooled(1, "gk1", "G", 0.9, 0.05, 80, None)]
-    xs += [al.Pooled(i, f"p{i}", "DMF"[i % 3], 0.95 - 0.04 * i, 0.04 * i, 70, None)
+    line = {
+        **dict.fromkeys((2, 3, 4, 5, 12), "D"),
+        **dict.fromkeys(range(6, 10), "M"),
+        10: "F",
+        11: "F",
+    }  # with 3 out, the XI is a 4-4-2
+    xs += [al.Pooled(i, f"p{i}", line[i], 0.95 - 0.04 * i, 0.04 * i, 70, None)
            for i in range(2, 13)]  # fmt: skip
     xs += [al.Pooled(13, "gk2", "G", 0.05, 0.9, 1, None)]
     xs += [al.Pooled(i, f"p{i}", "M", 0.1, 0.5 - 0.1 * (i - 14), 10, None) for i in (14, 15, 16)]
@@ -244,3 +250,27 @@ def test_empty_grid_usual_positions_and_slot_accuracy() -> None:
     }, schema_overrides={"kickoff": pl.Datetime("us", "UTC")})  # fmt: skip
     got = sf.usual_positions(lu, k + RESULT_LAG + timedelta(hours=1))
     assert got == {"7": ["RB", "D"]}  # last 10 starts: RB 6, LB 4; 8's start is too old
+
+
+def test_a_free_slot_goes_to_its_line_never_a_centre_back_up_front() -> None:
+    """The Inter case: the likely XI has one forward, its 10th outfield player is a
+    centre-back; the free striker slot goes to the pool's most likely forward, a
+    neighbouring line before anyone else, and the centre-back drops to the bench."""
+    usual = {"usual": {"30": ["RCB", "D"], "31": [None, "F"], "32": [None, "M"]}}
+    kept = [al.Pooled(1, "p1", "G", 0.9, 0.0, 90, None),
+            *[_p(i, "D" if i < 6 else "M", 0.9) for i in range(2, 10)],
+            _p(11, "F", 0.9)]  # fmt: skip
+    cb, fwd = _p(30, "D", 0.5), _p(31, "F", 0.04)
+    out_fwd = _p(33, "F", 0.8, status="missing")
+    xi = [*kept, cb]
+    got = {x.code: x for x in al.place(LAST_442, xi, usual, True, pool=[*xi, fwd, out_fwd])}
+    assert got["LS"].player is not None and got["LS"].player.player_id == 31  # (3)
+    assert 30 not in {x.player.player_id for x in got.values() if x.player}
+    # no forward in the pool: a midfielder (neighbouring line) before the centre-back
+    mid = _p(32, "M", 0.3)
+    got = {x.code: x for x in al.place(LAST_442, xi, usual, True, pool=[*xi, mid])}
+    assert got["LS"].player is not None and got["LS"].player.player_id == 32  # (4)
+    # fit: the XI is the placed players, the centre-back goes back among the rest
+    sec, placed = al.fit([*xi, fwd, out_fwd], 5, 5.0, LAST_442, usual, True)
+    assert placed is not None and {p.player_id for p in sec["xi"]} == {*range(1, 10), 11, 31}
+    assert 30 in {p.player_id for p in sec["bench"]} and 33 in {p.player_id for p in sec["out"]}

@@ -639,13 +639,15 @@ def squad(session: Session, m: MatchRow, now: datetime,
         projected: list[sc.ProjectedPlayer] = []
         bench_n = None
         if xs:
-            sec = al.sections(xs, limit, al.team_bench(rl, tid))
-            bench_n = len(sec["bench"])
             slot_of: dict[int, tuple[str, bool]] = {}
             if fv is not None and frow is not None:
-                slot_of = _place_xi(fv, frow, sec, rl, league, int(season or 0), status)
+                sec, slot_of = _place_xi(fv, frow, xs, limit, al.team_bench(rl, tid), rl, league,
+                                         int(season or 0), status)  # fmt: skip
                 order = {pid: i for i, pid in enumerate(slot_of)}
                 sec["xi"] = sorted(sec["xi"], key=lambda p: order.get(p.player_id, 99))
+            else:
+                sec = al.sections(xs, limit, al.team_bench(rl, tid))
+            bench_n = len(sec["bench"])
             for key in ("xi", "bench", "out"):
                 projected += [sc.ProjectedPlayer(
                     name=p.name, pos=p.pos, p_start=p.p_start, p_bench=p.p_bench, emin=p.emin,
@@ -714,27 +716,28 @@ def _announced_p(session: Session, match_id: int, team_id: int, now: datetime,
     return float(r.probs[key]) if key in r.probs else None
 
 
-def _place_xi(fv: sc.FormationView, frow: models.FormationProjection,
-              sec: dict[str, list[al.Pooled]], rl: dict[str, Any] | None, league: str,
-              season: int, status: dict[int, str]) -> dict[int, tuple[str, bool]]:  # fmt: skip
-    """Put the projected XI on the pitch (docs/DASHBOARD_TASKS.md, "Projected XI on the
-    pitch"): in the last lineup in the pitch formation, or an empty grid of it when there
-    is none. Sets fv.pitch, fv.positional and fv.moved; returns player -> (slot code,
-    moved in) in grid order."""
+def _place_xi(fv: sc.FormationView, frow: models.FormationProjection, xs: list[al.Pooled],
+              limit: int | None, expected: float | None, rl: dict[str, Any] | None,
+              league: str, season: int, status: dict[int, str],
+              ) -> tuple[dict[str, list[al.Pooled]], dict[int, tuple[str, bool]]]:  # fmt: skip
+    """Fit the projected XI to the pitch (docs/DASHBOARD_TASKS.md, "Projected XI on the
+    pitch"): the last lineup in the pitch formation, or an empty grid of it when there is
+    none. Sets fv.pitch, fv.positional and fv.moved; returns the sections with the fitted
+    XI and player -> (slot code, moved in) in grid order."""
     slots = frow.slots
     if not slots:
         fv.positional = al.is_positional(rl, league, season)
         slots = al.grid_slots(fv.pitch_formation, fv.positional)
-    if not slots:
-        return {}
-    placed = al.place(slots, sec["xi"], rl, fv.positional)
+    sec, placed = al.fit(xs, limit, expected, slots, rl, fv.positional)
+    if not placed:
+        return sec, {}
     fv.pitch = [sc.PitchPlayer(
         name=x.player.name if x.player else "no keeper projected", code=x.code, row=x.row,
         col=x.col, p_start=x.player.p_start if x.player else None,
         status=status.get(x.player.player_id) if x.player else None, moved=x.moved,
         usual=x.usual) for x in placed]  # fmt: skip
     fv.moved = sum(x.moved for x in placed if x.player is not None)
-    return {x.player.player_id: (x.code, x.moved) for x in placed if x.player is not None}
+    return sec, {x.player.player_id: (x.code, x.moved) for x in placed if x.player is not None}
 
 
 def _formation(session: Session, match_id: int, team_id: int, now: datetime,

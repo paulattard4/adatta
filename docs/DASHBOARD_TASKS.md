@@ -670,3 +670,39 @@ neatly with each other"). Already seen:
     - the empty grid;
     - usual positions over the last 10 starts;
     - slot accuracy.
+- **Amendment 1 (2026-11-21, owner: "the formation projection needs to be the same size
+  for both teams regardless of what formations they use", and "for inter we have bisseck
+  at striker which makes no sense").**
+  - **Cause:**
+    - Inter's likely XI by P(start) had one forward: Thuram was listed out at the as-of
+      time, Bonny was out, and Lautaro's P(start) was 0.006 after his absence.
+    - Its 10th outfield player was Bisseck, a centre-back.
+    - Step (3), "any vacated outfield slot", put him at striker.
+  - **Change: the XI is fitted to the formation**, not just placed in it
+    (`api.lineups.place`/`fit`). After steps (1) and (2), a slot still free goes to:
+    - (3) the most likely player of its line in the whole pool, never one listed out;
+    - (4) else an unplaced XI player of a neighbouring line (D-M, M-F), then a pool
+      player of one;
+    - (5) else any unplaced XI player.
+    A likely-XI player left without a slot goes back among the rest (bench or out by the
+    usual rule). The projected XI section and the Played scores use the fitted XI. The
+    "P3-b top XI" column on Played still scores the unfitted one, so the cost of fitting
+    is measured live.
+  - **Inter now:**
+    - Lavelli, a forward at 4% to start, plays striker beside Esposito;
+    - Bisseck is on the bench;
+    - the 4% is shown on the pitch.
+    The next daily run sees that Thuram is no longer listed.
+  - **Checks, all 234 sides:**
+    - pitch = XI = list, 234 of 234;
+    - 0 players listed out on a pitch;
+    - 11 filled in 234;
+    - no moved-in player two lines from his P3-b line.
+    The 5 two-line cases left are players who kept the slot they played in the team's
+    last lineup in that formation (Ceesay up front for Empoli, for example). Their P3-b
+    line is an older label.
+  - **Same size:** every pitch is 320 px high with its rows spread evenly, so a four-row
+    3-5-2 and a five-row 4-2-3-1 fill the same box. Six rows (4-1-2-1-2) still fit.
+  - **Tests:** +1 (the Inter case: a line fill from the pool, a neighbouring line before
+    anyone else, the centre-back to the bench, and an out player never used). The test
+    pool now has a 4-4-2-shaped XI.

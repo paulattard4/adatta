@@ -168,7 +168,7 @@ def usual_positions(lineups: pl.DataFrame, cutoff: datetime) -> dict[str, list[s
          .group_by("player_id", maintain_order=True).head(USUAL_STARTS))  # fmt: skip
     recent = s.group_by("player_id").agg(pl.col("kickoff").max()).filter(
         pl.col("kickoff") >= cut - USUAL_WITHIN)["player_id"]  # fmt: skip
-    s = s.filter(pl.col("player_id").is_in(recent))
+    s = s.filter(pl.col("player_id").is_in(recent.implode()))
 
     def mode(df: pl.DataFrame, col: str) -> dict[int, str]:
         g = df.group_by("player_id", col).agg(n=pl.len(), last=pl.col("kickoff").max())

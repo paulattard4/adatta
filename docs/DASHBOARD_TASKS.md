@@ -706,3 +706,38 @@ neatly with each other"). Already seen:
   - **Tests:** +1 (the Inter case: a line fill from the pool, a neighbouring line before
     anyone else, the centre-back to the bench, and an out player never used). The test
     pool now has a 4-4-2-shaped XI.
+- **Amendment 2 (2026-11-21, owner):** "why is lavelli the replacement not lautaro
+  martinez ...", "for bench and out please put them in order by position", "we need to
+  try fill the bench where possible".
+  - **Why Lavelli.** P3-b's P(start) comes from recent selection. It can't tell "injured,
+    now back" from "dropped" (no status input, D39). Lautaro last started on 19 Sep and
+    was last in a squad on 10 Oct, so P3-b gave him 0.006 and Lavelli (on the bench)
+    0.039. The feed never listed Lautaro, because capture began on 5 Nov. Thuram was
+    listed out at 02:37 on 20 Nov and unlisted at 22:52; the projection ran at 21:56.
+  - **Changes:**
+    1. *The out rule reads the feed as the page stands* (the spells valid at
+       min(now, kickoff)), not as at the projection's as-of time. A player the feed
+       has dropped is back in the pool; one it lists now is out. P3-b's numbers are as
+       stored, and the stored as-of status stays in the API (`status_as_of`). The
+       "out since" tag goes. Played scores keep the as-of status (kickoff - 24 h), so
+       nothing scored uses later information.
+    2. *The line fill (steps 3 and 4) ranks pool players* by their starts for the team
+       this season (final by the run's cutoff, `starts` in the squad rules file), then
+       by P(start). The % shown stays P3-b's.
+    3. *Benches fill to the league's limit* where the squad allows, instead of the
+       team's usual size. Without a limit, the team's usual size as before.
+    4. *Bench and "not in the matchday squad" are ordered by position* (G, D, M, F),
+       then by P(start) + P(bench).
+  - **Checks, all 234 sides:**
+    - 233 benches at the limit. The other is Inter: 14 of 15, with every fit pool player
+      named and only Stankovic and Bonny, both listed out, left.
+    - No bench short while a fit player is left over.
+    - 0 players listed out now in an XI or bench.
+    - Ordered by position in 234; pitch = XI = list in 234.
+    - Inter: Thuram back in the XI with Esposito; Lautaro on the bench.
+  - **Injury feed cadence (owner asked):** once a day per league. Each league's status
+    job runs when its last successful one is over 24 h old, from the 15-minute capture
+    poller, so the time drifts; Serie A's were 18 Nov 10:07, 19 Nov 06:22, 20 Nov 02:37
+    and 20 Nov 22:52 UTC. It costs one request per league.
+  - **Tests:** +2 (the feed now drives the out rule; the bench at the limit, ordered by
+    line; the Lautaro case: starts this season before P(start)).

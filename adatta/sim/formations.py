@@ -182,6 +182,20 @@ def usual_positions(lineups: pl.DataFrame, cutoff: datetime) -> dict[str, list[s
     return {str(p): [slot.get(p), ln] for p, ln in sorted(line.items())}
 
 
+def season_starts(appearances: pl.DataFrame, season: int,
+                  cutoff: datetime) -> dict[str, dict[str, int]]:  # fmt: skip
+    """Per team: each player's starts for it in `season`, final by `cutoff` (the line fill
+    of the projected-XI pitch ranks by these)."""
+    cut = _utc(cutoff).astimezone(UTC) - RESULT_LAG
+    g = (appearances.filter((pl.col("season") == season) & pl.col("started")
+                            & (pl.col("kickoff") <= cut))
+         .group_by("team_id", "player_id").agg(n=pl.len()))  # fmt: skip
+    out: dict[str, dict[str, int]] = {}
+    for t, pid, n in g.sort("team_id", "player_id").iter_rows():
+        out.setdefault(str(t), {})[str(pid)] = int(n)
+    return out
+
+
 def rules(appearances: pl.DataFrame, quality: pl.DataFrame, season: int,
           cutoff: datetime, lineups: pl.DataFrame | None = None) -> dict[str, Any]:  # fmt: skip
     """The panel's squad rules as of `cutoff`: bench limits per league, each team's
@@ -191,7 +205,8 @@ def rules(appearances: pl.DataFrame, quality: pl.DataFrame, season: int,
     return {"cutoff": _utc(cutoff).isoformat(), "bench": bench_limits(appearances, season, cutoff),
             "team_bench": team_benches(appearances, cutoff),
             "positional": sorted([str(a), int(b)] for a, b in pos),
-            "usual": usual_positions(lineups, cutoff) if lineups is not None else {}}  # fmt: skip
+            "usual": usual_positions(lineups, cutoff) if lineups is not None else {},
+            "starts": season_starts(appearances, season, cutoff)}  # fmt: skip
 
 
 # ------------------------------------------------------------------------- projection

@@ -7,7 +7,7 @@ and checked against it (§11.2), so the page cannot show a matrix the projection
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -598,6 +598,7 @@ def squad(session: Session, m: MatchRow, now: datetime,
         .order_by(P.status, PL.name)
     ).all()  # fmt: skip
     status = {r.player_id: STATUS_LABEL.get(r.status, r.status) for r, _ in spells}
+    raw_now = {r.player_id: r.status for r, _ in spells}
     projection = _projected(session, m.match_id, now)
     pool = al.pooled(session, m.match_id, None, projection.generated_at) if projection else []
     league = str(m.league_id)
@@ -608,7 +609,10 @@ def squad(session: Session, m: MatchRow, now: datetime,
     out = {}
     for side, (tid, name) in teams.items():
         snap = lineups.get(tid)
-        xs = [p for t, p, _ in pool if t == tid]
+        # the out rule reads the feed as the page stands (amendment 2), not as at the
+        # projection's as-of time; P3-b's numbers are as stored. Played scores keep as-of.
+        stored = {p.player_id: p.status_as_of for t, p, _ in pool if t == tid}
+        xs = [replace(p, status_as_of=raw_now.get(p.player_id)) for t, p, _ in pool if t == tid]
         p_start = {p.player_id: p.p_start for p in xs}
         fv, frow = _formation(session, m.match_id, tid, now, p_start, status)
         rl = al.rules(store, fv.generated_at) if store is not None and fv else None
@@ -652,7 +656,8 @@ def squad(session: Session, m: MatchRow, now: datetime,
                 projected += [sc.ProjectedPlayer(
                     name=p.name, pos=p.pos, p_start=p.p_start, p_bench=p.p_bench, emin=p.emin,
                     status=status.get(p.player_id),
-                    status_as_of=STATUS_LABEL.get(p.status_as_of or "", p.status_as_of),
+                    status_as_of=STATUS_LABEL.get(stored.get(p.player_id) or "",
+                                                  stored.get(p.player_id)),
                     section=key,
                     slot=slot_of.get(p.player_id, (None, False))[0] if key == "xi" else None,
                     moved=key == "xi" and slot_of.get(p.player_id, (None, False))[1])
@@ -728,7 +733,7 @@ def _place_xi(fv: sc.FormationView, frow: models.FormationProjection, xs: list[a
     if not slots:
         fv.positional = al.is_positional(rl, league, season)
         slots = al.grid_slots(fv.pitch_formation, fv.positional)
-    sec, placed = al.fit(xs, limit, expected, slots, rl, fv.positional)
+    sec, placed = al.fit(xs, limit, expected, slots, rl, fv.positional, frow.team_id)
     if not placed:
         return sec, {}
     fv.pitch = [sc.PitchPlayer(

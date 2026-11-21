@@ -137,6 +137,11 @@ def _world(tmp_path: Path) -> tuple[World, int, datetime]:
     w.s.add(models.PlayerRegistration(player_id=17, team_id=1, source_id=SOURCE_ID,
                                       position="Attacker", observed_at=K - timedelta(days=10),
                                       valid_from=K - timedelta(days=10)))  # fmt: skip
+    # the feed still lists 3 as out when the page is read (amendment 2: the page's status)
+    w.s.add(models.PlayerStatusSnapshot(player_id=3, team_id=1, match_id=mid,
+                                        source_id=SOURCE_ID, status="missing",
+                                        observed_at=K - 3 * timedelta(days=1),
+                                        valid_from=K - 3 * timedelta(days=1)))  # fmt: skip
     # announced: keeper 1 and outfield 2, 4-12 start (3 was out); 13, 14 on the bench
     w.s.add(models.LineupSnapshot(match_id=mid, team_id=1, source_id=SOURCE_ID,
                                   observed_at=K - timedelta(hours=1), formation="4-4-2",
@@ -274,3 +279,43 @@ def test_a_free_slot_goes_to_its_line_never_a_centre_back_up_front() -> None:
     sec, placed = al.fit([*xi, fwd, out_fwd], 5, 5.0, LAST_442, usual, True)
     assert placed is not None and {p.player_id for p in sec["xi"]} == {*range(1, 10), 11, 31}
     assert 30 in {p.player_id for p in sec["bench"]} and 33 in {p.player_id for p in sec["out"]}
+
+
+def test_out_rule_reads_the_feed_now_and_benches_fill_to_the_limit(tmp_path: Path) -> None:
+    w, mid, _ = _world(tmp_path)
+    # the feed drops 3 (fit again) before the page is read, and lists 5 instead
+    w.s.query(models.PlayerStatusSnapshot).update({"valid_to": K - timedelta(days=1)})
+    w.s.add(models.PlayerStatusSnapshot(player_id=5, team_id=1, match_id=mid,
+                                        source_id=SOURCE_ID, status="missing",
+                                        observed_at=K - timedelta(days=1),
+                                        valid_from=K - timedelta(days=1)))  # fmt: skip
+    w.s.commit()
+    sq = views.match_view(w.s, ctx(w), mid, K - timedelta(hours=12)).squad
+    assert sq is not None
+    t = sq.home
+    sec = {s: [p.name for p in t.projected if p.section == s] for s in ("xi", "bench", "out")}
+    assert "p3" in sec["xi"] and "p5" in sec["out"]
+    p3 = next(p for p in t.projected if p.name == "p3")
+    assert p3.status is None and p3.status_as_of == "out"  # stored as of; not shown as a tag
+    # the bench is the league's limit (3), though the team usually names 3.2 -> 3; by line
+    assert len(sec["bench"]) == 3
+    order = [al.LINE_ORDER[p.pos] for p in t.projected if p.section == "bench"]
+    assert order == sorted(order)
+    xs = _pool()
+    assert al.bench_size(xs, 7, 3.2) == 7 and al.bench_size(xs, None, 3.2) == 3
+
+
+def test_a_free_slot_goes_to_the_lines_most_frequent_starter_this_season() -> None:
+    """The Lautaro case: P3-b gives a forward back from a long absence 0.6% to start and a
+    youngster on the bench 3.9%; the free striker slot goes to the one with more starts."""
+    kept = [al.Pooled(1, "p1", "G", 0.9, 0.0, 90, None),
+            *[_p(i, "D" if i < 6 else "M", 0.9) for i in range(2, 10)],
+            _p(11, "F", 0.9)]  # fmt: skip
+    young, star = _p(40, "F", 0.039), _p(41, "F", 0.006)
+    rl = {"usual": {}, "starts": {"7": {"41": 4, "40": 0}}}
+    got = {x.code: x for x in al.place(LAST_442, kept, rl, True, pool=[*kept, young, star],
+                                       team_id=7)}  # fmt: skip
+    assert got["LS"].player is not None and got["LS"].player.player_id == 41
+    # no starts recorded: P(start) decides
+    got = {x.code: x for x in al.place(LAST_442, kept, {}, True, pool=[*kept, young, star])}
+    assert got["LS"].player is not None and got["LS"].player.player_id == 40

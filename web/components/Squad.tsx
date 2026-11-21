@@ -8,13 +8,9 @@ const SECTION_LABEL: Record<ProjectedPlayer["section"], string> = {
 };
 
 function Tag({ p }: { p: ProjectedPlayer }) {
-  const st = p.status ?? p.status_as_of;
-  if (!st) return null;
-  // listed out only after the projection's as-of time: the next run takes them out of the XI and bench
-  const late = p.status === "out" && p.status_as_of !== "out" && (p.section === "xi" || p.section === "bench");
-  const title = late ? "listed by the injury feed after this projection's as-of time; the next daily run moves them out"
-    : p.status ? "listed by the injury feed; not used by the model" : "listed by the injury feed at the projection time";
-  return <span className={`absence-tag ${st}`} title={title}>{late ? "out since" : st}</span>;
+  // the feed as the page stands: the same status the out rule reads
+  if (!p.status) return null;
+  return <span className={`absence-tag ${p.status}`} title="listed by the injury feed; not used by the model">{p.status}</span>;
 }
 
 function Projected({ t, pr, announced }: { t: TeamSquad; pr: Projection; announced: boolean }) {
@@ -25,9 +21,7 @@ function Projected({ t, pr, announced }: { t: TeamSquad; pr: Projection; announc
       <h4>{announced ? "Projected before the announcement" : "Projected lineup"} <span className="dim">· P3-b</span></h4>
       <p className="squad-meta dim">
         As of <span className="num">{kickoffLocal(pr.as_of)}</span> · refit <span className="num">{dateLocal(pr.refit_as_of)}</span>
-        {" "}· the model does not use the injury feed; players it listed as out at that time are kept out of the XI and bench
-        {t.projected.some((p) => p.status === "out" && p.status_as_of !== "out" && (p.section === "xi" || p.section === "bench")) &&
-          <> (&ldquo;out since&rdquo;: listed after it)</>}
+        {" "}· the model does not use the injury feed; players the feed lists as out now are kept out of the XI and bench
       </p>
       <table className="proj">
         <colgroup><col className="c-pos" /><col /><col className="c-num" /><col className="c-num" /><col className="c-min" /></colgroup>

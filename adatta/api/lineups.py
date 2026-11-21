@@ -48,10 +48,12 @@ def likely_xi(xs: list[Pooled]) -> list[Pooled]:
 
 
 def bench_size(xs: list[Pooled], limit: int | None, expected: float | None) -> int:
-    """The team's expected bench size (the mean of its last 5 named benches, P3-b's), rounded,
-    never above the league limit. Without it, P3-b's bench places among the pool."""
-    n = round(expected if expected is not None else sum(p.p_bench for p in xs))
-    return min(n, limit) if limit is not None else n
+    """The league's bench limit (amendment 2: fill the bench where the squad allows).
+    Without one, the team's expected bench size (the mean of its last 5 named benches),
+    rounded; without that, P3-b's bench places among the pool."""
+    if limit is not None:
+        return limit
+    return round(expected if expected is not None else sum(p.p_bench for p in xs))
 
 
 def sections(xs: list[Pooled], limit: int | None, expected: float | None = None,
@@ -72,10 +74,13 @@ def sections(xs: list[Pooled], limit: int | None, expected: float | None = None,
         if gk is not None:
             bench = [*rest[: n - 1], gk]
     named = chosen | {p.player_id for p in bench}
-    out = sorted((p for p in xs if p.player_id not in named),
-                 key=lambda p: -(p.p_start + p.p_bench))  # fmt: skip
+    out = [p for p in xs if p.player_id not in named]
+
+    def by_line(ps: list[Pooled]) -> list[Pooled]:  # by position, then the most likely
+        return sorted(ps, key=lambda p: (LINE_ORDER.get(p.pos, 4), -(p.p_start + p.p_bench)))
+
     xi = sorted(xi, key=lambda p: (LINE_ORDER.get(p.pos, 4), -p.p_start))
-    return {"xi": xi, "bench": bench, "out": out}
+    return {"xi": xi, "bench": by_line(bench), "out": by_line(out)}
 
 
 # ------------------------------------------------------------------------- stored rows
@@ -201,13 +206,15 @@ NEIGHBOUR = {"D": ("M",), "M": ("D", "F"), "F": ("M",)}  # lines next to each ot
 
 
 def place(slots: list[dict[str, Any]], xi: list[Pooled], rl: dict[str, Any] | None,
-          positional: bool, pool: list[Pooled] | None = None) -> list[Placed]:  # fmt: skip
+          positional: bool, pool: list[Pooled] | None = None,
+          team_id: int | None = None) -> list[Placed]:  # fmt: skip
     """The projected XI fitted to a grid (docs/DASHBOARD_TASKS.md, "Projected XI on the
     pitch", amendment 1). Players of the grid's lineup who are in the XI keep their slot;
     the rest of the XI, highest P(start) first, takes a vacated slot: (1) his usual slot
     code (positional only), (2) else a slot in his usual line. A slot still free goes to
-    (3) the most likely player of its line in `pool` outside the XI (never one listed
-    out), (4) else an unplaced XI player of a neighbouring line, then a pool player of one,
+    (3) the player of its line in `pool` outside the XI with the most starts for the team
+    this season, then the most likely (amendment 2; never one listed out), (4) else an
+    unplaced XI player of a neighbouring line, then a pool player of one (same order),
     (5) else any unplaced XI player. XI players left without a slot are not placed (the
     caller moves them to the bench). The keeper slot takes only a keeper; it stays empty
     if there is none. Slots in grid order."""
@@ -233,8 +240,9 @@ def place(slots: list[dict[str, Any]], xi: list[Pooled], rl: dict[str, Any] | No
         got[cell] = (p, True)
         free.remove(cell)
 
+    starts = (rl or {}).get("starts", {}).get(str(team_id), {})
     avail = sorted((p for p in pool or [] if p.player_id not in by_id and p.status_as_of != OUT),
-                   key=lambda p: -p.p_start)  # fmt: skip
+                   key=lambda p: (-starts.get(str(p.player_id), 0), -p.p_start))  # fmt: skip
     waiting: list[Pooled] = []
     for p in incoming:  # keepers only in goal, outfield players never there
         if line(p) == "G":
@@ -296,14 +304,15 @@ def place(slots: list[dict[str, Any]], xi: list[Pooled], rl: dict[str, Any] | No
 
 def fit(xs: list[Pooled], limit: int | None, expected: float | None,
         slots: list[dict[str, Any]] | None, rl: dict[str, Any] | None,
-        positional: bool) -> tuple[dict[str, list[Pooled]], list[Placed] | None]:  # fmt: skip
+        positional: bool, team_id: int | None = None,
+        ) -> tuple[dict[str, list[Pooled]], list[Placed] | None]:  # fmt: skip
     """The sections with the XI fitted to the projected formation's grid (`place`, with
     the whole pool as candidates): the XI is the placed players, and a likely-XI player
     left without a slot goes back among the rest. Without a grid, `sections` as is."""
     sec = sections(xs, limit, expected)
     if not slots:
         return sec, None
-    placed = place(slots, sec["xi"], rl, positional, pool=xs)
+    placed = place(slots, sec["xi"], rl, positional, pool=xs, team_id=team_id)
     xi = [x.player for x in placed if x.player is not None]
     return sections(xs, limit, expected, xi=xi), placed
 
@@ -441,7 +450,7 @@ def score(xs: list[Pooled], limit: int | None, expected: float | None,
     if form is not None:  # the pitch the panel showed: the last lineup, else an empty grid
         g_pos = form.positional if form.slots else positional
         grid = form.slots or grid_slots(form.pitch_formation, g_pos)
-    sec, placed = fit(xs, limit, expected, grid, rl, g_pos)
+    sec, placed = fit(xs, limit, expected, grid, rl, g_pos, snap.team_id)
     bench = {p.player_id for p in sec["bench"]}
     f_played, f_p, f_top = formation_played(snap), None, None
     if form is not None and f_played is not None:

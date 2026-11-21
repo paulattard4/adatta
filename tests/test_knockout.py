@@ -122,3 +122,21 @@ def test_walk_forward_uses_only_earlier_results() -> None:
     assert fits[1][0] > 0.5  # only the first observation is final by then
     assert ek.fit_at([(K, 0.3), (K + timedelta(days=30), -0.2)], K + timedelta(days=10)) == 0.3
     assert cup_ties.base_round("3rd Round Replays") == "3rd Round"
+
+
+def test_stretch_and_walk_forward_recalibration() -> None:
+    import polars as pl
+
+    assert ek.stretch(np.array([0.5]), 2.0)[0] == pytest.approx(0.5)
+    assert ek.stretch(np.array([0.7]), 2.0)[0] > 0.7 > ek.stretch(np.array([0.7]), 0.5)[0]
+    # forecasts too close to 0.5: favourites always go through; s grows over the walk
+    n = 120
+    rows = [{"kickoff": K + timedelta(days=7 * i), "end": K + timedelta(days=7 * i),
+             "p": 0.6 if i % 2 else 0.4, "p_lo": 0.5, "p_hi": 0.7, "y": float(i % 2)}
+            for i in range(n)]  # fmt: skip
+    out, fits = ek.recalibrate(pl.DataFrame(rows))
+    s = out["s"].to_numpy()
+    prior = np.exp(ek.posterior_mean(np.zeros(len(ek.LOG_S)), ek.LOG_S, ek.S_PRIOR_SD)[0])
+    assert s[0] == pytest.approx(prior) and prior == pytest.approx(1.025, abs=0.002)
+    assert s[-1] > s[10] > prior  # the prior first (the grid is not symmetric), then up
+    assert out["p"][-1] > 0.6

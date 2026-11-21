@@ -746,6 +746,50 @@ asked for B, C, D and then A3, in that order, each with its own acceptance.
     - Replay ties (78): mean p 0.550 against 0.474 observed. Two legs (20): 0.418 against
       0.350.
 
+  **Amendment 1 (2026-11-21, owner: "One recalibration step"; stated before computing it).**
+  - **B3'** = B3, then logit(p') = s × logit(p): one stretch factor s > 0 applied to each
+    tie's P(advance) (the mean over draws). The interval is stretched the same way.
+    - log s sits on a grid from -1.0 to 1.5 by 0.01, prior Normal(0, 0.5).
+    - The likelihood is Bernoulli on who went through.
+    - Fitted walk-forward in time order: a tie's s comes only from ties final by its
+      Monday. The walk runs through the dev ties, then on through the holdout ties when
+      they are scored.
+    - Nothing else changes: B0's rules, κ = 1 and the coin-flip shootout.
+  - **On dev** its walk-forward result is reported. It is disclosed as a change made after
+    seeing B3's result, so dev is not its judge.
+  - **The judge is the cup holdout,** opened once (owner, "Open the cup holdout once") with
+    its own marker:
+    - the 2024/25 and 2025/26 bundle ties, scored by A1 exactly as on dev (weekly
+      production refits as of each tie's Monday);
+    - B0's rules for those seasons are the ones already in `config/cup_formats.yml`,
+      written from the regulations before opening;
+    - B0's check runs on those ties too, with problems listed.
+  - **Calibration checks at the holdout's size (raised before opening, owner to confirm).**
+    - From dev forecasts only (no outcomes), a perfectly calibrated forecast on 300-325
+      ties would show:
+      - binary P(advance): mean ECE 0.058, 95th percentile 0.085;
+      - A1's 1X2 per outcome: mean 0.056 / 0.031 / 0.051 (home / draw / away), 95th
+        percentile 0.083 / 0.057 / 0.078.
+    - So the approved fixed limits, 0.05 for B3 and 0.06 per outcome for A1, would often
+      fail a perfect model on the holdout.
+    - Proposed instead, for each: the observed ECE must be at or below the 95th percentile
+      of the ECE a perfectly calibrated forecast would show on the same ties (outcomes
+      drawn from the forecast, 2,000 draws). That is a test that the forecast is
+      calibrated, at the 5% level, whatever the number of ties.
+    - The other holdout checks stay as approved: B3' log loss no worse than the baseline
+      (point estimate), and no cup worse by more than 1.0%.
+  - **B3' on dev, walk-forward (2026-11-21; disclosed, not its judge):**
+    - 774 ties. s at the last dev tie 1.32; it ranges 1.03-2.09 over the walk, with the
+      early ties on little history.
+    - With no history, s is 1.025, not 1: the stated grid (-1.0 to 1.5) isn't symmetric
+      about the prior's centre. This is noted and left as stated.
+    - Log loss 0.5655 against the baseline's 0.5741: -0.0086 [-0.0227, +0.0054], -1.50%.
+      B3 was 0.5676; the interval is wider because of the early s.
+    - ECE 0.0337 against 0.0576 for B3. A perfectly calibrated forecast here shows a mean
+      of 0.036 and a 95th percentile of 0.053.
+    - By cup: Coppa Italia -4.17%, Coupe de France -2.51%, FA Cup -1.05%, DFB-Pokal -0.35%,
+      Copa del Rey +0.93%.
+
 
 ## Stage C: continental club competitions (§10.1)
 

@@ -446,7 +446,7 @@ def b3(a1: pl.DataFrame, d: Data, rules: dict[int, list[knockout.Entry]],
                     "kickoff": at, "kind": kind, "pairing": r.get("pairing"),
                     "p": float(np.mean(p)), "p_lo": float(np.quantile(p, 0.05)),
                     "p_hi": float(np.quantile(p, 0.95)), "base": float(np.mean(base)),
-                    "y": float(adv == t.a), "basis": basis})  # fmt: skip
+                    "y": float(adv == t.a), "basis": basis, "end": t.last_kickoff})  # fmt: skip
     df = pl.DataFrame(out)
     return df, gate(df, skipped)
 
@@ -485,6 +485,42 @@ def gate(df: pl.DataFrame, skipped: Counter[str]) -> dict[str, Any]:
             "ece_null_mean": float(null.mean()), "ece_null_95": float(np.quantile(null, 0.95)),
             "ece_null_share_above": float((null >= e).mean()), "reliability": rel_tab,
             "skipped": dict(skipped)}  # fmt: skip
+
+
+# ------------------------------------------------------------------ B3' (amendment 1)
+
+LOG_S = np.round(np.arange(-1.0, 1.5001, 0.01), 4)
+S_PRIOR_SD = 0.5
+
+
+def _logit(p: Arr) -> Arr:
+    q = np.clip(p, 1e-9, 1 - 1e-9)
+    return np.asarray(np.log(q / (1 - q)))
+
+
+def stretch(p: Arr, s: float) -> Arr:
+    """logit(p') = s x logit(p)."""
+    return np.asarray(1 / (1 + np.exp(-s * _logit(p))))
+
+
+def recalibrate(df: pl.DataFrame) -> tuple[pl.DataFrame, list[tuple[datetime, float]]]:
+    """Walk-forward s per tie (from ties final by its Monday), and p' = stretch(p, s); the
+    interval stretched the same way. Rows in time order; returns the fits for later ties."""
+    df = df.sort("kickoff")
+    z = _logit(df["p"].to_numpy())
+    y = df["y"].to_numpy()
+    ends = df["end"].to_list()
+    ss = np.exp(LOG_S)[:, None]
+    ll = (y * -np.log1p(np.exp(-ss * z)) + (1 - y) * -np.log1p(np.exp(ss * z))).T  # (n, G)
+    fits = walk(ends, ll, df["kickoff"].to_list(), LOG_S, S_PRIOR_SD)
+    s_at = np.exp([f[0] for f in fits])
+
+    def st(col: str) -> pl.Series:
+        return pl.Series(1 / (1 + np.exp(-s_at * _logit(df[col].to_numpy()))))
+
+    out = df.with_columns(s=pl.Series(s_at), p_raw=pl.col("p"), p=st("p"), p_lo=st("p_lo"),
+                          p_hi=st("p_hi"))  # fmt: skip
+    return out, [(k, f[0]) for k, f in zip(df["kickoff"].to_list(), fits, strict=True)]
 
 
 # ------------------------------------------------------------------------------- report
@@ -589,6 +625,26 @@ def main(argv: Sequence[str] | None = None) -> None:
     r2 = b2(shootouts(d, rules), datetime(2019, 7, 1, tzinfo=UTC))
     df, r3 = b3(a1, d, rules, r1.get("fits", []), r1["use"], r2["fits"], r2["use"])
     print(markdown(r0, r1, r2, r3, df))
+    cal, fits = recalibrate(df)
+    r3c = gate(cal, Counter())
+    print("## B3' (amendment 1) on dev, walk-forward; disclosed, not its judge\n")
+    print(
+        f"s at the last dev tie {np.exp(fits[-1][1]):.3f}; s range over the walk "
+        f"{float(np.min(cal['s'].to_numpy())):.3f}-{float(np.max(cal['s'].to_numpy())):.3f}."
+    )
+    print(
+        f"{r3c['n']} ties. Log loss {r3c['ll']:.4f} against the baseline {r3c['ll_base']:.4f}:"
+        f" {r3c['diff']:+.5f} [{r3c['lo']:+.5f}, {r3c['hi']:+.5f}], {r3c['rel']:+.2%}; B3 "
+        f"{r3['ll']:.4f}. ECE {r3c['ece']:.4f} (perfect calibration: mean "
+        f"{r3c['ece_null_mean']:.4f}, 95th percentile {r3c['ece_null_95']:.4f})."
+    )
+    print("\n| p(A) bin | ties | mean p | observed |\n|---|---|---|---|")
+    for k, n, mp, ob in r3c["reliability"]:
+        print(f"| {k / 10:.1f}-{(k + 1) / 10:.1f} | {n} | {mp:.3f} | {ob:.3f} |")
+    print(
+        "\nBy cup: "
+        + "; ".join(f"{CUP_NAME[c]} {v['rel']:+.2%}" for c, v in sorted(r3c["by_cup"].items()))
+    )
 
 
 if __name__ == "__main__":

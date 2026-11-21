@@ -15,3 +15,48 @@ formats:
   137: {name: Coppa Italia, bundle: italy, second_meeting: leg}
   81: {name: DFB Pokal, bundle: germany, second_meeting: none}
   66: {name: Coupe de France, bundle: france, second_meeting: none}
+
+# Stage B, B0 (docs/BEYOND_LEAGUES_PLAN.md): how a tie is decided, per cup, season range
+# (start years, inclusive) and round (base round name, no "Replay"; "*" = any). The first
+# matching entry wins. Written from the competitions' rules and checked against every
+# stored tie of seasons 2016-2023 and 2026 (`adatta knockout-rules`); the holdout seasons
+# are not read. Fields:
+#   legs         1 or 2
+#   replay       a level single match is replayed at the other ground (the replay goes to
+#                extra time and penalties when extra_time is true)
+#   extra_time   30 minutes when level (in the replay, or leg 2) before penalties
+#   away_goals   two legs only: none, after_90 (away goals decide a level aggregate after
+#                90' of leg 2, then extra time) or also_et (and after extra time)
+# Penalties always decide what is still level.
+rules:
+  45:  # FA Cup: replays in the early proper rounds until 2023/24 (5th round to 2018/19;
+       # 1st and 2nd only in 2021/22), none in 2020/21 (qualifying straight to penalties)
+       # and none in proper rounds from 2024/25
+    - {seasons: [2020, 2020], rounds: ["*Qualifying", "Extra Preliminary Round", "Preliminary Round"], legs: 1, replay: false, extra_time: false}
+    - {seasons: [2020, 2020], rounds: ["*"], legs: 1, replay: false, extra_time: true}
+    - {seasons: [2016, 2018], rounds: ["1st Round", "2nd Round", "3rd Round", "4th Round", "5th Round"], legs: 1, replay: true, extra_time: true}
+    - {seasons: [2019, 2019], rounds: ["1st Round", "2nd Round", "3rd Round", "4th Round"], legs: 1, replay: true, extra_time: true}
+    - {seasons: [2021, 2021], rounds: ["1st Round", "2nd Round"], legs: 1, replay: true, extra_time: true}
+    - {seasons: [2022, 2023], rounds: ["1st Round", "2nd Round", "3rd Round", "4th Round"], legs: 1, replay: true, extra_time: true}
+    - {seasons: [2016, 2099], rounds: ["*Qualifying", "Extra Preliminary Round", "Preliminary Round"], legs: 1, replay: true, extra_time: true}
+    - {seasons: [2016, 2099], rounds: ["*"], legs: 1, replay: false, extra_time: true}
+  143:  # Copa del Rey: two legs from the round of 32 in 2018/19; single matches from 2019/20
+        # except two-legged semi-finals; away goals until 2020/21; a two-legged first round
+        # (1/128-finals) in 2026/27; no extra time in the 2020/21 preliminary round
+    - {seasons: [2018, 2018], rounds: ["16th Finals", "8th Finals", "Quarter-finals", "Semi-finals"], legs: 2, away_goals: also_et, extra_time: true}
+    - {seasons: [2019, 2020], rounds: ["Semi-finals"], legs: 2, away_goals: also_et, extra_time: true}
+    - {seasons: [2021, 2099], rounds: ["Semi-finals"], legs: 2, away_goals: none, extra_time: true}
+    - {seasons: [2026, 2026], rounds: ["1/128-finals"], legs: 2, away_goals: none, extra_time: true}
+    - {seasons: [2020, 2020], rounds: ["Preliminary Round"], legs: 1, replay: false, extra_time: false}
+    - {seasons: [2016, 2099], rounds: ["*"], legs: 1, replay: false, extra_time: true}
+  137:  # Coppa Italia: single matches, two-legged semi-finals; away goals until 2020/21
+    - {seasons: [2016, 2020], rounds: ["Semi-finals"], legs: 2, away_goals: also_et, extra_time: true}
+    - {seasons: [2021, 2099], rounds: ["Semi-finals"], legs: 2, away_goals: none, extra_time: true}
+    - {seasons: [2016, 2099], rounds: ["*"], legs: 1, replay: false, extra_time: true}
+  81:  # DFB-Pokal: single matches, extra time and penalties
+    - {seasons: [2016, 2099], rounds: ["*"], legs: 1, replay: false, extra_time: true}
+  66:  # Coupe de France: extra time until 2019/20; from 2020/21 straight to penalties
+       # (the final keeps extra time)
+    - {seasons: [2016, 2019], rounds: ["*"], legs: 1, replay: false, extra_time: true}
+    - {seasons: [2020, 2099], rounds: ["Final"], legs: 1, replay: false, extra_time: true}
+    - {seasons: [2020, 2099], rounds: ["*"], legs: 1, replay: false, extra_time: false}

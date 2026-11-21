@@ -580,6 +580,173 @@ shootout kick events, and how often the provider has them per competition.
 Acceptance: P(advance) calibration and log loss on dev knockout ties against a baseline
 of "90' model, level = coin flip", validated apart from the round-robin core (§19.3).
 
+**Stage B acceptance (stated 2026-11-21 before building; owner chose "Open the cup holdout
+once" for the promotion, the rest as drafted).** The owner
+asked for B, C, D and then A3, in that order, each with its own acceptance.
+
+*Seen so far:*
+- A1 and A2's dev results (A1 is the 90' model for cup ties, and no A2 term passed);
+- the shootout winner rule;
+- an inventory, counts only, of seasons 2016-2023 and 2026 (holdout 2024-2025 not read):
+  - two-legged ties are rare in dev: Copa del Rey semi-finals (2 a season from 2019/20,
+    30 legs in 2018/19) and Coppa Italia semi-finals (2 a season);
+  - a level aggregate with different away goals went without extra time in 2018/19 and
+    2019/20 (away goals applied), but to extra time in Copa del Rey 2023/24 and 2026/27;
+  - Coupe de France has shootouts without extra time in some rounds;
+  - FA Cup replays exist in dev, but none in proper rounds from 2024/25;
+  - the FA Cup's stored extra-time split below the bundle ties is often wrong, as A0 found.
+
+*Scope:*
+- the five cups;
+- ties between two bundle teams, the Stage A population;
+- 90' forecasts from A1 as is (the bundle's production 1b posterior, weekly refit as of
+  the tie). No A2 term is used.
+
+*Plan:*
+- **B0, format rules first.** `config/cup_formats.yml` gains, per cup and per round, with
+  `from` and `to` season dates:
+  - legs (1 or 2);
+  - replay on a draw (yes/no);
+  - extra time (yes/no);
+  - penalties;
+  - away goals (none / after 90' / also after extra time).
+  Each rule is written from the competition's regulations, with the source noted, and is
+  then checked against every stored tie of seasons 2016-2023 and 2026. A tie whose path is
+  inconsistent with its rule is listed and never guessed. Examples: a level single match
+  in an extra-time round that ends FT; a shootout without extra time where extra time
+  applies; a level aggregate settled on away goals where none apply. Pass: no
+  inconsistency in bundle ties, or each one explained. Unit tests cover each path. No
+  requests are made: every rule is read from stored data and the regulations.
+- **B1, extra-time goals.** In a tie level after 90', each side's extra-time goals are
+  Poisson(κ × λ_side / 3). λ_side is the draw's 90' rate from A1, and κ is one pooled
+  parameter (§9.2: its own rate, not 30/90).
+  - *Fit:* walk-forward as A2. A grid posterior on log κ from -1.5 to 1.5 by 0.02, prior
+    Normal(0, 0.5), fitted on earlier bundle ties that went to extra time with a known
+    extra-time score (about 160 in dev).
+  - *Gate:* κ is used if the paired 95% interval of the extra-time goals log loss (the
+    two sides' Poisson) against κ = 1 (30/90 scaling) excludes 0 in its favour. Otherwise
+    κ = 1. The grid-posterior checks are as A2's (edge mass, prior sd 0.25 / 0.5 / 1.0,
+    predictive extra-time goal rate against the observed).
+- **B2, shootouts (§9.3, team-level until a kick model).**
+  - *Model:* P(listed home side wins) = logistic(δ) at a home ground and 0.5 at a neutral
+    one. δ is one parameter, fitted walk-forward on earlier shootouts, with a grid from
+    -1.0 to 1.0 by 0.02 and prior Normal(0, 0.25).
+  - *Data:* all shootouts of the five cups resolved by the winner rule, about 490 in dev,
+    bundle or not, because the model has no strength input.
+  - *Gate:* δ is used if the paired interval of the shootout log loss against the coin
+    flip excludes 0. Otherwise a coin flip.
+- **B3, P(advance).** For each posterior draw, from the tie's own score matrices and the
+  B0 rules:
+  - *Single match:* P90(H) + P90(D) × [P_ET(H) + P_ET(D) × P_SO(H)]. Without extra time:
+    P90(H) + P90(D) × P_SO(H).
+  - *Replay round:* a level tie goes to a replay at the other ground, scored by the same
+    model. In dev the replay's rates come from the same draw with sides swapped, keeping
+    the original home side's home term. This is an approximation, disclosed; live there
+    are no replays in bundle ties.
+  - *Two legs:* the aggregate of the two legs' score matrices, then away goals where the
+    rule has them, then extra time in leg 2 (with away goals in extra time where the rule
+    says so), then penalties.
+    - *Before leg 1:* both legs from leg 1's refit, leg 2 with sides swapped (the same
+      approximation in dev; exact in serving, from the refit).
+    - *Before leg 2:* the leg-1 score is fixed, and leg 2 comes from its own refit.
+  - *Result:* the mean over draws, with the 5-95% interval.
+  - *Labels:* who advanced, from a later match in the same cup-season, or the final's
+    result through the winner rule. A tie without a label is listed, not dropped.
+- **Dev check (gate for B3), on the dev bundle ties** (816 A1 rows, as ties; two-legged
+  ties are scored before leg 2, and before leg 1 is reported only):
+  - P(advance) log loss and Brier against the baseline "90' model, level = coin flip"
+    (single: P90(H) + 0.5 P90(D); two legs: the aggregate from the 90' model, level =
+    0.5), paired by tie, with the 95% interval;
+  - ECE of P(advance) with 10 bins;
+  - by cup and by tier pairing.
+  - **Pass:**
+    1. B3's log loss is no worse than the baseline (point estimate ≤ 0, interval
+       reported);
+    2. ECE is at most 0.05;
+    3. no cup is worse than the baseline by more than 1.0%.
+  - **Expected, stated now:** the gain over a coin flip is small, because only ties level
+    after 90' move (about a quarter). So the interval will probably include 0, and the
+    gate does not ask it to exclude 0.
+- **Round-reach (§9.5) is scoped narrowly.** It is shown only where the rest of the
+  bracket is fixed and every remaining team is a bundle team (principle 8), with one
+  posterior draw per simulated bracket. Domestic cups are drawn round by round, so it
+  rarely applies; it is mainly for C's knockouts and D v2's tournaments. It has no gate
+  here, because dev has too few such brackets to score.
+- **Serving.** It goes live only after the dev check passes and the promotion step below.
+  The match page of a bundle cup tie shows:
+  - the 90' forecast (A1), labelled team-only;
+  - P(advance) with its path (90', extra time, penalties; aggregate and away goals for two
+    legs).
+  Ties outside the bundles say why there is no forecast. The leg-2 page uses the stored
+  leg-1 score.
+- **Promotion (owner: "Open the cup holdout once").** The Stage A plan opens the cup holdout
+  (325 ties, 2024/25-2025/26, never opened) once, with its own marker, for the promotion
+  decision. Proposed: open it once for A1 and B3 together, scored with the same metrics,
+  passing if B3's ECE is at most 0.05 and A1's 1X2 ECE is at most 0.06 per outcome. A1's
+  dev ECE is 0.037-0.054; the margin is stated now, not tuned. The alternative is to serve
+  after the dev pass and judge live on 2026/27 ties, as D38 did.
+- **Compute:** no new fits. A1's stored draws (R2 `cups/`) give every score matrix, so B1
+  to B3 run locally from them, as A2 did. Serving uses the production refits already
+  running.
+
+- [ ] **Stage B on dev, 2026-11-21: B0 passes, B1 and B2 fall back, B3 fails its ECE check.
+  Raised to the owner; nothing is tuned.**
+  - **Run:** `python -m adatta.eval.knockout run --a1 43903439721`, local, from A1's
+    stored draws; metrics only.
+  - **Code:**
+    - `adatta/features/knockout.py`: rules, ties, `check`, `advanced`;
+    - `adatta/eval/knockout.py`: B0 to B3, the gate and the report;
+    - `config/cup_formats.yml` `rules`;
+    - `tests/test_knockout.py` (6 tests).
+  - **B0 passes (each problem explained).**
+    - 7,791 ties loaded (FA Cup 4,317, Coupe de France 1,628, Copa del Rey 770, DFB-Pokal
+      552, Coppa Italia 524).
+    - 212 problems, almost all outside the bundle ties: FA Cup qualifying records without a
+      90' score (130), or "AET" on a tie decided at 90' (41).
+    - DFB-Pokal 0, Copa del Rey 2 and Coppa Italia 4 problems, all a missing 90' score or
+      a status.
+    - 3 of the 784 bundle ties don't fit their rule, all feed errors, not rule errors:
+      - Coupe de France 2019/20, last 64, match 52113: level 0-0 with no extra time or
+        penalties stored;
+      - Coppa Italia 2020/21, last 16, match 51563: extra-time goals (0-2) stored under
+        status FT;
+      - Coupe de France 2020/21, last 64, match 49362: "AET" with 0-0 in a round with no
+        extra time, and no penalties stored.
+      They are left out of B3.
+    - The rules were written from the regulations and the stored paths (seasons 2016-2023
+      and 2026). Where no tie needed a rule (away goals in Copa del Rey and Coppa Italia
+      2020/21), the regulation stands and the gap is noted in the config.
+  - **B1, extra time: not used, so κ = 1 (30/90 scaling).**
+    - 136 extra-time periods; κ at the last fit 1.33 (log +0.28, sd 0.08).
+    - Prior-insensitive: 1.30 / 1.33 / 1.33 at prior sd 0.25 / 0.5 / 1.0.
+    - Goals per extra time: 1.22 predicted against 1.24 observed.
+    - Against κ = 1: -0.013 [-0.104, +0.078] per period, so the interval includes 0.
+    - Edge mass up to 5.2e-3 in the earliest fits, with few periods; the last is far from
+      the edge.
+  - **B2, shootouts: not used, so a coin flip.**
+    - 496 shootouts; 359 dev shootouts at a home ground, where the home side won 0.461.
+    - δ -0.11 (sd 0.09); prior sd 0.1 / 0.25 / 0.5 give -0.07 / -0.11 / -0.12.
+    - Against the coin flip: +0.003 [-0.006, +0.012].
+  - **B3, P(advance): fails check 2 (ECE).**
+    - 774 dev bundle ties.
+    - Log loss 0.5676 against the baseline's 0.5741: -0.0065 [-0.0095, -0.0034], -1.13%,
+      the interval clear of 0. Brier 0.1927 against 0.1951.
+    - Every cup better than the baseline (-0.39% to -2.16%).
+    - **ECE 0.0576 > 0.05** (baseline 0.0653).
+    - Reported, not gated: a perfectly calibrated forecast on these ties would show ECE
+      0.036 on average (95th percentile 0.053), and 2.0% of draws reach 0.0576. So the
+      miscalibration is real, not noise.
+    - The reliability table shows P(advance) too close to 0.5:
+      - 0.1-0.2: predicted 0.148, observed 0.034;
+      - 0.3-0.4: predicted 0.351, observed 0.284;
+      - 0.6-0.7: predicted 0.651, observed 0.760.
+      Favourites go through more often than forecast. This is A1's 90' forecast in cup
+      ties: A1 under-predicts the away side in tier-1 v tier-2 ties (0.327 against 0.394),
+      where the favourite is often away.
+    - Replay ties (78): mean p 0.550 against 0.474 observed. Two legs (20): 0.418 against
+      0.350.
+
+
 ## Stage C: continental club competitions (§10.1)
 
 The problem: teams from different leagues meet, so league strengths need a common scale.

@@ -1,0 +1,71 @@
+# Stage C, C1 (docs/BEYOND_LEAGUES_PLAN.md): continental matches between bundle teams on a
+# common scale (Q_league), against "each league's own scale" and an Elo-style baseline, on
+# the dev seasons. Manual dispatch only, one stage per run:
+#   strengths  one job per bundle x part: each side's attack / defence as of its match's
+#              Monday, from the cached weekly refit or a new one (fitted and cached)
+#   fit        C1 and B_own walk-forward on the 28-day grid, the Elo, the gate
+# The repo is public: logs carry metrics only. Match-level rows go to R2 (continental/...),
+# never to workflow artifacts. Holdout seasons are never loaded.
+# One backtest-type run at a time (backtest, gate, holdout, timing, cups, selection, ...,
+# continental): two runs together fill the account's 20 job slots and starve the capture.
+name: continental
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "strengths | fit"
+        required: true
+      parts:
+        description: "parts per bundle (strengths and fit must agree)"
+        default: "4"
+      fetch:
+        description: "fit: the strengths run id"
+        default: ""
+permissions:
+  contents: read
+concurrency:
+  group: continental
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  strengths:
+    if: ${{ inputs.stage == 'strengths' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        bundle: [england, spain, italy, germany, france]
+        part: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: side strengths
+        run: >-
+          uv run --frozen --group model python -m adatta.model.continental strengths
+          --bundle ${{ matrix.bundle }} --part ${{ matrix.part }}/${{ inputs.parts }}
+          --upload ${{ github.run_id }}
+  fit:
+    if: ${{ inputs.stage == 'fit' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: C1, B_own, Elo and the gate (metrics only)
+        run: >-
+          uv run --frozen --group model python -m adatta.model.continental fit
+          --fetch ${{ inputs.fetch }} --parts ${{ inputs.parts }} | tee -a "$GITHUB_STEP_SUMMARY"

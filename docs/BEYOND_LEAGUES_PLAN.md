@@ -886,6 +886,100 @@ The problem: teams from different leagues meet, so league strengths need a commo
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 
+**C1 acceptance (stated 2026-11-21 before building, owner: "Approve as drafted").** The owner's
+order is B, C, D, then A3.
+
+*Seen so far:* counts only, from stored data for seasons 2016-2023 and 2026 (holdout
+2024-2025 not read). UEFA matches between two bundle teams from different bundles:
+- Champions League: about 50 a season;
+- Europa League: about 22;
+- Conference League: 2-6 (from 2021/22).
+That is about 384 in dev (2019/20-2023/24) and about 210 in 2016-2018. Nothing has been
+scored.
+
+- **Targets.** Finished UEFA matches (Champions, Europa and Conference League, all
+  rounds) between two teams that each play a bundle league that season (league matches,
+  `serve.team_leagues`), from different bundles. The 90' score is the target; legs that
+  went to extra time are scored on 90', with the A0 rule. Dev seasons 2019-2023.
+  Same-bundle UEFA matches are reported apart, because Q cancels in them.
+- **Inputs, as of the match:** each side's attack and defence come from its own bundle's
+  production weekly refit as of the match's Monday (as A1). Refits missing from the cache
+  are fitted and cached, on the same grid and key as the league backtest.
+- **C1 model (Q_league, §10.1):**
+  log λ_home = c + h × (1 - neutral) + att_home - def_away + Q[bundle of home] - Q[bundle
+  of away], and the same for the away side without h.
+  - Q is one quality per bundle, with England fixed at 0, so four free values.
+  - c is the UEFA goal intercept and h the UEFA home advantage.
+  - The score is Dixon-Coles with ρ from the home side's bundle draw, as in the league
+    model.
+  - Neutral grounds (finals) come from `config/neutral_venues.yml`.
+  - **Fit:** priors Q ~ Normal(0, 0.5), c ~ Normal(0.2, 0.5), h ~ Normal(0.25, 0.25).
+    NUTS (numpyro, seed 20261121, 2,000 draws × 4 chains) on the cross-bundle matches
+    final by the refit time, from 2016. att and def enter at their posterior means.
+  - **Refits:** every 28 days (D14), walk-forward. A target uses the latest refit at or
+    before its Monday.
+  - **Prediction:** each posterior draw of (c, h, Q) is paired with a draw of the two
+    bundles' att/def.
+  - **Inference gates on every refit:** R-hat ≤ 1.01, ESS ≥ 400, no divergences, a PPC
+    of total goals, and prior sensitivity at the last refit (sds × 0.5 and × 2).
+- **Baselines, on the same matches:**
+  - *B_own*, "each league's own scale": the same model and fit with Q fixed at 0.
+  - *B_elo*, Elo-style:
+    - one club Elo over every stored match of the bundle leagues, the five cups and the
+      UEFA competitions since 2016-07-01, each rating final by the match's Monday;
+    - start 1,500, K = 20, home advantage 60 points, settings fixed now (not tuned);
+    - a new club starts at its league's mean rating;
+    - the Elo difference goes to 1X2 through an ordered logit (slope and two cut-points)
+      fitted walk-forward on the earlier target-type matches.
+- **Gate on dev (all must hold):**
+  1. C1 beats B_own on 1X2 log loss and on RPS, each paired 95% interval by match
+     excluding 0.
+  2. C1 beats B_elo the same way.
+  3. No competition (CL, EL, ECL) is worse than either baseline by more than 1.0%
+     (point estimate).
+  4. Calibration: C1's 1X2 ECE per outcome is within its noise floor (the 95th percentile
+     for a perfectly calibrated forecast on the same matches; owner, Stage B).
+  5. The inference gates pass on every refit.
+  6. Leakage: on 50 sampled targets, nothing final after the match's Monday changes
+     att, def, Q, c, h or the Elo.
+  - Reported: Q per bundle over time, with intervals; by season and competition; same-
+    bundle matches; home and neutral.
+  - **Expected, stated now:** with about 384 matches the intervals are wide. A real
+    league-quality gap shows against B_own; against Elo it may not.
+- **Then.** On a dev pass, the UEFA holdout (2024/25-2025/26, never opened) is opened
+  once with its own marker ("uefa"), scored the same way, with checks 1-4 as the
+  promotion gate. On a pass, UEFA matches between bundle teams from different bundles are
+  served (90', team-only, labelled), and same-bundle ones from the bundle's model. Other
+  UEFA matches say why there is no forecast (principle 8).
+- **Compute:**
+  - the bundle refits come from the cache where present; dev weekly refits mostly are,
+    from P3-d's run, and the rest are fitted on CI;
+  - the C1 fits are a small NUTS model, about 60 refits × 2 seasons, fitted on CI;
+  - the Elo is pure numpy;
+  - 0 API requests;
+  - one backtest-type run at a time.
+
+- [ ] **C1 build (2026-11-21), before any C1 score:**
+  - **Code:**
+    - `adatta/model/continental.py`: targets, side strengths from the Monday refit, the
+      C1 / B_own fit (PyMC with NumPyro), prediction, the Elo and its ordered logit,
+      scores, the gate, prior sensitivity and the leakage check;
+    - `.github/workflows/continental.yml` (strengths, then fit);
+    - `tests/test_continental.py` (5).
+  - **Targets:** 612 UEFA matches between bundle teams in 2016-2023, 593 of them across
+    bundles, 384 cross-bundle in dev. 47 are on neutral ground (finals, and the 2019/20
+    final tournaments); none swapped.
+  - **Refits needed:**
+    - dev: 338 (bundle, Monday) refits, 320 cached;
+    - 2016-2018 training matches: 205, none cached, fitted on CI (about 24 CI hours over
+      18 parallel jobs).
+  - **Elo:** built over 44,887 stored matches in 0.3 s. The ordered logit fitted on the
+    warm-up matches only reproduces their outcome rates. No dev score has been computed.
+  - **Clarification, before any score:** the C1 and B_own fits use a Poisson likelihood on
+    the 90' goals, with att and def at their means. Prediction uses Dixon-Coles with the
+    home side's ρ and κ draws, as the acceptance says.
+
+
 ## Stage D: national teams (§10.4)
 
 Its own fit, not inside the club model:

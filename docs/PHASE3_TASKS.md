@@ -1981,3 +1981,30 @@ Consequences:
         - lines as of the cutoff;
         - R1 against R0 and the gate;
         - matching the fit's training rows.
+
+      **Result, P3-i0 dev check (2026-11-21, run 44882446126): passes by the letter, but
+      the pass is degenerate; raised to the owner, P3-i on hold.**
+      - **Scope:** 38,307 team-matches (19,228 matches), 61 rating refits. All 928 P
+        refits were found in the cache (England 186, Spain 203, Italy 181, Germany 179,
+        France 179).
+      - **Gate:** R1 - R0 Poisson log loss per team-match is -0.000004 [-0.000006,
+        -0.000002], about -0.0003% of R0's 1.43179. The interval clustered by match is
+        the same. By season: 2019 to 2022 between -0.000004 and -0.000007, and 2023
+        +0.000002.
+      - **Why it is degenerate:**
+        - k sits at the top of its grid (20,000) for every line in all 61 refits. The
+          marginal likelihood finds no player-level variation, so every θ is about 1.
+        - The minute-weighted lineup shift has sd 0.0001 (5-95%: -0.0003 to +0.0001),
+          against a team-match log loss of 1.43.
+        - With k unbounded, R1 would equal R0 and the interval would be 0, a fail. The
+          sign of the "pass" comes from where the grid stops.
+        - Served in P3-i, Δ_D would be about 0, and LD would be P3-d's attack-only
+          offset, which failed.
+      - **Diagnosis (England, last dev P refit, players with E > 5; aggregates only).**
+        Goals conceded on the pitch against expected have a dispersion index of 0.856
+        with P's in-sample rates, the approved choice. The walk already fits each team's
+        goals conceded, so nothing is left over for players. With P's out-of-sample
+        forecasts it is 1.108. That excess may still be team-level (shared by
+        team-mates) rather than player-level.
+      - **Not done:** no respecification has been run. Whether to run one, disclosed,
+        or close P3-i is the owner's call.

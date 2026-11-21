@@ -94,6 +94,10 @@ Consequences:
   the "defence later" challenger from the P3-d spec point. D40 stands for dev: P3-i
   computes no match-forecast score on dev seasons, so there is nothing on dev to fit it
   to. Its new defensive player rating is checked on dev on its own (P3-i0), like P3-d0.
+- **D44 (resolved 2026-11-21, owner: "Close P3-i"):** P3-i is closed without a
+  respecification. P3-i0's dev check passed only by the letter: k sat at the top of its
+  grid in every refit, so every θ was about 1. No live shadow is started; P stays
+  production.
 
 ## Tasks
 
@@ -1805,7 +1809,7 @@ Consequences:
       probabilities to 4.95e-07 (the 6-decimal rounding), with the same pitch formation and
       the same pitch on 20 of 20. Per (e), the panel shows the three options and the pitch on
       the match page. Live monitoring, (d)2, starts with the interim reports.
-- [ ] **P3-i Lineup offset with attack and defence, live shadow (D43).** Owner, 2026-11-21:
+- [ ] **P3-i Lineup offset with attack and defence, live shadow (D43). Closed (D44).** Owner, 2026-11-21:
       "any way we can have lineup projections and changes affect our match projections?",
       then "Live shadow, attack + defence".
 
@@ -2008,3 +2012,9 @@ Consequences:
         team-mates) rather than player-level.
       - **Not done:** no respecification has been run. Whether to run one, disclosed,
         or close P3-i is the owner's call.
+
+      **Closed 2026-11-21 (owner: "Close P3-i", D44), no respecification.** Not ticked:
+      the rating carries no player-level signal, so the live shadow would be P3-d's
+      attack-only offset again. No live shadow is started. P stays production, and the
+      dashboard keeps saying the forecasts don't use lineups. The stint files and the
+      rating code stay as built (0 requests to rebuild).

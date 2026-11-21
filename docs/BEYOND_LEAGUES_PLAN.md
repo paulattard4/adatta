@@ -1032,6 +1032,8 @@ scored.
     model. The Conference League check rests on 11 matches.
   - Following the acceptance, the gate is not relaxed after seeing the score. UEFA matches
     keep showing why there is no forecast (principle 8). The next step is the owner's.
+  - **Closed (D45, 2026-11-21, owner: "Close C1, start D").** The UEFA holdout is not
+    opened. Q is recorded here and used in no forecast.
 
 
 ## Stage D: national teams (§10.4)
@@ -1050,6 +1052,136 @@ Its own fit, not inside the club model:
 Acceptance: beats the Elo baseline on the locked international holdout (to be defined at
 the start of the stage), calibrated on qualifiers and nations-league matches; friendlies
 and competitive matches reported apart.
+
+**D v0 acceptance (drafted 2026-11-21, before building, for the owner's approval).** Owner:
+"Close C1, start D" (D45).
+
+*Seen so far:* counts and host roles only, no model and no outcome rate. Stored national
+matches: 10,903, of which 9,350 are finished matches between two senior men's sides with a 90'
+score (June 2014 to 18 Nov 2026).
+- **Teams:** 229 sides. 218 have a confederation from the competitive matches they play
+  (UEFA 55, CAF 55, AFC 46, CONCACAF 41, OFC 11, CONMEBOL 10), and none plays in two
+  confederations. The other 11 are clubs or non-FIFA sides that met a national team (Los
+  Angeles FC, Konyaspor, Basque Country, ...).
+- **Host role:**
+  - home 5,173, neutral 1,922 and swapped 133;
+  - unknown 2,134 (23%), of which 1,365 competitive and 769 friendlies.
+- **Venue coordinates:** 279 of the 2,324 national venues have them.
+
+- **Windows (international, stated now; none has been scored):**
+  - warm-up: 2014-06-12 to 2018-12-31, 1,535 competitive matches and 691 friendlies;
+  - dev: 2019-01-01 to 2023-12-31, 2,943 competitive and 1,194 friendlies;
+  - locked holdout: 2024-01-01 to 2026-07-31, 1,701 competitive and 814 friendlies. It
+    takes in Euro 2024, Copa America 2024, AFCON 2023 and 2025, Asian Cup 2023, World Cup
+    2026 and Nations League 2024/25. Marker "international", opened once.
+  - live: from 2026-08-01.
+  - Stage 0 spot-checked host roles of World Cup 2026 and Euro 2024 matches. No result
+    rate or score of the holdout has been read.
+- **Targets:** finished matches between two of the 218 sides (`senior_national_ids` with a
+  confederation), on the 90' score. Knockout ties use the A0 rule. Shoot-outs and
+  advancement are v2.
+  - Competitive matches are every competition except Friendlies.
+  - "Finals" are World Cup, Euro, Copa America, AFCON, Asian Cup, Gold Cup and the
+    Finalissima. The rest are qualifiers and Nations Leagues.
+  - Youth, B and women's sides are out (`team_level`, `gender`).
+- **v0 model (team only, from results):**
+  - **Scoring rates:**
+    - log λ_home = c + g[type] + H(role) + (s_home − s_away)/2 + (o_home + o_away)/2,
+      and the same for the away side with the signs of s swapped;
+    - s is strength and o is openness, as D15.
+  - **Strength:** s[i, month] = conf[i] + u[i] + w[i, month].
+    - conf: a confederation effect, with UEFA fixed at 0 and the others Normal(0, 1).
+    - u: the team's level, Normal(0, σ_u), σ_u ~ HalfNormal(1), summing to zero within
+      each confederation (so conf is identified).
+    - w: a Gaussian random walk per calendar month, σ_w ~ HalfNormal(0.05). Variance grows
+      with elapsed months whether or not the team plays, which makes this the
+      calendar-time walk.
+  - **Openness:** o[i] ~ Normal(0, σ_o), σ_o ~ HalfNormal(0.1). It is static and shrunk
+    (D15's lesson).
+  - **Competition type:** g[type] for friendly (reference 0), qualifier or Nations League,
+    and finals, each Normal(0, 0.3).
+  - **Host role H, applied to the host side:**
+    - home: h;
+    - swapped: h to the listed away side;
+    - neutral: 0;
+    - unknown: h_u to the listed home side, a parameter of its own (no guess about the
+      23%; principle 8).
+    - Priors: h, h_u ~ Normal(0.25, 0.25).
+  - **Goals:** negative binomial per side, one dispersion φ ~ Gamma(2, 0.1), with
+    Dixon-Coles τ, ρ ~ Uniform(-0.2, 0.2). The score matrix runs 0-20 per side.
+  - **Friendlies** are kept with likelihood weight 0.5, fixed now. Weight 1.0 is run once
+    on dev and reported. Any change is a disclosed amendment before the holdout.
+  - **Fit window:** every match from 2014-06 up to the refit, capped at the last 10 years
+    (8-12, §10.4). PyMC with NumPyro, seed 20261121, 1,000 draws × 4 chains.
+  - **External ratings:** none. No FIFA or Elo prior is stored or licensed, so the cold
+    start is the confederation mean.
+  - **Odds:** never an input (principle 1).
+- **Refits and prediction:**
+  - **Walk-forward refits:** one on the Monday of every week that has a senior match, using
+    the results final by that Monday.
+  - **Which refit:** a target uses the latest refit at or before its Monday. So in a
+    Thursday-Tuesday window, the Tuesday match sees the Thursday result (D33's intent).
+  - **Prediction:** each posterior draw's walk is carried from the last fitted month to
+    the match's month with its own σ_w. A team unseen for a year is wider (D34).
+- **Baseline B_elo** (the eloratings.net published method, settings fixed now, not tuned):
+  - **Rating:** start 1,500 for every side in June 2014, over the same stored senior
+    matches, each final by the target's Monday.
+  - **K:**
+    - 60 World Cup finals;
+    - 50 the other finals;
+    - 40 qualifiers and Nations Leagues;
+    - 20 friendlies.
+  - **Goal-difference multiplier:** 1 for a margin of 0 or 1, 1.5 for 2, (11 + N)/8 for
+    N ≥ 3.
+  - **Home advantage:** +100 for the host side (unknown is treated as listed home, as Elo
+    has no learned term).
+  - **1X2:** through the ordered logit fitted walk-forward on earlier target matches, as in
+    C1.
+- **Gate on dev (all must hold):**
+  1. v0 beats B_elo on competitive matches on 1X2 log loss and RPS, each paired 95%
+     interval by match excluding 0.
+  2. Friendlies are reported apart (log loss, RPS, against B_elo), not gated (§10.4).
+  3. **Segments of competitive matches:**
+     - the segments are each confederation's own competitions (UEFA, CONMEBOL, CONCACAF,
+       CAF, AFC) and finals against qualifiers / Nations Leagues;
+     - none is worse than B_elo by more than 1.0% (point estimate);
+     - only segments with n ≥ 100 are checked; smaller ones (OFC, the intercontinental
+       play-offs) are reported only. This is stated now, after C1's 11-match Conference
+       League segment.
+  4. **Calibration on qualifiers and Nations League matches (§10.4):** 1X2 ECE per outcome
+     within its noise floor (the 95th percentile for a perfectly calibrated forecast on the
+     same matches).
+  5. **Inference gates on every refit:**
+     - R-hat ≤ 1.01, ESS ≥ 400, no divergences;
+     - PPC of total goals and of the share of margins of 4 or more (the heavy tail the
+       negative binomial is for);
+     - prior sensitivity at the last refit (sds × 0.5 and × 2);
+     - conf identified (posterior sd below prior sd).
+  6. **Leakage:** on 50 sampled targets, nothing final after the match's Monday changes
+     the forecast.
+  - **Reported:** by period, competition type, confederation and host role (unknown
+    apart); conf over time; σ_w; φ.
+- **Then:**
+  - **Holdout:** on a dev pass, the holdout is opened once ("international"), with checks
+    1, 3 and 4 as the promotion gate and 2 reported.
+  - **Serving:** on a pass, senior men's national matches between two of the 218 sides are
+    served (90', 1X2 and scores, labelled team-only).
+  - **Not served:** other national matches show why. Nothing betting-facing for youth
+    sides (CLAUDE.md rule 10).
+- **Not in v0, raised against §10.4:**
+  - **Travel.** §10.4 lists host flag *and* travel. Only 279 of 2,324 national venues have
+    coordinates, so travel can't be built yet. Proposed: geocode the national venues first
+    (Open-Meteo, free, the existing geocoder, 0 API-Football requests). Then test travel as
+    its own term on dev: kept only if competitive 1X2 log loss improves with the interval
+    excluding 0. That would be one disclosed amendment before the holdout. Until then, v0
+    has the host role only.
+  - **Fading cold-start priors from Elo or FIFA:** none stored (above).
+- **Compute:**
+  - 0 API requests;
+  - about 150-180 dev refits (weeks with a senior match, 2019-2023), each a NUTS fit with
+    about 218 × 115 walk steps;
+  - one refit is timed first, and the run is planned from that (CI, 18 parallel jobs, one
+    backtest-type run at a time).
 
 ## Cross-cutting
 

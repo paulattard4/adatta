@@ -1359,7 +1359,7 @@ set these levels at the stated width. The forecasting result is strong and consi
 segments, but the acceptance requires every headline mean to move less than 1 sd, so **v0
 fails on dev**. The international holdout is not opened.
 
-### D v1 amendment (drafted 2026-11-22, after the v0 dev result; awaiting approval)
+### D v1 amendment (drafted 2026-11-22 after the v0 dev result; owner: "Approve as drafted")
 
 **Disclosure:** this amendment is written after seeing v0's dev scores and its sensitivity
 table. It changes two prior widths and nothing else. Neither width is chosen to improve a

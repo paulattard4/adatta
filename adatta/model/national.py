@@ -39,7 +39,10 @@ from adatta.model import continental as ct
 
 Arr = NDArray[np.float64]
 PREFIX = "national"
-VERSION = "v0"
+VERSION = "v1"
+# D v1 amendment (plan, approved 2026-11-22 after the v0 dev result): the confederation and
+# openness priors widened; everything else as v0. v0 was Normal(0, 1) and HalfNormal(0.1).
+CONF_SD, SIGMA_O_SD = 3.0, 0.3
 # refit cache generation: "c" = the walk collapsed onto played months, 3,000 draws at
 # target_accept 0.98 (the first "v0" cache entry, 2019-01-07, was fitted with the full monthly
 # walk at 1,000 draws and failed the sampler gates; nothing was cached under "b")
@@ -357,7 +360,7 @@ def _model(d: Design, prior_scale: float, centred: bool = False) -> Any:
         g = pt.concatenate([pt.zeros(1), g_free])
         h = pm.Normal("h", 0.25, 0.25 * ps)
         h_u = pm.Normal("h_u", 0.25, 0.25 * ps)
-        conf_free = pm.Normal("conf", 0.0, 1.0 * ps, shape=len(CONFS) - 1)
+        conf_free = pm.Normal("conf", 0.0, CONF_SD * ps, shape=len(CONFS) - 1)
         conf = pt.concatenate([pt.zeros(1), conf_free])
         sigma_u = pm.HalfNormal("sigma_u", 1.0 * ps)
         u_raw = pm.Normal("u_raw", 0.0, 1.0, shape=n)
@@ -371,7 +374,7 @@ def _model(d: Design, prior_scale: float, centred: bool = False) -> Any:
             z = pm.Normal("z", 0.0, 1.0, shape=len(d.node_team))
             innov = sigma_w * np.sqrt(d.node_gap) * z
         w = walk(innov, d.node_team, pt)
-        sigma_o = pm.HalfNormal("sigma_o", 0.1 * ps)
+        sigma_o = pm.HalfNormal("sigma_o", SIGMA_O_SD * ps)
         o_raw = pm.Normal("o_raw", 0.0, 1.0, shape=n)
         o = sigma_o * o_raw
         phi = pm.Gamma("phi", 2.0, 0.1)
@@ -515,7 +518,7 @@ def fit(train: pl.DataFrame, t: datetime, friendly_weight: float = FRIENDLY_WEIG
     cf = flat("conf")
     for j, name in enumerate(CONFS[1:]):
         sd = float(cf[:, j].std())
-        checks.append(dg.Check(f"identified conf {name}", sd < 1.0 * prior_scale, sd,
+        checks.append(dg.Check(f"identified conf {name}", sd < CONF_SD * prior_scale, sd,
                                "posterior sd against the prior sd"))  # fmt: skip
     diag: dict[str, Any] = {c_.name: c_.value for c_ in checks}
     diag["failed"] = [c_.name for c_ in checks if c_.blocking and not c_.passed]
@@ -702,13 +705,15 @@ def gate(
     failed = Counter(f for d in diags for f in d["failed"])
     warned = Counter(f for d in diags for f in d.get("warnings", []))
     lines = [
-        "# Stage D v0 on dev: senior men's national teams", "",
+        f"# Stage D {VERSION} on dev: senior men's national teams", "",
         f"{len(y)} dev matches ({int(comp.sum())} competitive, {int(fr.sum())} friendlies), "
         f"{len(diags)} refits.", "| model | segment | 1X2 log loss | RPS |", "|---|---|---|---|",
-        *[f"| {m} | {nm} | {ll[m][s].mean():.4f} | {rp[m][s].mean():.4f} |"
+        *[f"| {VERSION if m == 'v0' else m} | {nm} | {ll[m][s].mean():.4f} | "
+          f"{rp[m][s].mean():.4f} |"
           for nm, s in (("competitive", comp), ("friendlies", fr)) for m in ("v0", "elo")], "",
-        line("v0 vs Elo, competitive", main_), line("v0 vs Elo, friendlies (reported)", friend), "",
-        "Segments (competitive, v0 log loss relative to Elo): " + "; ".join(
+        line(f"{VERSION} vs Elo, competitive", main_),
+        line(f"{VERSION} vs Elo, friendlies (reported)", friend), "",
+        f"Segments (competitive, {VERSION} log loss relative to Elo): " + "; ".join(
             f"{k} n {v['n']} {v['rel']:+.2%}{'' if v['checked'] else ' (reported)'}"
             for k, v in segs.items()),
         "Host role (competitive): " + "; ".join(
@@ -899,7 +904,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                          for k, v in sens.items()) + "\n"
              f"6 leakage: {leak['changed']} of {leak['n']} sampled targets changed: "
              f"{'pass' if leak['ok'] else 'FAIL'}.\n"
-             f"**Stage D v0 {'PASSES' if rep['passed'] else 'FAILS'} on dev.**\n")  # fmt: skip
+             f"**Stage D {VERSION} {'PASSES' if rep['passed'] else 'FAILS'} on dev.**\n"
+             )  # fmt: skip
     out = scored.with_columns(elo_home=pl.Series(pe[:, 0]), elo_draw=pl.Series(pe[:, 1]),
                               elo_away=pl.Series(pe[:, 2]))  # fmt: skip
     buf = io.BytesIO()

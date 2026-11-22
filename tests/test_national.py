@@ -159,3 +159,9 @@ def test_a_sampler_failure_is_refitted_once_at_twice_the_draws(
     _, d = nt.cached_fit(st, tg, t2, 0.5)  # its rerun fails a non-sampler check: no rerun
     assert calls[3:] == [nt.RERUN_DRAWS] and key.removesuffix(".npz") + "_first.npz" in st.d
     assert d["failed"] == ["identified conf OFC"]
+
+
+def test_v1_priors_as_amended() -> None:
+    # D v1 amendment: only the confederation and openness widths changed from v0
+    assert nt.VERSION == "v1" and (nt.CONF_SD, nt.SIGMA_O_SD) == (3.0, 0.3)
+    assert nt._cache_key(K, 0.5, 1.0).startswith(f"{nt.PREFIX}/refits/v1")  # no v0 fit reused

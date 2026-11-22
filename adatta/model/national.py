@@ -40,6 +40,9 @@ from adatta.model import continental as ct
 Arr = NDArray[np.float64]
 PREFIX = "national"
 VERSION = "v0"
+# refit cache generation: "b" = the walk collapsed onto played months (the first "v0" cache
+# entry, 2019-01-07, was fitted with the full monthly walk and failed the sampler gates)
+CACHE_TAG = "b"
 WARM_FROM = datetime(2014, 6, 1, tzinfo=UTC)
 DEV_FROM = datetime(2019, 1, 1, tzinfo=UTC)
 HOLDOUT_FROM = datetime(2024, 1, 1, tzinfo=UTC)  # locked: 2024-01-01 to 2026-07-31
@@ -245,6 +248,15 @@ class Design:
     ai: NDArray[np.int64]
     month: NDArray[np.int64]  # month index relative to the window's first month
     n_months: int  # walk length (months 0..n_months-1), the refit's month last
+    # The walk at the months it is seen: one node per (team, month it plays) plus each team's
+    # refit month, sorted by team then month. w starts at 0 in month 0, so a node's innovation
+    # has variance sigma_w^2 x the months since the team's previous node (exactly the monthly
+    # walk marginalised over the months the team doesn't play).
+    node_team: NDArray[np.int64]
+    node_gap: Arr
+    hn: NDArray[np.int64]  # home side's node per match
+    an: NDArray[np.int64]
+    last_node: NDArray[np.int64]  # per team: its node at the refit month
     typ: NDArray[np.int64]
     hh: Arr
     ha: Arr
@@ -262,13 +274,30 @@ def design(train: pl.DataFrame, t: datetime, friendly_weight: float) -> Design:
                **dict(zip(train["away"], train["conf_away"], strict=True))}  # fmt: skip
     m0 = month_index(train["kickoff"].min())  # type: ignore[arg-type]
     roles = [host_sides(r) for r in train["role"]]
+    hi = np.array([pos[x] for x in train["home"]], dtype=np.int64)
+    ai = np.array([pos[x] for x in train["away"]], dtype=np.int64)
+    month = np.array([month_index(k) - m0 for k in train["kickoff"]], dtype=np.int64)
+    n_months = month_index(t) - m0 + 1
+    nodes = sorted({*zip(hi.tolist(), month.tolist(), strict=True),
+                    *zip(ai.tolist(), month.tolist(), strict=True),
+                    *((i, n_months - 1) for i in range(len(teams)))})  # fmt: skip
+    at = {nd: j for j, nd in enumerate(nodes)}
+    node_team = np.array([i for i, _ in nodes], dtype=np.int64)
+    node_month = np.array([m for _, m in nodes], dtype=np.int64)
+    first = np.r_[True, node_team[1:] != node_team[:-1]]
+    prev = np.where(first, 0, np.r_[0, node_month[:-1]])
     return Design(
         teams=teams,
         team_conf=np.array([CONFS.index(conf_of[int(x)]) for x in teams], dtype=np.int64),
-        hi=np.array([pos[x] for x in train["home"]], dtype=np.int64),
-        ai=np.array([pos[x] for x in train["away"]], dtype=np.int64),
-        month=np.array([month_index(k) - m0 for k in train["kickoff"]], dtype=np.int64),
-        n_months=month_index(t) - m0 + 1,
+        hi=hi,
+        ai=ai,
+        month=month,
+        n_months=n_months,
+        node_team=node_team,
+        node_gap=(node_month - prev).astype(np.float64),
+        hn=np.array([at[(h, m)] for h, m in zip(hi, month, strict=True)], dtype=np.int64),
+        an=np.array([at[(a, m)] for a, m in zip(ai, month, strict=True)], dtype=np.int64),
+        last_node=np.array([at[(i, n_months - 1)] for i in range(len(teams))], dtype=np.int64),
         typ=np.array([TYPES.index(x) for x in train["type"]], dtype=np.int64),
         hh=np.array([r[0] for r in roles]), ha=np.array([r[1] for r in roles]),
         hu=np.array([r[2] for r in roles]),
@@ -300,11 +329,20 @@ def score_matrix(lam: Arr, mu: Arr, phi: Arr, rho: Arr, max_goals: int = MAX_GOA
     return np.asarray(m / m.sum(axis=(-2, -1), keepdims=True))
 
 
+def walk(innov: Any, node_team: NDArray[np.int64], xp: Any = np) -> Any:
+    """Each node's walk value: the cumulative sum of its team's innovations so far (nodes
+    sorted by team then month; works on numpy arrays or pytensor tensors, last axis)."""
+    cs = xp.cumsum(innov, axis=-1)
+    first = np.flatnonzero(np.r_[True, node_team[1:] != node_team[:-1]])
+    start = np.repeat(first, np.diff(np.r_[first, len(node_team)]))
+    return cs - xp.take(cs - innov, start, axis=-1)  # less the sum before the team's first
+
+
 def _model(d: Design, prior_scale: float) -> Any:
     import pymc as pm
     import pytensor.tensor as pt
 
-    n, nm, ps = len(d.teams), d.n_months, prior_scale
+    n, ps = len(d.teams), prior_scale
     onehot = np.eye(len(CONFS))[d.team_conf]
     counts = np.maximum(onehot.sum(axis=0), 1.0)
     with pm.Model() as model:
@@ -319,20 +357,17 @@ def _model(d: Design, prior_scale: float) -> Any:
         u_raw = pm.Normal("u_raw", 0.0, 1.0, shape=n)
         u = sigma_u * (u_raw - pt.dot(onehot, pt.dot(onehot.T, u_raw) / counts))
         sigma_w = pm.HalfNormal("sigma_w", 0.05 * ps)
-        if nm > 1:
-            z = pm.Normal("z", 0.0, 1.0, shape=(n, nm - 1))
-            w = sigma_w * pt.concatenate([pt.zeros((n, 1)), pt.cumsum(z, axis=1)], axis=1)
-        else:
-            w = pt.zeros((n, 1))
+        z = pm.Normal("z", 0.0, 1.0, shape=len(d.node_team))
+        w = walk(sigma_w * np.sqrt(d.node_gap) * z, d.node_team, pt)
         sigma_o = pm.HalfNormal("sigma_o", 0.1 * ps)
         o_raw = pm.Normal("o_raw", 0.0, 1.0, shape=n)
         o = sigma_o * o_raw
         phi = pm.Gamma("phi", 2.0, 0.1)
         rho = pm.Uniform("rho", -0.2, 0.2)
-        s = conf[d.team_conf][:, None] + u[:, None] + w
-        pm.Deterministic("s_last", s[:, -1])
+        lvl = conf[d.team_conf] + u
+        pm.Deterministic("s_last", lvl + w[d.last_node])
         pm.Deterministic("o_last", o)
-        sh, sa = s[d.hi, d.month], s[d.ai, d.month]
+        sh, sa = lvl[d.hi] + w[d.hn], lvl[d.ai] + w[d.an]
         op = (o[d.hi] + o[d.ai]) / 2
         base = c + g[d.typ] + op
         lam = pt.exp(base + h * d.hh + h_u * d.hu + (sh - sa) / 2)
@@ -443,17 +478,12 @@ def fit(train: pl.DataFrame, t: datetime, friendly_weight: float = FRIENDLY_WEIG
     onehot = np.eye(len(CONFS))[d.team_conf]
     ur = flat("u_raw")[pidx]
     u = flat("sigma_u")[pidx][:, None] * (ur - (ur @ onehot / onehot.sum(0)) @ onehot.T)
-    if d.n_months > 1:
-        zz = flat("z")[pidx]
-        w = flat("sigma_w")[pidx][:, None, None] * np.concatenate(
-            [np.zeros((*zz.shape[:2], 1)), np.cumsum(zz, axis=2)], axis=2
-        )
-    else:
-        w = np.zeros((len(pidx), len(d.teams), 1))
-    s = conf[:, d.team_conf][:, :, None] + u[:, :, None] + w
+    w = walk(flat("sigma_w")[pidx][:, None] * np.sqrt(d.node_gap) * flat("z")[pidx],
+             d.node_team)  # fmt: skip
+    lvl = conf[:, d.team_conf] + u
     o = flat("sigma_o")[pidx][:, None] * flat("o_raw")[pidx]
     gg = np.concatenate([np.zeros((len(pidx), 1)), flat("g")[pidx]], axis=1)
-    sh, sa = s[:, d.hi, d.month], s[:, d.ai, d.month]
+    sh, sa = lvl[:, d.hi] + w[:, d.hn], lvl[:, d.ai] + w[:, d.an]
     base = flat("c")[pidx][:, None] + gg[:, d.typ] + (o[:, d.hi] + o[:, d.ai]) / 2
     lam = np.exp(base + flat("h")[pidx][:, None] * d.hh + flat("h_u")[pidx][:, None] * d.hu
                  + (sh - sa) / 2)  # fmt: skip
@@ -535,7 +565,7 @@ def training(tg: pl.DataFrame, t: datetime) -> pl.DataFrame:
 
 
 def _cache_key(t: datetime, friendly_weight: float, prior_scale: float) -> str:
-    return (f"{PREFIX}/refits/{VERSION}/w{friendly_weight:g}_s{prior_scale:g}/"
+    return (f"{PREFIX}/refits/{VERSION}{CACHE_TAG}/w{friendly_weight:g}_s{prior_scale:g}/"
             f"{t:%Y%m%d}.npz")  # fmt: skip
 
 

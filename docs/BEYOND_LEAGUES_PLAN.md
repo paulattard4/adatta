@@ -1202,6 +1202,30 @@ score (June 2014 to 18 Nov 2026).
       keep their priors;
     - the sensitivity check is §14.5's: every headline mean (c, g, h, h_u, conf, σ_w, σ_u,
       σ_o) moves less than 1 posterior sd.
+  - **Sampler (2026-11-22), before any score:** the smallest refit (2019-01-07: 2,230
+    matches, 217 teams, 56 months) failed the sampler gates on one parameter, σ_w. Every
+    other variable passed (R-hat ≤ 1.006, bulk ESS ≥ 821). The variants were on run
+    44997123915.
+
+    | warm-up | target_accept | seconds | R-hat σ_w | bulk ESS σ_w | tail ESS σ_w | divergences |
+    |---|---|---|---|---|---|---|
+    | 1,000 | 0.9 | 298 | 1.010 | 238 | 379 | 1 |
+    | 2,000 | 0.95 | 272 | 1.011 | 177 | 280 | 0 |
+    | 3,000 | 0.99 | 1,092 | 1.023 | 207 | 374 | 0 |
+
+    Longer warm-up and smaller steps don't help, so the problem is mixing, not adaptation.
+    The full walk had one innovation per team per month (12,096 here), and most of them fall
+    in months a side doesn't play.
+
+    **Fix: an exact reparameterisation, not a model change.** The walk is now kept only at
+    each team's played months and its refit month, with innovation variance σ_w² × the months
+    since the team's previous node. A Gaussian walk observed at those months has exactly
+    this distribution, so the prior, the likelihood and prediction are unchanged. A test
+    checks it against the full monthly walk.
+
+    The refit cache moves to a new generation (`v0b`), so the failing 2019-01-07 fit is never
+    reused. Sampler settings stay at 1,000 draws and 1,000 warm-up × 4 chains,
+    target_accept 0.9.
 
 ## Cross-cutting
 

@@ -93,3 +93,27 @@ def test_predict_carries_the_walk_and_cold_sides() -> None:
     far = nt.predict(post, tg.with_columns(kickoff=pl.col("kickoff") + timedelta(days=720)),
                      ct.monday(K), 60)[0]  # fmt: skip
     assert far[0, 0] < p[0, 0]  # two years on, the stronger side's edge is less certain
+
+
+def test_walk_collapsed_onto_played_months_equals_the_monthly_walk() -> None:
+    rng = np.random.default_rng(1)
+    rows = []
+    for _ in range(120):
+        h, a = (int(x) for x in rng.choice(9, 2, replace=False))
+        rows.append((h, a, 1, 0, "32", "home", int(rng.integers(0, 700))))
+    tg = _tg(rows)
+    t = ct.monday(K + timedelta(days=900))
+    d = nt.design(tg, t, 0.5)
+    assert len(d.node_team) < len(d.teams) * d.n_months  # months off are marginalised out
+    steps = rng.standard_normal((len(d.teams), d.n_months - 1))
+    full = np.cumsum(np.c_[np.zeros(len(d.teams)), steps], 1)
+    first = np.r_[True, d.node_team[1:] != d.node_team[:-1]]
+    node_month = np.zeros(len(d.node_team), dtype=np.int64)
+    for j in range(len(d.node_team)):
+        node_month[j] = (0 if first[j] else node_month[j - 1]) + int(d.node_gap[j])
+    at = full[d.node_team, node_month]
+    w = nt.walk(at - np.where(first, 0.0, np.r_[0.0, at[:-1]]), d.node_team)
+    assert np.allclose(w[d.hn], full[d.hi, d.month]) and np.allclose(w[d.an], full[d.ai, d.month])
+    assert np.allclose(w[d.last_node], full[:, -1])  # each team's refit month
+    assert np.allclose(nt.walk(np.stack([w * 0 + 1, w * 0 + 2]), d.node_team)[1],
+                       2 * nt.walk(w * 0 + 1, d.node_team))  # (draws, nodes) as well  # fmt: skip

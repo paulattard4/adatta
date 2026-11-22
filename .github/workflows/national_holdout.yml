@@ -1,0 +1,81 @@
+# Stage D v1 promotion (docs/BEYOND_LEAGUES_PLAN.md, "D v1 international holdout run"): the
+# international holdout (2024-01-01 to 2026-07-31), opened ONCE with its own marker
+# ("international", adatta.eval.holdout). A second dispatch is refused by the marker, whatever
+# is typed here.
+#   claim   claims the marker for this run (refused if another run made the opening)
+#   refits  the walk-forward refits of the holdout weeks over 18 jobs, v1 exactly as on dev
+#           (same cache; a timed-out job is re-run in this run and keeps its cached refits)
+#   gate    the promotion checks 1, 3 and 4; friendlies, inference and leakage reported
+# The repo is public: logs carry metrics only. Match-level rows and draws go to R2
+# (national/...), never to workflow artifacts.
+# One backtest-type run at a time (backtest, gate, holdout, timing, cups, ..., continental,
+# national): two runs together fill the account's 20 job slots and starve the capture.
+name: national_holdout
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "type OPEN to open the international holdout (once)"
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: national
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  claim:
+    if: ${{ inputs.confirm == 'OPEN' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: claim the international opening
+        run: >-
+          uv run --frozen --group model python -m adatta.model.national claim
+          --run ${{ github.run_id }} --commit ${{ github.sha }}
+  refits:
+    needs: claim
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        part: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: holdout refits (metrics only)
+        run: >-
+          uv run --frozen --group model python -m adatta.model.national refits
+          --part ${{ matrix.part }}/18 --upload ${{ github.run_id }}
+          --holdout ${{ github.run_id }}
+  gate:
+    needs: refits
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: v1 against B_elo on the holdout (metrics and verdict only)
+        run: >-
+          uv run --frozen --group model python -m adatta.model.national gate
+          --fetch ${{ github.run_id }} --parts 18
+          --holdout ${{ github.run_id }} | tee -a "$GITHUB_STEP_SUMMARY"

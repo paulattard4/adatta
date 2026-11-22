@@ -6,11 +6,15 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import numpy as np
 import polars as pl
 import pytest
 
+from adatta.adapters.storage import LocalStore
+from adatta.eval import holdout as ho
+from adatta.eval.harness import HoldoutKey, HoldoutLocked
 from adatta.model import continental as ct
 from adatta.model import national as nt
 
@@ -165,3 +169,33 @@ def test_v1_priors_as_amended() -> None:
     # D v1 amendment: only the confederation and openness widths changed from v0
     assert nt.VERSION == "v1" and (nt.CONF_SD, nt.SIGMA_O_SD) == (3.0, 0.3)
     assert nt._cache_key(K, 0.5, 1.0).startswith(f"{nt.PREFIX}/refits/v1")  # no v0 fit reused
+
+
+def test_holdout_targets_need_the_international_opening(tmp_path: Path) -> None:
+    nt.check_upto(nt.HOLDOUT_FROM, None)  # dev needs no key
+    for key in (None, HoldoutKey("1"), HoldoutKey("1", "cups")):
+        with pytest.raises(HoldoutLocked):
+            nt.targets(None, LocalStore(tmp_path), nt.LIVE_FROM, key)
+    nt.check_upto(nt.LIVE_FROM, HoldoutKey("1", nt.OPENING))
+    with pytest.raises(ValueError, match="live period"):
+        nt.check_upto(nt.LIVE_FROM + timedelta(days=1), HoldoutKey("1", nt.OPENING))
+
+
+def test_international_opening_claimed_once_for_this_version(tmp_path: Path) -> None:
+    store = LocalStore(tmp_path)
+    ho.claim(store, "1", "phase1b_strength_open_xg", "abc")  # the 1b opening exists
+    m = ho.claim(store, "7", nt.model_name(), "def", nt.OPENING)
+    assert m["model"] == "national_v1" and (tmp_path / ho.MARKERS["international"]).exists()
+    with pytest.raises(HoldoutLocked, match="made once"):
+        ho.claim(store, "8", nt.model_name(), "def", nt.OPENING)
+    with pytest.raises(HoldoutLocked):
+        ho.unlock(store, "8", nt.model_name(), nt.OPENING)
+    assert ho.unlock(store, "7", nt.model_name(), nt.OPENING) == HoldoutKey("7", nt.OPENING)
+
+
+def test_holdout_promotion_is_checks_1_3_4_and_dev_is_every_check() -> None:
+    checks = {"1 v1 beats B_elo": True, "3 segments": True, "4 1X2 ECE": True,
+              "5 inference gates on every refit": False, "6 leakage": True}  # fmt: skip
+    assert nt.passed(checks, holdout=True) and not nt.passed(checks, holdout=False)
+    assert not nt.passed({**checks, "4 1X2 ECE": False}, holdout=True)
+    assert nt.HOLDOUT == (nt.HOLDOUT_FROM, nt.LIVE_FROM) and nt.DEV[1] == nt.HOLDOUT_FROM

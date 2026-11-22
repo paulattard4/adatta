@@ -24,6 +24,7 @@ MARKERS = {
     "phase1b": MARKER,
     "phase2": "backtest/holdout/opened_phase2.json",  # D30
     "cups": "backtest/holdout/opened_cups.json",  # Stage A/B: the cup ties, once
+    "international": "backtest/holdout/opened_international.json",  # Stage D, once
 }
 
 

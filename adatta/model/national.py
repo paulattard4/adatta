@@ -14,7 +14,13 @@ CLI (CI, model group; one backtest-type run at a time):
                                 targets of its week -> national/parts/RUN/<i>of<n>.*
   gate   --fetch RUN --parts n  the Elo, the gate, prior sensitivity and leakage; metrics
                                 only to stdout, scored rows to R2 (national/reports/RUN/)
-Holdout matches (from HOLDOUT_FROM) are never loaded here. Logs carry metrics, never data.
+  claim  --run RUN --commit SHA opens the international holdout for RUN, once (marker
+                                "international", eval.holdout)
+  refits/gate --holdout RUN     the same on the holdout window, only for the run that holds
+                                the marker; the gate is then checks 1, 3 and 4 (plan, "D v1
+                                international holdout run"), the rest reported
+Holdout matches (from HOLDOUT_FROM) are loaded only with that key. Logs carry metrics, never
+data.
 """
 
 from __future__ import annotations
@@ -35,6 +41,7 @@ from numpy.typing import NDArray
 
 from adatta.adapters.storage import RawStore, make_store, try_get
 from adatta.config import get_settings
+from adatta.eval.harness import HoldoutKey, HoldoutLocked
 from adatta.model import continental as ct
 
 Arr = NDArray[np.float64]
@@ -54,6 +61,8 @@ LIVE_FROM = datetime(2026, 8, 1, tzinfo=UTC)
 WINDOW = timedelta(days=3652)  # fit window cap: the last 10 years
 LAG = timedelta(hours=3)
 SEED = 20261121
+OPENING = "international"  # the holdout marker (eval.holdout)
+PROMOTION = ("1", "3", "4")  # the holdout's promotion checks (acceptance, "Then")
 # 2019-01-07 variants (runs 44997123915, 45001012300, 45002314691): sigma_w needs 3,000 draws
 # for ESS >= 400 and target_accept 0.98 for no divergences; a centred walk doesn't mix
 DRAWS, TUNE, CHAINS = 3000, 1000, 4
@@ -151,16 +160,29 @@ def refit_times(tg: pl.DataFrame, start: datetime, end: datetime) -> list[dateti
 # --------------------------------------------------------------------------- targets
 
 
-def targets(session: Any, store: RawStore, upto: datetime = HOLDOUT_FROM) -> pl.DataFrame:
+def model_name() -> str:
+    return f"national_{VERSION}"
+
+
+def check_upto(upto: datetime, holdout: HoldoutKey | None) -> None:
+    """Targets past HOLDOUT_FROM need the international opening's key; nothing past the
+    holdout (the live period) is loaded for evaluation."""
+    if upto > LIVE_FROM:
+        raise ValueError("evaluation targets end at the live period")
+    if upto > HOLDOUT_FROM and (holdout is None or holdout.opening != OPENING):
+        raise HoldoutLocked("the international holdout is opened only by its own marker")
+
+
+def targets(session: Any, store: RawStore, upto: datetime = HOLDOUT_FROM,
+            holdout: HoldoutKey | None = None) -> pl.DataFrame:  # fmt: skip
     """Finished matches between two senior men's national sides that each have a
     confederation, kickoff in [WARM_FROM, upto), with the 90' score and the host role."""
+    check_upto(upto, holdout)
     from sqlalchemy import select
 
     from adatta.db import models
     from adatta.features import host, team_levels
 
-    if upto > HOLDOUT_FROM:
-        raise ValueError("the international holdout is opened only by its own marker")
     M, S, C, R = models.Match, models.Season, models.Competition, models.MatchResult
     every = session.execute(
         select(M.home_team_id, M.away_team_id, C.source_ref)
@@ -624,13 +646,22 @@ def cached_fit(store: RawStore, tg: pl.DataFrame, t: datetime, friendly_weight: 
     return post, diag
 
 
-def run_part(store: RawStore, tg: pl.DataFrame, part: tuple[int, int],
-             friendly_weight: float) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
-    times = refit_times(tg, DEV_FROM, HOLDOUT_FROM)
+Window = tuple[datetime, datetime]
+DEV: Window = (DEV_FROM, HOLDOUT_FROM)
+HOLDOUT: Window = (HOLDOUT_FROM, LIVE_FROM)
+
+
+def in_window(window: Window) -> pl.Expr:
+    return (pl.col("kickoff") >= window[0]) & (pl.col("kickoff") < window[1])
+
+
+def run_part(store: RawStore, tg: pl.DataFrame, part: tuple[int, int], friendly_weight: float,
+             window: Window = DEV) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
+    times = refit_times(tg, *window)
     mine = times[part[0] :: part[1]]
     rows, diags = [], []
     for t in mine:
-        tgt = tg.filter((pl.col("monday") == t) & (pl.col("kickoff") >= DEV_FROM))
+        tgt = tg.filter((pl.col("monday") == t) & in_window(window))
         post, diag = cached_fit(store, tg, t, friendly_weight)
         p, xg = predict(post, tgt, t, int(diag["n_months"]))
         rows.append(tgt.with_columns(
@@ -651,7 +682,7 @@ def run_part(store: RawStore, tg: pl.DataFrame, part: tuple[int, int],
 
 
 def gate(
-    scored: pl.DataFrame, elo_p: Arr, diags: list[dict[str, Any]]
+    scored: pl.DataFrame, elo_p: Arr, diags: list[dict[str, Any]], period: str = "dev"
 ) -> tuple[str, dict[str, Any]]:
     y = ct.outcome(scored["hg"].to_numpy(), scored["ag"].to_numpy())
     pv = scored.select("v0_home", "v0_draw", "v0_away").to_numpy()
@@ -705,8 +736,8 @@ def gate(
     failed = Counter(f for d in diags for f in d["failed"])
     warned = Counter(f for d in diags for f in d.get("warnings", []))
     lines = [
-        f"# Stage D {VERSION} on dev: senior men's national teams", "",
-        f"{len(y)} dev matches ({int(comp.sum())} competitive, {int(fr.sum())} friendlies), "
+        f"# Stage D {VERSION} on {period}: senior men's national teams", "",
+        f"{len(y)} {period} matches ({int(comp.sum())} competitive, {int(fr.sum())} friendlies), "
         f"{len(diags)} refits.", "| model | segment | 1X2 log loss | RPS |", "|---|---|---|---|",
         *[f"| {VERSION if m == 'v0' else m} | {nm} | {ll[m][s].mean():.4f} | "
           f"{rp[m][s].mean():.4f} |"
@@ -800,11 +831,18 @@ def leakage(tg: pl.DataFrame, scored: pl.DataFrame, elo: dict[int, float],
 # ------------------------------------------------------------------------------- CLI
 
 
-def _load(store: RawStore) -> pl.DataFrame:
+def passed(checks: dict[str, bool], holdout: bool) -> bool:
+    """Dev: every check. The holdout: the promotion checks 1, 3 and 4 alone."""
+    return all(v for k, v in checks.items() if not holdout or k.split(" ", 1)[0] in PROMOTION)
+
+
+def _load(store: RawStore, upto: datetime = HOLDOUT_FROM,
+          holdout: HoldoutKey | None = None) -> pl.DataFrame:  # fmt: skip
     from adatta.db.session import get_session
 
+    check_upto(upto, holdout)
     with get_session() as s:
-        tg = targets(s, store)
+        tg = targets(s, store, upto, holdout)
         s.rollback()
     return tg
 
@@ -828,14 +866,32 @@ def main(argv: Sequence[str] | None = None) -> None:
     s2.add_argument("--fetch", required=True)
     s2.add_argument("--parts", type=int, required=True)
     s2.add_argument("--friendly-weight", type=float, default=FRIENDLY_WEIGHT)
+    for s_ in (s1, s2):
+        s_.add_argument("--holdout", default="", help="the run that holds the opening")
+    s3 = sub.add_parser("claim")
+    s3.add_argument("--run", required=True)
+    s3.add_argument("--commit", required=True)
     args = ap.parse_args(argv)
     store = make_store(get_settings())
-    tg = _load(store)
+    from adatta.eval import holdout as ho
+
+    if args.cmd == "claim":
+        m = ho.claim(store, args.run, model_name(), args.commit, OPENING)
+        print(f"international holdout opened by run {m['run_id']} at {m['opened_at']} "
+              f"({m['model']}, {m['commit']})")  # fmt: skip
+        return
+    key = None
+    if getattr(args, "holdout", ""):
+        key = ho.unlock(store, args.holdout, model_name(), OPENING)
+    window, period = (HOLDOUT, "the international holdout") if key else (DEV, "dev")
+    tg = _load(store, window[1], key)
     fw = args.friendly_weight
-    times = refit_times(tg, DEV_FROM, HOLDOUT_FROM)
-    print(f"targets {tg.height} (warm-up {tg.filter(pl.col('kickoff') < DEV_FROM).height}, dev "
-          f"{tg.filter(pl.col('kickoff') >= DEV_FROM).height}); teams "
-          f"{len(set(tg['home'].to_list()) | set(tg['away'].to_list()))}; dev refits "
+    times = refit_times(tg, *window)
+    win = tg.filter(in_window(window))
+    print(f"targets {tg.height} (before the window "
+          f"{tg.filter(pl.col('kickoff') < window[0]).height}, {period} {win.height}, of which "
+          f"competitive {win.filter(pl.col('type') != 'friendly').height}); teams "
+          f"{len(set(tg['home'].to_list()) | set(tg['away'].to_list()))}; refits "
           f"{len(times)}; friendly weight {fw:g}", flush=True)  # fmt: skip
     if args.cmd == "time":
         at = ct.monday(datetime.fromisoformat(args.at).replace(tzinfo=UTC))
@@ -865,7 +921,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         return
     if args.cmd == "refits":
         i, n = (int(x) for x in args.part.split("/"))
-        scored, diags = run_part(store, tg, (i, n), fw)
+        scored, diags = run_part(store, tg, (i, n), fw, window)
         base = f"{PREFIX}/parts/{args.upload}/{i}of{n}"
         buf = io.BytesIO()
         scored.write_parquet(buf, compression="zstd")
@@ -885,26 +941,33 @@ def main(argv: Sequence[str] | None = None) -> None:
         diags += json.loads(rawd)
     scored = pl.concat(frames).sort("kickoff", "match_id")
     diags.sort(key=lambda d: d["as_of"])
-    if len(diags) != len(times) or scored.height != tg.filter(pl.col("kickoff") >= DEV_FROM).height:
+    if key and args.fetch != args.holdout:
+        raise HoldoutLocked("the holdout gate reads only its own run's refits")
+    if len(diags) != len(times) or scored.height != tg.filter(in_window(window)).height:
         raise SystemExit(f"incomplete: {len(diags)} of {len(times)} refits, {scored.height} rows")
     elo = elo_at(tg, [(r["match_id"], r["monday"]) for r in tg.iter_rows(named=True)])
     pe = elo_probs(tg, scored, elo)
-    text, rep = gate(scored, pe, diags)
-    last_t = datetime.fromisoformat(diags[-1]["as_of"])
-    base_post, _ = cached_fit(store, tg, last_t, fw)
-    sens = sensitivity(store, tg, last_t, fw, base_post)
+    text, rep = gate(scored, pe, diags, period)
     leak = leakage(tg, scored, elo, diags)
-    rep["checks"]["5 inference gates on every refit"] = (
-        rep["checks"]["5 inference gates on every refit"]
-        and all(v["passed"] for v in sens.values()))  # fmt: skip
     rep["checks"]["6 leakage"] = leak["ok"]
-    rep["passed"] = all(rep["checks"].values())
-    text += ("Prior sensitivity at the last refit (worst shift in posterior sds): "
-             + "; ".join(f"{k} {v['worst']:.2f} ({v['detail']}) {'pass' if v['passed'] else 'FAIL'}"
-                         for k, v in sens.items()) + "\n"
-             f"6 leakage: {leak['changed']} of {leak['n']} sampled targets changed: "
+    sens: dict[str, Any] = {}
+    if key is None:
+        last_t = datetime.fromisoformat(diags[-1]["as_of"])
+        base_post, _ = cached_fit(store, tg, last_t, fw)
+        sens = sensitivity(store, tg, last_t, fw, base_post)
+        rep["checks"]["5 inference gates on every refit"] = (
+            rep["checks"]["5 inference gates on every refit"]
+            and all(v["passed"] for v in sens.values()))  # fmt: skip
+        text += ("Prior sensitivity at the last refit (worst shift in posterior sds): "
+                 + "; ".join(f"{k} {v['worst']:.2f} ({v['detail']}) "
+                             f"{'pass' if v['passed'] else 'FAIL'}" for k, v in sens.items())
+                 + "\n")  # fmt: skip
+    rep["passed"] = passed(rep["checks"], holdout=key is not None)
+    text += (f"6 leakage: {leak['changed']} of {leak['n']} sampled targets changed: "
              f"{'pass' if leak['ok'] else 'FAIL'}.\n"
-             f"**Stage D {VERSION} {'PASSES' if rep['passed'] else 'FAILS'} on dev.**\n"
+             + ("Promotion gate on the holdout: checks 1, 3 and 4; 5 and 6 reported.\n"
+                if key else "")
+             + f"**Stage D {VERSION} {'PASSES' if rep['passed'] else 'FAILS'} on {period}.**\n"
              )  # fmt: skip
     out = scored.with_columns(elo_home=pl.Series(pe[:, 0]), elo_draw=pl.Series(pe[:, 1]),
                               elo_away=pl.Series(pe[:, 2]))  # fmt: skip

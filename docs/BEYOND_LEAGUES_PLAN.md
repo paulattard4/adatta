@@ -1480,6 +1480,55 @@ alternative fits pass their sampler gates):
 - The gate report labelled check 1 "v0 beats B_elo" in this run. That was a hard-coded label;
   the scores are v1's. The label now follows `VERSION`.
 
+### D v1 international holdout run (stated 2026-11-22 before opening; owner: "Yes, build holdout")
+
+This section states how the opening runs. It adds nothing to the acceptance's promotion gate.
+No holdout result rate or score has been read.
+
+- **Model frozen:**
+  - v1 exactly as run on dev at 94ad5f2: the same model, priors, friendlies at 0.5,
+    sampler, rerun rule and refit cache (`v1c`);
+  - B_elo with the same settings, the Elo and its ordered logit carried walk-forward
+    through the holdout.
+- **Opening:**
+  - Marker "international" (`eval.holdout`), claimed once by the run's first job.
+  - Every refit and gate job checks the run owns it. Any other run is refused, and the
+    holdout targets are loaded only with that key.
+  - A job that times out is re-run in the same run, and its cached refits are kept.
+- **Targets:**
+  - The holdout window, 2024-01-01 to 2026-07-31, with the same target rules as on dev.
+  - The acceptance counted 1,701 competitive matches and 814 friendlies when it was written.
+    The run reports the count it loads.
+- **Refits:**
+  - One refit on the Monday of every week with a holdout target, trained on every match
+    final by that Monday (warm-up, dev and earlier holdout weeks) within the 10-year cap.
+  - Each target uses its week's refit, as on dev.
+- **Promotion gate** (the acceptance: "checks 1, 3 and 4 as the promotion gate and 2
+  reported"):
+  1. v1 beats B_elo on competitive holdout matches on 1X2 log loss and RPS, each paired 95%
+     interval excluding 0.
+  2. No segment with n ≥ 100 is worse than B_elo by more than 1.0%. The segments are the
+     same as on dev: confederation competitions, finals, and qualifiers / Nations Leagues.
+  3. 1X2 ECE is within its noise floor on qualifiers and Nations Leagues.
+- **Reported, not gated:**
+  - friendlies (check 2);
+  - the inference gates of every holdout refit (check 5);
+  - leakage on 50 sampled targets (check 6);
+  - host roles and the parameters at the last refit.
+  - Prior sensitivity is a dev check and is not rerun.
+- **Outcome:**
+  - On a pass, v1 is promoted to serving, labelled team-only, as the acceptance states.
+  - On a fail, it is not served. Stage D closes at that result, with no retuning on the
+    holdout.
+- **Built (2026-11-22):**
+  - `eval/holdout.py`: marker "international".
+  - `adatta/model/national.py`: `claim`, plus `refits` and `gate` with `--holdout RUN`.
+    Targets past 2024-01-01 load only with the opening's key, and nothing past 2026-07-31
+    loads at all.
+  - `.github/workflows/national_holdout.yml`: claim, then 18 refit jobs, then the gate. It
+    is dispatched with confirm OPEN.
+  - Tests: 3 new.
+
 ## Cross-cutting
 
 - **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,

@@ -4,6 +4,7 @@ negative binomial score matrix and the walk carried to the match month."""
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
@@ -117,3 +118,44 @@ def test_walk_collapsed_onto_played_months_equals_the_monthly_walk() -> None:
     assert np.allclose(w[d.last_node], full[:, -1])  # each team's refit month
     assert np.allclose(nt.walk(np.stack([w * 0 + 1, w * 0 + 2]), d.node_team)[1],
                        2 * nt.walk(w * 0 + 1, d.node_team))  # (draws, nodes) as well  # fmt: skip
+
+
+class _Store:
+    def __init__(self) -> None:
+        self.d: dict[str, bytes] = {}
+
+    def put(self, key: str, data: bytes) -> None:
+        self.d[key] = data
+
+    def get(self, key: str) -> bytes:
+        if key not in self.d:
+            raise FileNotFoundError(key)
+        return self.d[key]
+
+
+def test_a_sampler_failure_is_refitted_once_at_twice_the_draws(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[int] = []
+    outcomes = iter([["rhat"], ["rhat"], [], ["identified conf OFC"]])
+
+    def fake_fit(*_: object, draws: int = nt.DRAWS, **__: object) -> nt.Post:
+        calls.append(draws)
+        f = next(outcomes)
+        return {"c": np.zeros(2)}, {"failed": f, "rhat": 1.02 if f else 1.0, "draws": draws}
+
+    monkeypatch.setattr(nt, "fit", fake_fit)
+    tg = _tg([(1, 2, 1, 0, "32", "home", 0)])
+    st = _Store()
+    t1, t2 = ct.monday(K) + timedelta(days=7), ct.monday(K) + timedelta(days=14)
+    _, d = nt.cached_fit(st, tg, t1, 0.5)  # fails, rerun fails too: it stands, no third fit
+    assert calls == [nt.DRAWS, nt.RERUN_DRAWS] and d["first_attempt"]["failed"] == ["rhat"]
+    assert nt.cached_fit(st, tg, t1, 0.5)[1]["failed"] == ["rhat"] and len(calls) == 2
+    _, d = nt.cached_fit(st, tg, t2, 0.5)  # passes first time: no rerun
+    assert calls[2:] == [nt.DRAWS] and "first_attempt" not in d
+    # a cached failure from before the rule is rerun when next read, the original kept
+    key = nt._cache_key(t2, 0.5, 1.0)
+    st.put(key + ".json", json.dumps({"failed": ["rhat"]}).encode())
+    _, d = nt.cached_fit(st, tg, t2, 0.5)  # its rerun fails a non-sampler check: no rerun
+    assert calls[3:] == [nt.RERUN_DRAWS] and key.removesuffix(".npz") + "_first.npz" in st.d
+    assert d["failed"] == ["identified conf OFC"]

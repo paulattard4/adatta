@@ -54,6 +54,9 @@ SEED = 20261121
 # 2019-01-07 variants (runs 44997123915, 45001012300, 45002314691): sigma_w needs 3,000 draws
 # for ESS >= 400 and target_accept 0.98 for no divergences; a centred walk doesn't mix
 DRAWS, TUNE, CHAINS = 3000, 1000, 4
+# a refit failing a sampler gate is refitted once at twice the draws (plan, 2026-11-22)
+RERUN_DRAWS = 6000
+SAMPLER_CHECKS = ("rhat", "ess_bulk", "ess_tail", "divergences")
 KEEP = 400  # posterior draws kept per refit for prediction
 MAX_GOALS = 20
 FRIENDLY_WEIGHT = 0.5
@@ -523,6 +526,7 @@ def fit(train: pl.DataFrame, t: datetime, friendly_weight: float = FRIENDLY_WEIG
     diag["posterior"] = {v: [float(np.mean(flat(v))), float(np.std(flat(v))),
                              *np.quantile(flat(v), [0.05, 0.95]).tolist()]
                          for v in ("sigma_w", "sigma_u", "sigma_o", "phi")}  # fmt: skip
+    diag["draws"] = draws
     diag.update(n_train=len(d.hg), n_teams=len(d.teams), n_months=d.n_months, seconds=secs,
                 train_max_kickoff=str(train["kickoff"].max()))  # fmt: skip
     return out, diag
@@ -586,14 +590,30 @@ def _cache_key(t: datetime, friendly_weight: float, prior_scale: float) -> str:
             f"{t:%Y%m%d}.npz")  # fmt: skip
 
 
+def sampler_failed(diag: dict[str, Any]) -> bool:
+    return any(c in diag["failed"] for c in SAMPLER_CHECKS)
+
+
 def cached_fit(store: RawStore, tg: pl.DataFrame, t: datetime, friendly_weight: float,
                prior_scale: float = 1.0) -> tuple[dict[str, Arr], dict[str, Any]]:  # fmt: skip
+    """The refit at t from the cache, or fitted and cached. The rerun rule (plan, 2026-11-22,
+    before any score): a fit that fails a sampler gate is refitted once at RERUN_DRAWS; the
+    rerun's result stands, pass or fail, and the first attempt is kept beside it."""
     key = _cache_key(t, friendly_weight, prior_scale)
     raw, rawd = try_get(store, key), try_get(store, key + ".json")
     if raw is not None and rawd is not None:
         z = np.load(io.BytesIO(raw))
-        return {k: np.asarray(z[k]) for k in z.files}, json.loads(rawd)
-    post, diag = fit(training(tg, t), t, friendly_weight, prior_scale)
+        post, diag = {k: np.asarray(z[k]) for k in z.files}, json.loads(rawd)
+        if not sampler_failed(diag) or "first_attempt" in diag:
+            return post, diag
+        store.put(key.removesuffix(".npz") + "_first.npz", raw)
+        store.put(key.removesuffix(".npz") + "_first.npz.json", rawd)
+    else:
+        post, diag = fit(training(tg, t), t, friendly_weight, prior_scale)
+    if sampler_failed(diag) and "first_attempt" not in diag:
+        first = {k: diag.get(k) for k in (*SAMPLER_CHECKS, "failed", "seconds", "draws")}
+        post, diag = fit(training(tg, t), t, friendly_weight, prior_scale, draws=RERUN_DRAWS)
+        diag["first_attempt"] = first
     buf = io.BytesIO()
     np.savez_compressed(buf, **post)  # type: ignore[arg-type]
     store.put(key, buf.getvalue())
@@ -695,6 +715,7 @@ def gate(
             f"{k} n {v['n']} {v['rel']:+.2%}" for k, v in roles.items()),
         "Calibration on qualifiers / Nations Leagues (ECE / limit): " + ", ".join(
             f"{o} {cal[o]['ece']:.3f}/{cal[o]['limit']:.3f}" for o in ("home", "draw", "away")),
+        f"Refits rerun at {RERUN_DRAWS:,} draws: {sum('first_attempt' in d for d in diags)}. "
         f"Refits failing a gate: {sum(not d['gates_ok'] for d in diags)} of {len(diags)}"
         + (f" ({', '.join(f'{k} {v}' for k, v in failed.most_common())})" if failed else "")
         + (f"; warnings {', '.join(f'{k} {v}' for k, v in warned.most_common())}"

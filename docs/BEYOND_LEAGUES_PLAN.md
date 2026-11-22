@@ -1259,6 +1259,32 @@ score (June 2014 to 18 Nov 2026).
     the PPC and scoring, the average is about 28 minutes per refit. 151 refits come to about
     70 hours, or about 4 hours per job over 18 jobs (8 or 9 refits each, spread over the
     window). That is inside the 6-hour job limit.
+  - **Rerun rule (2026-11-22, owner: "Yes, refit at 6,000"; before any score).** The
+    backtest's refits run (45007552857) was still going. With 95 of 151 refits cached, 5 had
+    failed R-hat on σ_w alone, each just over the limit, with ESS 506–890 and no divergences.
+
+    | refit | R-hat σ_w |
+    |---|---|
+    | 2019-01-21 | 1.0118 |
+    | 2019-01-28 | 1.0114 |
+    | 2019-10-07 | 1.0112 |
+    | 2019-10-14 | 1.0105 |
+    | 2020-10-19 | 1.0107 |
+
+    **The rule:**
+    - Any refit that fails a sampler gate (R-hat, bulk or tail ESS, divergences) is refitted
+      once at 6,000 draws per chain.
+    - The rerun's result stands, pass or fail. There is no third fit, and the first attempt
+      is kept in the cache beside it (`_first`).
+    - A failure on PPC or identifiability is not rerun, because more draws can't fix it.
+
+    **The gate is unchanged:** every refit must pass. The rule uses convergence diagnostics
+    only, never a score.
+
+    **Mechanics:** in `cached_fit`, so the backtest refits, the gate's base fit and the prior
+    sensitivity fits follow it alike. After the main run, the refits stage runs again. Cached
+    refits load as they are, and the failing ones rerun, so every part is rescored. The gate
+    reads that second run and reports how many refits were rerun.
 
 ## Cross-cutting
 

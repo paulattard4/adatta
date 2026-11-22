@@ -1183,7 +1183,7 @@ score (June 2014 to 18 Nov 2026).
   - one refit is timed first, and the run is planned from that (CI, 18 parallel jobs, one
     backtest-type run at a time).
 
-- [ ] **D v0 build (2026-11-21), before any score:**
+- [x] **D v0 build (2026-11-21), before any score:**
   - **Code:**
     - `adatta/model/national.py`: targets, confederations, host roles, the v0 model
       (PyMC with NumPyro), prediction, B_elo, the gate, prior sensitivity and leakage;
@@ -1285,6 +1285,79 @@ score (June 2014 to 18 Nov 2026).
     sensitivity fits follow it alike. After the main run, the refits stage runs again. Cached
     refits load as they are, and the failing ones rerun, so every part is rescored. The gate
     reads that second run and reports how many refits were rerun.
+
+### D v0 dev result (2026-11-22): FAILS on prior sensitivity alone
+
+**Runs:** refits 45007552857 (151 refits, about 4 h); reruns plus rescoring 45028591890; gate
+45031998495. The scores and verdict are in R2 under `national/reports/45028591890/`. There
+are 4,137 dev matches: 2,943 competitive and 1,194 friendlies.
+
+| model | segment | 1X2 log loss | RPS |
+|---|---|---|---|
+| v0 | competitive | 0.8340 | 0.1621 |
+| B_elo | competitive | 0.8724 | 0.1726 |
+| v0 | friendlies (reported) | 0.9167 | 0.1809 |
+| B_elo | friendlies (reported) | 0.9740 | 0.1972 |
+
+**v0 against B_elo, competitive (n 2,943):**
+- log loss −0.0384 [−0.0478, −0.0290], −4.40%;
+- RPS −0.0106 [−0.0132, −0.0079], −6.12%.
+
+**Friendlies (reported):** log loss −5.89% and RPS −8.27%, both intervals below 0.
+
+**Segments, competitive log loss against B_elo:**
+
+| segment | n | change |
+|---|---|---|
+| AFC | 377 | −7.71% |
+| CAF | 629 | −3.92% |
+| CONCACAF | 554 | −7.50% |
+| CONMEBOL | 170 | −2.22% |
+| UEFA | 1,135 | −2.50% |
+| OFC (reported) | 11 | −28.27% |
+| world (reported) | 67 | +0.42% |
+| finals | 700 | −5.70% |
+| qualifiers | 2,243 | −4.00% |
+
+By host role: home −2.39%, neutral −6.39%, unknown −7.86%, swapped (n 53) −9.66%.
+
+**Calibration on qualifiers and Nations Leagues (ECE against limit):** home 0.026/0.031, draw
+0.010/0.022, away 0.024/0.029.
+
+**Inference:**
+- Every refit passes, 0 of 151 failing.
+- 5 refits were rerun at 6,000 draws under the rule, and all passed: R-hat ≤ 1.004, ESS ≥
+  1,068.
+- Worst R-hat 1.009, no divergences, slowest refit 2,983 s.
+- The dispersion PPC warning (non-blocking) appeared on 8 refits.
+
+**At the last refit:** conf CONMEBOL +0.815, CONCACAF −1.916, CAF −0.747, AFC −1.629,
+OFC −2.708; h +0.306, h_u +0.253; g (qualifier, finals) +0.006, +0.070; σ_w 0.041, σ_u 1.057,
+σ_o 0.203, φ 65.9, ρ −0.031.
+
+| check | result |
+|---|---|
+| 1 beats B_elo on competitive matches | pass |
+| 3 segments | pass |
+| 4 calibration | pass |
+| 5 inference gates on every refit | pass |
+| 5 prior sensitivity | **FAIL** |
+| 6 leakage | pass (0 of 50 changed) |
+
+**Prior sensitivity at the 2023-12-25 refit**, shift in base posterior sds (both alternative
+fits pass their sampler gates):
+
+| | OFC | AFC | CONCACAF | σ_o | CAF |
+|---|---|---|---|---|---|
+| × 0.5 | **2.27** | **1.19** | **1.09** | 0.97 | 0.81 |
+| × 2 | 0.84 | 0.39 | 0.32 | 0.28 | 0.28 |
+
+**Reading:** the confederation prior, conf ~ Normal(0, 1) around UEFA's level, is too narrow
+for where the data put the other confederations (−0.75 to −2.71, up to 2.7 prior sds out).
+Halved, it pulls them toward UEFA. Doubled, it hardly matters, so the data, not the prior,
+set these levels at the stated width. The forecasting result is strong and consistent across
+segments, but the acceptance requires every headline mean to move less than 1 sd, so **v0
+fails on dev**. The international holdout is not opened.
 
 ## Cross-cutting
 

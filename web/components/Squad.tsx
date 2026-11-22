@@ -179,7 +179,7 @@ function Absences({ xs }: { xs: Absence[] }) {
   return (
     <div>
       {xs.map((a) => (
-        <div className="absence" key={`${a.name}-${a.since}`}>
+        <div className="absence" key={`${a.player_id}-${a.since}`}>
           <span className={`absence-tag ${a.status}`}>{a.status}</span>
           <span>{a.name}{a.reason && <span className="dim"> · {a.reason}</span>}
             <span className="dim small"> · listed since <span className="num">{kickoffLocal(a.since)}</span></span></span>

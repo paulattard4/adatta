@@ -66,7 +66,7 @@ export interface Lineup {
   observed_at: string; formation: string | null; coach: string | null; starters: SquadPlayer[]; bench: SquadPlayer[];
   pitch_formation: string | null; positional: boolean; pitch: PitchPlayer[];
 }
-export interface Absence { name: string; status: "out" | "doubtful" | string; reason: string | null; since: string }
+export interface Absence { player_id: number; name: string; status: "out" | "doubtful" | string; reason: string | null; since: string }
 export interface ProjectedPlayer {
   name: string; pos: string; p_start: number | null; p_bench: number | null; emin: number | null;
   status: string | null; status_as_of: string | null; section: "xi" | "bench" | "out" | "squad";

@@ -188,6 +188,7 @@ class Lineup(BaseModel):
 
 
 class Absence(BaseModel):
+    player_id: int  # names aren't unique: a team can list two "B. Traoré"
     name: str
     status: str  # "out" (missing) or "doubtful" (questionable)
     reason: str | None

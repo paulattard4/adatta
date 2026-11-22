@@ -702,7 +702,8 @@ def squad(session: Session, m: MatchRow, now: datetime,
                                              emin=None, status=status.get(pid), section="squad")
                           for pid, n, pos in al.registered(session, tid, as_of)
                           if pid not in in_pool]  # fmt: skip
-        absences = [sc.Absence(name=n, status=STATUS_LABEL.get(r.status, r.status),
+        absences = [sc.Absence(player_id=r.player_id, name=n,
+                               status=STATUS_LABEL.get(r.status, r.status),
                                reason=r.reason, since=_utc(r.valid_from))
                     for r, n in spells if r.team_id == tid]  # fmt: skip
         outcome = None

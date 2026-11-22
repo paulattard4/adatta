@@ -1359,6 +1359,46 @@ set these levels at the stated width. The forecasting result is strong and consi
 segments, but the acceptance requires every headline mean to move less than 1 sd, so **v0
 fails on dev**. The international holdout is not opened.
 
+### D v1 amendment (drafted 2026-11-22, after the v0 dev result; awaiting approval)
+
+**Disclosure:** this amendment is written after seeing v0's dev scores and its sensitivity
+table. It changes two prior widths and nothing else. Neither width is chosen to improve a
+score, and on dev v0 the data, not these priors, set the forecasts (the × 2 fit moves
+nothing past 0.84 sd). The international holdout stays closed until a version passes dev.
+
+**Changes:**
+
+| prior | v0 | v1 | why |
+|---|---|---|---|
+| conf (non-UEFA) | Normal(0, 1) | Normal(0, 3) | v0 puts the levels at −0.75 to −2.71, up to 2.7 prior sds out. |
+| σ_o | HalfNormal(0.1) | HalfNormal(0.3) | v0's posterior is 0.203, 2 prior sds out. Its × 0.5 shift was 0.97, just inside. |
+
+- **Confederation width:** a difference of 3 on the s scale is a goal-rate ratio of e^1.5 ≈
+  4.5 between average sides of two confederations, about the largest gap that is plausible.
+  So sd 3 is weakly informative. At × 0.5 (sd 1.5) OFC's v0 level is 1.8 prior sds out
+  rather than 5.4.
+- **Openness width:** HalfNormal(0.3) puts 0.203 at 0.7 prior sd, and at × 0.5 at 1.35.
+- **The identification check follows the prior:** conf is identified when its posterior sd
+  is below the prior sd, now 3 × the sensitivity scale. v0 hard-coded 1.
+
+**Unchanged from v0:** everything else, as stated and built.
+- the windows, targets and roles;
+- the model's other terms and priors: c, g, h, h_u, σ_u, σ_w, φ, ρ, the walk on played months
+  (exact);
+- friendlies weighted 0.5;
+- sampler settings and the rerun rule;
+- B_elo and the gate checks 1–6, including prior sensitivity at × 0.5 and × 2 with the same
+  1-sd criterion over the same headline means;
+- the friendlies-at-1.0 report.
+
+**Run:** a full new dev backtest under `VERSION = "v1"`, with its own refit cache. Nothing is
+reused from v0's fits. That is about 4 h of refits, any reruns, then about 1 h for the gate.
+
+**Stop rule:** if v1 fails dev, Stage D closes at that result. There is no v2 on prior
+widths. A later attempt would need a new model idea stated in advance, such as travel (raised
+in the acceptance) or FIFA or Elo cold starts. On a pass, the international holdout opens
+once, as the v0 acceptance states.
+
 ## Cross-cutting
 
 - **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,

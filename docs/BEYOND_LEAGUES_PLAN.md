@@ -1399,6 +1399,87 @@ widths. A later attempt would need a new model idea stated in advance, such as t
 in the acceptance) or FIFA or Elo cold starts. On a pass, the international holdout opens
 once, as the v0 acceptance states.
 
+### D v1 dev result (2026-11-22): PASSES on dev
+
+**Runs:** refits 45039184400 (151 fresh refits under `v1c`, about 4 h; nothing reused from
+v0); rerun pass and rescoring 45062788857; gate 45063077080. The scores and verdict are in R2
+under `national/reports/45062788857/`. Same 4,137 dev matches: 2,943 competitive and 1,194
+friendlies.
+
+| model | segment | 1X2 log loss | RPS |
+|---|---|---|---|
+| v1 | competitive | 0.8335 | 0.1619 |
+| B_elo | competitive | 0.8724 | 0.1726 |
+| v1 | friendlies (reported) | 0.9165 | 0.1808 |
+| B_elo | friendlies (reported) | 0.9740 | 0.1972 |
+
+**v1 against B_elo, competitive (n 2,943):**
+- log loss −0.0389 [−0.0484, −0.0295], −4.46%;
+- RPS −0.0107 [−0.0134, −0.0080], −6.20%.
+
+**Friendlies (reported):** log loss −5.91% and RPS −8.31%, both intervals below 0.
+
+**Segments, competitive log loss against B_elo:**
+
+| segment | n | change |
+|---|---|---|
+| AFC | 377 | −7.91% |
+| CAF | 629 | −3.94% |
+| CONCACAF | 554 | −7.59% |
+| CONMEBOL | 170 | −2.25% |
+| UEFA | 1,135 | −2.48% |
+| OFC (reported) | 11 | −32.01% |
+| world (reported) | 67 | +0.30% |
+| finals | 700 | −5.70% |
+| qualifiers | 2,243 | −4.08% |
+
+By host role: home −2.41%, neutral −6.53%, unknown −7.96%, swapped (n 53) −9.94%.
+
+**Calibration on qualifiers and Nations Leagues (ECE against limit):** home 0.024/0.031, draw
+0.011/0.022, away 0.023/0.029.
+
+**Inference:**
+- Every refit passes, 0 of 151 failing.
+- 7 refits were rerun at 6,000 draws under the rule, and all passed.
+- Worst R-hat 1.010, no divergences, slowest refit 2,855 s.
+- The dispersion PPC warning (non-blocking) appeared on 15 refits.
+
+**At the last refit:** conf CONMEBOL +0.790, CONCACAF −1.975, CAF −0.794, AFC −1.692,
+OFC −3.063; h +0.306, h_u +0.252; g (qualifier, finals) +0.006, +0.071; σ_w 0.0406, σ_u 1.063,
+σ_o 0.209, φ 65.8, ρ −0.031.
+
+| check | result |
+|---|---|
+| 1 beats B_elo on competitive matches | pass |
+| 3 segments | pass |
+| 4 calibration | pass |
+| 5 inference gates on every refit | pass |
+| 5 prior sensitivity | pass |
+| 6 leakage | pass (0 of 50 changed) |
+
+**Prior sensitivity at the 2023-12-25 refit**, six largest shifts in base posterior sds (both
+alternative fits pass their sampler gates):
+
+| × 0.5 | shift | × 2 | shift |
+|---|---|---|---|
+| conf OFC | 0.42 | conf OFC | 0.08 |
+| conf AFC | 0.22 | σ_u | 0.06 |
+| σ_w | 0.22 | σ_o | 0.05 |
+| c | 0.21 | conf AFC | 0.05 |
+| σ_u | 0.21 | g finals | 0.04 |
+| conf CONCACAF | 0.19 | conf CONMEBOL | 0.03 |
+
+**Reading:**
+- The wider priors did what the amendment intended. The worst × 0.5 shift falls from 2.27 to
+  0.42 sd, and σ_o from 0.97 to under 0.19.
+- The forecasts barely moved from v0: competitive log loss 0.8340 → 0.8335. The levels moved
+  outward where the v0 prior had held them: OFC −2.71 → −3.06, AFC −1.63 → −1.69.
+- **v1 passes on dev.**
+- Under the stop rule and the v0 acceptance, the international holdout now opens once, with v1
+  frozen as run here.
+- The gate report labelled check 1 "v0 beats B_elo" in this run. That was a hard-coded label;
+  the scores are v1's. The label now follows `VERSION`.
+
 ## Cross-cutting
 
 - **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,

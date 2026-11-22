@@ -683,7 +683,7 @@ def gate(
     qual = (scored["type"] == "qualifier").to_numpy()
     cal = ct.calibration(pv[qual], y[qual])
     checks = {
-        "1 v0 beats B_elo on competitive matches (log loss and RPS, intervals below 0)":
+        f"1 {VERSION} beats B_elo on competitive matches (log loss and RPS, intervals below 0)":
             main_["log_loss"]["hi"] < 0 and main_["rps"]["hi"] < 0,
         f"3 no checked segment (n >= {MIN_SEGMENT}) worse than B_elo by > 1.0%":
             all(v["rel"] <= 0.01 for v in segs.values() if v["checked"]),

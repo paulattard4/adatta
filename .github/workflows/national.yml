@@ -30,7 +30,7 @@ on:
         description: "friendlies' likelihood weight (0.5 in the acceptance)"
         default: "0.5"
       variants:
-        description: "time: sampler variants as JSON [[tune, target_accept], ...]; empty = cached fit"
+        description: "time: variants as JSON [[tune, target_accept, draws, \"c\" or \"nc\"], ...]; empty = cached fit"
         default: ""
 permissions:
   contents: read
@@ -63,7 +63,8 @@ jobs:
         run: >-
           uv run --frozen --group model python -m adatta.model.national time
           --at ${{ inputs.at }} --friendly-weight ${{ inputs.friendly_weight }}
-          ${{ matrix.v && format('--fresh --tune {0} --target-accept {1}', matrix.v[0], matrix.v[1]) || '' }}
+          ${{ matrix.v && format('--fresh --tune {0} --target-accept {1} --draws {2}', matrix.v[0], matrix.v[1], matrix.v[2]) || '' }}
+          ${{ matrix.v && matrix.v[3] == 'c' && '--centred' || '' }}
   refits:
     if: ${{ inputs.stage == 'refits' }}
     runs-on: ubuntu-latest

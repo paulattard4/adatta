@@ -338,7 +338,7 @@ def walk(innov: Any, node_team: NDArray[np.int64], xp: Any = np) -> Any:
     return cs - xp.take(cs - innov, start, axis=-1)  # less the sum before the team's first
 
 
-def _model(d: Design, prior_scale: float) -> Any:
+def _model(d: Design, prior_scale: float, centred: bool = False) -> Any:
     import pymc as pm
     import pytensor.tensor as pt
 
@@ -357,8 +357,14 @@ def _model(d: Design, prior_scale: float) -> Any:
         u_raw = pm.Normal("u_raw", 0.0, 1.0, shape=n)
         u = sigma_u * (u_raw - pt.dot(onehot, pt.dot(onehot.T, u_raw) / counts))
         sigma_w = pm.HalfNormal("sigma_w", 0.05 * ps)
-        z = pm.Normal("z", 0.0, 1.0, shape=len(d.node_team))
-        w = walk(sigma_w * np.sqrt(d.node_gap) * z, d.node_team, pt)
+        if centred:  # the same walk, its innovations sampled on their own scale
+            moved = np.flatnonzero(d.node_gap > 0)
+            dw = pm.Normal("dw", 0.0, sigma_w * np.sqrt(d.node_gap[moved]), shape=len(moved))
+            innov = pt.set_subtensor(pt.zeros(len(d.node_team))[moved], dw)
+        else:
+            z = pm.Normal("z", 0.0, 1.0, shape=len(d.node_team))
+            innov = sigma_w * np.sqrt(d.node_gap) * z
+        w = walk(innov, d.node_team, pt)
         sigma_o = pm.HalfNormal("sigma_o", 0.1 * ps)
         o_raw = pm.Normal("o_raw", 0.0, 1.0, shape=n)
         o = sigma_o * o_raw
@@ -443,7 +449,8 @@ def by_variable(idata: Any) -> dict[str, list[float]]:
 
 def fit(train: pl.DataFrame, t: datetime, friendly_weight: float = FRIENDLY_WEIGHT,
         prior_scale: float = 1.0, seed: int = SEED, tune: int = DRAWS,
-        target_accept: float = TARGET_ACCEPT) -> Post:  # fmt: skip
+        target_accept: float = TARGET_ACCEPT, draws: int = DRAWS,
+        centred: bool = False) -> Post:  # fmt: skip
     """One refit on `train` (every match final by t, within the window). Returns KEEP draws
     of the headline parameters, s at the refit's month and o per team (with `teams`,
     `team_conf`), and the §14.5 diagnostics."""
@@ -453,8 +460,8 @@ def fit(train: pl.DataFrame, t: datetime, friendly_weight: float = FRIENDLY_WEIG
 
     d = design(train, t, friendly_weight)
     t0 = time.time()
-    with _model(d, prior_scale):
-        idata = pm.sample(draws=DRAWS, tune=tune, chains=CHAINS, nuts_sampler="numpyro",
+    with _model(d, prior_scale, centred):
+        idata = pm.sample(draws=draws, tune=tune, chains=CHAINS, nuts_sampler="numpyro",
                           random_seed=seed, target_accept=target_accept,
                           progressbar=False)  # fmt: skip
     secs = time.time() - t0
@@ -466,7 +473,7 @@ def fit(train: pl.DataFrame, t: datetime, friendly_weight: float = FRIENDLY_WEIG
         x = np.asarray(post[v].values)
         return x.reshape(-1, *x.shape[2:])
 
-    n_all = CHAINS * DRAWS
+    n_all = CHAINS * draws
     idx = np.linspace(0, n_all - 1, KEEP).astype(np.int64)
     out: dict[str, Arr] = {k: flat(k)[idx] for k in HEADLINE}
     out["s_last"], out["o_last"] = flat("s_last")[idx], flat("o_last")[idx]
@@ -478,8 +485,12 @@ def fit(train: pl.DataFrame, t: datetime, friendly_weight: float = FRIENDLY_WEIG
     onehot = np.eye(len(CONFS))[d.team_conf]
     ur = flat("u_raw")[pidx]
     u = flat("sigma_u")[pidx][:, None] * (ur - (ur @ onehot / onehot.sum(0)) @ onehot.T)
-    w = walk(flat("sigma_w")[pidx][:, None] * np.sqrt(d.node_gap) * flat("z")[pidx],
-             d.node_team)  # fmt: skip
+    if centred:
+        innov = np.zeros((len(pidx), len(d.node_team)))
+        innov[:, d.node_gap > 0] = flat("dw")[pidx]
+    else:
+        innov = flat("sigma_w")[pidx][:, None] * np.sqrt(d.node_gap) * flat("z")[pidx]
+    w = walk(innov, d.node_team)
     lvl = conf[:, d.team_conf] + u
     o = flat("sigma_o")[pidx][:, None] * flat("o_raw")[pidx]
     gg = np.concatenate([np.zeros((len(pidx), 1)), flat("g")[pidx]], axis=1)
@@ -506,6 +517,9 @@ def fit(train: pl.DataFrame, t: datetime, friendly_weight: float = FRIENDLY_WEIG
     diag["gates_ok"] = not diag["failed"]
     diag["detail"] = {c_.name: c_.detail for c_ in checks if c_.detail}
     diag["by_var"] = by_var
+    diag["posterior"] = {v: [float(np.mean(flat(v))), float(np.std(flat(v))),
+                             *np.quantile(flat(v), [0.05, 0.95]).tolist()]
+                         for v in ("sigma_w", "sigma_u", "sigma_o", "phi")}  # fmt: skip
     diag.update(n_train=len(d.hg), n_teams=len(d.teams), n_months=d.n_months, seconds=secs,
                 train_max_kickoff=str(train["kickoff"].max()))  # fmt: skip
     return out, diag
@@ -775,6 +789,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     s0.add_argument("--fresh", action="store_true", help="fit without the cache (diagnosis)")
     s0.add_argument("--tune", type=int, default=DRAWS)
     s0.add_argument("--target-accept", type=float, default=TARGET_ACCEPT)
+    s0.add_argument("--draws", type=int, default=DRAWS)
+    s0.add_argument("--centred", action="store_true", help="centred walk innovations")
     s1 = sub.add_parser("refits")
     s1.add_argument("--part", default="0/1")
     s1.add_argument("--upload", required=True)
@@ -796,12 +812,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         at = ct.monday(datetime.fromisoformat(args.at).replace(tzinfo=UTC))
         if args.fresh:
             _, diag = fit(training(tg, at), at, fw, tune=args.tune,
-                          target_accept=args.target_accept)  # fmt: skip
+                          target_accept=args.target_accept, draws=args.draws,
+                          centred=args.centred)  # fmt: skip
         else:
             _, diag = cached_fit(store, tg, at, fw)
         print(
             f"sampler: tune {args.tune if args.fresh else DRAWS}, target_accept "
-            f"{args.target_accept if args.fresh else TARGET_ACCEPT}"
+            f"{args.target_accept if args.fresh else TARGET_ACCEPT}, draws "
+            f"{args.draws if args.fresh else DRAWS}, walk "
+            f"{'centred' if args.fresh and args.centred else 'non-centred'}"
         )
         print(f"refit {at:%Y-%m-%d}: {diag['n_train']} train, {diag['n_teams']} teams, "
               f"{diag['n_months']} months; {diag['seconds']:.0f} s; rhat {diag['rhat']:.3f}, "
@@ -810,6 +829,8 @@ def main(argv: Sequence[str] | None = None) -> None:
               f"{', '.join(diag['warnings']) or 'none'}")  # fmt: skip
         for k, v in diag.get("detail", {}).items():
             print(f"  {k}: {v}")
+        for k, v in diag.get("posterior", {}).items():
+            print(f"  posterior {k}: mean {v[0]:.4f}, sd {v[1]:.4f}, 5% {v[2]:.4f}, 95% {v[3]:.4f}")
         for k, v in diag.get("by_var", {}).items():
             print(f"  {k}: " + ", ".join(f"{x:.3f}" if x < 10 else f"{x:.0f}" for x in v))
         return

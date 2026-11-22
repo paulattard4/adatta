@@ -1224,8 +1224,41 @@ score (June 2014 to 18 Nov 2026).
     checks it against the full monthly walk.
 
     The refit cache moves to a new generation (`v0b`), so the failing 2019-01-07 fit is never
-    reused. Sampler settings stay at 1,000 draws and 1,000 warm-up × 4 chains,
-    target_accept 0.9.
+    reused.
+
+    **The collapsed walk alone didn't pass** (run 44999708891): 3,263 parameters, 252 s,
+    σ_w R-hat 1.035, bulk ESS 144 and 12 divergences. σ_w's posterior at this refit runs down
+    toward 0 (mean 0.036, 5% quantile 0.005).
+
+    | walk | draws per chain | target_accept | seconds | R-hat σ_w | bulk ESS σ_w | divergences |
+    |---|---|---|---|---|---|---|
+    | centred | 1,000 | 0.9 | 361 | 2.202 | 5 | 0 |
+    | centred | 3,000 | 0.9 | 715 | 1.761 | 6 | 0 |
+    | non-centred | 3,000 | 0.9 | 495 | 1.003 | 632 | 50 |
+    | non-centred | 3,000 | 0.95 | 488 | 1.010 | 610 | 7 |
+    | non-centred, 2,000 warm-up | 3,000 | 0.95 | 582 | 1.006 | 586 | 209 |
+    | **non-centred** | **3,000** | **0.98** | **758** | **1.007** | **539** | **0** |
+
+    The variants ran on runs 45001012300 and 45002314691. The centred walk doesn't mix. Below
+    0.98 the divergences come mostly from one chain.
+
+    **Settings:** non-centred walk, 1,000 warm-up + 3,000 draws × 4 chains, target_accept 0.98.
+    400 draws are still kept for prediction. The cache generation is `v0c` (nothing was
+    cached under `v0b`). These are sampler settings only, and the model is unchanged.
+
+    **Largest refit, 2023-12-25** (run 45003535919): 6,358 matches, 218 teams, 115 months,
+    7,171 parameters, 2,211 s of sampling (40 minutes for the job).
+    - It passes every gate: R-hat ≤ 1.004, the lowest bulk ESS 2,727 (σ_w), no divergences,
+      every confederation identified, PPC margin 4+ 0.113 observed against a median of 0.116.
+    - σ_w is well determined with ten years of data: 0.041 ± 0.005.
+    - Non-blocking warning: total-goals dispersion is 1.275 observed against a PPC median of
+      1.333. The negative binomial with φ ≈ 66 is slightly more spread than the data. This is
+      reported, not tuned.
+
+    **Backtest size:** from 758 s to 2,211 s of sampling, plus about 3 minutes per refit for
+    the PPC and scoring, the average is about 28 minutes per refit. 151 refits come to about
+    70 hours, or about 4 hours per job over 18 jobs (8 or 9 refits each, spread over the
+    window). That is inside the 6-hour job limit.
 
 ## Cross-cutting
 

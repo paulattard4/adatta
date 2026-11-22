@@ -40,9 +40,10 @@ from adatta.model import continental as ct
 Arr = NDArray[np.float64]
 PREFIX = "national"
 VERSION = "v0"
-# refit cache generation: "b" = the walk collapsed onto played months (the first "v0" cache
-# entry, 2019-01-07, was fitted with the full monthly walk and failed the sampler gates)
-CACHE_TAG = "b"
+# refit cache generation: "c" = the walk collapsed onto played months, 3,000 draws at
+# target_accept 0.98 (the first "v0" cache entry, 2019-01-07, was fitted with the full monthly
+# walk at 1,000 draws and failed the sampler gates; nothing was cached under "b")
+CACHE_TAG = "c"
 WARM_FROM = datetime(2014, 6, 1, tzinfo=UTC)
 DEV_FROM = datetime(2019, 1, 1, tzinfo=UTC)
 HOLDOUT_FROM = datetime(2024, 1, 1, tzinfo=UTC)  # locked: 2024-01-01 to 2026-07-31
@@ -50,7 +51,9 @@ LIVE_FROM = datetime(2026, 8, 1, tzinfo=UTC)
 WINDOW = timedelta(days=3652)  # fit window cap: the last 10 years
 LAG = timedelta(hours=3)
 SEED = 20261121
-DRAWS, CHAINS = 1000, 4
+# 2019-01-07 variants (runs 44997123915, 45001012300, 45002314691): sigma_w needs 3,000 draws
+# for ESS >= 400 and target_accept 0.98 for no divergences; a centred walk doesn't mix
+DRAWS, TUNE, CHAINS = 3000, 1000, 4
 KEEP = 400  # posterior draws kept per refit for prediction
 MAX_GOALS = 20
 FRIENDLY_WEIGHT = 0.5
@@ -426,7 +429,7 @@ HEADLINE = ("c", "g", "h", "h_u", "conf", "sigma_w", "sigma_u", "sigma_o", "phi"
 
 
 Post = tuple[dict[str, Arr], dict[str, Any]]
-TARGET_ACCEPT = 0.9
+TARGET_ACCEPT = 0.98
 
 
 def by_variable(idata: Any) -> dict[str, list[float]]:
@@ -448,7 +451,7 @@ def by_variable(idata: Any) -> dict[str, list[float]]:
 
 
 def fit(train: pl.DataFrame, t: datetime, friendly_weight: float = FRIENDLY_WEIGHT,
-        prior_scale: float = 1.0, seed: int = SEED, tune: int = DRAWS,
+        prior_scale: float = 1.0, seed: int = SEED, tune: int = TUNE,
         target_accept: float = TARGET_ACCEPT, draws: int = DRAWS,
         centred: bool = False) -> Post:  # fmt: skip
     """One refit on `train` (every match final by t, within the window). Returns KEEP draws
@@ -787,7 +790,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     s0.add_argument("--at", required=True)
     s0.add_argument("--friendly-weight", type=float, default=FRIENDLY_WEIGHT)
     s0.add_argument("--fresh", action="store_true", help="fit without the cache (diagnosis)")
-    s0.add_argument("--tune", type=int, default=DRAWS)
+    s0.add_argument("--tune", type=int, default=TUNE)
     s0.add_argument("--target-accept", type=float, default=TARGET_ACCEPT)
     s0.add_argument("--draws", type=int, default=DRAWS)
     s0.add_argument("--centred", action="store_true", help="centred walk innovations")
@@ -817,7 +820,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         else:
             _, diag = cached_fit(store, tg, at, fw)
         print(
-            f"sampler: tune {args.tune if args.fresh else DRAWS}, target_accept "
+            f"sampler: tune {args.tune if args.fresh else TUNE}, target_accept "
             f"{args.target_accept if args.fresh else TARGET_ACCEPT}, draws "
             f"{args.draws if args.fresh else DRAWS}, walk "
             f"{'centred' if args.fresh and args.centred else 'non-centred'}"

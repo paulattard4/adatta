@@ -1480,6 +1480,43 @@ alternative fits pass their sampler gates):
 - The gate report labelled check 1 "v0 beats B_elo" in this run. That was a hard-coded label;
   the scores are v1's. The label now follows `VERSION`.
 
+### D v1 friendlies at weight 1.0 on dev (2026-11-23, the acceptance's report)
+
+**Runs:** refits 45109126191 (151 fresh refits under `v1c/w1_s1`); rerun pass and rescoring
+45135996978; gate 45136407593. The scores are in R2 under `national/reports/45135996978/`.
+Everything else is v1 as run at 0.5, on the same 4,137 dev matches.
+
+| friendlies weight | competitive log loss | competitive RPS | friendlies log loss | friendlies RPS |
+|---|---|---|---|---|
+| 0.5 (as stated) | 0.8335 | 0.1619 | 0.9165 | 0.1808 |
+| 1.0 | 0.8310 | 0.1613 | 0.9140 | 0.1799 |
+| B_elo | 0.8724 | 0.1726 | 0.9740 | 0.1972 |
+
+**1.0 against 0.5, paired by match:**
+
+| segment | 1X2 log loss | RPS |
+|---|---|---|
+| competitive (n 2,943) | −0.0024 [−0.0043, −0.0005], −0.29% | −0.0007 [−0.0012, −0.0001], −0.41% |
+| friendlies (n 1,194) | −0.0024 [−0.0061, +0.0012], −0.26% | −0.0009 [−0.0020, +0.0002], −0.50% |
+
+- **Competitive segments, log loss of 1.0 against 0.5:**
+  - better: AFC −0.92%, CONCACAF −0.91%, CONMEBOL −0.53%, finals −0.36%, qualifiers −0.27%;
+  - about the same: CAF +0.08%, UEFA +0.04%.
+- **Gate at 1.0, against B_elo:** competitive log loss −4.74% [−0.0508, −0.0319], RPS −6.58%.
+- **Every check passes:**
+  - segments −2.44% to −8.75%;
+  - ECE home 0.022/0.031, draw 0.018/0.022, away 0.022/0.029;
+  - all 151 refits pass with no reruns needed: worst R-hat 1.010, no divergences;
+  - prior sensitivity worst shift 0.36 at × 0.5 and 0.06 at × 2;
+  - leakage 0 of 50.
+- **At the last refit:** σ_w 0.0468 (0.0406 at 0.5), φ 72.2 (65.8).
+
+**Reading:** full weight on friendlies is better on competitive matches, by a small margin
+whose interval excludes 0, and no checked segment is worse. The 0.5 down-weighting was a
+prior judgement (friendlies are less informative), and the data don't support it. Changing
+the weight to 1.0 would be the disclosed amendment the acceptance allows before the holdout.
+The owner decides.
+
 ### D v1 international holdout run (stated 2026-11-22 before opening; owner: "Yes, build holdout")
 
 This section states how the opening runs. It adds nothing to the acceptance's promotion gate.

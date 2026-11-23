@@ -1517,14 +1517,38 @@ prior judgement (friendlies are less informative), and the data don't support it
 the weight to 1.0 would be the disclosed amendment the acceptance allows before the holdout.
 The owner decides.
 
+### D v1 amendment 2: friendlies at weight 1.0 (2026-11-23, owner: "Amend to 1.0")
+
+**Disclosure:**
+- This change was chosen after seeing the dev scores at both weights.
+- The two weights are the only ones the acceptance named: 0.5 as stated and 1.0 as the
+  report. No other weight was tried.
+- The acceptance allows this change as a disclosed amendment before the holdout. The
+  holdout has not been opened.
+
+**Change:** friendlies' likelihood weight goes from 0.5 to 1.0 (`FRIENDLY_WEIGHT`). That means
+the likelihood has no down-weighting at all.
+
+**Why:**
+- On dev, 1.0 improves competitive 1X2 log loss by 0.29%, with the paired interval
+  [−0.0043, −0.0005] excluding 0. RPS improves by 0.41%.
+- No checked segment is worse.
+- It passes every dev check on its own run (above). So the amended model already has a
+  complete passing dev backtest, and no new dev run is needed.
+
+**Unchanged:** everything else in v1. The holdout runs v1 at weight 1.0 from the
+`v1c/w1_s1` refits:
+- the holdout code refuses any other weight;
+- the opening's marker records the model as `national_v1_w1`.
+
 ### D v1 international holdout run (stated 2026-11-22 before opening; owner: "Yes, build holdout")
 
 This section states how the opening runs. It adds nothing to the acceptance's promotion gate.
 No holdout result rate or score has been read.
 
 - **Model frozen:**
-  - v1 exactly as run on dev at 94ad5f2: the same model, priors, friendlies at 0.5,
-    sampler, rerun rule and refit cache (`v1c`);
+  - v1 exactly as run on dev, with friendlies at 1.0 (amendment 2, the 45109126191 dev run):
+    the same model, priors, sampler, rerun rule and refit cache (`v1c/w1_s1`);
   - B_elo with the same settings, the Elo and its ordered logit carried walk-forward
     through the holdout.
 - **Opening:**

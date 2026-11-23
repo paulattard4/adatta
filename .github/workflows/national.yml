@@ -27,8 +27,8 @@ on:
         description: "gate: the refits run id"
         default: ""
       friendly_weight:
-        description: "friendlies' likelihood weight (0.5 in the acceptance)"
-        default: "0.5"
+        description: "friendlies' likelihood weight (1.0 by amendment 2; 0.5 as first stated)"
+        default: "1"
       variants:
         description: "time: variants as JSON [[tune, target_accept, draws, \"c\" or \"nc\"], ...]; empty = cached fit"
         default: ""

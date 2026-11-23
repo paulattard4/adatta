@@ -185,7 +185,7 @@ def test_international_opening_claimed_once_for_this_version(tmp_path: Path) -> 
     store = LocalStore(tmp_path)
     ho.claim(store, "1", "phase1b_strength_open_xg", "abc")  # the 1b opening exists
     m = ho.claim(store, "7", nt.model_name(), "def", nt.OPENING)
-    assert m["model"] == "national_v1" and (tmp_path / ho.MARKERS["international"]).exists()
+    assert m["model"] == "national_v1_w1" and (tmp_path / ho.MARKERS["international"]).exists()
     with pytest.raises(HoldoutLocked, match="made once"):
         ho.claim(store, "8", nt.model_name(), "def", nt.OPENING)
     with pytest.raises(HoldoutLocked):

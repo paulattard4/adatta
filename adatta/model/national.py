@@ -4,7 +4,8 @@
 log lambda_home = c + g[type] + H(role) + (s_home - s_away)/2 + (o_home + o_away)/2
 s[i, month] = conf[i] + u[i] + w[i, month] (UEFA conf = 0; u sums to 0 within each
 confederation; w a Gaussian random walk per calendar month), o static and shrunk; negative
-binomial goals with the Dixon-Coles tau, renormalised; friendlies at likelihood weight 0.5.
+binomial goals with the Dixon-Coles tau, renormalised; friendlies at likelihood weight 1.0
+(amended from 0.5, plan "D v1 amendment 2").
 Against B_elo (the eloratings.net method, settings fixed in the acceptance).
 
 CLI (CI, model group; one backtest-type run at a time):
@@ -71,7 +72,7 @@ RERUN_DRAWS = 6000
 SAMPLER_CHECKS = ("rhat", "ess_bulk", "ess_tail", "divergences")
 KEEP = 400  # posterior draws kept per refit for prediction
 MAX_GOALS = 20
-FRIENDLY_WEIGHT = 0.5
+FRIENDLY_WEIGHT = 1.0  # amendment 2 (2026-11-23); 0.5 as first stated
 MIN_SEGMENT = 100  # segments with fewer competitive matches are reported, not checked
 LEAKAGE_N = 50
 FINISHED = ("FT", "AET", "PEN")
@@ -161,7 +162,7 @@ def refit_times(tg: pl.DataFrame, start: datetime, end: datetime) -> list[dateti
 
 
 def model_name() -> str:
-    return f"national_{VERSION}"
+    return f"national_{VERSION}_w{FRIENDLY_WEIGHT:g}"
 
 
 def check_upto(upto: datetime, holdout: HoldoutKey | None) -> None:
@@ -886,6 +887,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     window, period = (HOLDOUT, "the international holdout") if key else (DEV, "dev")
     tg = _load(store, window[1], key)
     fw = args.friendly_weight
+    if key and fw != FRIENDLY_WEIGHT:
+        raise HoldoutLocked(f"the holdout runs the stated friendlies weight {FRIENDLY_WEIGHT:g}")
     times = refit_times(tg, *window)
     win = tg.filter(in_window(window))
     print(f"targets {tg.height} (before the window "

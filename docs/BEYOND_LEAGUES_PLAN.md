@@ -1752,6 +1752,18 @@ exactly as run on the holdout. Nothing in the model changes.
   2. `stage=shadow as_of=2026-11-16` (test 6) must pass;
   3. the Monday schedule then refits whenever a servable match is within 14 days, and the
      capture tick projects.
+- **Switched on (2026-11-23):**
+  - **Promote** (run 45241466983): `national_v1_w1` recorded as champion, model_run 38,
+    from holdout run 45166498451.
+  - **Shadow, test 6** (run 45241607209): **PASSES.**
+    - Refit as of 2026-11-16 on 8,545 training matches, with no DB writes.
+    - 74 fixtures that week; the served 1X2 matches `predict` to 8.9e-16 (limit 1e-9).
+    - Fit 4,526 s (75 min), within the 2 h budget; 80 min for the whole job.
+    - No sampler failures and no rerun. No PPC check reported failing; the dispersion
+      warning (`ppc national total_dispersion`) is the one seen on 81 of 85 holdout refits.
+  - **Live from here:** no live refit exists yet, so the dashboard shows "No passing
+    national refit yet" until the first Monday with a servable match inside 14 days (the
+    December friendly, then the March 2027 window).
 
 ## Cross-cutting
 

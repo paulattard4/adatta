@@ -1590,6 +1590,72 @@ No holdout result rate or score has been read.
     is dispatched with confirm OPEN.
   - Tests: 3 new.
 
+### D v1 international holdout result (2026-11-23): PASSES, v1 (friendlies 1.0) promoted
+
+**Run:** 45166498451 at 5a872c7.
+- **Opening:** the claim at 2026-11-23 11:35 UTC took marker "international" as
+  `national_v1_w1`.
+- **Refits:** 85 holdout refits over 18 jobs, about 6 h; the gate took 1 min.
+- **Storage:** the scores and verdict are in R2 under `national/reports/45166498451/`.
+- **Matches:** 2,504 holdout matches, 1,701 competitive and 803 friendlies. The acceptance
+  counted 814 friendlies, from the database as it stood then. The competitive count is
+  unchanged.
+
+| model | segment | 1X2 log loss | RPS |
+|---|---|---|---|
+| v1 | competitive | 0.8279 | 0.1566 |
+| B_elo | competitive | 0.8637 | 0.1656 |
+| v1 | friendlies (reported) | 0.8868 | 0.1700 |
+| B_elo | friendlies (reported) | 0.9456 | 0.1868 |
+
+**Promotion gate (checks 1, 3 and 4): pass.**
+1. **Competitive against B_elo (n 1,701):**
+   - log loss −0.0358 [−0.0467, −0.0250], −4.15%;
+   - RPS −0.0090 [−0.0121, −0.0059], −5.41%.
+2. **Segments, competitive log loss against B_elo:**
+
+   | segment | n | change |
+   |---|---|---|
+   | AFC | 297 | −3.20% |
+   | CAF | 472 | −3.69% |
+   | CONCACAF | 261 | −8.74% |
+   | UEFA | 453 | −0.81% |
+   | world | 108 | −8.65% |
+   | finals | 372 | −4.98% |
+   | qualifiers | 1,329 | −3.88% |
+   | CONMEBOL (reported) | 92 | −3.61% |
+   | OFC (reported) | 18 | −19.02% |
+
+   No checked segment is worse. UEFA is the narrowest margin, as on dev (−2.48%).
+3. **Calibration on qualifiers and Nations Leagues (ECE against limit):** home 0.035/0.040,
+   draw 0.026/0.028, away 0.021/0.038. All pass, and draw is the closest.
+
+**Reported:**
+- **Friendlies:** log loss −6.21% [−0.0823, −0.0352] and RPS −9.00%.
+- **Host role:** home −2.27%, neutral −5.08%, unknown −6.62%, swapped (n 43) −7.60%.
+- **Leakage:** 0 of 50 sampled matches changed.
+- **Inference (check 5, reported on the holdout): 2 of 85 refits fail one PPC check.**
+  - Sampler: no reruns needed, worst R-hat 1.005, no divergences, slowest refit 4,420 s.
+  - The two failures are the 2026-02-23 and 2026-03-23 refits, on the national away-goals
+    mean: observed 1.101 against a PPC median of 1.122, a miss of 0.02 goals.
+  - The non-blocking dispersion warning appears on 81 of 85 refits (dev at 1.0: 13 of 151).
+    The observed total-goals variance/mean is 1.23–1.27 against the model's 1.30–1.34, so
+    the negative binomial is a little too dispersed for recent matches. φ rises from 72 to
+    85 over the window.
+  - Neither touches the gate. Both are carried to serving monitoring and to the next model
+    version.
+- **At the last refit (2026-07-13):** conf CONMEBOL +0.767, CONCACAF −1.953, CAF −0.693,
+  AFC −1.647, OFC −3.077; h +0.285, h_u +0.213; g (qualifier, finals) +0.002, +0.058;
+  σ_w 0.0377, σ_u 1.071, σ_o 0.214, φ 85.3, ρ −0.056.
+
+**Outcome:**
+- Stage D v1, with friendlies at 1.0, is promoted.
+- The next step from the acceptance is serving. Senior men's matches between two of the 218
+  sides are served (90', 1X2 and scores, labelled team-only). Other national matches show
+  why they aren't served, and nothing betting-facing is shown for youth sides.
+- The international holdout is now spent. Any later national model is judged on the live
+  period from 2026-08-01.
+
 ## Cross-cutting
 
 - **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,

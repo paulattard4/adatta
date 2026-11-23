@@ -528,6 +528,135 @@ Acceptance (stated 2026-11-16, before building):
       when the holdout ties or live cup ties add data, under a gate stated then. A3 (cups
       as training data) waits with Stages B-D (D37).
 
+### A3 acceptance: cups as training data (drafted 2026-11-23 before building; owner, 2026-11-24: "Approve as drafted")
+
+**Question:** does adding domestic cup ties to the league model's likelihood, with a cup
+home term of its own, give better 90' cup forecasts than A1 without making league forecasts
+worse? A3 is the production model P (`phase1b_strength_open_xg`) plus cup rows, and nothing
+else changes.
+
+**Model, fixed now:**
+- **Training rows added:** finished bundle ties of the bundle's own cup, where both sides
+  play tier 1 or 2 of that country that season (the tier comes from regular-season league
+  matches, as in A1).
+  - Each leg and each replay is its own match (A0 c).
+  - The 90' score follows the A0 rule. An unscorable tie stays out of training and is
+    listed.
+  - Each row has the same lookback (1,095 days), time weight and walk step as a league
+    match on its date.
+  - These are about 160 ties a season across the five bundles, roughly 4% of a bundle's
+    training rows.
+- **Rates for a cup row:**
+  - The intercept is the home side's league, as in A1.
+  - On a non-neutral ground, the home term is the league home term, plus the side's own
+    term, plus δ_cup. δ_cup ~ Normal(0, 0.25), one per bundle, with the same prior as A2's
+    T1.
+  - On a neutral ground there is no home term.
+  - A swapped tie gives the home term to the side playing at its own ground (A1's loader).
+- **Goals likelihood only:** cup rows do not enter the xG auxiliary likelihood. Their xG
+  is NaN, so the existing row filter drops them.
+- **One variant only:** cup rows count at weight 1.0, with no weight grid and no tuning
+  after the result. This is said now because a weight was chosen after the dev scores in
+  Stage D (amendment 2), and A3 does not repeat that.
+- **League scoring is unchanged:** cup rows add training evidence only. The league targets,
+  their warm or cold status (counted from league matches, as now) and their rates are
+  computed as in P. So the league comparison is paired on exactly P's (match, as_of) set.
+- **Cup scoring:** each dev bundle tie is scored from the A3 refit as of its Monday, as A1
+  was. Neutral ties get no home term, which is consistent with training. This takes in
+  the T2 question, which did not pass on its own, so the result is also reported without
+  the 40 neutral ties.
+
+**Grid and references:**
+- **Refits:**
+  - The weekly dev grid, 928 refits (D11; the final dev run cadence, not D14's 28-day
+    grid).
+  - Plus the 20 tie Mondays that are not on that grid, for 948 A3 refits in total.
+- **League reference:** P's 928 weekly dev refits, already cached under the current fit
+  hash `a215d52e759864ed` (P3-d run). P is not refitted.
+  - Every A3 refit's league training rows must equal the cached P fit's teams and goals,
+    otherwise the job stops. This is the P3-i check.
+  - A3 edits `team_strength.py`, so the fit hash changes. A test shows that P's numbers do
+    not move when there are no cup rows (as `tests/test_lineup_model.py` does for the
+    lineup term).
+- **Cup reference:** P as of each tie's Monday.
+  - 180 of the 200 tie Mondays are already cached; the other 20 are fitted once under the
+    current hash.
+  - Reported: the largest difference against A1's stored rows (run 43903439721), which
+    should be 0 or rounding.
+
+**Gate (all must pass; any failure leaves A3 out, with nothing tuned):**
+1. **Cups improve, as in A2.** On the 816 dev bundle ties, against P:
+   - the paired 95% interval of 1X2 log loss or RPS excludes zero in A3's favour;
+   - in no cup is any D28 segment metric (1X2 log loss, RPS, OU2.5 and BTTS log loss,
+     total-goals CRPS) worse by more than 1.0%;
+   - ECE per outcome is no worse than +0.005.
+2. **Leagues are no worse (D18 segments).** On P's weekly dev targets (warm matches):
+   - no league × market segment (D28 metrics) is worse by more than 1.0%;
+   - the paired 95% interval of overall 1X2 log loss and of RPS does not lie wholly above
+     zero.
+
+   The second condition is new against the 2026-11-16 outline. It makes a small but clear
+   league loss a fail, because the 1.0% segment limit alone would let one through.
+3. **Inference.** Every A3 refit must pass R-hat ≤ 1.01, ESS ≥ 400 and no divergences.
+   - A refit that fails is refitted once with target_accept 0.99 and 4,000 draws per
+     chain, with the same data and seed. This is the P3-d amendment 9 rule, fixed now.
+   - The list of refits to redo is taken mechanically from the stored diagnostics.
+   - If a redone refit still fails, A3 fails.
+4. **Feasible.** A3's median refit time is at most 1.5 × P's on the same grid (P's time
+   comes from the P3-d run).
+5. **No leakage.** A cup row enters a refit only if its result was available by as_of
+   (kickoff + 3 h). Holdout-season ties never enter a dev refit. Unit tests cover both.
+
+**Reported, not gated:**
+- the 90' score log loss;
+- results by tier pairing (1v1, 1v2, 2v2) and by cup;
+- the cup result without the neutral ties;
+- δ_cup's posterior per bundle at the last refit, with prior sensitivity (that refit at
+  prior sd 0.1, 0.25 and 0.5: 10 extra fits);
+- a cup posterior predictive check (home / draw / away rates, total-goals dispersion);
+- the shift in each bundle's tier-2 strength against tier 1 (attack − defence, mean over
+  teams) against P. Cup rows link the tiers directly, and rotation could bias that link.
+
+**Expectation, stated before the result:**
+- A2's simulation showed that on 816 ties only a large effect clears the paired interval.
+- A3 also moves team strengths, so its effect on cup ties could be larger than an offset's.
+  It could also be smaller, because rotation makes cup results noisier evidence.
+- A fail is a likely outcome, and the gate stays as it is.
+
+**If it passes:**
+- **Use:** A3 serves cup ties only, replacing A1's 90' cup forecasts. League fixtures stay
+  on P.
+  - A3 is refitted only in weeks with a bundle cup tie inside the projection horizon.
+  - Using A3 for leagues would be a league model change, under the league's own promotion
+    rules, and is not part of A3.
+- **No holdout:** the cup holdout was opened once, on 2026-11-21 (run 44913949061), so
+  there is none left for A3.
+  - Proposed, as for Stage D: after a dev pass, serve A3 and keep computing A1 alongside on
+    the same ties.
+  - The live record is scored after the fact against A1.
+  - Revert to A1 if, at the end of 2026/27, A3's live 1X2 log loss against A1 has a paired
+    95% interval wholly above zero.
+  - The other option is not to serve on a dev pass alone, and to judge on live ties first.
+    This is the owner's call.
+
+**Compute and order:**
+- 948 A3 refits, plus 20 P refits, plus 10 prior-sensitivity refits.
+- At P3-d's rate (about 8 min a refit) that is about 130 runner-hours, run as 100 jobs (25
+  bundle-seasons × 4 parts), several hours of wall time.
+- The repo is public, so this costs nothing in money.
+- One backtest-type run at a time, and not on a Monday (when `national_serve.yml` refits).
+- CI logs and artifacts carry metrics only. Match-level rows go to R2.
+- 0 API requests.
+
+**Build, after approval:**
+- the cup rows and δ_cup in `team_strength.py`, behind a `cups` flag on `RunSpec` (model
+  name tag `_cup`);
+- the cup-row loader, shared with `cup_backtest.bundle_targets`;
+- a `cups_train.yml` workflow;
+- an assemble step that writes the verdict;
+- tests for no change without cups, the neutral and swapped home terms, leakage, and the
+  pairing check.
+
 ## Stage B: knockout resolution (§9)
 
 Needed whenever a winner is required: domestic cups, continental knockouts and

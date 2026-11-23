@@ -45,7 +45,7 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --frozen --group model
-      - run: uv run --frozen --group model pytest -q tests/test_covariate_model.py tests/test_xg_model.py tests/test_manager_model.py tests/test_form_model.py tests/test_selection_model.py tests/test_formation_model.py tests/test_rates_model.py tests/test_lineup_model.py
+      - run: uv run --frozen --group model pytest -q tests/test_covariate_model.py tests/test_xg_model.py tests/test_manager_model.py tests/test_form_model.py tests/test_selection_model.py tests/test_formation_model.py tests/test_rates_model.py tests/test_lineup_model.py tests/test_cup_model.py
       - name: Default model draws unchanged (since the previous push, or the given commit)
         if: >-
           github.event_name == 'workflow_dispatch' || (github.event_name == 'push' &&

@@ -657,6 +657,37 @@ else changes.
 - tests for no change without cups, the neutral and swapped home terms, leakage, and the
   pairing check.
 
+- [ ] **A3 built 2026-11-24, before any A3 fit or score.**
+  - **Code:**
+    - `adatta/model/cup_strength.py`: the cup rows and `add_cups`, which adds delta_cup
+      and the cup likelihood to P's model as `team_strength.build` makes it;
+    - `adatta/model/cup_train.py`: `run`, `sensitivity`, `plan`, `failing`, `assemble` and
+      the gate (`verdict`);
+    - `RunSpec` gains `cups`, `cup_table` and `cup_prior_sd`; the model name gets `_cup`;
+    - `.github/workflows/cups_train.yml`: stages fit and redo;
+    - tests: `tests/test_cup_train.py` (9, fake samplers) and `tests/test_cup_model.py`
+      (3, PyMC, in CI's model job).
+  - **Three differences from the draft, disclosed:**
+    1. *`team_strength.py` is not edited.* `cup_strength.py` rebuilds the strength path
+       from P's own variables (a test checks it equals P's `attack_last`) and adds the cup
+       rows to P's model. So P's fit hash stays `a215d52e759864ed` and its cached refits
+       are used as they are. `cup_strength.py` is in A3's hash only, along with the cup
+       table digest and the prior sd.
+    2. *A cup tie whose side has no league match in the refit's window stays out of that
+       refit.* This happens, for example, to a side just promoted from tier 3 in a
+       first-round tie played before its first league match. Such a side has no strength
+       to attach the tie to. The most left out of any refit is reported.
+    3. *Refit count:* 950 A3 refits, not 948. The weekly grid has 928, and 22 tie Mondays
+       fall off it. Two of those 22 already have a cached P fit, so P is fitted 20 times,
+       as stated (`cup_train plan`, read-only).
+  - **Pairing check:**
+    - P's cached fit must have the refit's teams, leagues and number of training rows.
+    - Its posterior-predictive goals must be within 5% of the observed.
+    - On four real refits (England and Germany, 2021), the row counts were equal and the
+      goals within 0.9%. P's fits took 352–452 s.
+  - **Not yet run.** The first run is `cups_train.yml stage=fit` on a day other than
+    Monday, after the push.
+
 ## Stage B: knockout resolution (§9)
 
 Needed whenever a winner is required: domestic cups, continental knockouts and

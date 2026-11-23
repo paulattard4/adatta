@@ -145,7 +145,17 @@ def test_holdout_stays_weekly() -> None:
 def test_weekly_hash_and_keys_are_unchanged() -> None:
     spec = bt.production_spec(config())
     fields = asdict(spec)
-    for k in ("groups", "context", "grid", "widen", "lineup", "lineup_table"):  # pre-D33
+    for k in (
+        "groups",
+        "context",
+        "grid",
+        "widen",
+        "lineup",
+        "lineup_table",
+        "cups",
+        "cup_table",
+        "cup_prior_sd",
+    ):  # fields added after the 1b spec, off for it
         del fields[k]
     blob = json.dumps({"spec": fields, "files": {f: bt._file_hash(f) for f in bt.HASHED_FILES}},
                       sort_keys=True)  # fmt: skip

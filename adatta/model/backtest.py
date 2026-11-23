@@ -48,6 +48,7 @@ CACHE_PREFIX = "backtest"
 XG_MIN_MATCHES = 50  # xG matches a league needs in the window for a target to count as informed
 HASHED_FILES = ("adatta/model/team_strength.py", "adatta/model/covariates.py",
                 "config/evaluation.yml", "uv.lock")  # fmt: skip
+CUP_MODEL_FILE = "adatta/model/cup_strength.py"  # hashed for A3 specs only
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,12 @@ class RunSpec:
     # offset table its training rows read (features.lineup_offset)
     lineup: bool = False
     lineup_table: str = ""
+    # Stage A, A3: cup ties in the likelihood (model.cup_strength), the digest of the cup
+    # rows the bundle's refits may read, and delta_cup's prior sd (0.25; 0.1 and 0.5 for
+    # the prior-sensitivity report)
+    cups: bool = False
+    cup_table: str = ""
+    cup_prior_sd: float = 0.25
 
     @property
     def model_name(self) -> str:
@@ -90,6 +97,7 @@ class RunSpec:
         tags += "_hz" if self.widen else ""
         tags += "_rd" if self.grid == "results" else ""
         tags += "_lu" if self.lineup else ""
+        tags += "_cup" if self.cups else ""
         return f"phase1b_{self.structure}{tags}{k}"
 
 
@@ -137,8 +145,13 @@ def config_hash(spec: RunSpec) -> str:
     for name in ("lineup", "lineup_table"):  # and one without the P3-d offset
         if not fields[name]:
             del fields[name]
-    blob = json.dumps({"spec": fields, "files": {f: _file_hash(f) for f in HASHED_FILES}},
-                      sort_keys=True)  # fmt: skip
+    files = {f: _file_hash(f) for f in HASHED_FILES}
+    if fields["cups"]:  # A3: its own model file joins the hash
+        files[CUP_MODEL_FILE] = _file_hash(CUP_MODEL_FILE)
+    else:  # and one without cups (P keeps its cached refits)
+        for name in ("cups", "cup_table", "cup_prior_sd"):
+            del fields[name]
+    blob = json.dumps({"spec": fields, "files": files}, sort_keys=True)
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
 

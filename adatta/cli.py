@@ -195,6 +195,21 @@ def _projector(session: Session, settings: Any) -> Any:
     return run
 
 
+def _national_projector(session: Session, settings: Any) -> Any:
+    """Stage D v1's national forecasts from the latest passing live refit (numpy only)."""
+    from adatta.eval.baseline import _file_hash, _git_sha
+    from adatta.model import national as nt
+    from adatta.sim import national_serve
+
+    store = make_store(settings)
+    manifest = {"git_commit": _git_sha(), "lockfile_hash": _file_hash("uv.lock"), "seed": nt.SEED}
+
+    def run(now: datetime) -> Any:
+        return national_serve.run_projection(session, store, manifest, now=now)
+
+    return run
+
+
 def _refits_due(session: Session) -> Any:
     """Live refits due now (D33), as "bundle stamp" labels for the capture log."""
     from adatta.eval import harness
@@ -258,7 +273,7 @@ def capture() -> None:
         report = run_capture(
             session, client, comps, weather=weather,
             projector=_projector(session, settings), refits_due=_refits_due(session),
-            dispatch=_serve_dispatcher(),
+            dispatch=_serve_dispatcher(), national=_national_projector(session, settings),
         )  # fmt: skip
     summary = ", ".join(f"{k}={v}" for k, v in sorted(report.actions.items())) or "nothing due"
     typer.echo(

@@ -31,7 +31,7 @@ import io
 import json
 import time
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -63,6 +63,7 @@ WINDOW = timedelta(days=3652)  # fit window cap: the last 10 years
 LAG = timedelta(hours=3)
 SEED = 20261121
 OPENING = "international"  # the holdout marker (eval.holdout)
+COMPONENT = "national"  # model_run component of the promoted model and its live refits
 PROMOTION = ("1", "3", "4")  # the holdout's promotion checks (acceptance, "Then")
 # 2019-01-07 variants (runs 44997123915, 45001012300, 45002314691): sigma_w needs 3,000 draws
 # for ESS >= 400 and target_accept 0.98 for no divergences; a centred walk doesn't mix
@@ -174,44 +175,56 @@ def check_upto(upto: datetime, holdout: HoldoutKey | None) -> None:
         raise HoldoutLocked("the international holdout is opened only by its own marker")
 
 
-def targets(session: Any, store: RawStore, upto: datetime = HOLDOUT_FROM,
-            holdout: HoldoutKey | None = None) -> pl.DataFrame:  # fmt: skip
-    """Finished matches between two senior men's national sides that each have a
-    confederation, kickoff in [WARM_FROM, upto), with the 90' score and the host role."""
-    check_upto(upto, holdout)
+def sides(session: Any) -> dict[int, str]:
+    """The servable sides: senior men's national teams with a confederation from the
+    competitive matches they play (the 218 of the acceptance, as the data grow)."""
     from sqlalchemy import select
 
     from adatta.db import models
-    from adatta.features import host, team_levels
+    from adatta.features import team_levels
 
-    M, S, C, R = models.Match, models.Season, models.Competition, models.MatchResult
+    M, S, C = models.Match, models.Season, models.Competition
     every = session.execute(
         select(M.home_team_id, M.away_team_id, C.source_ref)
         .join(S, S.season_id == M.season_id).join(C, C.competition_id == S.competition_id)
         .where(C.is_national)
     ).all()  # fmt: skip
     senior = team_levels.senior_national_ids(session)
-    sides = assign_confederations(
+    return assign_confederations(
         [(int(t), str(lg)) for h, a, lg in every for t in (h, a) if t in senior]
     )
-    lg_of = {}
-    for m_id, lg in session.execute(
-        select(M.match_id, C.source_ref).join(S, S.season_id == M.season_id)
-        .join(C, C.competition_id == S.competition_id).where(C.is_national)
-    ):  # fmt: skip
-        lg_of[int(m_id)] = str(lg)
+
+
+Keep = Callable[[Any, "tuple[int | None, int | None]"], bool]
+
+
+def national_frame(session: Any, store: RawStore, keep: Keep,
+                   match_ids: Iterable[int] | None = None) -> pl.DataFrame:  # fmt: skip
+    """TARGET_SCHEMA rows for the national matches between two servable sides that `keep`
+    accepts (given the match and its 90' score, None while unplayed); hg and ag are null
+    when there is no score."""
+    from sqlalchemy import select
+
+    from adatta.db import models
+    from adatta.features import host
+
+    M, S, C, R = models.Match, models.Season, models.Competition, models.MatchResult
+    side = sides(session)
+    q = (select(M.match_id, C.source_ref).join(S, S.season_id == M.season_id)
+         .join(C, C.competition_id == S.competition_id).where(C.is_national))  # fmt: skip
+    lg_of = {int(m_id): str(lg) for m_id, lg in session.execute(q)}
     goals = {
         int(m): (h, a)
         for m, h, a in session.execute(
             select(R.match_id, R.home_goals_nt, R.away_goals_nt).where(R.superseded_at.is_(None))
         )
     }
+    wanted = None if match_ids is None else set(match_ids)
     rows = [
         r for r in host.national_matches(session)
-        if r[0].status in FINISHED and r[0].home_team_id in sides and r[0].away_team_id in sides
-        and WARM_FROM <= ct._utc(r[0].kickoff_time) < upto
-        and goals.get(r[0].match_id, (None, None))[0] is not None
-        and goals[r[0].match_id][1] is not None
+        if (wanted is None or r[0].match_id in wanted)
+        and r[0].home_team_id in side and r[0].away_team_id in side
+        and keep(r[0], goals.get(r[0].match_id, (None, None)))
     ]  # fmt: skip
     countries = host.Countries(host.stored_country_names(session, store), host.load_aliases())
     roles = host.host_roles(session, rows, countries)
@@ -219,18 +232,43 @@ def targets(session: Any, store: RawStore, upto: datetime = HOLDOUT_FROM,
     out = []
     for m, *_ in rows:
         lg = lg_of[m.match_id]
-        hg, ag = goals[m.match_id]
+        hg, ag = goals.get(m.match_id, (None, None))
         out.append({
             "match_id": m.match_id, "league_id": lg, "type": comp_type(lg),
             "comp_conf": COMP_CONF.get(lg, "world"), "kickoff": ct._utc(m.kickoff_time),
             "monday": ct.monday(m.kickoff_time), "home": m.home_team_id,
-            "away": m.away_team_id, "conf_home": sides[m.home_team_id],
-            "conf_away": sides[m.away_team_id], "role": role.get(m.match_id, "unknown"),
-            "hg": int(hg), "ag": int(ag),
+            "away": m.away_team_id, "conf_home": side[m.home_team_id],
+            "conf_away": side[m.away_team_id], "role": role.get(m.match_id, "unknown"),
+            "hg": None if hg is None else int(hg), "ag": None if ag is None else int(ag),
         })  # fmt: skip
-    tg = pl.DataFrame(out, schema=TARGET_SCHEMA).sort("kickoff", "match_id")
+    return pl.DataFrame(out, schema=TARGET_SCHEMA).sort("kickoff", "match_id")
+
+
+def _finished_before(upto: datetime) -> Keep:
+    def keep(m: Any, g: tuple[int | None, int | None]) -> bool:
+        return (m.status in FINISHED and WARM_FROM <= ct._utc(m.kickoff_time) < upto
+                and g[0] is not None and g[1] is not None)  # fmt: skip
+
+    return keep
+
+
+def targets(session: Any, store: RawStore, upto: datetime = HOLDOUT_FROM,
+            holdout: HoldoutKey | None = None) -> pl.DataFrame:  # fmt: skip
+    """Finished matches between two senior men's national sides that each have a
+    confederation, kickoff in [WARM_FROM, upto), with the 90' score and the host role."""
+    check_upto(upto, holdout)
+    tg = national_frame(session, store, _finished_before(upto))
     assert tg.is_empty() or tg["kickoff"].max() < upto  # type: ignore[operator]
     return tg
+
+
+def live_targets(session: Any, store: RawStore, upto: datetime, champion: Any) -> pl.DataFrame:
+    """The training matches of a live refit: every finished target before `upto`, open only
+    to the promoted champion (a model_run row, component national, status champion)."""
+    if (champion is None or champion.component != COMPONENT or champion.status != "champion"
+            or champion.model_name != model_name()):  # fmt: skip
+        raise HoldoutLocked("live national targets are read only for the promoted champion")
+    return national_frame(session, store, _finished_before(upto))
 
 
 # ------------------------------------------------------------------------------- Elo
@@ -578,25 +616,39 @@ def _side(post: dict[str, Arr], team: int, conf: str, extra: int, months: int,
     return s, post["sigma_o"] * rng.standard_normal(k)
 
 
+def matrices(post: dict[str, Arr], row: dict[str, Any], t: datetime, months: int,
+             rng: np.random.Generator) -> Arr:  # fmt: skip
+    """(draws, MAX_GOALS + 1, MAX_GOALS + 1) score matrices for one match (a TARGET_SCHEMA
+    row) from the refit at t (walk length `months`), each draw's walk carried to the match's
+    month."""
+    g = np.concatenate([np.zeros((len(post["c"]), 1)), post["g"]], axis=1)
+    extra = max(0, month_index(row["kickoff"]) - month_index(t))
+    sh, oh = _side(post, row["home"], row["conf_home"], extra, months, rng)
+    sa, oa = _side(post, row["away"], row["conf_away"], extra, months, rng)
+    hh, ha, hu = host_sides(row["role"])
+    base = post["c"] + g[:, TYPES.index(row["type"])] + (oh + oa) / 2
+    lam = np.exp(base + post["h"] * hh + post["h_u"] * hu + (sh - sa) / 2)
+    mu = np.exp(base + post["h"] * ha + (sa - sh) / 2)
+    return score_matrix(lam, mu, post["phi"], post["rho"])
+
+
+def one_x_two(m: Arr) -> Arr:
+    """Per-draw (home, draw, away) from (draws, n, n) score matrices."""
+    ph, pd = np.tril(m, -1).sum(axis=(-2, -1)), np.trace(m, axis1=-2, axis2=-1)
+    return np.stack([ph, pd, 1 - ph - pd], axis=-1)
+
+
 def predict(post: dict[str, Arr], tg: pl.DataFrame, t: datetime,
             months: int) -> tuple[Arr, Arr]:  # fmt: skip
     """(n, 3) 1X2 and (n, 2) expected goals per target, from the refit at t (walk length
     `months`), each draw's walk carried to the match's month."""
     rng = np.random.default_rng(SEED)
-    g = np.concatenate([np.zeros((len(post["c"]), 1)), post["g"]], axis=1)
     p_out, xg = [], []
+    k = np.arange(MAX_GOALS + 1)
     for r in tg.iter_rows(named=True):
-        extra = max(0, month_index(r["kickoff"]) - month_index(t))
-        sh, oh = _side(post, r["home"], r["conf_home"], extra, months, rng)
-        sa, oa = _side(post, r["away"], r["conf_away"], extra, months, rng)
-        hh, ha, hu = host_sides(r["role"])
-        base = post["c"] + g[:, TYPES.index(r["type"])] + (oh + oa) / 2
-        lam = np.exp(base + post["h"] * hh + post["h_u"] * hu + (sh - sa) / 2)
-        mu = np.exp(base + post["h"] * ha + (sa - sh) / 2)
-        m = score_matrix(lam, mu, post["phi"], post["rho"])
-        ph, pd = np.tril(m, -1).sum(axis=(-2, -1)), np.trace(m, axis1=-2, axis2=-1)
-        p_out.append([ph.mean(), pd.mean(), 1 - ph.mean() - pd.mean()])
-        k = np.arange(MAX_GOALS + 1)
+        m = matrices(post, r, t, months, rng)
+        p = one_x_two(m).mean(axis=0)
+        p_out.append([p[0], p[1], 1 - p[0] - p[1]])
         xg.append([float((m.sum(axis=-1) * k).sum(-1).mean()),
                    float((m.sum(axis=-2) * k).sum(-1).mean())])  # fmt: skip
     return np.asarray(p_out), np.asarray(xg)
@@ -621,11 +673,13 @@ def sampler_failed(diag: dict[str, Any]) -> bool:
 
 
 def cached_fit(store: RawStore, tg: pl.DataFrame, t: datetime, friendly_weight: float,
-               prior_scale: float = 1.0) -> tuple[dict[str, Arr], dict[str, Any]]:  # fmt: skip
+               prior_scale: float = 1.0, key: str | None = None
+               ) -> tuple[dict[str, Arr], dict[str, Any]]:  # fmt: skip
     """The refit at t from the cache, or fitted and cached. The rerun rule (plan, 2026-11-22,
     before any score): a fit that fails a sampler gate is refitted once at RERUN_DRAWS; the
-    rerun's result stands, pass or fail, and the first attempt is kept beside it."""
-    key = _cache_key(t, friendly_weight, prior_scale)
+    rerun's result stands, pass or fail, and the first attempt is kept beside it. `key`
+    stores it elsewhere than the backtest cache (the live refits, under serving/)."""
+    key = key or _cache_key(t, friendly_weight, prior_scale)
     raw, rawd = try_get(store, key), try_get(store, key + ".json")
     if raw is not None and rawd is not None:
         z = np.load(io.BytesIO(raw))

@@ -67,6 +67,17 @@ class Context:
     store: RawStore
     loader: Callable[[RawStore, models.ModelRun], serve.Refit] = serve.load_refit
     _refits: dict[int, serve.Refit] | None = None
+    _national: dict[int, dict[str, Any]] | None = None
+
+    def national_draws(self, run: models.ModelRun) -> dict[str, Any]:
+        """A national live refit's stored draws, loaded once per process."""
+        from adatta.model import national_live
+
+        if self._national is None:
+            self._national = {}
+        if run.model_run_id not in self._national:
+            self._national[run.model_run_id] = national_live.load(self.store, run)
+        return self._national[run.model_run_id]
 
     def refit(self, run: models.ModelRun) -> serve.Refit:
         """A refit's draws, loaded once per process (they never change once written)."""
@@ -212,10 +223,14 @@ def competition_order(country: str, tier: str, name: str) -> tuple[str, int, int
     return (country, {"cup": 1, "national": 2}.get(tier, 3), 0, name)
 
 
-def _matches(session: Session, ctx: Context, where: list[Any]) -> list[MatchRow]:
+def _matches(session: Session, ctx: Context, where: list[Any],
+             national: bool = False) -> list[MatchRow]:  # fmt: skip
+    """The bundle leagues' (and their cups') matches, or with `national` those of the
+    national-team competitions (Stage D)."""
     M, S, C, T = models.Match, models.Season, models.Competition, models.Team
     H, A = T.__table__.alias("h"), T.__table__.alias("a")
     leagues = [str(x) for x in ctx.league_bundle]
+    scope = C.is_national.is_(True) if national else C.source_ref.in_(leagues)
     rows = session.execute(
         select(M.match_id, M.kickoff_time, M.status, M.round, C.source_ref, C.competition_id,
                C.name, C.country, C.level, M.season_id, M.home_team_id, M.away_team_id,
@@ -224,7 +239,7 @@ def _matches(session: Session, ctx: Context, where: list[Any]) -> list[MatchRow]
         .join(C, C.competition_id == S.competition_id)
         .join(H, H.c.team_id == M.home_team_id)
         .join(A, A.c.team_id == M.away_team_id)
-        .where(C.source_id == SOURCE_ID, C.source_ref.in_(leagues), *where)
+        .where(C.source_id == SOURCE_ID, scope, *where)
         .order_by(M.kickoff_time, M.match_id)
     ).all()  # fmt: skip
     return [MatchRow(match_id=r[0], kickoff=_utc(r[1]), status=r[2], round=r[3],
@@ -475,7 +490,11 @@ def fixture_list(session: Session, ctx: Context, now: datetime, start: datetime 
                                   _freshness(bundle, row_run, now), caps[r.season_id], champ,
                                   now, newer),
         ))  # fmt: skip
-    order = sorted(groups.values(), key=lambda g: competition_order(g.country, g.tier, g.name))
+    from adatta.api import national
+
+    every = [*groups.values(), *national.groups(session, ctx, now, start, end, competition_id,
+                                                 team_level)]  # fmt: skip
+    order = sorted(every, key=lambda g: competition_order(g.country, g.tier, g.name))
     return sc.FixtureList(generated_at=now, start=start, end=end, competitions=order)
 
 
@@ -493,10 +512,12 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
     from adatta.adapters.normalize import FINISHED
 
     rows = _matches(session, ctx, [models.Match.match_id == match_id])
+    is_national = not rows
+    if is_national:  # Stage D v1: a national-team match (adatta.api.national)
+        rows = _matches(session, ctx, [models.Match.match_id == match_id], national=True)
     if not rows:
         raise KeyError(match_id)
     m = rows[0]
-    bundle = ctx.league_bundle[m.league_id]
     caps = _capabilities(session, {m.season_id})[m.season_id]
     venue = session.get(models.Venue, m.venue_id) if m.venue_id is not None else None
     WS, FS = models.WeatherSnapshot, models.FixtureSnapshot
@@ -519,6 +540,11 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
     score = _results(session, [match_id]).get(match_id) if m.status in FINISHED else None
     if score is not None:
         header.result = sc.Result(home_goals=score[0], away_goals=score[1])
+    if is_national:
+        from adatta.api import national
+
+        return national.match_view(session, ctx, m, header, now)
+    bundle = ctx.league_bundle[m.league_id]
     by_ms = _projections(session, [match_id]).get(match_id, {})
     runs = _serving(session, ctx, now)
     champ = _champion(session, ctx.model_name)

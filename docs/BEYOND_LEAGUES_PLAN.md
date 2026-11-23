@@ -1656,6 +1656,103 @@ No holdout result rate or score has been read.
 - The international holdout is now spent. Any later national model is judged on the live
   period from 2026-08-01.
 
+### D v1 serving acceptance (drafted 2026-11-23 before building; owner: "Approve as drafted")
+
+**Scope:** the acceptance's "Then: Serving" for the promoted model, v1 with friendlies at 1.0,
+exactly as run on the holdout. Nothing in the model changes.
+
+- **What is served:**
+  - **Matches:** upcoming senior men's national matches between two of the 218 sides,
+    under the same target rule as the backtest: every competition including friendlies.
+  - **Markets:** 90' 1X2 and the score matrix, from the stored posterior draws, with the same
+    milestones as clubs (`initial`, T-7d, T-24h, T-60m, close) in `market_projection`.
+  - **Label:** "Team-only: results-based national model (Stage D v1), no squad or call-up
+    information".
+  - **Withheld markets:** Over/Under and BTTS are not served for national matches. The
+    holdout validated 1X2 only, and the dispersion PPC warned on 81 of 85 holdout refits (the
+    model's totals are slightly too wide). They are shown as "not validated for national
+    teams".
+  - **Knockouts:** knockout ties get the 90' forecast only. Advancement and shoot-outs are
+    v2 (the tournament simulator).
+- **Not served, with the reason shown and no probabilities:**
+  - a side outside the 218: youth, women's, B sides, clubs or non-FIFA sides ("Stage D
+    covers senior men's national teams only");
+  - youth sides: never anything betting-facing (CLAUDE.md rule 10);
+  - no passing national refit yet, or the latest is stale (below).
+- **Live refits:**
+  - **Timing:** one refit per Monday 00:00 UTC (the backtest's refit time), only in weeks
+    with a servable national match kicking off within the projection horizon. Off-window
+    weeks skip, so most weeks cost nothing.
+  - **Data:** every senior match final by that Monday within the 10-year cap; the same
+    model, priors, sampler and seed.
+  - **Rerun rule:** as on dev, a fit failing a sampler check is refitted once at 6,000
+    draws.
+  - **Storage:** the draws (400 kept) go to R2 under `serving/national/`. A `model_run` row
+    (component national, window live) records the refit, its gates and the training hash.
+  - **Workflow:** `national_serve.yml`, scheduled Monday morning plus manual dispatch,
+    max-parallel 1, logs carry metrics only. The capture tick projects from the stored
+    draws with numpy alone (no NUTS, no model dependency group), as for clubs.
+- **What blocks serving a refit:**
+  - **Blocking:** the sampler gates (R-hat ≤ 1.01, bulk and tail ESS ≥ 400, no
+    divergences), after the rerun rule.
+  - **Reported only:** PPC and dispersion, as on the holdout, shown on the national
+    freshness panel.
+  - **Stale:** a refit older than 9 days is reported stale, as for clubs. A match with no
+    refit from its own week or the week before shows "no current refit" rather than a
+    months-old forecast.
+- **Principles:**
+  - odds are never read (principle 1);
+  - nothing after a refit's Monday enters it, and a refit "from the future" is refused;
+  - the stored draws and the training snapshot let any served forecast be rebuilt.
+
+**Acceptance tests, before it is switched on:**
+1. **Identity:** a projection from stored draws equals `national.predict` at the same refit,
+   for 1X2 and expected goals, to 1e-9 on the same draws.
+2. **Coherence:** the score matrix sums to 1, and the 1X2 from the matrix equals the served
+   1X2.
+3. **Eligibility:**
+   - the served set is exactly the backtest's target rule;
+   - a youth, women's or club side gets a reason and no probability;
+   - a match outside the horizon gets nothing.
+4. **Gates:** a refit failing a sampler check after the rerun is recorded but never served,
+   and the previous passing refit serves if it is not stale.
+5. **No leakage:** the training cutoff is the Monday minus the 3 h lag, and a refit with
+   as_of after now is refused.
+6. **Shadow run on CI before going live, metrics only:**
+   - refit as of 2026-11-16 (the last window) and project that week's matches, with no DB
+     writes;
+   - its 1X2 must match a holdout-pipeline `predict` at the same Monday to 1e-9;
+   - it must run within the production budget: one Monday refit under 2 h on one runner,
+     where the holdout's slowest was 74 min.
+7. **Dashboard:** national fixtures appear in the list and match views with the team-only
+   label, the 1X2 headline, the matrix, and the withheld-market and unserved reasons.
+
+**Then:**
+- **First live use:** the December friendly in the database, then the March 2027 window.
+- **Live record:** every served forecast is scored against B_elo, recomputed after the fact
+  and deterministic, as the live-period record for any later national model.
+- **Built (2026-11-23):**
+  - **`adatta/model/national_live.py`:**
+    - `promote`: records the champion from the holdout run's marker and passing verdict;
+    - `refit`: Monday, only if due, with the rerun rule; a model_run row per refit;
+    - `shadow`: acceptance test 6.
+  - **`adatta/sim/national_serve.py`:** 1X2 milestones from the stored draws (numpy only),
+    and the reasons a match isn't served.
+  - **The capture tick:** a `project_national` step.
+  - **`adatta/api/national.py`:** the national groups in the fixture list and the national
+    match view: team-only component, 21 × 21 matrix with its coherence check, and the
+    unavailable panels.
+  - **`national.py`:** `predict` now runs through `matrices`, the one function serving also
+    uses. Backtest scores are unchanged: the same random stream, the same arithmetic.
+  - **`.github/workflows/national_serve.yml`:** refit, promote and shadow; scheduled on
+    Mondays at 02:37, 08:37 and 14:37 UTC.
+  - **Tests:** `tests/test_national_serve.py` (9) covers tests 1–5 and 7.
+- **Switch-on order:**
+  1. `national_serve.yml stage=promote`;
+  2. `stage=shadow as_of=2026-11-16` (test 6) must pass;
+  3. the Monday schedule then refits whenever a servable match is within 14 days, and the
+     capture tick projects.
+
 ## Cross-cutting
 
 - **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,

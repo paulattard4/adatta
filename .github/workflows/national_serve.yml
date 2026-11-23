@@ -1,0 +1,62 @@
+# Stage D v1 serving (docs/BEYOND_LEAGUES_PLAN.md, "D v1 serving acceptance"): the live
+# national refit, one per Monday 00:00 UTC, only in weeks with a servable national match within
+# the projection horizon (other weeks exit at once). Draws to R2 (serving/national/), a
+# model_run row (component national, window live) with the gates; the capture tick projects
+# from it. The later schedules retry a refit whose results were not in yet; a recorded refit is
+# never refitted.
+#   refit    this week's refit if due (or --as-of a Monday, by dispatch)
+#   promote  records the promoted model from the international holdout run (once)
+#   shadow   acceptance test 6: a refit and its week's projections, metrics only, no DB writes
+# max-parallel 1, one job: a backtest running alongside still leaves the capture poller its
+# slot. The repo is public: logs carry metrics only.
+name: national_serve
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "refit | promote | shadow"
+        default: "refit"
+      as_of:
+        description: "refit / shadow: a Monday (YYYY-MM-DD); empty = this week's refit if due"
+        default: ""
+      holdout:
+        description: "promote: the international holdout run id"
+        default: "45166498451"
+  schedule:
+    - cron: "37 2 * * 1"
+    - cron: "37 8 * * 1"
+    - cron: "37 14 * * 1"
+permissions:
+  contents: read
+concurrency:
+  group: national_serve
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: national serving (metrics only)
+        env:
+          STAGE: ${{ inputs.stage || 'refit' }}
+          AS_OF: ${{ inputs.as_of }}
+          HOLDOUT: ${{ inputs.holdout }}
+        run: |
+          case "$STAGE" in
+            promote) uv run --frozen --group model python -m adatta.model.national_live promote --holdout "$HOLDOUT" ;;
+            shadow) uv run --frozen --group model python -m adatta.model.national_live shadow --as-of "$AS_OF" ;;
+            refit) uv run --frozen --group model python -m adatta.model.national_live refit ${AS_OF:+--as-of "$AS_OF"} ;;
+            *) echo "unknown stage $STAGE"; exit 1 ;;
+          esac

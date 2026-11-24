@@ -2143,6 +2143,61 @@ owner. Nothing is tuned.
 - a `tournament.yml` workflow;
 - tests for each tiebreak path, coherence and leakage.
 
+- [ ] **D v2 built 2026-11-24, before any score.**
+  - **Code:**
+    - `config/tournament_formats.yml`: 17 editions, 10 dev and 7 opened;
+    - `adatta/sim/tournament.py`: formats and their validation, group tables, best thirds,
+      the first round, the simulator;
+    - `adatta/eval/tournament.py`: loading, the replay, the forecasts, knockout ties,
+      coherence, leakage and the gate;
+    - `.github/workflows/tournament.yml`;
+    - `tests/test_tournament.py` (9).
+  - **Sources:** each edition's English Wikipedia page, read on 2026-11-24.
+    - Tiebreak orders and best-third rankings were checked against the page text for every
+      edition. AFCON 2023 gives the two-team rule only, so it is taken as AFCON 2021's.
+    - The best-third allocation tables are complete:
+      - Euro 2020/2024: 15 rows;
+      - Asian Cup 2019/2023 and AFCON (the same table): 15 rows;
+      - Copa América 2019: 3 rows;
+      - World Cup 2026: 495 rows, parsed from the page.
+    - Every row is checked to pair each group winner only with a third from its allowed
+      groups.
+    - The first knockout round is as stated by the source for 10 editions.
+  - **Disclosed differences from the draft:**
+    1. **Group letters and published order come from the Wikipedia group tables, not the
+       provider.** No tournament standings are stored, and fetching them would have cost 17
+       API requests. Each stored group (a complete round robin) is matched to its table by
+       team names; aliases such as "USA" and "Congo DR" are listed in the code.
+    2. **Rounds the sources give only as match reports are derived from the path played**
+       and marked `basis: derived`. That covers every round after the first, plus the first
+       round of Copa América 2021/2024, Gold Cup 2021/2023/2025 and World Cup 2022. For those
+       rounds the replay checks consistency only.
+    3. **Knockout ties are the 17 editions' knockout matches:** 115 dev and 108 opened, not
+       the draft's about 145 and 110. The Nations League finals, play-offs and play-outs and
+       the Finalissima are left out:
+       - their formats aren't in the config;
+       - CONCACAF's knockout rules aren't stated in any source read.
+    4. **A finished group uses its published order, and once every group is finished the
+       first round is as drawn up.** Fair play or lots can't be replayed from the data.
+    5. **A simulated knockout at a venue whose country is unknown is neutral.**
+    6. **The AFCON 2025 final is stored as a walkover with no result** (Wikipedia reports
+       CAF's award and a CAS reversal on 2026-11-24), so it is unresolved and not scored.
+    7. **The three Copa América 2019 quarter-finals have no stored 90' score.** Their winners
+       come from the shoot-outs.
+    8. **The run is local from the committed code, as Stage B's was.** The workflow is there
+       for reruns. Metrics only in output; rows go to R2.
+  - **Replay (check 1), run before any forecast:** 0 problems in all 17 editions.
+    - Every group order matches the published one, as do the qualifying thirds, every
+      first-round pairing and every later slot.
+    - The random step was needed where the sources say fair play or rankings decided:
+      - Asian Cup 2019's thirds (Vietnam over Lebanon on disciplinary points);
+      - AFCON 2021's thirds;
+      - Euro 2024 group C and its thirds;
+      - World Cup 2026's thirds.
+  - **Raised, data:** Wikipedia gives the 2027 Asian Cup as postponed to 23 Dec 2027 – 21
+    Jan 2028, while the provider's season still says 7–20 Jan 2027. The capture follows the
+    provider's current season, so it starts 30 days before whatever date the provider lists.
+
 ## Cross-cutting
 
 - **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,

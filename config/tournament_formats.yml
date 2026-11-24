@@ -1,0 +1,1468 @@
+# D v2 tournament formats (docs/BEYOND_LEAGUES_PLAN.md, "D v2 acceptance"). Generated
+# 2026-11-24 from the editions' Wikipedia pages (`source`) and the stored fixtures; nothing is
+# read from results except the path played, to name later bracket rounds.
+# groups: published final order (the replay's target). group_rank / thirds.rank: criteria in
+# order after points: h2h = head-to-head points, goal difference and goals among the tied teams,
+# re-applied to a subset still level; h2h_pts / h2h_gd / h2h_gf one at a time among the teams
+# level when the first is reached; gd, gf, wins over all group matches; random = what the data
+# can't decide (fair play, rankings, a last-round shoot-out, lots), drawn at random.
+# thirds.table: qualifying groups -> the group of the third-placed team each column meets.
+# rounds[].basis: stated = the slots as the source lists them; derived = from the path played
+# (the sources give these rounds only as match reports). extra_time false: 90' then penalties.
+editions:
+  asian2019:
+    name: AFC Asian Cup 2019
+    league_id: 7
+    season: 2019
+    start: '2019-01-05'
+    end: '2019-02-01'
+    window: dev
+    source: https://en.wikipedia.org/wiki/2019_AFC_Asian_Cup
+    groups:
+      A: [United Arab Emirates, Thailand, Bahrain, India]
+      B: [Jordan, Australia, Palestine, Syria]
+      C: [South Korea, China, Kyrgyzstan, Philippines]
+      D: [Iran, Iraq, Vietnam, Yemen]
+      E: [Qatar, Saudi Arabia, Lebanon, North Korea]
+      F: [Japan, Uzbekistan, Oman, Turkmenistan]
+    group_rank: [h2h, gd, gf, random]
+    thirds:
+      count: 4
+      rank: [pts, gd, gf, random]
+      columns: [1A, 1B, 1C, 1D]
+      table:
+        ABCD: CDAB
+        ABCE: CABE
+        ABCF: CABF
+        ABDE: DABE
+        ABDF: DABF
+        ABEF: EABF
+        ACDE: CDAE
+        ACDF: CDAF
+        ACEF: CAFE
+        ADEF: DAFE
+        BCDE: CDBE
+        BCDF: CDBF
+        BCEF: ECBF
+        BDEF: EDBF
+        CDEF: CDFE
+    rounds:
+    - round: R16
+      basis: stated
+      extra_time: true
+      matches:
+        R16_1: [2A, 2C]
+        R16_2: [1D, 3BEF]
+        R16_3: [1B, 3ACD]
+        R16_4: [1F, 2E]
+        R16_5: [1C, 3ABF]
+        R16_6: [1E, 2D]
+        R16_7: [1A, 3CDE]
+        R16_8: [2B, 2F]
+    - round: QF
+      basis: derived
+      extra_time: true
+      matches:
+        QF_1: ['W:R16_3', 'W:R16_4']
+        QF_2: ['W:R16_1', 'W:R16_2']
+        QF_3: ['W:R16_5', 'W:R16_6']
+        QF_4: ['W:R16_7', 'W:R16_8']
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_2', 'W:QF_1']
+        SF_2: ['W:QF_3', 'W:QF_4']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  copa2019:
+    name: Copa América 2019
+    league_id: 9
+    season: 2019
+    start: '2019-06-14'
+    end: '2019-07-07'
+    window: dev
+    source: https://en.wikipedia.org/wiki/2019_Copa_Am%C3%A9rica
+    groups:
+      A: [Brazil, Venezuela, Peru, Bolivia]
+      B: [Colombia, Argentina, Paraguay, Qatar]
+      C: [Uruguay, Chile, Japan, Ecuador]
+    group_rank: [gd, gf, h2h_pts, h2h_gd, h2h_gf, random]
+    thirds:
+      count: 2
+      rank: [pts, gd, gf, random]
+      columns: [1A, 1C]
+      table:
+        AB: BA
+        AC: CA
+        BC: CB
+    rounds:
+    - round: QF
+      basis: stated
+      extra_time: false
+      matches:
+        QF_1: [1A, 3BC]
+        QF_2: [2A, 2B]
+        QF_3: [1B, 2C]
+        QF_4: [1C, 3AB]
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_1', 'W:QF_2']
+        SF_2: ['W:QF_3', 'W:QF_4']
+    - round: 3P
+      basis: derived
+      extra_time: true
+      matches:
+        3P: ['L:SF_1', 'L:SF_2']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  gold2019:
+    name: Gold Cup 2019
+    league_id: 22
+    season: 2019
+    start: '2019-06-15'
+    end: '2019-07-07'
+    window: dev
+    source: https://en.wikipedia.org/wiki/2019_CONCACAF_Gold_Cup
+    groups:
+      A: [Mexico, Canada, Martinique, Cuba]
+      B: [Haiti, Costa Rica, Bermuda, Nicaragua]
+      C: [Jamaica, Curaçao, El Salvador, Honduras]
+      D: [United States, Panama, Guyana, Trinidad and Tobago]
+    group_rank: [gd, gf, h2h_pts, h2h_gd, h2h_gf, random]
+    rounds:
+    - round: QF
+      basis: stated
+      extra_time: true
+      matches:
+        QF_1: [1B, 2A]
+        QF_2: [1A, 2B]
+        QF_3: [1C, 2D]
+        QF_4: [1D, 2C]
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_1', 'W:QF_2']
+        SF_2: ['W:QF_3', 'W:QF_4']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  afcon2019:
+    name: AFCON 2019
+    league_id: 6
+    season: 2019
+    start: '2019-06-21'
+    end: '2019-07-19'
+    window: dev
+    source: https://en.wikipedia.org/wiki/2019_Africa_Cup_of_Nations
+    groups:
+      A: [Egypt, Uganda, DR Congo, Zimbabwe]
+      B: [Madagascar, Nigeria, Guinea, Burundi]
+      C: [Algeria, Senegal, Kenya, Tanzania]
+      D: [Morocco, Ivory Coast, South Africa, Namibia]
+      E: [Mali, Tunisia, Angola, Mauritania]
+      F: [Ghana, Cameroon, Benin, Guinea-Bissau]
+    group_rank: [h2h, gd, gf, random]
+    thirds:
+      count: 4
+      rank: [pts, gd, gf, random]
+      columns: [1A, 1B, 1C, 1D]
+      table:
+        ABCD: CDAB
+        ABCE: CABE
+        ABCF: CABF
+        ABDE: DABE
+        ABDF: DABF
+        ABEF: EABF
+        ACDE: CDAE
+        ACDF: CDAF
+        ACEF: CAFE
+        ADEF: DAFE
+        BCDE: CDBE
+        BCDF: CDBF
+        BCEF: ECBF
+        BDEF: EDBF
+        CDEF: CDFE
+    rounds:
+    - round: R16
+      basis: stated
+      extra_time: true
+      matches:
+        R16_1: [1B, 3ACD]
+        R16_2: [2A, 2C]
+        R16_3: [1A, 3CDE]
+        R16_4: [1C, 3ABF]
+        R16_5: [1D, 3BEF]
+        R16_6: [2B, 2F]
+        R16_7: [1E, 2D]
+        R16_8: [1F, 2E]
+    - round: QF
+      basis: derived
+      extra_time: true
+      matches:
+        QF_1: ['W:R16_2', 'W:R16_5']
+        QF_2: ['W:R16_6', 'W:R16_3']
+        QF_3: ['W:R16_7', 'W:R16_4']
+        QF_4: ['W:R16_1', 'W:R16_8']
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_1', 'W:QF_4']
+        SF_2: ['W:QF_3', 'W:QF_2']
+    - round: 3P
+      basis: derived
+      extra_time: false
+      matches:
+        3P: ['L:SF_1', 'L:SF_2']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  euro2020:
+    name: UEFA Euro 2020
+    league_id: 4
+    season: 2020
+    start: '2021-06-11'
+    end: '2021-07-11'
+    window: dev
+    source: https://en.wikipedia.org/wiki/UEFA_Euro_2020
+    groups:
+      A: [Italy, Wales, Switzerland, Turkey]
+      B: [Belgium, Denmark, Finland, Russia]
+      C: [Netherlands, Austria, Ukraine, North Macedonia]
+      D: [England, Croatia, Czech Republic, Scotland]
+      E: [Sweden, Spain, Slovakia, Poland]
+      F: [France, Germany, Portugal, Hungary]
+    group_rank: [h2h, gd, gf, wins, random]
+    thirds:
+      count: 4
+      rank: [pts, gd, gf, wins, random]
+      columns: [1B, 1C, 1E, 1F]
+      table:
+        ABCD: ADBC
+        ABCE: AEBC
+        ABCF: AFBC
+        ABDE: DEAB
+        ABDF: DFAB
+        ABEF: EFBA
+        ACDE: EDCA
+        ACDF: FDCA
+        ACEF: EFCA
+        ADEF: EFDA
+        BCDE: EDBC
+        BCDF: FDCB
+        BCEF: FECB
+        BDEF: FEDB
+        CDEF: FEDC
+    rounds:
+    - round: R16
+      basis: stated
+      extra_time: true
+      matches:
+        R16_1: [1B, 3ADEF]
+        R16_2: [1A, 2C]
+        R16_3: [1F, 3ABC]
+        R16_4: [2D, 2E]
+        R16_5: [1E, 3ABCD]
+        R16_6: [1D, 2F]
+        R16_7: [1C, 3DEF]
+        R16_8: [2A, 2B]
+    - round: QF
+      basis: derived
+      extra_time: true
+      matches:
+        QF_1: ['W:R16_3', 'W:R16_4']
+        QF_2: ['W:R16_1', 'W:R16_2']
+        QF_3: ['W:R16_7', 'W:R16_8']
+        QF_4: ['W:R16_5', 'W:R16_6']
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_2', 'W:QF_1']
+        SF_2: ['W:QF_4', 'W:QF_3']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  copa2021:
+    name: Copa América 2021
+    league_id: 9
+    season: 2021
+    start: '2021-06-13'
+    end: '2021-07-10'
+    window: dev
+    source: https://en.wikipedia.org/wiki/2021_Copa_Am%C3%A9rica
+    groups:
+      A: [Argentina, Uruguay, Paraguay, Chile, Bolivia]
+      B: [Brazil, Peru, Colombia, Ecuador, Venezuela]
+    group_rank: [gd, gf, h2h_pts, h2h_gd, h2h_gf, random]
+    rounds:
+    - round: QF
+      basis: derived
+      extra_time: false
+      matches:
+        QF_1: [2B, 3A]
+        QF_2: [1B, 4A]
+        QF_3: [2A, 3B]
+        QF_4: [1A, 4B]
+    - round: SF
+      basis: derived
+      extra_time: false
+      matches:
+        SF_1: ['W:QF_2', 'W:QF_1']
+        SF_2: ['W:QF_4', 'W:QF_3']
+    - round: 3P
+      basis: derived
+      extra_time: false
+      matches:
+        3P: ['L:SF_2', 'L:SF_1']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_2', 'W:SF_1']
+  gold2021:
+    name: Gold Cup 2021
+    league_id: 22
+    season: 2021
+    start: '2021-07-10'
+    end: '2021-08-01'
+    window: dev
+    source: https://en.wikipedia.org/wiki/2021_CONCACAF_Gold_Cup
+    groups:
+      A: [Mexico, El Salvador, Trinidad and Tobago, Guatemala]
+      B: [United States, Canada, Haiti, Martinique]
+      C: [Costa Rica, Jamaica, Suriname, Guadeloupe]
+      D: [Qatar, Honduras, Panama, Grenada]
+    group_rank: [gd, gf, h2h_pts, h2h_gd, h2h_gf, random]
+    rounds:
+    - round: QF
+      basis: derived
+      extra_time: true
+      matches:
+        QF_1: [1D, 2A]
+        QF_2: [1A, 2D]
+        QF_3: [1C, 2B]
+        QF_4: [1B, 2C]
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_1', 'W:QF_4']
+        SF_2: ['W:QF_2', 'W:QF_3']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  afcon2021:
+    name: AFCON 2021
+    league_id: 6
+    season: 2021
+    start: '2022-01-09'
+    end: '2022-02-06'
+    window: dev
+    source: https://en.wikipedia.org/wiki/2021_Africa_Cup_of_Nations
+    groups:
+      A: [Cameroon, Burkina Faso, Cape Verde, Ethiopia]
+      B: [Senegal, Guinea, Malawi, Zimbabwe]
+      C: [Morocco, Gabon, Comoros, Ghana]
+      D: [Nigeria, Egypt, Sudan, Guinea-Bissau]
+      E: [Ivory Coast, Equatorial Guinea, Sierra Leone, Algeria]
+      F: [Mali, Gambia, Tunisia, Mauritania]
+    group_rank: [h2h, gd, gf, random]
+    thirds:
+      count: 4
+      rank: [pts, gd, gf, random]
+      columns: [1A, 1B, 1C, 1D]
+      table:
+        ABCD: CDAB
+        ABCE: CABE
+        ABCF: CABF
+        ABDE: DABE
+        ABDF: DABF
+        ABEF: EABF
+        ACDE: CDAE
+        ACDF: CDAF
+        ACEF: CAFE
+        ADEF: DAFE
+        BCDE: CDBE
+        BCDF: CDBF
+        BCEF: ECBF
+        BDEF: EDBF
+        CDEF: CDFE
+    rounds:
+    - round: R16
+      basis: stated
+      extra_time: true
+      matches:
+        R16_1: [1B, 3ACD]
+        R16_2: [2A, 2C]
+        R16_3: [1A, 3CDE]
+        R16_4: [1C, 3ABF]
+        R16_5: [1D, 3BEF]
+        R16_6: [2B, 2F]
+        R16_7: [1E, 2D]
+        R16_8: [1F, 2E]
+    - round: QF
+      basis: derived
+      extra_time: true
+      matches:
+        QF_1: ['W:R16_6', 'W:R16_3']
+        QF_2: ['W:R16_2', 'W:R16_5']
+        QF_3: ['W:R16_7', 'W:R16_4']
+        QF_4: ['W:R16_1', 'W:R16_8']
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_2', 'W:QF_4']
+        SF_2: ['W:QF_1', 'W:QF_3']
+    - round: 3P
+      basis: derived
+      extra_time: false
+      matches:
+        3P: ['L:SF_1', 'L:SF_2']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  wc2022:
+    name: World Cup 2022
+    league_id: 1
+    season: 2022
+    start: '2022-11-20'
+    end: '2022-12-18'
+    window: dev
+    source: https://en.wikipedia.org/wiki/2022_FIFA_World_Cup
+    groups:
+      A: [Netherlands, Senegal, Ecuador, Qatar]
+      B: [England, United States, Iran, Wales]
+      C: [Argentina, Poland, Mexico, Saudi Arabia]
+      D: [France, Australia, Tunisia, Denmark]
+      E: [Japan, Spain, Germany, Costa Rica]
+      F: [Morocco, Croatia, Belgium, Canada]
+      G: [Brazil, Switzerland, Cameroon, Serbia]
+      H: [Portugal, South Korea, Uruguay, Ghana]
+    group_rank: [gd, gf, h2h_pts, h2h_gd, h2h_gf, random]
+    rounds:
+    - round: R16
+      basis: derived
+      extra_time: true
+      matches:
+        R16_1: [1A, 2B]
+        R16_2: [1C, 2D]
+        R16_3: [1D, 2C]
+        R16_4: [1B, 2A]
+        R16_5: [1E, 2F]
+        R16_6: [1G, 2H]
+        R16_7: [1F, 2E]
+        R16_8: [1H, 2G]
+    - round: QF
+      basis: derived
+      extra_time: true
+      matches:
+        QF_1: ['W:R16_5', 'W:R16_6']
+        QF_2: ['W:R16_1', 'W:R16_2']
+        QF_3: ['W:R16_7', 'W:R16_8']
+        QF_4: ['W:R16_4', 'W:R16_3']
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_2', 'W:QF_1']
+        SF_2: ['W:QF_4', 'W:QF_3']
+    - round: 3P
+      basis: derived
+      extra_time: true
+      matches:
+        3P: ['L:SF_1', 'L:SF_2']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  gold2023:
+    name: Gold Cup 2023
+    league_id: 22
+    season: 2023
+    start: '2023-06-24'
+    end: '2023-07-16'
+    window: dev
+    source: https://en.wikipedia.org/wiki/2023_CONCACAF_Gold_Cup
+    groups:
+      A: [United States, Jamaica, Trinidad and Tobago, Saint Kitts and Nevis]
+      B: [Mexico, Qatar, Honduras, Haiti]
+      C: [Panama, Costa Rica, Martinique, El Salvador]
+      D: [Guatemala, Canada, Guadeloupe, Cuba]
+    group_rank: [gd, gf, h2h_pts, h2h_gd, h2h_gf, random]
+    rounds:
+    - round: QF
+      basis: derived
+      extra_time: true
+      matches:
+        QF_1: [1C, 2B]
+        QF_2: [1B, 2C]
+        QF_3: [1D, 2A]
+        QF_4: [1A, 2D]
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_4', 'W:QF_1']
+        SF_2: ['W:QF_3', 'W:QF_2']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_2', 'W:SF_1']
+  asian2023:
+    name: AFC Asian Cup 2023
+    league_id: 7
+    season: 2023
+    start: '2024-01-12'
+    end: '2024-02-10'
+    window: opened
+    source: https://en.wikipedia.org/wiki/2023_AFC_Asian_Cup
+    groups:
+      A: [Qatar, Tajikistan, China, Lebanon]
+      B: [Australia, Uzbekistan, Syria, India]
+      C: [Iran, United Arab Emirates, Palestine, Hong Kong]
+      D: [Iraq, Japan, Indonesia, Vietnam]
+      E: [Bahrain, South Korea, Jordan, Malaysia]
+      F: [Saudi Arabia, Thailand, Oman, Kyrgyzstan]
+    group_rank: [h2h, gd, gf, random]
+    thirds:
+      count: 4
+      rank: [pts, gd, gf, random]
+      columns: [1A, 1B, 1C, 1D]
+      table:
+        ABCD: CDAB
+        ABCE: CABE
+        ABCF: CABF
+        ABDE: DABE
+        ABDF: DABF
+        ABEF: EABF
+        ACDE: CDAE
+        ACDF: CDAF
+        ACEF: CAFE
+        ADEF: DAFE
+        BCDE: CDBE
+        BCDF: CDBF
+        BCEF: ECBF
+        BDEF: EDBF
+        CDEF: CDFE
+    rounds:
+    - round: R16
+      basis: stated
+      extra_time: true
+      matches:
+        R16_1: [2A, 2C]
+        R16_2: [1D, 3BEF]
+        R16_3: [1B, 3ACD]
+        R16_4: [1F, 2E]
+        R16_5: [1C, 3ABF]
+        R16_6: [1E, 2D]
+        R16_7: [1A, 3CDE]
+        R16_8: [2B, 2F]
+    - round: QF
+      basis: derived
+      extra_time: true
+      matches:
+        QF_1: ['W:R16_1', 'W:R16_2']
+        QF_2: ['W:R16_3', 'W:R16_4']
+        QF_3: ['W:R16_5', 'W:R16_6']
+        QF_4: ['W:R16_7', 'W:R16_8']
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_1', 'W:QF_2']
+        SF_2: ['W:QF_3', 'W:QF_4']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  afcon2023:
+    name: AFCON 2023
+    league_id: 6
+    season: 2023
+    start: '2024-01-13'
+    end: '2024-02-11'
+    window: opened
+    source: https://en.wikipedia.org/wiki/2023_Africa_Cup_of_Nations
+    groups:
+      A: [Equatorial Guinea, Nigeria, Ivory Coast, Guinea-Bissau]
+      B: [Cape Verde, Egypt, Ghana, Mozambique]
+      C: [Senegal, Cameroon, Guinea, Gambia]
+      D: [Angola, Burkina Faso, Mauritania, Algeria]
+      E: [Mali, South Africa, Namibia, Tunisia]
+      F: [Morocco, DR Congo, Zambia, Tanzania]
+    group_rank: [h2h, gd, gf, random]
+    thirds:
+      count: 4
+      rank: [pts, gd, gf, random]
+      columns: [1A, 1B, 1C, 1D]
+      table:
+        ABCD: CDAB
+        ABCE: CABE
+        ABCF: CABF
+        ABDE: DABE
+        ABDF: DABF
+        ABEF: EABF
+        ACDE: CDAE
+        ACDF: CDAF
+        ACEF: CAFE
+        ADEF: DAFE
+        BCDE: CDBE
+        BCDF: CDBF
+        BCEF: ECBF
+        BDEF: EDBF
+        CDEF: CDFE
+    rounds:
+    - round: R16
+      basis: stated
+      extra_time: true
+      matches:
+        R16_1: [1B, 3ACD]
+        R16_2: [2A, 2C]
+        R16_3: [1A, 3CDE]
+        R16_4: [1C, 3ABF]
+        R16_5: [1D, 3BEF]
+        R16_6: [2B, 2F]
+        R16_7: [1E, 2D]
+        R16_8: [1F, 2E]
+    - round: QF
+      basis: derived
+      extra_time: true
+      matches:
+        QF_1: ['W:R16_2', 'W:R16_5']
+        QF_2: ['W:R16_6', 'W:R16_3']
+        QF_3: ['W:R16_7', 'W:R16_4']
+        QF_4: ['W:R16_1', 'W:R16_8']
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_1', 'W:QF_4']
+        SF_2: ['W:QF_3', 'W:QF_2']
+    - round: 3P
+      basis: derived
+      extra_time: false
+      matches:
+        3P: ['L:SF_1', 'L:SF_2']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  euro2024:
+    name: UEFA Euro 2024
+    league_id: 4
+    season: 2024
+    start: '2024-06-14'
+    end: '2024-07-14'
+    window: opened
+    source: https://en.wikipedia.org/wiki/UEFA_Euro_2024
+    groups:
+      A: [Germany, Switzerland, Hungary, Scotland]
+      B: [Spain, Italy, Croatia, Albania]
+      C: [England, Denmark, Slovenia, Serbia]
+      D: [Austria, France, Netherlands, Poland]
+      E: [Romania, Belgium, Slovakia, Ukraine]
+      F: [Portugal, Turkey, Georgia, Czech Republic]
+    group_rank: [h2h, gd, gf, random]
+    thirds:
+      count: 4
+      rank: [pts, gd, gf, wins, random]
+      columns: [1B, 1C, 1E, 1F]
+      table:
+        ABCD: ADBC
+        ABCE: AEBC
+        ABCF: AFBC
+        ABDE: DEAB
+        ABDF: DFAB
+        ABEF: EFBA
+        ACDE: EDCA
+        ACDF: FDCA
+        ACEF: EFCA
+        ADEF: EFDA
+        BCDE: EDBC
+        BCDF: FDCB
+        BCEF: FECB
+        BDEF: FEDB
+        CDEF: FEDC
+    rounds:
+    - round: R16
+      basis: stated
+      extra_time: true
+      matches:
+        R16_1: [1B, 3ADEF]
+        R16_2: [1A, 2C]
+        R16_3: [1F, 3ABC]
+        R16_4: [2D, 2E]
+        R16_5: [1E, 3ABCD]
+        R16_6: [1D, 2F]
+        R16_7: [1C, 3DEF]
+        R16_8: [2A, 2B]
+    - round: QF
+      basis: derived
+      extra_time: true
+      matches:
+        QF_1: ['W:R16_1', 'W:R16_2']
+        QF_2: ['W:R16_3', 'W:R16_4']
+        QF_3: ['W:R16_7', 'W:R16_8']
+        QF_4: ['W:R16_5', 'W:R16_6']
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_1', 'W:QF_2']
+        SF_2: ['W:QF_4', 'W:QF_3']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  copa2024:
+    name: Copa América 2024
+    league_id: 9
+    season: 2024
+    start: '2024-06-20'
+    end: '2024-07-14'
+    window: opened
+    source: https://en.wikipedia.org/wiki/2024_Copa_Am%C3%A9rica
+    groups:
+      A: [Argentina, Canada, Chile, Peru]
+      B: [Venezuela, Ecuador, Mexico, Jamaica]
+      C: [Uruguay, Panama, United States, Bolivia]
+      D: [Colombia, Brazil, Costa Rica, Paraguay]
+    group_rank: [gd, gf, h2h_pts, h2h_gd, h2h_gf, random]
+    rounds:
+    - round: QF
+      basis: derived
+      extra_time: false
+      matches:
+        QF_1: [1A, 2B]
+        QF_2: [1B, 2A]
+        QF_3: [1D, 2C]
+        QF_4: [1C, 2D]
+    - round: SF
+      basis: derived
+      extra_time: false
+      matches:
+        SF_1: ['W:QF_1', 'W:QF_2']
+        SF_2: ['W:QF_4', 'W:QF_3']
+    - round: 3P
+      basis: derived
+      extra_time: false
+      matches:
+        3P: ['L:SF_1', 'L:SF_2']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  gold2025:
+    name: Gold Cup 2025
+    league_id: 22
+    season: 2025
+    start: '2025-06-14'
+    end: '2025-07-06'
+    window: opened
+    source: https://en.wikipedia.org/wiki/2025_CONCACAF_Gold_Cup
+    groups:
+      A: [Mexico, Costa Rica, Dominican Republic, Suriname]
+      B: [Canada, Honduras, Curaçao, El Salvador]
+      C: [Panama, Guatemala, Jamaica, Guadeloupe]
+      D: [United States, Saudi Arabia, Trinidad and Tobago, Haiti]
+    group_rank: [gd, gf, h2h_gd, h2h_gf, h2h_pts, h2h_gd, h2h_gf, random]
+    rounds:
+    - round: QF
+      basis: derived
+      extra_time: false
+      matches:
+        QF_1: [1C, 2B]
+        QF_2: [1A, 2D]
+        QF_3: [1B, 2C]
+        QF_4: [1D, 2A]
+    - round: SF
+      basis: derived
+      extra_time: false
+      matches:
+        SF_1: ['W:QF_4', 'W:QF_3']
+        SF_2: ['W:QF_2', 'W:QF_1']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  afcon2025:
+    name: AFCON 2025
+    league_id: 6
+    season: 2025
+    start: '2025-12-21'
+    end: '2026-01-18'
+    window: opened
+    source: https://en.wikipedia.org/wiki/2025_Africa_Cup_of_Nations
+    groups:
+      A: [Morocco, Mali, Comoros, Zambia]
+      B: [Egypt, South Africa, Angola, Zimbabwe]
+      C: [Nigeria, Tunisia, Tanzania, Uganda]
+      D: [Senegal, DR Congo, Benin, Botswana]
+      E: [Algeria, Burkina Faso, Sudan, Equatorial Guinea]
+      F: [Ivory Coast, Cameroon, Mozambique, Gabon]
+    group_rank: [h2h, gd, gf, random]
+    thirds:
+      count: 4
+      rank: [pts, gd, gf, random]
+      columns: [1A, 1B, 1C, 1D]
+      table:
+        ABCD: CDAB
+        ABCE: CABE
+        ABCF: CABF
+        ABDE: DABE
+        ABDF: DABF
+        ABEF: EABF
+        ACDE: CDAE
+        ACDF: CDAF
+        ACEF: CAFE
+        ADEF: DAFE
+        BCDE: CDBE
+        BCDF: CDBF
+        BCEF: ECBF
+        BDEF: EDBF
+        CDEF: CDFE
+    rounds:
+    - round: R16
+      basis: stated
+      extra_time: true
+      matches:
+        R16_1: [1B, 3ACD]
+        R16_2: [2A, 2C]
+        R16_3: [1A, 3CDE]
+        R16_4: [1C, 3ABF]
+        R16_5: [1D, 3BEF]
+        R16_6: [2B, 2F]
+        R16_7: [1E, 2D]
+        R16_8: [1F, 2E]
+    - round: QF
+      basis: derived
+      extra_time: true
+      matches:
+        QF_1: ['W:R16_2', 'W:R16_5']
+        QF_2: ['W:R16_6', 'W:R16_3']
+        QF_3: ['W:R16_7', 'W:R16_4']
+        QF_4: ['W:R16_1', 'W:R16_8']
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_1', 'W:QF_4']
+        SF_2: ['W:QF_3', 'W:QF_2']
+    - round: 3P
+      basis: derived
+      extra_time: false
+      matches:
+        3P: ['L:SF_1', 'L:SF_2']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']
+  wc2026:
+    name: World Cup 2026
+    league_id: 1
+    season: 2026
+    start: '2026-06-11'
+    end: '2026-07-19'
+    window: opened
+    source: https://en.wikipedia.org/wiki/2026_FIFA_World_Cup
+    groups:
+      A: [Mexico, South Africa, South Korea, Czech Republic]
+      B: [Switzerland, Canada, Bosnia and Herzegovina, Qatar]
+      C: [Brazil, Morocco, Scotland, Haiti]
+      D: [United States, Australia, Paraguay, Turkey]
+      E: [Germany, Ivory Coast, Ecuador, Curaçao]
+      F: [Netherlands, Japan, Sweden, Tunisia]
+      G: [Belgium, Egypt, Iran, New Zealand]
+      H: [Spain, Cape Verde, Uruguay, Saudi Arabia]
+      I: [France, Norway, Senegal, Iraq]
+      J: [Argentina, Austria, Algeria, Jordan]
+      K: [Colombia, Portugal, DR Congo, Uzbekistan]
+      L: [England, Croatia, Ghana, Panama]
+    group_rank: [h2h, gd, gf, random]
+    thirds:
+      count: 8
+      rank: [pts, gd, gf, random]
+      columns: [1A, 1B, 1D, 1E, 1G, 1I, 1K, 1L]
+      table:
+        EFGHIJKL: EJIFHGLK
+        DFGHIJKL: HGIDJFLK
+        DEGHIJKL: EJIDHGLK
+        DEFHIJKL: EJIDHFLK
+        DEFGIJKL: EGIDJFLK
+        DEFGHJKL: EGJDHFLK
+        DEFGHIKL: EGIDHFLK
+        DEFGHIJL: EGJDHFLI
+        DEFGHIJK: EGJDHFIK
+        CFGHIJKL: HGICJFLK
+        CEGHIJKL: EJICHGLK
+        CEFHIJKL: EJICHFLK
+        CEFGIJKL: EGICJFLK
+        CEFGHJKL: EGJCHFLK
+        CEFGHIKL: EGICHFLK
+        CEFGHIJL: EGJCHFLI
+        CEFGHIJK: EGJCHFIK
+        CDGHIJKL: HGICJDLK
+        CDFHIJKL: CJIDHFLK
+        CDFGIJKL: CGIDJFLK
+        CDFGHJKL: CGJDHFLK
+        CDFGHIKL: CGIDHFLK
+        CDFGHIJL: CGJDHFLI
+        CDFGHIJK: CGJDHFIK
+        CDEHIJKL: EJICHDLK
+        CDEGIJKL: EGICJDLK
+        CDEGHJKL: EGJCHDLK
+        CDEGHIKL: EGICHDLK
+        CDEGHIJL: EGJCHDLI
+        CDEGHIJK: EGJCHDIK
+        CDEFIJKL: CJEDIFLK
+        CDEFHJKL: CJEDHFLK
+        CDEFHIKL: CEIDHFLK
+        CDEFHIJL: CJEDHFLI
+        CDEFHIJK: CJEDHFIK
+        CDEFGJKL: CGEDJFLK
+        CDEFGIKL: CGEDIFLK
+        CDEFGIJL: CGEDJFLI
+        CDEFGIJK: CGEDJFIK
+        CDEFGHKL: CGEDHFLK
+        CDEFGHJL: CGJDHFLE
+        CDEFGHJK: CGJDHFEK
+        CDEFGHIL: CGEDHFLI
+        CDEFGHIK: CGEDHFIK
+        CDEFGHIJ: CGJDHFEI
+        BFGHIJKL: HJBFIGLK
+        BEGHIJKL: EJIBHGLK
+        BEFHIJKL: EJBFIHLK
+        BEFGIJKL: EJBFIGLK
+        BEFGHJKL: EJBFHGLK
+        BEFGHIKL: EGBFIHLK
+        BEFGHIJL: EJBFHGLI
+        BEFGHIJK: EJBFHGIK
+        BDGHIJKL: HJBDIGLK
+        BDFHIJKL: HJBDIFLK
+        BDFGIJKL: IGBDJFLK
+        BDFGHJKL: HGBDJFLK
+        BDFGHIKL: HGBDIFLK
+        BDFGHIJL: HGBDJFLI
+        BDFGHIJK: HGBDJFIK
+        BDEHIJKL: EJBDIHLK
+        BDEGIJKL: EJBDIGLK
+        BDEGHJKL: EJBDHGLK
+        BDEGHIKL: EGBDIHLK
+        BDEGHIJL: EJBDHGLI
+        BDEGHIJK: EJBDHGIK
+        BDEFIJKL: EJBDIFLK
+        BDEFHJKL: EJBDHFLK
+        BDEFHIKL: EIBDHFLK
+        BDEFHIJL: EJBDHFLI
+        BDEFHIJK: EJBDHFIK
+        BDEFGJKL: EGBDJFLK
+        BDEFGIKL: EGBDIFLK
+        BDEFGIJL: EGBDJFLI
+        BDEFGIJK: EGBDJFIK
+        BDEFGHKL: EGBDHFLK
+        BDEFGHJL: HGBDJFLE
+        BDEFGHJK: HGBDJFEK
+        BDEFGHIL: EGBDHFLI
+        BDEFGHIK: EGBDHFIK
+        BDEFGHIJ: HGBDJFEI
+        BCGHIJKL: HJBCIGLK
+        BCFHIJKL: HJBCIFLK
+        BCFGIJKL: IGBCJFLK
+        BCFGHJKL: HGBCJFLK
+        BCFGHIKL: HGBCIFLK
+        BCFGHIJL: HGBCJFLI
+        BCFGHIJK: HGBCJFIK
+        BCEHIJKL: EJBCIHLK
+        BCEGIJKL: EJBCIGLK
+        BCEGHJKL: EJBCHGLK
+        BCEGHIKL: EGBCIHLK
+        BCEGHIJL: EJBCHGLI
+        BCEGHIJK: EJBCHGIK
+        BCEFIJKL: EJBCIFLK
+        BCEFHJKL: EJBCHFLK
+        BCEFHIKL: EIBCHFLK
+        BCEFHIJL: EJBCHFLI
+        BCEFHIJK: EJBCHFIK
+        BCEFGJKL: EGBCJFLK
+        BCEFGIKL: EGBCIFLK
+        BCEFGIJL: EGBCJFLI
+        BCEFGIJK: EGBCJFIK
+        BCEFGHKL: EGBCHFLK
+        BCEFGHJL: HGBCJFLE
+        BCEFGHJK: HGBCJFEK
+        BCEFGHIL: EGBCHFLI
+        BCEFGHIK: EGBCHFIK
+        BCEFGHIJ: HGBCJFEI
+        BCDHIJKL: HJBCIDLK
+        BCDGIJKL: IGBCJDLK
+        BCDGHJKL: HGBCJDLK
+        BCDGHIKL: HGBCIDLK
+        BCDGHIJL: HGBCJDLI
+        BCDGHIJK: HGBCJDIK
+        BCDFIJKL: CJBDIFLK
+        BCDFHJKL: CJBDHFLK
+        BCDFHIKL: CIBDHFLK
+        BCDFHIJL: CJBDHFLI
+        BCDFHIJK: CJBDHFIK
+        BCDFGJKL: CGBDJFLK
+        BCDFGIKL: CGBDIFLK
+        BCDFGIJL: CGBDJFLI
+        BCDFGIJK: CGBDJFIK
+        BCDFGHKL: CGBDHFLK
+        BCDFGHJL: CGBDHFLJ
+        BCDFGHJK: HGBCJFDK
+        BCDFGHIL: CGBDHFLI
+        BCDFGHIK: CGBDHFIK
+        BCDFGHIJ: HGBCJFDI
+        BCDEIJKL: EJBCIDLK
+        BCDEHJKL: EJBCHDLK
+        BCDEHIKL: EIBCHDLK
+        BCDEHIJL: EJBCHDLI
+        BCDEHIJK: EJBCHDIK
+        BCDEGJKL: EGBCJDLK
+        BCDEGIKL: EGBCIDLK
+        BCDEGIJL: EGBCJDLI
+        BCDEGIJK: EGBCJDIK
+        BCDEGHKL: EGBCHDLK
+        BCDEGHJL: HGBCJDLE
+        BCDEGHJK: HGBCJDEK
+        BCDEGHIL: EGBCHDLI
+        BCDEGHIK: EGBCHDIK
+        BCDEGHIJ: HGBCJDEI
+        BCDEFJKL: CJBDEFLK
+        BCDEFIKL: CEBDIFLK
+        BCDEFIJL: CJBDEFLI
+        BCDEFIJK: CJBDEFIK
+        BCDEFHKL: CEBDHFLK
+        BCDEFHJL: CJBDHFLE
+        BCDEFHJK: CJBDHFEK
+        BCDEFHIL: CEBDHFLI
+        BCDEFHIK: CEBDHFIK
+        BCDEFHIJ: CJBDHFEI
+        BCDEFGKL: CGBDEFLK
+        BCDEFGJL: CGBDJFLE
+        BCDEFGJK: CGBDJFEK
+        BCDEFGIL: CGBDEFLI
+        BCDEFGIK: CGBDEFIK
+        BCDEFGIJ: CGBDJFEI
+        BCDEFGHL: CGBDHFLE
+        BCDEFGHK: CGBDHFEK
+        BCDEFGHJ: HGBCJFDE
+        BCDEFGHI: CGBDHFEI
+        AFGHIJKL: HJIFAGLK
+        AEGHIJKL: EJIAHGLK
+        AEFHIJKL: EJIFAHLK
+        AEFGIJKL: EJIFAGLK
+        AEFGHJKL: EGJFAHLK
+        AEFGHIKL: EGIFAHLK
+        AEFGHIJL: EGJFAHLI
+        AEFGHIJK: EGJFAHIK
+        ADGHIJKL: HJIDAGLK
+        ADFHIJKL: HJIDAFLK
+        ADFGIJKL: IGJDAFLK
+        ADFGHJKL: HGJDAFLK
+        ADFGHIKL: HGIDAFLK
+        ADFGHIJL: HGJDAFLI
+        ADFGHIJK: HGJDAFIK
+        ADEHIJKL: EJIDAHLK
+        ADEGIJKL: EJIDAGLK
+        ADEGHJKL: EGJDAHLK
+        ADEGHIKL: EGIDAHLK
+        ADEGHIJL: EGJDAHLI
+        ADEGHIJK: EGJDAHIK
+        ADEFIJKL: EJIDAFLK
+        ADEFHJKL: HJEDAFLK
+        ADEFHIKL: HEIDAFLK
+        ADEFHIJL: HJEDAFLI
+        ADEFHIJK: HJEDAFIK
+        ADEFGJKL: EGJDAFLK
+        ADEFGIKL: EGIDAFLK
+        ADEFGIJL: EGJDAFLI
+        ADEFGIJK: EGJDAFIK
+        ADEFGHKL: HGEDAFLK
+        ADEFGHJL: HGJDAFLE
+        ADEFGHJK: HGJDAFEK
+        ADEFGHIL: HGEDAFLI
+        ADEFGHIK: HGEDAFIK
+        ADEFGHIJ: HGJDAFEI
+        ACGHIJKL: HJICAGLK
+        ACFHIJKL: HJICAFLK
+        ACFGIJKL: IGJCAFLK
+        ACFGHJKL: HGJCAFLK
+        ACFGHIKL: HGICAFLK
+        ACFGHIJL: HGJCAFLI
+        ACFGHIJK: HGJCAFIK
+        ACEHIJKL: EJICAHLK
+        ACEGIJKL: EJICAGLK
+        ACEGHJKL: EGJCAHLK
+        ACEGHIKL: EGICAHLK
+        ACEGHIJL: EGJCAHLI
+        ACEGHIJK: EGJCAHIK
+        ACEFIJKL: EJICAFLK
+        ACEFHJKL: HJECAFLK
+        ACEFHIKL: HEICAFLK
+        ACEFHIJL: HJECAFLI
+        ACEFHIJK: HJECAFIK
+        ACEFGJKL: EGJCAFLK
+        ACEFGIKL: EGICAFLK
+        ACEFGIJL: EGJCAFLI
+        ACEFGIJK: EGJCAFIK
+        ACEFGHKL: HGECAFLK
+        ACEFGHJL: HGJCAFLE
+        ACEFGHJK: HGJCAFEK
+        ACEFGHIL: HGECAFLI
+        ACEFGHIK: HGECAFIK
+        ACEFGHIJ: HGJCAFEI
+        ACDHIJKL: HJICADLK
+        ACDGIJKL: IGJCADLK
+        ACDGHJKL: HGJCADLK
+        ACDGHIKL: HGICADLK
+        ACDGHIJL: HGJCADLI
+        ACDGHIJK: HGJCADIK
+        ACDFIJKL: CJIDAFLK
+        ACDFHJKL: HJFCADLK
+        ACDFHIKL: HFICADLK
+        ACDFHIJL: HJFCADLI
+        ACDFHIJK: HJFCADIK
+        ACDFGJKL: CGJDAFLK
+        ACDFGIKL: CGIDAFLK
+        ACDFGIJL: CGJDAFLI
+        ACDFGIJK: CGJDAFIK
+        ACDFGHKL: HGFCADLK
+        ACDFGHJL: CGJDAFLH
+        ACDFGHJK: HGJCAFDK
+        ACDFGHIL: HGFCADLI
+        ACDFGHIK: HGFCADIK
+        ACDFGHIJ: HGJCAFDI
+        ACDEIJKL: EJICADLK
+        ACDEHJKL: HJECADLK
+        ACDEHIKL: HEICADLK
+        ACDEHIJL: HJECADLI
+        ACDEHIJK: HJECADIK
+        ACDEGJKL: EGJCADLK
+        ACDEGIKL: EGICADLK
+        ACDEGIJL: EGJCADLI
+        ACDEGIJK: EGJCADIK
+        ACDEGHKL: HGECADLK
+        ACDEGHJL: HGJCADLE
+        ACDEGHJK: HGJCADEK
+        ACDEGHIL: HGECADLI
+        ACDEGHIK: HGECADIK
+        ACDEGHIJ: HGJCADEI
+        ACDEFJKL: CJEDAFLK
+        ACDEFIKL: CEIDAFLK
+        ACDEFIJL: CJEDAFLI
+        ACDEFIJK: CJEDAFIK
+        ACDEFHKL: HEFCADLK
+        ACDEFHJL: HJFCADLE
+        ACDEFHJK: HJECAFDK
+        ACDEFHIL: HEFCADLI
+        ACDEFHIK: HEFCADIK
+        ACDEFHIJ: HJECAFDI
+        ACDEFGKL: CGEDAFLK
+        ACDEFGJL: CGJDAFLE
+        ACDEFGJK: CGJDAFEK
+        ACDEFGIL: CGEDAFLI
+        ACDEFGIK: CGEDAFIK
+        ACDEFGIJ: CGJDAFEI
+        ACDEFGHL: HGFCADLE
+        ACDEFGHK: HGECAFDK
+        ACDEFGHJ: HGJCAFDE
+        ACDEFGHI: HGECAFDI
+        ABGHIJKL: HJBAIGLK
+        ABFHIJKL: HJBAIFLK
+        ABFGIJKL: IJBFAGLK
+        ABFGHJKL: HJBFAGLK
+        ABFGHIKL: HGBAIFLK
+        ABFGHIJL: HJBFAGLI
+        ABFGHIJK: HJBFAGIK
+        ABEHIJKL: EJBAIHLK
+        ABEGIJKL: EJBAIGLK
+        ABEGHJKL: EJBAHGLK
+        ABEGHIKL: EGBAIHLK
+        ABEGHIJL: EJBAHGLI
+        ABEGHIJK: EJBAHGIK
+        ABEFIJKL: EJBAIFLK
+        ABEFHJKL: EJBFAHLK
+        ABEFHIKL: EIBFAHLK
+        ABEFHIJL: EJBFAHLI
+        ABEFHIJK: EJBFAHIK
+        ABEFGJKL: EJBFAGLK
+        ABEFGIKL: EGBAIFLK
+        ABEFGIJL: EJBFAGLI
+        ABEFGIJK: EJBFAGIK
+        ABEFGHKL: EGBFAHLK
+        ABEFGHJL: HJBFAGLE
+        ABEFGHJK: HJBFAGEK
+        ABEFGHIL: EGBFAHLI
+        ABEFGHIK: EGBFAHIK
+        ABEFGHIJ: HJBFAGEI
+        ABDHIJKL: IJBDAHLK
+        ABDGIJKL: IJBDAGLK
+        ABDGHJKL: HJBDAGLK
+        ABDGHIKL: IGBDAHLK
+        ABDGHIJL: HJBDAGLI
+        ABDGHIJK: HJBDAGIK
+        ABDFIJKL: IJBDAFLK
+        ABDFHJKL: HJBDAFLK
+        ABDFHIKL: HIBDAFLK
+        ABDFHIJL: HJBDAFLI
+        ABDFHIJK: HJBDAFIK
+        ABDFGJKL: FJBDAGLK
+        ABDFGIKL: IGBDAFLK
+        ABDFGIJL: FJBDAGLI
+        ABDFGIJK: FJBDAGIK
+        ABDFGHKL: HGBDAFLK
+        ABDFGHJL: HGBDAFLJ
+        ABDFGHJK: HGBDAFJK
+        ABDFGHIL: HGBDAFLI
+        ABDFGHIK: HGBDAFIK
+        ABDFGHIJ: HGBDAFIJ
+        ABDEIJKL: EJBAIDLK
+        ABDEHJKL: EJBDAHLK
+        ABDEHIKL: EIBDAHLK
+        ABDEHIJL: EJBDAHLI
+        ABDEHIJK: EJBDAHIK
+        ABDEGJKL: EJBDAGLK
+        ABDEGIKL: EGBAIDLK
+        ABDEGIJL: EJBDAGLI
+        ABDEGIJK: EJBDAGIK
+        ABDEGHKL: EGBDAHLK
+        ABDEGHJL: HJBDAGLE
+        ABDEGHJK: HJBDAGEK
+        ABDEGHIL: EGBDAHLI
+        ABDEGHIK: EGBDAHIK
+        ABDEGHIJ: HJBDAGEI
+        ABDEFJKL: EJBDAFLK
+        ABDEFIKL: EIBDAFLK
+        ABDEFIJL: EJBDAFLI
+        ABDEFIJK: EJBDAFIK
+        ABDEFHKL: HEBDAFLK
+        ABDEFHJL: HJBDAFLE
+        ABDEFHJK: HJBDAFEK
+        ABDEFHIL: HEBDAFLI
+        ABDEFHIK: HEBDAFIK
+        ABDEFHIJ: HJBDAFEI
+        ABDEFGKL: EGBDAFLK
+        ABDEFGJL: EGBDAFLJ
+        ABDEFGJK: EGBDAFJK
+        ABDEFGIL: EGBDAFLI
+        ABDEFGIK: EGBDAFIK
+        ABDEFGIJ: EGBDAFIJ
+        ABDEFGHL: HGBDAFLE
+        ABDEFGHK: HGBDAFEK
+        ABDEFGHJ: HGBDAFEJ
+        ABDEFGHI: HGBDAFEI
+        ABCHIJKL: IJBCAHLK
+        ABCGIJKL: IJBCAGLK
+        ABCGHJKL: HJBCAGLK
+        ABCGHIKL: IGBCAHLK
+        ABCGHIJL: HJBCAGLI
+        ABCGHIJK: HJBCAGIK
+        ABCFIJKL: IJBCAFLK
+        ABCFHJKL: HJBCAFLK
+        ABCFHIKL: HIBCAFLK
+        ABCFHIJL: HJBCAFLI
+        ABCFHIJK: HJBCAFIK
+        ABCFGJKL: CJBFAGLK
+        ABCFGIKL: IGBCAFLK
+        ABCFGIJL: CJBFAGLI
+        ABCFGIJK: CJBFAGIK
+        ABCFGHKL: HGBCAFLK
+        ABCFGHJL: HGBCAFLJ
+        ABCFGHJK: HGBCAFJK
+        ABCFGHIL: HGBCAFLI
+        ABCFGHIK: HGBCAFIK
+        ABCFGHIJ: HGBCAFIJ
+        ABCEIJKL: EJBAICLK
+        ABCEHJKL: EJBCAHLK
+        ABCEHIKL: EIBCAHLK
+        ABCEHIJL: EJBCAHLI
+        ABCEHIJK: EJBCAHIK
+        ABCEGJKL: EJBCAGLK
+        ABCEGIKL: EGBAICLK
+        ABCEGIJL: EJBCAGLI
+        ABCEGIJK: EJBCAGIK
+        ABCEGHKL: EGBCAHLK
+        ABCEGHJL: HJBCAGLE
+        ABCEGHJK: HJBCAGEK
+        ABCEGHIL: EGBCAHLI
+        ABCEGHIK: EGBCAHIK
+        ABCEGHIJ: HJBCAGEI
+        ABCEFJKL: EJBCAFLK
+        ABCEFIKL: EIBCAFLK
+        ABCEFIJL: EJBCAFLI
+        ABCEFIJK: EJBCAFIK
+        ABCEFHKL: HEBCAFLK
+        ABCEFHJL: HJBCAFLE
+        ABCEFHJK: HJBCAFEK
+        ABCEFHIL: HEBCAFLI
+        ABCEFHIK: HEBCAFIK
+        ABCEFHIJ: HJBCAFEI
+        ABCEFGKL: EGBCAFLK
+        ABCEFGJL: EGBCAFLJ
+        ABCEFGJK: EGBCAFJK
+        ABCEFGIL: EGBCAFLI
+        ABCEFGIK: EGBCAFIK
+        ABCEFGIJ: EGBCAFIJ
+        ABCEFGHL: HGBCAFLE
+        ABCEFGHK: HGBCAFEK
+        ABCEFGHJ: HGBCAFEJ
+        ABCEFGHI: HGBCAFEI
+        ABCDIJKL: IJBCADLK
+        ABCDHJKL: HJBCADLK
+        ABCDHIKL: HIBCADLK
+        ABCDHIJL: HJBCADLI
+        ABCDHIJK: HJBCADIK
+        ABCDGJKL: CJBDAGLK
+        ABCDGIKL: IGBCADLK
+        ABCDGIJL: CJBDAGLI
+        ABCDGIJK: CJBDAGIK
+        ABCDGHKL: HGBCADLK
+        ABCDGHJL: HGBCADLJ
+        ABCDGHJK: HGBCADJK
+        ABCDGHIL: HGBCADLI
+        ABCDGHIK: HGBCADIK
+        ABCDGHIJ: HGBCADIJ
+        ABCDFJKL: CJBDAFLK
+        ABCDFIKL: CIBDAFLK
+        ABCDFIJL: CJBDAFLI
+        ABCDFIJK: CJBDAFIK
+        ABCDFHKL: HFBCADLK
+        ABCDFHJL: CJBDAFLH
+        ABCDFHJK: HJBCAFDK
+        ABCDFHIL: HFBCADLI
+        ABCDFHIK: HFBCADIK
+        ABCDFHIJ: HJBCAFDI
+        ABCDFGKL: CGBDAFLK
+        ABCDFGJL: CGBDAFLJ
+        ABCDFGJK: CGBDAFJK
+        ABCDFGIL: CGBDAFLI
+        ABCDFGIK: CGBDAFIK
+        ABCDFGIJ: CGBDAFIJ
+        ABCDFGHL: CGBDAFLH
+        ABCDFGHK: HGBCAFDK
+        ABCDFGHJ: HGBCAFDJ
+        ABCDFGHI: HGBCAFDI
+        ABCDEJKL: EJBCADLK
+        ABCDEIKL: EIBCADLK
+        ABCDEIJL: EJBCADLI
+        ABCDEIJK: EJBCADIK
+        ABCDEHKL: HEBCADLK
+        ABCDEHJL: HJBCADLE
+        ABCDEHJK: HJBCADEK
+        ABCDEHIL: HEBCADLI
+        ABCDEHIK: HEBCADIK
+        ABCDEHIJ: HJBCADEI
+        ABCDEGKL: EGBCADLK
+        ABCDEGJL: EGBCADLJ
+        ABCDEGJK: EGBCADJK
+        ABCDEGIL: EGBCADLI
+        ABCDEGIK: EGBCADIK
+        ABCDEGIJ: EGBCADIJ
+        ABCDEGHL: HGBCADLE
+        ABCDEGHK: HGBCADEK
+        ABCDEGHJ: HGBCADEJ
+        ABCDEGHI: HGBCADEI
+        ABCDEFKL: CEBDAFLK
+        ABCDEFJL: CJBDAFLE
+        ABCDEFJK: CJBDAFEK
+        ABCDEFIL: CEBDAFLI
+        ABCDEFIK: CEBDAFIK
+        ABCDEFIJ: CJBDAFEI
+        ABCDEFHL: HFBCADLE
+        ABCDEFHK: HEBCAFDK
+        ABCDEFHJ: HJBCAFDE
+        ABCDEFHI: HEBCAFDI
+        ABCDEFGL: CGBDAFLE
+        ABCDEFGK: CGBDAFEK
+        ABCDEFGJ: CGBDAFEJ
+        ABCDEFGI: CGBDAFEI
+        ABCDEFGH: HGBCAFDE
+    rounds:
+    - round: R32
+      basis: stated
+      extra_time: true
+      matches:
+        R32_1: [2A, 2B]
+        R32_2: [1E, 3ABCDF]
+        R32_3: [1F, 2C]
+        R32_4: [1C, 2F]
+        R32_5: [1I, 3CDFGH]
+        R32_6: [2E, 2I]
+        R32_7: [1A, 3CEFHI]
+        R32_8: [1L, 3EHIJK]
+        R32_9: [1D, 3BEFIJ]
+        R32_10: [1G, 3AEHIJ]
+        R32_11: [2K, 2L]
+        R32_12: [1H, 2J]
+        R32_13: [1B, 3EFGIJ]
+        R32_14: [1J, 2H]
+        R32_15: [1K, 3DEIJL]
+        R32_16: [2D, 2G]
+    - round: R16
+      basis: derived
+      extra_time: true
+      matches:
+        R16_1: ['W:R32_1', 'W:R32_3']
+        R16_2: ['W:R32_2', 'W:R32_5']
+        R16_3: ['W:R32_4', 'W:R32_6']
+        R16_4: ['W:R32_7', 'W:R32_8']
+        R16_5: ['W:R32_11', 'W:R32_12']
+        R16_6: ['W:R32_9', 'W:R32_10']
+        R16_7: ['W:R32_14', 'W:R32_16']
+        R16_8: ['W:R32_13', 'W:R32_15']
+    - round: QF
+      basis: derived
+      extra_time: true
+      matches:
+        QF_1: ['W:R16_2', 'W:R16_1']
+        QF_2: ['W:R16_5', 'W:R16_6']
+        QF_3: ['W:R16_3', 'W:R16_4']
+        QF_4: ['W:R16_7', 'W:R16_8']
+    - round: SF
+      basis: derived
+      extra_time: true
+      matches:
+        SF_1: ['W:QF_1', 'W:QF_2']
+        SF_2: ['W:QF_3', 'W:QF_4']
+    - round: 3P
+      basis: derived
+      extra_time: true
+      matches:
+        3P: ['L:SF_1', 'L:SF_2']
+    - round: F
+      basis: derived
+      extra_time: true
+      matches:
+        F: ['W:SF_1', 'W:SF_2']

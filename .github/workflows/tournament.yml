@@ -1,0 +1,62 @@
+# Stage D v2 (docs/BEYOND_LEAGUES_PLAN.md, "D v2 acceptance"): the tournament simulator on the
+# dev editions and the opened 2024-2026 ones. Manual dispatch only. One job per edition (rules
+# replay, the forecasts and every played knockout tie, from v1's cached refits: no fits, no
+# API requests), then the gate. The repo is public: logs and the summary carry metrics only;
+# per-team and per-tie rows go to R2 (tournament/v2/...). One backtest-type run at a time,
+# and not on a Monday (national_serve refits then).
+name: tournament
+on:
+  workflow_dispatch:
+    inputs:
+      editions:
+        description: "JSON list of edition keys (config/tournament_formats.yml)"
+        default: '["asian2019","copa2019","gold2019","afcon2019","euro2020","copa2021","gold2021","afcon2021","wc2022","gold2023","asian2023","afcon2023","euro2024","copa2024","gold2025","afcon2025","wc2026"]'
+permissions:
+  contents: read
+concurrency:
+  group: tournament
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  edition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 9
+      matrix:
+        edition: ${{ fromJSON(inputs.editions) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: replay, forecasts and ties
+        run: >-
+          uv run --frozen python -m adatta.eval.tournament run --edition ${{ matrix.edition }}
+          --upload ${{ github.run_id }} > /dev/null
+  gate:
+    needs: edition
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: gate
+        env:
+          EDITIONS: ${{ inputs.editions }}
+        run: |
+          e=$(echo "$EDITIONS" | uv run python -c "import json,sys; print(' '.join(json.load(sys.stdin)))")
+          uv run --frozen python -m adatta.eval.tournament assemble --fetch ${{ github.run_id }} \
+            --edition $e | tee -a "$GITHUB_STEP_SUMMARY"

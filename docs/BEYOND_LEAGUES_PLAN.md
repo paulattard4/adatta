@@ -657,7 +657,7 @@ else changes.
 - tests for no change without cups, the neutral and swapped home terms, leakage, and the
   pairing check.
 
-- [ ] **A3 built 2026-11-24, before any A3 fit or score.**
+- [x] **A3 built 2026-11-24, before any A3 fit or score.**
   - **Code:**
     - `adatta/model/cup_strength.py`: the cup rows and `add_cups`, which adds delta_cup
       and the cup likelihood to P's model as `team_strength.build` makes it;
@@ -685,8 +685,53 @@ else changes.
     - Its posterior-predictive goals must be within 5% of the observed.
     - On four real refits (England and Germany, 2021), the row counts were equal and the
       goals within 0.9%. P's fits took 352–452 s.
-  - **Not yet run.** The first run is `cups_train.yml stage=fit` on a day other than
-    Monday, after the push.
+  - **Run** on Tuesday 2026-11-24, after the push (fixes to the PyMC test only, 1b838c4 and
+    98a7f8a; CI's model job then passed all 17 tests).
+
+### A3 result (2026-11-24): FAILS check 1, not served; nothing tuned
+
+- **Runs:** fit 45339145482 (100 fit jobs, 5 sensitivity jobs, 06:15-14:39 UTC), then redo
+  45446411028 (2 refits, 17:14-17:48 UTC). The verdict is the redo's gate over the fit run.
+  Match rows are in R2 (`cups/a3/reports/45446411028/`); logs carry metrics only.
+
+| Check | Result |
+|---|---|
+| 1. Cups improve | **Fail.** 816 dev ties, A3 against P: 1X2 log loss −0.10% [−0.66%, +0.45%], RPS −0.28% [−1.14%, +0.59%]; neither interval excludes zero. Worst cup segment: Copa del Rey total-goals CRPS +1.07% (limit 1.0%). ECE passes (home −0.0056, draw +0.0020, away −0.0050). |
+| 2. Leagues no worse | Pass. 18,682 warm matches: 1X2 log loss −0.04% [−0.08%, +0.00%], RPS −0.05% [−0.11%, +0.01%]; worst segment league 136 total-goals CRPS +0.11%. |
+| 3. Sampler | Pass. 950 A3 refits; 2 failed the first time (Spain 2023-08-28, Germany 2023-09-25) and passed when redone once (target_accept 0.99, 4,000 draws). |
+| 4. Timing | Pass. Median fit 474 s against P's 438 s (×1.08, limit ×1.5). |
+| 5. Leakage | Pass (unit tests). |
+
+- **Reported, not gated:**
+  - 90' score log loss +0.03% [−0.23%, +0.28%]; without the 40 neutral ties (776),
+    1X2 log loss −0.03% [−0.53%, +0.48%].
+  - By cup (1X2 log loss, RPS): Coppa Italia −1.43%, −2.36% (191); Copa del Rey −0.08%,
+    −0.21% (142); DFB-Pokal +0.20%, +0.25% (139); Coupe de France +0.34%, +0.32% (132);
+    FA Cup +0.68%, +0.90% (212).
+  - By pairing: 1v1 −0.40%, −1.00% (344); 1v2 −0.30%, −0.33% (343); 2v2 +1.03%, +1.69%
+    (129).
+  - PPC, mean p predicted / observed: home 0.447 / 0.442, draw 0.246 / 0.238, away
+    0.307 / 0.320. Total-goals dispersion 1.029 predicted, 0.984 observed.
+  - δ_cup at each bundle's last dev refit (posterior mean, sd): England +0.040 (0.070),
+    France +0.012 (0.097), Germany +0.062 (0.086), Italy +0.128 (0.073), Spain −0.148
+    (0.106). At prior sd 0.1 / 0.5: England +0.028 / +0.044, France +0.009 / +0.016,
+    Germany +0.041 / +0.066, Italy +0.088 / +0.136, Spain −0.079 / −0.171. Small, of
+    either sign, and moderately prior-sensitive in Italy and Spain.
+  - Tier-2 minus tier-1 strength, A3 − P: at most 0.004 in any bundle. The cup rows
+    barely move the tier link.
+  - At most 2 cup rows were left out of any refit (a side with no league row in the
+    window).
+  - **P against A1's stored rows: max difference 0.012, not 0 as the draft expected.**
+    A1 fitted its own refits (fit hash `49cdc7f9c3b7711a`, none cached) rather than reading
+    P3-d's cache. 653 of the 816 rows agree to 1e-16. The other 163 come from 28 refit
+    dates (104 of them in 2023/24), most likely dates whose training rows changed between
+    the two runs. The A3-against-P comparison is unaffected, since both sides use the
+    same cached refits.
+- **Reading:** as expected before the run, 816 ties detect only a large effect. Cup rows
+  as training data do not give one: the point estimates are near zero overall and mixed
+  by cup, and the 2v2 ties get worse. A1 stays the served cup forecast and P stays the
+  league model. Nothing is tuned (no weight grid, no prior change), and there is no cup
+  holdout left to test anything else.
 
 ## Stage B: knockout resolution (§9)
 

@@ -32,9 +32,10 @@ def test_the_rebuilt_strength_path_is_ps() -> None:
     attack = cs.add_cups(model, fd, cr)
     rng = np.random.default_rng(3)
     point = {k: rng.normal(0, 0.5, np.shape(v)) for k, v in model.initial_point().items()}
-    outs = [attack[-1], model["attack_last"]]
-    # the compiled function takes only the value variables these outputs depend on
-    need = {v.name for v in inputvars(model.replace_rvs_by_values(outs))}
+    # both paths as functions of the (transformed) value variables, which compile_fn does not
+    # substitute itself; the compiled function takes only the ones these outputs depend on
+    outs = model.replace_rvs_by_values([attack[-1], model["attack_last"]])
+    need = {v.name for v in inputvars(outs)}
     for rv in ("strength_z0", "strength_z", "open_z0", "sigma_walk", "sigma_open"):
         assert any(n == rv or (n.startswith(f"{rv}_") and n.endswith("__")) for n in need), rv
     f = model.compile_fn(outs, point_fn=True)

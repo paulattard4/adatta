@@ -1970,6 +1970,179 @@ exactly as run on the holdout. Nothing in the model changes.
     national refit yet" until the first Monday with a servable match inside 14 days (the
     December friendly, then the March 2027 window).
 
+### D v2 acceptance: tournament simulator (drafted 2026-11-24 before building; owner: "Approve as drafted")
+
+**Question:** given the served national model (v1, friendlies 1.0, model_run 38), are its
+tournament probabilities right and calibrated? These are P(group position), P(advance from
+the group), P(reach each round), P(win), and P(advance) for a knockout tie. v2 adds rules
+and simulation, and no fitted parameter: nothing in the match model changes, and nothing is
+tuned on any score.
+
+**Seen so far (counts and round labels only; no score or outcome rate read):**
+- **Finals tournaments in dev (2019-01-01 to 2023-12-31): 10.**
+  - Asian Cup 2019, Copa América 2019, Gold Cup 2019, AFCON 2019, Euro 2020, Copa América
+    2021, Gold Cup 2021, AFCON 2021, World Cup 2022 and Gold Cup 2023.
+  - 198 team-entries in the group stage.
+  - About 145 knockout ties, adding the UEFA and CONCACAF Nations League finals and play-outs.
+- **In the opened D v1 holdout (2024-01 to 2026-07): 7.** Asian Cup 2023, AFCON 2023, Euro
+  2024, Copa América 2024, Gold Cup 2025, AFCON 2025 and World Cup 2026: 176 team-entries,
+  about 110 knockout ties.
+- **Cached refits:** every Monday of the 10 dev tournaments has a cached v1 refit with 400
+  kept draws (`national/refits/v1c/w1_s1/`), 48 refits in all. The simulator needs no new
+  fit.
+- **Group labels:** most editions give the group stage as "Group Stage - n" with no group
+  letter. A group is read as the complete round robin among its teams, and the AFCON 2019
+  season's qualifiers are separated by date.
+
+**Model, fixed now:**
+- **Format rules:** `config/tournament_formats.yml`, per competition and edition, written
+  from the regulations with the source noted (as Stage B's B0):
+  - groups and their size;
+  - points;
+  - tiebreakers in order (head-to-head or goal difference first, as each edition's
+    regulations say);
+  - qualification slots per position;
+  - the best-placed third ranking and its bracket allocation table;
+  - the bracket;
+  - legs, extra time, penalties and away goals per round;
+  - the venue country of each knockout slot.
+  - Tiebreakers the data can't decide (fair-play points, FIFA ranking, drawing of lots) are
+    taken in random order among the teams still level. This is disclosed, and the replay
+    counts how often an actual table needed them.
+- **Matches:** each simulated tournament takes one posterior draw of the served refit (§9.5).
+  - For each match in that draw, a full score is drawn from v1's score matrix, so goal
+    difference and goals scored feed the tiebreakers.
+  - Each pairing's rates use v1's own `predict`: the walk carried to the match month, and
+    the host role from the slot's venue country (home for a host side in its own country,
+    otherwise neutral).
+- **Knockouts:** Stage B's B3 logic.
+  - **Single match:** 90', then extra time, then penalties.
+  - **Two legs:** the aggregate, then away goals where the rule has them, then extra time in
+    leg 2, then penalties.
+  - **Fallbacks, from Stage B's results:** extra time at κ = 1 (30/90 scaling; B1 fell
+    back) and a coin-flip shootout (B2 fell back). B3' (the stretch) is not used.
+- **State:**
+  - A simulation as of Monday t fixes every result final by t − 3 h.
+  - It uses the latest passing refit at or before t.
+  - When it runs between refits, it fixes the results final by then and keeps the same
+    draws (D33's intent).
+- **Size:** 20,000 simulated tournaments, 50 per kept draw. The Monte Carlo error is at
+  most 0.0035 on any probability and is shown with it.
+
+**Dev evaluation:**
+- **Pre-tournament:** as of each tournament's opening Monday, before matchday 1.
+- **Knockout ties:** each tie as of its own Monday, with the actual pairing (two-legged ties
+  before leg 2, as Stage B).
+- **In-tournament forecasts:** the later Mondays are reported.
+- **The 4-team Nations League finals** are knockout ties only.
+
+**Gate (all must pass):**
+1. **Rules replay.** For every edition in scope, fed the actual results, the engine
+   reproduces:
+   - each group's final order (where lots or fair play decided it, the same tied set);
+   - the qualified teams;
+   - the third-place ranking;
+   - every knockout pairing;
+   - each winner, under Stage B's winner rule.
+
+   Pass: no mismatch, or each one explained as a feed error and listed. Unit tests cover
+   each tiebreak path. This reads results to check rules; nothing is scored.
+2. **Coherence** (unit tests and run-time checks):
+   - each team's position probabilities sum to 1;
+   - each position's probabilities sum to 1 over its group;
+   - the qualified count equals the slots;
+   - P(win) sums to 1;
+   - every scheduled group match's simulated 1X2 is within 3 Monte Carlo standard errors of
+     the served 1X2;
+   - a fixed knockout tie's simulated P(advance) equals B3's closed form within the same
+     margin.
+3. **Calibration, pre-tournament.** On the 198 dev team-entries, the ECE of P(advance from
+   group) and of P(reach the quarter-finals) are each within their noise floor: the 95th
+   percentile of the ECE a perfectly calibrated forecast shows on the same entries (Stage
+   B's amended check, 10 bins).
+4. **Knockout ties.** On about 145 dev ties:
+   - P(advance) log loss is no worse than the baseline "90' model, level = coin flip"
+     (point estimate ≤ 0, interval reported, as B3's check 1);
+   - ECE is within its noise floor.
+5. **Leakage.** Unit tests:
+   - changing a result final after t − 3 h leaves a simulation as of t unchanged;
+   - it reads no refit after t;
+   - a format rule dated after the tournament's start is refused.
+
+**Reported, not gated:**
+- the RPS of the stage reached and the Brier of P(advance from group), against the reference
+  "every team in a group equally likely", for scale;
+- in-tournament forecasts (before matchdays 2 and 3, and before each knockout round);
+- results by tournament and by confederation;
+- the Monte Carlo error;
+- how often a tiebreak went to the random order.
+
+**Expectation, stated before any score:** about 200 team-entries and 145 ties give the
+calibration checks little power, so a perfect model often shows a sizeable ECE. The main
+protection is checks 1 and 2. If check 3 or 4 fails, the likely causes are v1's tails (the
+dispersion warning) or the extra-time and shootout fallbacks, and that comes back to the
+owner. Nothing is tuned.
+
+**The opened holdout (owner's call):**
+- The international holdout (2024-01 to 2026-07) was opened once for D v1 and is spent; no
+  locked national data is left.
+- **Proposed:** v2 has no fitted parameter, so score the 7 editions of 2024-2026 under the
+  same gate as a second check, labelled "opened data, not a holdout". This takes it to 374
+  team-entries and about 255 ties, so the calibration checks have more power. Their rules
+  are replayed in any case.
+- **Alternative:** dev only, with the 2024-2026 editions used for the rules replay alone.
+- Either way, nothing is chosen on them.
+
+**If it passes, serving:**
+- **Which:** an upcoming national tournament or knockout tie whose edition rules are written
+  and replay-checked, where every team is among the 218 (principle 8). Others show why
+  there is no forecast.
+- **Shown:**
+  - on a knockout match page, P(advance) with its path, beside the 90' forecast;
+  - a tournament page with P(group position), P(advance), P(reach each round) and P(win),
+    each with its Monte Carlo error, as-of time and refit, labelled team-only.
+- **Refresh:** after each Monday refit, and when a result in the tournament becomes final
+  (the capture tick, numpy from the stored draws, no NUTS).
+- **Withheld:** a format whose rules aren't written, or whose replay failed.
+- **Live record:** each served tournament is scored after it ends (the gate's metrics) and
+  reported. The owner reviews after the first two.
+- **First uses:**
+  - the UEFA Nations League quarter-finals and promotion play-offs (March 2027, two legs);
+  - the CONCACAF Nations League finals (June 2027);
+  - the next continental finals.
+
+**Not in v2:**
+- **Qualifying groups and Nations League league phases** (multi-round formats such as the
+  AFC and CAF World Cup qualifiers). The same engine applies, but each needs its own rules
+  and replay. Proposed as v2b after v2, starting with the AFCON 2027 qualifying groups (144
+  stored matches) and the Euro 2028 qualifiers.
+- **Squad and call-up information** (v1 in §10.4's sense) stays out, as in D v1 serving.
+
+**Raised now, data:**
+- **The January 2027 Asian Cup is not in stored data.** `config/national_competitions.yml`
+  lists Asian Cup seasons 2019 and 2023, and no 2027 fixture is stored.
+  - If the provider has the edition, the capture tick would only start 30 days before
+    kick-off.
+  - Proposed, before v2's build ends: check the provider's season list (one `/leagues`
+    request) and add 2027 to the config if it's there.
+  - D v1 would then serve its group matches whether or not v2 passes.
+- **Extra-time and penalty scores in national knockouts:** the replay checks them by
+  edition before anything is scored, as Stage B did for cups.
+
+**Compute:**
+- 0 NUTS fits (v1's cached dev refits) and 0 API requests, apart from the one Asian Cup check
+  above.
+- The simulation is numpy: about 50 tournament Mondays × 20,000 tournaments, minutes on CI.
+- Metrics only in logs, match rows to R2. One backtest-type run at a time, not on a Monday.
+
+**Build, after approval:**
+- `config/tournament_formats.yml` (the dev editions, plus 2024-2026 under either holdout
+  choice, for the replay);
+- `adatta/sim/tournament.py`: the rules engine, the simulator and B3 reused for knockouts;
+- `adatta/eval/tournament.py`: the replay, the gate and the report;
+- a `tournament.yml` workflow;
+- tests for each tiebreak path, coherence and leakage.
+
 ## Cross-cutting
 
 - **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,

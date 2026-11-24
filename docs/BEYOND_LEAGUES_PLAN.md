@@ -2198,6 +2198,50 @@ owner. Nothing is tuned.
     Jan 2028, while the provider's season still says 7–20 Jan 2027. The capture follows the
     provider's current season, so it starts 30 days before whatever date the provider lists.
 
+### D v2 result (2026-11-24): dev FAILS check 2 on one Monte Carlo comparison; the opened editions pass; raised to the owner, nothing changed
+
+- **Run:** local, from commit ae29268, 20,000 simulated tournaments per forecast.
+  - Rows are in R2 under `tournament/v2/local-ae29268/`, the verdict in `verdict.json`.
+  - 17 editions took 15 minutes. No fits and no API requests.
+
+| | dev (10 editions) | opened 2024-2026 (7) |
+|---|---|---|
+| 1 replay | pass | pass |
+| 2 coherence | **FAIL** (1 comparison, below) | pass |
+| 3 calibration: P(advance) ECE / noise floor | 0.071 / 0.101, pass | 0.061 / 0.105, pass |
+| 3 calibration: P(QF) ECE / noise floor | 0.096 / 0.101, pass | 0.081 / 0.102, pass |
+| 4 knockout log loss vs "level = coin flip" | −0.0057 [−0.0127, +0.0014] on 115 ties, pass | −0.0087 [−0.0146, −0.0028] on 108 ties, pass |
+| 4 knockout ECE / noise floor | 0.094 / 0.141 | 0.088 / 0.141 |
+| 5 leakage | pass | pass |
+| Brier P(advance) (equal chances) | 0.138 (0.230) | 0.159 (0.227) |
+| RPS of stage reached (equal chances) | 0.096 (0.143) | 0.097 (0.136) |
+| random step: group tables / third rankings | 2.3% / 8.2% | 2.5% / 19.4% |
+
+- **The check 2 failure:** in AFCON 2019, one group match (team ids 3095 v 2967) had a
+  simulated draw rate of 0.3045 against the model's 0.3147, which is 3.1 Monte Carlo
+  standard errors.
+  - Rerun alone at 400,000 samples on four seeds, the simulator's sampler gives 0.3139 to
+    0.3156 against 0.3147, with every |z| ≤ 1.43. So the sampler is right and the 20,000-sim
+    value was chance.
+  - The check, as approved, is not multiplicity-safe. It makes about 900 comparisons per
+    window (302 dev group matches × 3 outcomes), so a correct simulator crosses 3 standard
+    errors about twice by chance. Dev crossed once and the opened window not at all.
+- **By edition (RPS, equal chances in brackets):** only AFCON 2023 is worse than equal chances,
+  0.1414 against 0.1399. That is the edition the hosts won after only just getting through
+  their group.
+- **Reading:**
+  - Every check that measures the forecasts passes in both windows: calibration of
+    P(advance) and P(QF), and knockout P(advance) no worse than the coin flip (on the
+    opened editions its interval excludes zero).
+  - The replay is exact.
+  - The one failure is a Monte Carlo comparison whose threshold doesn't allow for the
+    number of comparisons.
+  - Under the gate as approved, v2 fails dev and is not served.
+- **Owner's call:** amend check 2 before anything is served (for example a family-wise
+  threshold, or flagged fixtures recomputed at 400,000 samples), or keep it as approved.
+  An amendment after the result is not a re-score: nothing in the model or the forecasts
+  would change.
+
 ## Cross-cutting
 
 - **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,

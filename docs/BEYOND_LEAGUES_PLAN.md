@@ -2266,6 +2266,22 @@ The model, the simulator, the seed, the 20,000 sims and checks 1 and 3-5 are unc
   therefore identical to the run above, and only check 2's reading changes. The 400,000-
   sample resample above is evidence, not part of the gate.
 
+### D v2 result under the amended check 2 (2026-11-24): PASSES dev and the opened editions
+
+- **Run:** local, from commit ab63578, with the same seed and 20,000 sims. The rows are in R2
+  under `tournament/v2/local-ab63578/`. Every number from checks 1 and 3-5, the Brier score
+  and the RPS is identical to the run above, so the forecasts did not change.
+- **Check 2:** the exact sums pass in all 17 editions.
+
+| Monte Carlo comparisons | dev (10) | opened 2024-2026 (7) |
+|---|---|---|
+| comparisons m | 916 | 799 |
+| largest \|z\| / z* | 3.10 / 4.40 | 2.69 / 4.37 |
+| over 3 SE (expected by chance) | 1 (2.5) | 0 (2.2) |
+
+- **Verdict:** all five checks pass in both windows. D v2 may be served per the acceptance,
+  which is the next step and not yet built.
+
 ## Cross-cutting
 
 - **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,

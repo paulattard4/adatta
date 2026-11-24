@@ -10,6 +10,7 @@ import pytest
 
 pytest.importorskip("pymc")
 
+from pymc.pytensorf import inputvars  # noqa: E402
 from test_backtest import LEAGUES, matches  # noqa: E402
 from test_cup_train import ties  # noqa: E402
 
@@ -31,8 +32,13 @@ def test_the_rebuilt_strength_path_is_ps() -> None:
     attack = cs.add_cups(model, fd, cr)
     rng = np.random.default_rng(3)
     point = {k: rng.normal(0, 0.5, np.shape(v)) for k, v in model.initial_point().items()}
-    f = model.compile_fn([attack[-1], model["attack_last"]], point_fn=True)
-    rebuilt, ps = f(point)
+    outs = [attack[-1], model["attack_last"]]
+    # the compiled function takes only the value variables these outputs depend on
+    need = {v.name for v in inputvars(model.replace_rvs_by_values(outs))}
+    for rv in ("strength_z0", "strength_z", "open_z0", "sigma_walk", "sigma_open"):
+        assert any(n == rv or (n.startswith(f"{rv}_") and n.endswith("__")) for n in need), rv
+    f = model.compile_fn(outs, point_fn=True)
+    rebuilt, ps = f({k: v for k, v in point.items() if k in need})
     assert np.allclose(rebuilt, ps)
 
 

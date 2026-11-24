@@ -2282,6 +2282,122 @@ The model, the simulator, the seed, the 20,000 sims and checks 1 and 3-5 are unc
 - **Verdict:** all five checks pass in both windows. D v2 may be served per the acceptance,
   which is the next step and not yet built.
 
+### D v2 serving acceptance (drafted 2026-11-24 before building; owner: "Approve with (a)")
+
+**Scope:** the acceptance's "If it passes, serving", for the served national model (v1,
+friendlies 1.0) and the simulator exactly as gated. Nothing in the model or the simulator
+changes. Numpy from the stored draws of the latest passing live refit, with no NUTS, as D
+v1 serving.
+
+**What is coming up in stored data (counts only):**
+- **UEFA Nations League 2026-27, 25-30 March 2027, all two-legged:** quarter-finals (4 ties),
+  play-offs A/B (4) and B/C (4).
+- **CONCACAF Nations League 2025-26:** 6 matches labelled "Semi-finals", 25 March to 9 June
+  2027. The format is read from the regulations when it is written.
+- **AFCON 2027 qualifying groups**, matchdays 5-6 (March 2027): v2b, not v2.
+- **No finals tournament with groups:** the Asian Cup 2027 is not stored (the provider has
+  January 2027 and Wikipedia has a postponement to December 2027), and the next AFCON and
+  Gold Cup are not stored yet.
+
+**Raised now: two-legged ties were not in the D v2 gate.** All 223 gated ties were single
+matches in finals tournaments. Nations League ties were left out, as disclosed. The approved
+model fixes Stage B's two-leg logic and names the March 2027 Nations League ties as the
+first use, but no national two-legged tie has been scored. Stored and already played:
+- 6 two-legged ties in dev: CONCACAF Nations League quarter-finals 2023 and UEFA relegation
+  play-outs 2022;
+- about 23 in the opened 2024-2026 data: CONCACAF play-in and quarter-finals 2024, UEFA
+  quarter-finals and play-offs A/B and B/C 2025, play-offs C/D 2026.
+- About 20 single-match Nations League finals ties (semi-finals, third place, finals) are
+  also stored and ungated.
+
+**Owner's call, one of:**
+- **(a) Recommended: a two-leg check first.** Score the stored two-legged national ties
+  (about 29) under check 4's rule before serving them: P(advance) log loss no worse than
+  "level = coin flip" (point estimate ≤ 0, interval reported), and the replay of each tie's
+  winner exact.
+  - Each tie is scored as of the Monday before leg 1 (the served case) and before leg 2
+    (Stage B's case).
+  - The single-match finals ties are reported alongside, not gated.
+  - Nothing is chosen on them. If it fails, two-legged ties are withheld and single-match
+    ties and tournaments are still served.
+  - Cost: cached refits, no fits and no API requests, minutes locally.
+- **(b)** Serve two-legged ties as the approved model fixes them, without a check.
+- **(c)** Withhold two-legged ties until v2b. Nothing would then be served before the
+  CONCACAF finals (June 2027).
+
+**What is served:**
+- **Knockout ties:** an upcoming national tie that meets all of these:
+  - its competition and round have a written rule in `config/tournament_formats.yml`, under
+    `ties` (legs, extra time, away goals, penalties, and source);
+  - both sides are among the 218;
+  - the latest passing refit is current, under D v1's rule (its own week or the week
+    before).
+- **What a tie shows:**
+  - each side's P(advance), with the 5-95% interval over draws;
+  - the path: decided in normal time (or on aggregate), in extra time, or on penalties;
+  - the 90' forecast of each leg (D v1), unchanged, alongside;
+  - the label "Team-only (Stage D v2): extra time at κ = 1 and a coin-flip shoot-out
+    (Stage B fallbacks)".
+- **When a tie is computed:**
+  - **Before leg 1:** both legs from the score matrices. Leg 1's matrix is convolved with
+    leg 2's for the aggregate, then the tie rule is applied.
+  - **Between legs:** leg 1 is fixed, and Stage B's `two_legs` closed form is used.
+  - **Single match:** B3's closed form, as in D v2's check 2.
+- **Tournaments:** an upcoming edition in `tournament_formats.yml` with window `live` that
+  meets all of these:
+  - its rules validate;
+  - the replay of its played results is clean;
+  - every team is among the 218.
+
+  It shows P(group position), P(advance), P(reach each round) and P(win), each with its
+  Monte Carlo error, the as-of time and the refit, labelled team-only. None qualifies
+  today; an edition is added when its draw and fixtures are stored.
+- **Storage:**
+  - **Ties:** `market_projection` rows at the club milestones. Market `to_qualify` has
+    selections home and away; market `qualify_path` has six selections, side × {90, et,
+    pens}. Both sit in the same projection run as D v1's 1X2, so the live record scores
+    them.
+  - **Tournaments:** a JSON per as-of under `serving/tournament/<edition>/` in R2, and a
+    `projection_run` row that points to it. No schema migration is needed.
+- **Refresh:**
+  - after each Monday refit;
+  - in the capture tick, when a result in the tie or tournament becomes final. That gives a
+    new as-of and the same draws.
+- **Withheld, with the reason shown:** no written rule, a failed replay, a side outside the
+  218, youth (never), no current refit, and (if the owner chooses (c), or (a) fails)
+  two-legged ties.
+
+**Acceptance tests, before it is switched on:**
+1. **Identity:**
+   - a served single-match P(advance) equals `eval.tournament.tie_probs` at the same refit;
+   - a between-legs P(advance) equals Stage B's `two_legs` closed form on the same draws,
+     to 1e-9;
+   - a served tournament equals `simulate` with the same seed.
+2. **Coherence:**
+   - P(advance) of the two sides sums to 1;
+   - the six path selections sum to 1 and, by side, to its P(advance);
+   - a before-leg-1 tie simulated by sampling both legs matches the convolution within 3
+     Monte Carlo SE.
+3. **Eligibility:**
+   - only ties with a written rule and two servable sides are served;
+   - every other tie gets a reason and no probability;
+   - youth sides never get anything.
+4. **No leakage:** the state is as of now minus 3 h, and a refit with as_of after now is
+   refused (as D v1).
+5. **Shadow on past data, metrics only:**
+   - the March 2025 UEFA ties, as of the Monday before leg 1, from the cached refits;
+   - the served P(advance) must equal the check-(a) pipeline's to 1e-9;
+   - the capture tick must stay within its budget (well under 1 minute for the March 2027
+     window).
+6. **Dashboard:**
+   - a knockout match page shows P(advance) with its path beside the 90' forecast;
+   - a tournament page renders from a shadow edition (Euro 2024 as of its opening Monday,
+     marked shadow and not linked from the live list);
+   - unserved ties show their reason.
+
+**Not in this step:** qualifying groups and league phases (v2b), squad information, and any
+change to the match model or the simulator.
+
 ## Cross-cutting
 
 - **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,

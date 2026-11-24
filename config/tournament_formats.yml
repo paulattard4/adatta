@@ -1466,3 +1466,35 @@ editions:
       extra_time: true
       matches:
         F: ['W:SF_1', 'W:SF_2']
+# D v2 serving (docs/BEYOND_LEAGUES_PLAN.md, "D v2 serving acceptance"): national knockout ties
+# outside a simulated tournament, per provider league id, season range and round (fnmatch on
+# the stored round name). Only rounds whose rule the source states are here: the Nations
+# League Finals (single matches) and every CONCACAF Nations League tie are left out, since
+# their pages don't state extra time or penalties, so they are withheld. away_goals: none only.
+ties:
+  "5":  # UEFA Nations League: "In all two-legged ties ... the away goals rule was not applied"
+  - seasons: [2020, 2020]  # League C relegation play-outs, March 2022 (away goals abolished
+    # by the UEFA Executive Committee on 16 December 2021)
+    rounds: ["Relegation Play-out"]
+    legs: 2
+    extra_time: true
+    away_goals: none
+    source: https://en.wikipedia.org/wiki/2020%E2%80%9321_UEFA_Nations_League
+  - seasons: [2022, 2022]  # League C relegation play-outs, March 2024
+    rounds: ["Relegation Play-out"]
+    legs: 2
+    extra_time: true
+    away_goals: none
+    source: https://en.wikipedia.org/wiki/2022%E2%80%9323_UEFA_Nations_League
+  - seasons: [2024, 2024]  # quarter-finals and play-offs A/B, B/C (March 2025), C/D (March 2026)
+    rounds: ["Quarter-finals", "Play-offs ?/?"]
+    legs: 2
+    extra_time: true
+    away_goals: none
+    source: https://en.wikipedia.org/wiki/2024%E2%80%9325_UEFA_Nations_League
+  - seasons: [2026, 2026]  # quarter-finals and play-offs A/B, B/C (25-30 March 2027)
+    rounds: ["Quarter-finals*", "Play-offs ?/?"]
+    legs: 2
+    extra_time: true
+    away_goals: none
+    source: https://en.wikipedia.org/wiki/2026%E2%80%9327_UEFA_Nations_League

@@ -348,7 +348,14 @@ def two_legs(x1: int, y1: int, lam2: Arr, mu2: Arr, rho: Arr, kap: Arr, rule: kn
     """(P(side A advances), baseline) per draw before leg 2: leg 1 ended x1-y1 with A at
     home; leg 2 has B at home with rates (lam2, mu2)."""
     m = cup_terms.matrices(lam2, mu2, rho, kap, MAX_GOALS)  # [i = B goals, j = A goals]
-    g = np.arange(MAX_GOALS + 1)
+    return two_legs_m(m, x1, y1, lam2, mu2, rule, kappa_et, p_so_home2)
+
+
+def two_legs_m(m: Arr, x1: int, y1: int, lam2: Arr, mu2: Arr, rule: knockout.Rule,
+               kappa_et: float, p_so_home2: float) -> tuple[Arr, Arr]:  # fmt: skip
+    """`two_legs` on given leg-2 score matrices m (draws, n, n), [i = B goals, j = A goals]:
+    the same arithmetic for any score model (Stage D v2 uses the national one)."""
+    g = np.arange(m.shape[-1])
     i, j = np.meshgrid(g, g, indexing="ij")
     agg_a, agg_b = x1 + j, y1 + i
     a_win = agg_a > agg_b

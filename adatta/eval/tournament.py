@@ -19,6 +19,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from statistics import NormalDist
 from typing import Any
 
 import numpy as np
@@ -34,6 +35,7 @@ ROUND_OF = {"round of 32": "R32", "round of 16": "R16", "8th finals": "R16",
             "3rd place": "3P", "final": "F"}  # fmt: skip
 FINAL_STATUS = ("FT", "AET", "PEN")
 ECE_BINS = 10
+FW_ALPHA = 0.01  # check 2's family-wise false-alarm rate per window (amended 2026-11-24)
 Arr = Any
 
 
@@ -458,9 +460,12 @@ def team_rows(d: EdData, rp: Replay, res: tm.Result, t: datetime, label: str) ->
     return pl.DataFrame(out)
 
 
-def coherence(d: EdData, res: tm.Result, rt: tm.Rates, st: tm.State) -> list[str]:
-    """Check 2: probabilities that must add up do, and each tracked group fixture's simulated
-    1X2 is within 3 Monte Carlo standard errors of the model's."""
+def coherence(d: EdData, res: tm.Result, rt: tm.Rates, st: tm.State
+              ) -> tuple[list[str], list[tuple[str, float]]]:  # fmt: skip
+    """Check 2. Returns (failures of the exact parts, the Monte Carlo comparisons). The exact
+    parts: probabilities that must add up do. The comparisons: each tracked group fixture's
+    simulated home, draw and away rates against the model's, as z in Monte Carlo SEs; the
+    window's largest |z| is judged against a family-wise bound in `gate` (as amended)."""
     bad = []
     n_adv = d.ed.advancing()
     if not np.allclose(res.position.sum(axis=1), 1.0):
@@ -476,30 +481,40 @@ def coherence(d: EdData, res: tm.Result, rt: tm.Rates, st: tm.State) -> list[str
     for r in d.ed.rounds:
         if abs(res.reach[r.name].sum() - 2 * len(r.matches)) > 1e-9:
             bad.append(f"{r.name}: reach sums to {res.reach[r.name].sum():.4f}")
+    zs: list[tuple[str, float]] = []
     for (h, a), sim in res.match_1x2.items():
         f = next(f for fx in st.fixtures.values() for f in fx if (f.home, f.away) == (h, a))
         p = closed_1x2(rt, h, a, f.month, f.role)
-        se = np.sqrt(p * (1 - p) / res.n_sims)
-        if (np.abs(sim - p) > 3 * se + 1e-12).any():
-            bad.append(f"{h} v {a}: simulated 1X2 {np.round(sim, 4)} against {np.round(p, 4)}")
-    return bad
+        for name, z in zip(("home", "draw", "away"), _z(sim, p, res.n_sims), strict=True):
+            zs.append((f"{h} v {a} {name}", z))
+    return bad, zs
+
+
+def _z(sim: Arr, p: Arr, n: int) -> list[float]:
+    sim, p = np.atleast_1d(np.asarray(sim, float)), np.atleast_1d(np.asarray(p, float))
+    se = np.sqrt(p * (1 - p) / n)
+    diff = sim - p
+    z = np.where(se > 0, diff / np.where(se > 0, se, 1.0), np.where(np.abs(diff) > 1e-12,
+                                                                      np.inf, 0.0))  # fmt: skip
+    return [float(x) for x in z]
+
+
+def fw_threshold(m: int, alpha: float = FW_ALPHA) -> float:
+    """The largest |z| a correct simulator exceeds with probability at most alpha over m
+    comparisons (Bonferroni, two-sided)."""
+    return NormalDist().inv_cdf(1 - alpha / (2 * max(m, 1)))
 
 
 def tie_coherence(rt: tm.Rates, p: Played, month: int, extra_time: bool, closed: float,
-                  n_sims: int) -> list[str]:  # fmt: skip
-    """A knockout tie simulated as the simulator plays it, against B3's closed form."""
+                  n_sims: int) -> tuple[str, float]:  # fmt: skip
+    """A knockout tie simulated as the simulator plays it, against B3's closed form: z in
+    Monte Carlo SEs."""
     k = len(rt.base)
     d = np.arange(n_sims) % k
     role = np.full(n_sims, "neutral" if p.role == "unknown" else p.role)
     win = tm._knockout(rt, d, np.full(n_sims, rt.index(p.home)), np.full(n_sims, rt.index(p.away)),
                        month, role, extra_time, np.random.default_rng(tm.SEED))  # fmt: skip
-    se = np.sqrt(closed * (1 - closed) / n_sims)
-    sim = float(win.mean())
-    return (
-        []
-        if abs(sim - closed) <= 3 * se
-        else [f"tie {p.match_id}: simulated P(advance) {sim:.4f} against closed form {closed:.4f}"]
-    )
+    return f"tie {p.match_id}", _z(float(win.mean()), closed, n_sims)[0]
 
 
 def run_edition(session: Any, store: RawStore, key: str, n_sims: int = tm.N_SIMS
@@ -514,7 +529,7 @@ def run_edition(session: Any, store: RawStore, key: str, n_sims: int = tm.N_SIMS
     start = min(p.kickoff for p in d.group_matches)
     t0 = monday(start)
     res, rt, st = forecast(store, d, rp, t0, n_sims, track=True)
-    coh = coherence(d, res, rt, st)
+    coh, coh_z = coherence(d, res, rt, st)
     teams = [team_rows(d, rp, res, t0, "pre")]
     end_groups = max(p.kickoff for p in d.group_matches)
     t = t0 + timedelta(days=7)
@@ -539,7 +554,7 @@ def run_edition(session: Any, store: RawStore, key: str, n_sims: int = tm.N_SIMS
                        "finals", np.random.default_rng(tm.SEED))  # fmt: skip
         prob, base = tie_probs(rt2, p, month, et_of[sid])
         if not ties:  # check 2: the simulated tie against its closed form
-            coh += tie_coherence(rt2, p, month, et_of[sid], prob, n_sims)
+            coh_z.append(tie_coherence(rt2, p, month, et_of[sid], prob, n_sims))
         ties.append({"edition": key, "window": ed.window, "match_id": p.match_id, "slot": sid,
                      "round": p.round, "as_of": monday(p.kickoff), "p": prob, "base": base,
                      "y": float(w == p.home), "extra_time": et_of[sid],
@@ -551,6 +566,7 @@ def run_edition(session: Any, store: RawStore, key: str, n_sims: int = tm.N_SIMS
         "replay_random": rp.random_groups,
         "unresolved": rp.unresolved,
         "coherence": coh,
+        "coherence_z": coh_z,
         "random_groups": res.random_groups,
         "random_thirds": res.random_thirds,
         "n_sims": n_sims,
@@ -610,7 +626,10 @@ def gate(teams: pl.DataFrame, ties: pl.DataFrame, diags: list[dict[str, Any]],
     kw = ties.filter(pl.col("window") == window)
     dw = [x for x in diags if x["window"] == window]
     c1 = all(not x["replay_problems"] for x in dw)
-    c2 = all(not x["coherence"] for x in dw)
+    zs = [(x["edition"], lab, float(z)) for x in dw for lab, z in x["coherence_z"]]
+    z_star = fw_threshold(len(zs))
+    worst = max(zs, key=lambda r: abs(r[2]), default=("", "", 0.0))
+    c2 = all(not x["coherence"] for x in dw) and abs(worst[2]) <= z_star
     pa, ya = tw["p_advance"].to_numpy(), tw["advanced"].to_numpy()
     pq, yq = tw["p_qf"].to_numpy(), tw["reached_qf"].to_numpy()
     ece_a, null_a = _ece(pa, ya)
@@ -644,6 +663,14 @@ def gate(teams: pl.DataFrame, ties: pl.DataFrame, diags: list[dict[str, Any]],
         "replay_random": {x["edition"]: x["replay_random"] for x in dw if x["replay_random"]},
         "unresolved": {x["edition"]: x["unresolved"] for x in dw if x["unresolved"]},
         "coherence": {x["edition"]: x["coherence"] for x in dw if x["coherence"]},
+        "coherence_mc": {
+            "m": len(zs),
+            "z_star": z_star,
+            "max_abs_z": abs(worst[2]),
+            "max_at": f"{worst[0]}: {worst[1]}",
+            "over_3se": sum(abs(z) > 3 for _, _, z in zs),
+            "over_3se_expected": len(zs) * 2 * (1 - NormalDist().cdf(3)),
+        },
         "ece_advance": [ece_a, null_a],
         "ece_qf": [ece_q, null_q],
         "ko_logloss": [float(_ll(p, y).mean()), float(_ll(b, y).mean())],
@@ -677,6 +704,10 @@ def markdown(v: dict[str, Any]) -> str:
               f"- Brier P(advance) {v['brier_advance']:.4f} (equal chances "
               f"{v['brier_advance_ref']:.4f}); RPS of stage reached {v['rps_stage'][0]:.4f} "
               f"(equal chances {v['rps_stage'][1]:.4f})",
+              f"- check 2, Monte Carlo: {v['coherence_mc']['m']} comparisons, largest |z| "
+              f"{v['coherence_mc']['max_abs_z']:.2f} against z* {v['coherence_mc']['z_star']:.2f}; "
+              f"{v['coherence_mc']['over_3se']} over 3 SE "
+              f"({v['coherence_mc']['over_3se_expected']:.1f} expected by chance)",
               f"- random step: {v['random_groups']:.3%} of simulated group tables, "
               f"{v['random_thirds']:.3%} of third rankings"]  # fmt: skip
     for k in ("replay_problems", "replay_random", "unresolved", "coherence"):

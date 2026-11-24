@@ -2242,6 +2242,30 @@ owner. Nothing is tuned.
   An amendment after the result is not a re-score: nothing in the model or the forecasts
   would change.
 
+### D v2 check 2 amended (2026-11-24, after the result; owner: "Amend check 2")
+
+Stated before the rerun. It changes only how check 2 reads its Monte Carlo comparisons.
+The model, the simulator, the seed, the 20,000 sims and checks 1 and 3-5 are unchanged.
+
+- **Exact parts, unchanged:** position, advance, P(win) and reach probabilities sum to
+  what they must (tolerance 1e-9). Any failure fails check 2.
+- **Monte Carlo parts, amended:**
+  - Every comparison gives z = (simulated − closed form) / Monte Carlo SE. There are three
+    per tracked group fixture (home, draw, away) and one per edition's first knockout tie
+    (P(advance) against B3's closed form).
+  - A window passes if its largest |z| is at most z* = Φ⁻¹(1 − 0.01 / (2m)), where m is
+    the number of comparisons in that window. That is a Bonferroni bound with a 1%
+    family-wise false-alarm rate (z* ≈ 4.4 for m ≈ 900). Bonferroni needs no assumption
+    about how the three outcomes of a fixture are correlated.
+  - Reported, not gated: m, the largest |z| with its fixture, and the count over 3 SE
+    against its expected count under a correct simulator (m × 0.0027).
+- **Why 1% and not 5%:** a correct simulator should fail by chance in about 1 run in 100
+  per window, not 1 in 20. A real sampler bug is systematic and shows up across many
+  fixtures, not as one 3-SE outlier.
+- **Rerun:** all 17 editions from the amended code, with the same seed. The forecasts are
+  therefore identical to the run above, and only check 2's reading changes. The 400,000-
+  sample resample above is evidence, not part of the gate.
+
 ## Cross-cutting
 
 - **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,

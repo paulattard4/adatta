@@ -156,8 +156,19 @@ def test_a_fixed_result_stays_fixed_and_a_tie_matches_its_closed_form() -> None:
                   None, "neutral")  # fmt: skip
     for et in (True, False):
         closed, base = ev.tie_probs(rt, p, 100, et)
-        assert ev.tie_coherence(rt, p, 100, et, closed, 20000) == []
+        label, z = ev.tie_coherence(rt, p, 100, et, closed, 20000)
+        assert label == "tie 1" and abs(z) <= ev.fw_threshold(1)
         assert (closed == base) == (not et)
+
+
+def test_check_2_is_family_wise() -> None:
+    # Bonferroni at 1%: one comparison needs |z| <= 2.58; ~900 need about 4.4
+    assert abs(ev.fw_threshold(1) - 2.5758) < 1e-3
+    assert 4.3 < ev.fw_threshold(906) < 4.5
+    sims = 4000
+    z = ev._z([0.31, 0.30], [0.30, 0.30], sims)
+    assert abs(z[0] - 0.01 / np.sqrt(0.21 / sims)) < 1e-9 and z[1] == 0.0
+    assert ev._z([0.01], [0.0], sims) == [np.inf]  # off a certain outcome: always flagged
 
 
 def test_winner_rule() -> None:

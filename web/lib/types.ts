@@ -102,6 +102,27 @@ export interface MatchView {
   generated_at: string; header: Header; freshness: Freshness; confidence: Component[];
   milestones: Milestone[]; matrix: ScoreMatrix | null; decomposition: Decomposition[];
   coherence: Coherence | null; no_projection_reason: string | null; squad: Squad | null; unavailable: Unavailable[];
+  qualify?: Qualify | null;
+}
+
+export interface QualifyLeg { match_id: number; home: string; away: string; kickoff: string; score: string | null }
+
+/** Stage D v2: a knockout tie's P(advance) with its path (path keys home_90, home_et, home_pens, away_...). */
+export interface Qualify {
+  milestone: string; generated_at: string; label: string; stage: string;
+  home: Prob; away: Prob; path: Record<string, Prob>; legs: QualifyLeg[]; round: string;
+}
+
+export interface TournamentEntry { edition: string; name: string; as_of: string }
+export interface TournamentList { tournaments: TournamentEntry[] }
+
+/** [probability, Monte Carlo SE] */
+export type McProb = [number, number];
+export interface TournamentTeam { team_id: number; name: string; position: McProb[]; advance: McProb; reach: Record<string, McProb>; win: McProb }
+export interface TournamentView {
+  edition: string; name: string; as_of: string; refit_as_of: string; model_run_id: number | null; shadow: boolean;
+  label: string; n_sims: number; mc_se_max: number; finals_fixed: number; rounds: string[];
+  groups: { group: string; teams: TournamentTeam[] }[]; random_groups: number; random_thirds: number;
 }
 
 export interface PlayedScores {

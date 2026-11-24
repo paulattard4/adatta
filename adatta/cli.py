@@ -196,16 +196,22 @@ def _projector(session: Session, settings: Any) -> Any:
 
 
 def _national_projector(session: Session, settings: Any) -> Any:
-    """Stage D v1's national forecasts from the latest passing live refit (numpy only)."""
+    """Stage D v1's national forecasts from the latest passing live refit, with Stage D v2's
+    knockout ties in the same runs and its tournament forecasts (numpy only)."""
     from adatta.eval.baseline import _file_hash, _git_sha
     from adatta.model import national as nt
-    from adatta.sim import national_serve
+    from adatta.sim import national_serve, tournament_serve
 
     store = make_store(settings)
     manifest = {"git_commit": _git_sha(), "lockfile_hash": _file_hash("uv.lock"), "seed": nt.SEED}
 
     def run(now: datetime) -> Any:
-        return national_serve.run_projection(session, store, manifest, now=now)
+        report = national_serve.run_projection(session, store, manifest, now=now)
+        counts, problems = tournament_serve.run_tournaments(session, store, manifest, now=now)
+        if counts["written"]:
+            report.written["tournaments"] = counts["written"]
+        report.problems += problems
+        return report
 
     return run
 

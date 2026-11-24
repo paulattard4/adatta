@@ -293,3 +293,9 @@ table.scores th { color: var(--dim); font-weight: 500; font-size: 11px; }
 .pitch-foot { display: flex; gap: 4px; align-items: center; justify-content: center; min-height: 16px; }
 .pitch-moved { color: var(--accent); margin-right: 3px; font-size: 10px; }
 .pitch-player .absence-tag { font-size: 9px; padding: 0 4px; }
+
+/* Stage D v2: going through and tournaments */
+.qualify-path { margin-top: 10px; max-width: 520px; }
+.qualify-legs { margin: 8px 0 0; }
+.tournament-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 560px), 1fr)); gap: 12px; }
+.shadow-flag { border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-size: 11px; text-transform: uppercase; }

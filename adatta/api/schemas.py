@@ -294,6 +294,28 @@ class Squad(BaseModel):
     away: TeamSquad
 
 
+class QualifyLeg(BaseModel):
+    match_id: int
+    home: str
+    away: str
+    kickoff: datetime
+    score: str | None  # the 90' score once final (extra time and penalties after it)
+
+
+class Qualify(BaseModel):
+    """Stage D v2: a knockout tie's P(advance) with its path, from the latest milestone."""
+
+    milestone: str
+    generated_at: datetime
+    label: str
+    stage: str  # before leg 1 | between legs | single match
+    home: Prob  # this match's listed home side goes through
+    away: Prob
+    path: dict[str, Prob]  # home_90 / home_et / home_pens / away_... (sum to 1)
+    legs: list[QualifyLeg]
+    round: str
+
+
 class MatchView(BaseModel):
     generated_at: datetime
     header: Header
@@ -306,6 +328,50 @@ class MatchView(BaseModel):
     no_projection_reason: str | None
     squad: Squad | None = None
     unavailable: list[Unavailable]
+    qualify: Qualify | None = None  # national knockout ties (Stage D v2)
+
+
+class TournamentEntry(BaseModel):
+    edition: str
+    name: str
+    as_of: datetime
+
+
+class TournamentList(BaseModel):
+    tournaments: list[TournamentEntry]
+
+
+class TournamentTeam(BaseModel):
+    team_id: int
+    name: str
+    position: list[list[float]]  # [p, Monte Carlo SE] per finishing place
+    advance: list[float]
+    reach: dict[str, list[float]]
+    win: list[float]
+
+
+class TournamentGroup(BaseModel):
+    group: str
+    teams: list[TournamentTeam]
+
+
+class TournamentView(BaseModel):
+    """Stage D v2: a tournament forecast as served (or a past edition's shadow)."""
+
+    edition: str
+    name: str
+    as_of: datetime
+    refit_as_of: datetime
+    model_run_id: int | None
+    shadow: bool
+    label: str
+    n_sims: int
+    mc_se_max: float
+    finals_fixed: int
+    rounds: list[str]
+    groups: list[TournamentGroup]
+    random_groups: float
+    random_thirds: float
 
 
 class PlayedScores(BaseModel):

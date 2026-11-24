@@ -138,6 +138,39 @@ def markdown(v: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def shadow(session: Any, store: RawStore, run: str) -> dict[str, Any]:
+    """Serving acceptance test 5: the March 2025 UEFA ties as of the Monday before leg 1, run
+    through the serving path (`ties.project`) from the cached refits, against check (a)'s
+    stored rows of run `run`; metrics only."""
+    import time
+
+    from adatta.model import national as nat
+
+    rows = pl.read_parquet(io.BytesIO(store.get(f"{PREFIX}/{run}/rows.parquet")))
+    want = {r["match_id"]: r["p"] for r in rows.filter(pl.col("point") == "before_leg1")
+            .iter_rows(named=True)}  # fmt: skip
+    lo, hi = datetime(2025, 3, 1, tzinfo=UTC), datetime(2025, 4, 1, tzinfo=UTC)
+    found, _, confs = ties.stored(session, store, ties.load_rules(), lo, hi)
+    gaps, secs = [], []
+    for t in found:
+        l1 = t.legs[0]
+        as_of = ev.monday(l1.kickoff)
+        post, diag = ev.refit(store, as_of)
+        refit_at = datetime.fromtimestamp(float(post["_as_of"]), UTC)
+        t0 = time.perf_counter()
+        sel = ties.project(post, t, l1.match_id, confs, refit_at, int(diag["n_months"]), as_of)
+        secs.append(time.perf_counter() - t0)
+        gaps.append(abs(sel[(ties.QUALIFY, None, "home")][0] - want[l1.match_id]))
+        assert nat.month_index(refit_at) <= nat.month_index(as_of)
+    return {
+        "ties": len(found),
+        "max_gap": max(gaps),
+        "passes": max(gaps) <= 1e-9,
+        "seconds_per_tie_max": max(secs),
+        "seconds_total": sum(secs),
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     from adatta.adapters.storage import make_store
     from adatta.config import get_settings
@@ -147,8 +180,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     s1 = sub.add_parser("run")
     s1.add_argument("--upload", default="")
+    s2 = sub.add_parser("shadow")
+    s2.add_argument("--run", required=True)
     args = ap.parse_args(argv)
     store = make_store(get_settings())
+    if args.cmd == "shadow":
+        print(json.dumps(shadow(get_session(), store, args.run)))
+        return
     df, v = run(get_session(), store)
     if args.upload:
         buf = io.BytesIO()

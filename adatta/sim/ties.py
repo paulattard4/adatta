@@ -342,3 +342,76 @@ def stored(session: Any, store: Any, rules: Mapping[str, Sequence[Entry]], lo: d
             pair(r.home_pens, r.away_pens) if r is not None else None)))  # fmt: skip
     ties, irregular = group(legs, rules)
     return ties, sorted(irregular + outside), {t: confs[t] for t in confs}
+
+
+# -------------------------------------------------------------------------------- serving
+
+QUALIFY = "to_qualify"  # market_projection: selections home / away (the match's listed sides)
+PATH = "qualify_path"  # selections home_90, home_et, home_pens, away_90, away_et, away_pens
+NO_RULE = ("No written tie rule for this round: Stage D v2 serves knockout ties whose rules "
+           "are sourced (the UEFA Nations League two-legged rounds so far).")  # fmt: skip
+KNOCKOUT_WORDS = ("final", "play-off", "play-out", "quarter", "semi", "round of", "8th", "knockout",
+                  "play-in")  # fmt: skip
+SERVE_BACK = timedelta(days=60)  # a leg 2 inside the horizon finds its leg 1 this far back
+SERVE_AHEAD = timedelta(days=120)
+
+
+def rules_hash(path: Path | str = tm.FORMATS_PATH) -> str:
+    import hashlib
+    import json
+
+    raw = (yaml.safe_load(Path(path).read_text()) or {}).get("ties") or {}
+    return hashlib.sha256(json.dumps(raw, sort_keys=True).encode()).hexdigest()
+
+
+def is_knockout_round(round_: str | None) -> bool:
+    r = (round_ or "").lower()
+    return any(w in r for w in KNOCKOUT_WORDS)
+
+
+def serving_ties(session: Any, store: Any, match_ids: Sequence[int], now: datetime
+                 ) -> tuple[dict[int, Tie], dict[int, str]]:  # fmt: skip
+    """{match id: its tie} for the given upcoming matches that are legs of a regular tie with
+    a written rule, and the sides' confederations."""
+    rules = load_rules()
+    if not rules or not match_ids:
+        return {}, {}
+    found, _, confs = stored(session, store, rules, now - SERVE_BACK, now + SERVE_AHEAD)
+    want = set(match_ids)
+    return {x.match_id: t for t in found for x in t.legs if x.match_id in want}, confs
+
+
+def selections(p: TieProb, home_is_a: bool, interval: tuple[float, float] = (0.05, 0.95)
+               ) -> dict[tuple[str, float | None, str], tuple[float, float, float]]:  # fmt: skip
+    """market_projection selections for one match of the tie, relative to its listed sides:
+    (posterior mean, 5th, 95th percentile) per selection."""
+    side = {"a": "home" if home_is_a else "away", "b": "away" if home_is_a else "home"}
+
+    def stat(x: Arr) -> tuple[float, float, float]:
+        lo, hi = np.quantile(x, interval)
+        return float(np.clip(x.mean(), 0, 1)), float(np.clip(lo, 0, 1)), float(np.clip(hi, 0, 1))
+
+    out: dict[tuple[str, float | None, str], tuple[float, float, float]] = {
+        (QUALIFY, None, side["a"]): stat(p.a),
+        (QUALIFY, None, side["b"]): stat(1 - p.a),
+    }
+    for (s, how), x in p.path.items():
+        out[(PATH, None, f"{side[s]}_{how}")] = stat(x)
+    return out
+
+
+def project(post: Mapping[str, Any], t: Tie, match_id: int, confs: Mapping[int, str],
+            refit_as_of: datetime, walk_months: int, now: datetime
+            ) -> dict[tuple[str, float | None, str], tuple[float, float, float]]:  # fmt: skip
+    """The tie's selections for one of its upcoming matches as of now, from the refit's draws
+    (the simulator's seed, so the same refit and state always give the same numbers)."""
+    from adatta.model import national as nat
+
+    m0 = nat.month_index(refit_as_of)
+    months = [max(nat.month_index(x.kickoff), m0) for x in t.legs]
+    rt = tie_rates(post, t, confs, m0, walk_months, months, nat.comp_type(t.league_id))
+    p = tie_prob(rt, t, months, now)
+    if p is None:
+        return {}
+    leg = next(x for x in t.legs if x.match_id == match_id)
+    return selections(p, leg.home == t.a)

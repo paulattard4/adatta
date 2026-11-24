@@ -7,7 +7,7 @@ import { InPlay, LIVE_REFRESH_MS } from "@/components/Live";
 import { ProbCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
 import { kickoffLocal, showsOdds, tierLabel } from "@/lib/format";
-import type { FixtureList, LiveList } from "@/lib/types";
+import type { FixtureList, LiveList, TournamentList } from "@/lib/types";
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -27,6 +27,7 @@ export default function Browser() {
   if (level) q.set("team_level", level);
   const { data, error, loading } = useJson<FixtureList>(`/api/fixtures?${q}`);
   const live = useJson<LiveList>("/api/live", LIVE_REFRESH_MS);
+  const tours = useJson<TournamentList>("/api/tournaments");
   const comps = all.data?.competitions ?? [];
   const levels = [...new Set(comps.flatMap((c) => c.fixtures.map((f) => f.team_level)))];
 
@@ -52,6 +53,13 @@ export default function Browser() {
         </span>
       </div>
       {live.data && <InPlay live={live.data} />}
+      {tours.data && tours.data.tournaments.length > 0 && (
+        <div className="panel">
+          Tournaments: {tours.data.tournaments.map((x, i) => (
+            <span key={x.edition}>{i > 0 && " · "}<Link href={`/tournament/${x.edition}`}>{x.name}</Link></span>
+          ))}
+        </div>
+      )}
       {error && <div className="panel error">Could not load fixtures: {error}. Is the API running on 127.0.0.1:8000?</div>}
       {loading && !data && <div className="panel dim">Loading fixtures…</div>}
       {data && data.competitions.length === 0 && <div className="panel dim">No projected-bundle fixtures in this range.</div>}

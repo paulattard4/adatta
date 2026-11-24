@@ -2398,6 +2398,117 @@ first use, but no national two-legged tie has been scored. Stored and already pl
 **Not in this step:** qualifying groups and league phases (v2b), squad information, and any
 change to the match model or the simulator.
 
+- [x] **Check (a) built 2026-11-24, before any score** (commit b0a4669).
+  - **Rules** (`config/tournament_formats.yml`, `ties`): only the UEFA Nations League
+    two-legged rounds, whose pages state the rule: two legs, extra time when the aggregate
+    is level, no away goals, then penalties. These cover the relegation play-outs (2022,
+    2024), the quarter-finals and play-offs (2025, 2026), and the 2027 quarter-finals and
+    play-offs.
+  - **Differences from the draft, disclosed:**
+    - Every CONCACAF Nations League tie and every single-match Nations League Finals match
+      is left out. Their pages don't state extra time or penalties, and nothing was written
+      from memory. So 17 played ties are scored, not about 29, and those rounds are
+      withheld when served.
+    - The finals matches are not reported either: with no written rule there is no closed
+      form to report.
+  - **Code:**
+    - `adatta/sim/ties.py`: rules, grouping, the winner and path check, and the single,
+      before-leg-1 and between-legs probabilities with their paths;
+    - `adatta/eval/ties.py`: the check;
+    - `eval.knockout.two_legs_m`: Stage B's `two_legs` arithmetic on any score matrices,
+      a pure refactor.
+  - **Tests** (`tests/test_ties.py`, 10):
+    - between legs equals Stage B to 1e-12;
+    - single equals B3;
+    - before leg 1 is the exact mixture over leg-1 results and agrees with 200,000
+      sampled ties;
+    - the paths sum to 1;
+    - the winner and path checks, grouping, refused rules and leakage.
+
+### Check (a) result (2026-11-24): PASSES
+
+- **Run:** local, from commit b0a4669, in 23 s. Rows are in R2 under
+  `tournament/v2/ties/local-b0a4669/`. No fits and no API requests.
+- **Replay:** 17 played ties, 0 path problems and 0 irregular. 2 ties are in dev and 15 in
+  the opened data; 5 went to extra time.
+- **Identity:** at every between-legs point, P(advance) equals Stage B's `two_legs` on the
+  same matrices to 1e-9 (a run-time check).
+
+| point | log loss (level = coin flip) | difference [95%] | ECE / noise floor |
+|---|---|---|---|
+| before leg 1 (served case) | 0.4621 (0.4763) | −0.0142 [−0.0200, −0.0085] | 0.236 / 0.327 |
+| between legs | 0.4512 (0.4702) | −0.0189 [−0.0320, −0.0059] | 0.244 / 0.307 |
+
+- **Reading:** at both points the interval excludes zero, in the model's favour. 17 ties is
+  little, which the ECE noise floors show. Under the owner's choice (a), two-legged ties
+  are served.
+
+- [x] **D v2 serving built 2026-11-24.**
+  - **Ties** (`adatta/sim/ties.py`, called from `national_serve.run_projection`):
+    - each leg of a tie with a written rule gets `to_qualify` (home, away) and
+      `qualify_path` (six selections) rows;
+    - they are written at D v1's milestones, in the same projection run as its 1X2, from
+      the same live refit;
+    - `projection_run.component_versions` carries `to_qualify` (the rules hash, κ, the
+      shoot-out probability and the seed);
+    - legs final by now − 3 h are fixed.
+  - **Tournaments** (`adatta/sim/tournament_serve.py`, in the same capture-tick step):
+    - live editions only; withheld on a replay problem, a team outside the servable sides,
+      or no current refit;
+    - a JSON per forecast under `serving/tournament/<edition>/`, with a `projection_run`
+      row (component `tournament`);
+    - a new forecast only when the refit or the set of final results changes.
+  - **The 90' forecast is unchanged:** a tie's legs are computed on the simulator's joint
+    rates (one walk for both legs). D v1's 1X2 for the same leg is unchanged, so the two
+    can differ by the walk's sampling noise.
+  - **API:**
+    - `qualify` on the national match view: stage, P(advance) with its 90% interval, the
+      path and the legs. Otherwise a "Going through" reason: no written rule, no refit,
+      youth. A non-knockout match gets none.
+    - `/api/tournaments` and `/api/tournaments/{key}` (`?shadow=true` for a past edition).
+  - **Web:** a "Going through" panel on the match page, a tournament page, and a link from
+    the fixture list when a tournament is served.
+- **Acceptance tests:**
+  1. **Identity: pass.**
+     - Between legs equals Stage B's `two_legs` to 1e-12 (unit tests), and to 1e-9 at every
+       check-(a) point.
+     - Single equals B3.
+     - The served rows equal `ties.project` on the refit's draws.
+     - A served tournament payload is `simulate` with the same seed.
+  2. **Coherence: pass.**
+     - P(advance) sums to 1, and the six path selections to 1 and, by side, to P(advance).
+     - Before leg 1 is the exact mixture over leg-1 results and agrees with 200,000 sampled
+       ties within 4 SE. The acceptance said 3 SE; that test uses 4.
+  3. **Eligibility: pass.** A round with no rule gets the 90' forecast only, with the
+     reason. A youth tie gets nothing. A non-knockout match shows no panel.
+  4. **No leakage: pass.**
+     - Leg 1 is used only once final by now − 3 h.
+     - A refit after now is refused (D v1's check, and in the tournament path).
+  5. **Shadow, March 2025 UEFA ties: PASSES.**
+     - `python -m adatta.eval.ties shadow --run local-b0a4669` on 12 ties.
+     - The serving path equals check (a)'s before-leg-1 P(advance) with a largest gap of
+       0.0.
+     - 0.10 s per tie at most, 0.37 s in all: well within the capture tick.
+  6. **Dashboard: pass.**
+     - The Euro 2024 shadow (`/tournament/euro2024?shadow=1`, written by `python -m
+       adatta.sim.tournament_serve shadow --edition euro2024` in 23 s) renders: 6 groups,
+       position probabilities summing to 100%, Monte Carlo SE ≤ 0.35 points on hover, and
+       marked shadow.
+     - A March 2027 play-off leg shows "Going through: No passing national refit yet".
+     - The panel with numbers is covered by the API test, not seen live: no live refit
+       exists yet.
+  - Tests are in `tests/test_tournament_serve.py` (9) and `tests/test_ties.py` (10).
+- **Switch-on:** nothing to dispatch.
+  - D v1's Monday refit runs in weeks with a servable match within 14 days, so the first is
+    15 March 2027. The capture tick then writes the 12 UEFA ties' P(advance) at each
+    milestone.
+  - Tournaments start when an edition is added to `tournament_formats.yml` with window
+    `live` and its groups.
+- **Not yet:**
+  - **The live record** of served ties and tournaments: scored after each ends, with the
+    owner's review after the first two;
+  - **CONCACAF Nations League rules**, which need the regulations themselves.
+
 ## Cross-cutting
 
 - **Order (D37, 2026-11-16):** Phase 3 comes next. Stage A finishes the A1 run and A2,

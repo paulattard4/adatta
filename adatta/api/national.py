@@ -17,16 +17,11 @@ from adatta.db import models
 from adatta.model import national as nt
 from adatta.model import national_live as nl
 from adatta.sim import national_serve as ns
-from adatta.sim import serve
+from adatta.sim import serve, ties
 
 BUNDLE = ns.BUNDLE
 UNAVAILABLE = [
     sc.Unavailable(panel="Over/Under and BTTS", reason=ns.WITHHELD),
-    sc.Unavailable(
-        panel="Knockout",
-        reason="90' only: going through and shoot-outs come with "
-        "the tournament simulator (Stage D v2).",
-    ),  # fmt: skip
     sc.Unavailable(
         panel="Squad", reason="Team-only model: call-ups and lineups are not used (Stage D v1)."
     ),  # fmt: skip
@@ -35,6 +30,57 @@ UNAVAILABLE = [
         panel="Edge", reason="Edge analytics is wave 2 (§16.4); odds never feed the model."
     ),  # fmt: skip
 ]
+
+
+def qualify(session: Session, ctx: v.Context, m: v.MatchRow,
+            by_ms: dict[str, list[models.MarketProjection]], now: datetime
+            ) -> tuple[sc.Qualify | None, sc.Unavailable | None]:  # fmt: skip
+    """The tie's P(advance) and path from the latest milestone that has them, or why there
+    is none (no panel at all when the match is not a knockout)."""
+    from datetime import timedelta
+
+    rules = ties.load_rules()
+    kick = v._utc(m.kickoff)
+    found, _, _ = ties.stored(session, ctx.store, rules, kick - timedelta(days=60),
+                              kick + timedelta(days=60))  # fmt: skip
+    tie = next((t for t in found if any(x.match_id == m.match_id for x in t.legs)), None)
+    with_q = [ms for ms in v._published_order(by_ms)
+              if any(r.market_type == ties.QUALIFY for r in by_ms[ms])]  # fmt: skip
+    if tie is None or not with_q:
+        if tie is not None:
+            why = ns.reason(session, ctx.store, [m.match_id], now).get(m.match_id, ns.NOT_COVERED)
+        elif ties.is_knockout_round(m.round):
+            why = ties.NO_RULE
+        else:
+            return None, None
+        return None, sc.Unavailable(panel="Going through", reason=why)
+    ms = with_q[-1]
+    rows = by_ms[ms]
+    pr = session.get(models.ProjectionRun, rows[0].projection_run_id)
+    assert pr is not None
+    gen = v._utc(pr.generated_at)
+    q = {r.selection: v._p(r) for r in rows if r.market_type == ties.QUALIFY}
+    path = {r.selection: v._p(r) for r in rows if r.market_type == ties.PATH}
+    stage = ("single match" if tie.rule.legs == 1 else
+             "between legs" if tie.legs[0].final_by(gen) else "before leg 1")  # fmt: skip
+    name = {m.home_id: m.home, m.away_id: m.away}
+
+    def score(x: ties.Leg) -> str | None:
+        if x.nt is None or x.status not in ties.FINAL:
+            return None
+        s = f"{x.nt[0]}-{x.nt[1]}"
+        if x.et is not None and x.status in ("AET", "PEN"):
+            s += f" (aet {x.nt[0] + x.et[0]}-{x.nt[1] + x.et[1]})"
+        if x.pens is not None and x.status == "PEN":
+            s += f", {x.pens[0]}-{x.pens[1]} pens"
+        return s
+
+    legs = [sc.QualifyLeg(match_id=x.match_id, home=name.get(x.home, str(x.home)),
+                          away=name.get(x.away, str(x.away)), kickoff=x.kickoff, score=score(x))
+            for x in tie.legs]  # fmt: skip
+    return sc.Qualify(milestone=ms, generated_at=gen, label=ties.LABEL, stage=stage,
+                      home=q["home"], away=q["away"], path=path, legs=legs,
+                      round=tie.round), None  # fmt: skip
 
 
 def _run(session: Session, now: datetime) -> models.ModelRun | None:
@@ -154,7 +200,8 @@ def match_view(session: Session, ctx: v.Context, m: v.MatchRow, header: sc.Heade
             projection_run_id=pr.projection_run_id, model_run_id=cv.get("model_run_id"),
             refit_as_of=datetime.fromisoformat(cv["as_of"]) if "as_of" in cv else None,
             selections=[sc.Selection(market=r.market_type, line=r.line, selection=r.selection,
-                                     prob=v._p(r)) for r in by_ms[ms]],
+                                     prob=v._p(r)) for r in by_ms[ms]
+                        if r.market_type not in (ties.QUALIFY, ties.PATH)],  # in `qualify`
         ))  # fmt: skip
     run = None
     if milestones and milestones[-1].model_run_id is not None:
@@ -182,10 +229,11 @@ def match_view(session: Session, ctx: v.Context, m: v.MatchRow, header: sc.Heade
                                 tail_mass=0.0, max_goals=nt.MAX_GOALS)  # fmt: skip
     else:
         reason = ns.reason(session, ctx.store, [m.match_id], now).get(m.match_id, ns.NOT_COVERED)
+    q, q_why = qualify(session, ctx, m, by_ms, now)
     return sc.MatchView(
         generated_at=now, header=header, freshness=fresh,
         confidence=confidence(m, run or serving, post, fresh, nl.champion(session), now),
         milestones=milestones, matrix=matrix if coh is None or coh.coherent else None,
         decomposition=[], coherence=coh, no_projection_reason=reason, squad=None,
-        unavailable=UNAVAILABLE,
+        unavailable=UNAVAILABLE + ([q_why] if q_why else []), qualify=q,
     )  # fmt: skip

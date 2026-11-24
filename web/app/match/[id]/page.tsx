@@ -10,7 +10,7 @@ import { SquadPanel } from "@/components/Squad";
 import { Waterfall } from "@/components/Waterfall";
 import { useJson, useNow } from "@/lib/fetch";
 import { cameIn, countdown, dateLocal, fairOdds, interval, kickoffLocal, liveClock, MARKET_LABEL, oddsInterval, pct, showsOdds, tierLabel } from "@/lib/format";
-import type { LiveList, MatchView, Milestone, Result, Selection } from "@/lib/types";
+import type { LiveList, MatchView, Milestone, Qualify, Result, Selection } from "@/lib/types";
 
 const SEL_LABEL: Record<string, string> = { home: "Home", draw: "Draw", away: "Away", over: "Over", under: "Under", yes: "Yes", no: "No" };
 
@@ -57,6 +57,48 @@ function History({ ms, odds }: { ms: Milestone[]; odds: boolean }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+const HOW: [string, string][] = [["90", "in normal time"], ["et", "in extra time"], ["pens", "on penalties"]];
+
+/** Stage D v2: who goes through, and how, beside the 90' forecast. */
+function GoingThrough({ q, home, away, odds }: { q: Qualify; home: string; away: string; odds: boolean }) {
+  const legs = q.legs.length > 1;
+  return (
+    <>
+      <div className="markets">
+        <div className="market">
+          <div className="market-name">To go through <span className="dim">· {q.stage}</span></div>
+          <div className="market-sels">
+            <ProbCell prob={q.home} label={home} odds={odds} />
+            <ProbCell prob={q.away} label={away} odds={odds} />
+          </div>
+        </div>
+      </div>
+      <table className="history qualify-path">
+        <thead><tr><th>How</th><th className="r">{home}</th><th className="r">{away}</th></tr></thead>
+        <tbody>
+          {HOW.map(([k, label]) => (
+            <tr key={k}>
+              <td>{k === "90" && legs ? "on aggregate" : label}</td>
+              {["home", "away"].map((s) => {
+                const p = q.path[`${s}_${k}`];
+                return <td key={s} className="num r">{pct(p.p)} <span className="dim">{interval(p.lo, p.hi)}</span></td>;
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {legs && (
+        <p className="dim qualify-legs">
+          {q.round}: {q.legs.map((l, i) => (
+            <span key={l.match_id}>{i > 0 && " · "}leg {i + 1} {l.home} v {l.away}, {l.score ?? kickoffLocal(l.kickoff)}</span>
+          ))}
+        </p>
+      )}
+      <p className="dim">{q.label}. {q.milestone} projection, posterior mean and 90% interval.</p>
+    </>
   );
 }
 
@@ -118,6 +160,13 @@ export default function MatchPage() {
         </section>
       ) : (
         <section className="panel dim">{v.no_projection_reason}</section>
+      )}
+
+      {v.qualify && (
+        <section className="panel">
+          <h3>Going through</h3>
+          <GoingThrough q={v.qualify} home={h.home} away={h.away} odds={showsOdds(h.team_level)} />
+        </section>
       )}
 
       {v.coherence && !v.coherence.coherent && (

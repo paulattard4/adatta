@@ -3,9 +3,11 @@ refit (docs/BEYOND_LEAGUES_PLAN.md, "D v1 serving acceptance"). Numpy only: it r
 capture tick without the model dependency group, and never runs NUTS or reads odds.
 
 Served: 90' 1X2 (market_projection) for upcoming matches between two servable sides, at the
-club milestones; the score matrix is recomputed from the same draws on demand. Over/Under and
-BTTS are withheld (not validated for national teams). A match whose week has no refit from it
-or the week before gets no forecast, with the reason, rather than a months-old one.
+club milestones, and, for a leg of a knockout tie with a written rule (Stage D v2,
+`adatta.sim.ties`), P(advance) and its path in the same projection run. The score matrix
+is recomputed from the same draws on demand. Over/Under and BTTS are withheld (not
+validated for national teams). A match whose week has no refit from it or the week before
+gets no forecast, with the reason, rather than a months-old one.
 """
 
 from __future__ import annotations
@@ -24,6 +26,8 @@ from adatta.eval.harness import week_start
 from adatta.model import national as nt
 from adatta.model import national_live as nl
 from adatta.sim import serve
+from adatta.sim import ties as tie
+from adatta.sim import tournament as tm
 
 LABEL = ("Team-only: results-based national model (Stage D v1), no squad or call-up "
          "information")  # fmt: skip
@@ -119,11 +123,25 @@ def run_projection(session: Session, store: RawStore, manifest: dict[str, Any],
     post = nl.load(store, run)
     months = int(run.manifest["n_months"])
     as_of = _utc(run.as_of)  # type: ignore[arg-type]
+    tie_of, confs = tie.serving_ties(session, store, [r["match_id"] for r in servable], now)
+    versions: dict[str, Any] = {
+        BUNDLE: {
+            "model_run_id": run.model_run_id,
+            "model": nt.model_name(),
+            "as_of": as_of.isoformat(),
+        }
+    }
+    if tie_of:
+        versions[tie.QUALIFY] = {
+            "rules_hash": tie.rules_hash(),
+            "kappa_et": tm.KAPPA_ET,
+            "p_shootout": tm.P_SHOOTOUT,
+            "seed": tm.SEED,
+        }
     pr = models.ProjectionRun(
         generated_at=now, as_of=now, git_commit=manifest["git_commit"],
         lockfile_hash=manifest["lockfile_hash"], config_hash=run.config_hash,
-        component_versions={BUNDLE: {"model_run_id": run.model_run_id,
-                                     "model": nt.model_name(), "as_of": as_of.isoformat()}},
+        component_versions=versions,
         training_snapshot_hash=hashlib.sha256(run.data_snapshot_hash.encode()).hexdigest(),
         source_snapshot_ids={}, override_set_hash=serve.NO_OVERRIDES, seed=nt.SEED,
     )  # fmt: skip
@@ -132,6 +150,10 @@ def run_projection(session: Session, store: RawStore, manifest: dict[str, Any],
     out = []
     for r in servable:
         proj = project(post, r, as_of, months)
+        t = tie_of.get(r["match_id"])
+        if t is not None:
+            proj = {**proj, **tie.project(post, t, r["match_id"], confs, as_of, months, now)}
+            report.written["ties"] = report.written.get("ties", 0) + 1
         for ms in due[r["match_id"]]:
             report.written[ms] = report.written.get(ms, 0) + 1
             for (market, line, sel), (p, lo, hi) in proj.items():

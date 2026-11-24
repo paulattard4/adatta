@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Path, Query
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -60,6 +60,22 @@ def create_app(sessions: Callable[[], Session], ctx: views.Context,
     def played(db: Db, start: datetime | None = None, end: datetime | None = None,
                competition_id: int | None = None) -> sc.PlayedList:  # fmt: skip
         return views.played(db, ctx, clock(), start, end, competition_id)
+
+    @app.get("/api/tournaments", response_model=sc.TournamentList)
+    def tournaments(db: Db) -> sc.TournamentList:
+        from adatta.sim import tournament_serve as ts
+
+        return sc.TournamentList(tournaments=[sc.TournamentEntry(**x) for x in ts.served(db)])
+
+    @app.get("/api/tournaments/{key}", response_model=sc.TournamentView)
+    def tournament(db: Db, key: Annotated[str, Path(max_length=32, pattern="^[a-z0-9]+$")],
+                   shadow: bool = False) -> sc.TournamentView:  # fmt: skip
+        from adatta.sim import tournament_serve as ts
+
+        body = ts.latest_payload(db, ctx.store, key, shadow)
+        if body is None:
+            raise HTTPException(404, "no served forecast for this tournament")
+        return sc.TournamentView(**body)
 
     @app.get("/api/live", response_model=sc.LiveList)
     def live(db: Db) -> sc.LiveList:

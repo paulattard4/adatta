@@ -1169,6 +1169,27 @@ cover all relevant league bundles needed").** Metrics only.
   - (f) After a week, the daily request count is checked against the estimate (under 35%;
     the upgrade trigger is 70%).
   - Cost: about 3,000 requests for the backfill, then +300-900 a day live; no money.
+- **C2 step 1 result (2026-11-25): (a)-(e) pass; (f) is due after a week of capture.**
+  - (a) The 16 ids were verified and the top flights went into live capture (e), both in
+    fb0f800.
+  - (b) Two audit runs (78 league-seasons each, 242 requests each) filled the capability
+    table.
+  - (c) All 156 league-seasons are `done`: 40,863 finished matches, all with detail
+    stored. That took 2,260 requests (estimate about 3,000).
+  - (d) The ten bundle leagues' `load_matches` is unchanged after the load: 39,873 rows,
+    hash `39b1c7b7aa2c6655`, the same as before any request. `evaluation.yml` is untouched.
+  - Lineups are near complete (0.97-1.0) except Danish 1. Division (0.71), Liga Portugal 2
+    (0.87) and Challenger Pro League (0.90). xG is sparse (0.30 at most), as for tier 3.
+  - Flags for step 2 (league rules; none blocks the load):
+    - Six finished matches have no 90' score (Eerste Divisie 2, Liga Portugal 2 1,
+      Turkish 1. Lig 2, Scottish Championship 1). Step 2 decides how they are handled.
+    - Regular-season counts exceed the double round-robin rule in formats with more
+      rounds or a split: the Scottish Premiership (33 rounds then a split), the Scottish
+      Championship (four rounds; 2020 shortened), the Danish 1. Division (three rounds),
+      Austria's two tiers (2016-2017, four rounds), and the Challenger Pro League
+      (2020-2021). Eerste Divisie 2025 lists 382 against 380.
+    - The Scottish Premiership (nine of ten seasons) and the Challenger Pro League
+      (2016-2019) have no regular-season round labels. Step 2 needs a rule for each before any fit.
 
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.

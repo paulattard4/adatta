@@ -11,7 +11,8 @@ Status (2026-11-16): **stated, not started.** Order per §19.3, each step valida
 the next: (a) status feed and squad lists; (b) availability and selection, validated
 standalone; (c) formation and slot-code roles, Manager entity; (d) lineup offset in the
 likelihood vs serving-only; (e) the feedback loop wired into Layer 6. Phase 3b (goals
-decomposition, discipline, half split) and 3d (knockouts, now Stage B) follow later.
+decomposition, discipline, half split; `docs/PHASE3B_TASKS.md`) and 3d (knockouts, now
+Stage B) follow later.
 
 Tick each item only when its acceptance check passes.
 

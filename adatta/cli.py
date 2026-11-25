@@ -255,11 +255,13 @@ def _serve_dispatcher() -> Any:
 
 
 # Competition files the capture tick reads. Only competitions.yml's bundle leagues get
-# forecasts; the others are captured for data (national teams: Stage D; tier 3: Stage A).
+# forecasts; the others are captured for data (national teams: Stage D; tier 3: Stage A;
+# the C2 top flights: Stage C, D49). config/c2_history.yml (second tiers) is backfill only.
 CAPTURE_FILES = (
     "config/competitions.yml",
     "config/national_competitions.yml",
     "config/tier3_competitions.yml",
+    "config/c2_competitions.yml",
 )
 
 

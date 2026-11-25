@@ -1092,6 +1092,84 @@ The problem: teams from different leagues meet, so league strengths need a commo
   Q_league, never a feature in log lambda, with licensing reviewed (§18.2).
 - Travel: the G2 retest on cross-nation matches (noted in `PHASE2_TASKS.md`) belongs here.
 
+**C2 scoping (2026-11-25, read-only, no requests; owner asked, after "we'll wait until we
+cover all relevant league bundles needed").** Metrics only.
+- **Method:** a club's country comes from its non-neutral UEFA home venue
+  (`venue.provider_country`, else `geo_country`). Bundle clubs keep their stored country.
+  - Clubs are stored with the competition's country ("Europe"), so this is the only way
+    to place them.
+  - 2.2% of match sides stay unplaced.
+  - Ukrainian clubs hosting abroad since 2022 count under their host country, so Ukraine
+    is undercounted.
+  - Check: the five bundles give 384 dev cross-bundle matches (qualifiers included),
+    exactly C1's count.
+- **UEFA main-stage appearances, 2021/22-2025/26 (all three competitions / Champions
+  League):** after the five bundles come Portugal 194/108, Netherlands 211/64, Belgium
+  174/48, Austria 124/36, Ukraine 82/32, Scotland 109/26, Turkey 88/24, Czech Republic
+  138/22, Denmark 94/22, Switzerland 102/20, Serbia 70/14, Croatia 48/14, Norway 82/12,
+  Greece 127/10.
+- **Coverage by candidate set:**
+
+  | Bundles | Dev cross-country matches for C1 (main stage / with qualifiers) | 2025/26 Champions League main stage, both sides covered | 2025/26, all three competitions |
+  |---|---|---|---|
+  | the five now | 366 / 384 | 78 of 189 (41%) | 113 of 579 (20%) |
+  | + Portugal, Netherlands, Belgium, Austria | 701 / 764 | 121 (64%) | 197 (34%) |
+  | + Scotland, Turkey, Czech Republic, Denmark | 921 / 1,058 | 144 (76%) | 255 (44%) |
+  | + Switzerland, Greece, Norway, Croatia | 1,106 / 1,365 | 164 (87%) | 335 (58%) |
+
+- **Power for a C1 rerun:** at 384 matches, C1's 1X2 log loss gain was -0.0101 with a 95%
+  half-width of about 0.019. The half-width shrinks as 1/sqrt(n): about 0.011 at 1,058 and
+  0.010 at 1,365. A 1% gain would then be about at the edge of significance. The new
+  matches involve leagues further from the five, where a quality gap (and C1's gain) may
+  be larger. This is an expectation, not a promise.
+- **Data held:** no league outside the five countries is stored (only the UEFA, Super Cup
+  and Club World Cup fixtures). Each new league is a fresh backfill.
+- **Requests:**
+  - **Backfill:** tier 3's 87 league-seasons (29,502 matches, full detail) took 1,585
+    requests, about 18 per league-season. Ten seasons × two tiers × eight countries is
+    about 3,000 requests, under half a day's quota.
+  - **Live capture:** used 1,073 requests on 2026-11-24 (99 ticks), about 14% of 7,500.
+    Eight top flights add about 75 matches a week, close to tier 3's addition (an expected
+    +300-900 a day). Estimated total 1,500-2,500 a day: under 35%, far from the 70%
+    upgrade trigger. Measured after a week, as for tier 3.
+  - Second tiers as history only (backfilled each summer, not captured live and not
+    forecast) would add no live requests. A promoted club then arrives with its last
+    season complete.
+- **Compute:** a bundle's live Monday refit takes about 7-10 minutes on CI now (the five
+  take 00:17-00:53). Smaller leagues are lighter, so eight more add roughly an hour per
+  Monday, plus results triggers.
+- **Holdout:** the new leagues' 2024/25-2025/26 seasons have never been inspected, so each
+  new bundle gets a genuinely locked holdout. The UEFA holdout is also still closed.
+- **To verify before any load:** each league id against `/leagues`; a capability audit (a
+  few requests); league rules (zones; Scotland's split, Austria's championship round,
+  Belgium's play-offs, Denmark's split); venues and geocoding.
+- **Order if approved, each step with its acceptance stated first:**
+  1. Load: verify ids, audit, backfill 2016-2025, live capture of the top flights.
+  2. Each new bundle on dev: the production spec against its own results-only
+     Dixon-Coles (rule 5), with the inference gates; then its untouched holdout.
+  3. Serve the new leagues' own match forecasts on a pass.
+  4. Rerun C1 (Q_league across all the bundles) on dev, then open the UEFA holdout once.
+- **Owner, 2026-11-25: "Eight leagues" (D49):** Portugal, Netherlands, Belgium, Austria,
+  Scotland, Turkey, Czech Republic and Denmark.
+- **C2 step 1, load: acceptance (stated 2026-11-25 before any request):**
+  - (a) Each of the 16 league ids (8 top flights, 8 second tiers) is verified against
+    `/leagues`: the name and country match, and the 2016-2025 seasons exist. That is 16
+    requests, and the payloads are kept.
+  - (b) `adatta audit --config config/c2_competitions.yml` fills the capability table.
+  - (c) `adatta backfill-run` loads every listed season with detail for finished matches.
+    None fail, and `backfill-report` shows them complete.
+  - (d) No side effects: the ten bundle leagues' `load_matches` is unchanged (same rows
+    and hash before and after). `evaluation.yml` is untouched (it is part of every fit's
+    cache hash), so no bundle is added to any model yet. That is step 2, with its own
+    acceptance.
+  - (e) The top flights go into live capture (`CAPTURE_FILES`): calendar, availability,
+    odds, lineups, detail and weather, as for tier 3. They get no forecasts (projection
+    covers the bundle leagues only). Second tiers are backfill only, refreshed each
+    summer.
+  - (f) After a week, the daily request count is checked against the estimate (under 35%;
+    the upgrade trigger is 70%).
+  - Cost: about 3,000 requests for the backfill, then +300-900 a day live; no money.
+
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 
@@ -1239,6 +1317,9 @@ scored.
     keep showing why there is no forecast (principle 8). The next step is the owner's.
   - **Closed (D45, 2026-11-21, owner: "Close C1, start D").** The UEFA holdout is not
     opened. Q is recorded here and used in no forecast.
+  - **Owner, 2026-11-25:** Champions League (UEFA) forecasts wait until the league bundles
+    cover all the relevant leagues: "we'll wait until we cover all relevant league
+    bundles needed". C1 is not reopened before then; the UEFA holdout stays closed.
 
 
 ## Stage D: national teams (§10.4)

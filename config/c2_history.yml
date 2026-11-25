@@ -1,0 +1,14 @@
+# C2 second tiers (D49): history only, so a promoted club arrives with its last season
+# complete. Backfilled, refreshed each summer; not captured live, never forecast.
+#   uv run adatta audit --config config/c2_history.yml
+#   uv run adatta backfill-run --config config/c2_history.yml
+# league_id values verified against /leagues on 2026-11-25 (name and country).
+competitions:
+  - {name: Liga Portugal 2,       country: Portugal,       league_id: 95,  level: senior, tier: 2, priority: 9, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Eerste Divisie,        country: Netherlands,    league_id: 89,  level: senior, tier: 2, priority: 9, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Challenger Pro League, country: Belgium,        league_id: 145, level: senior, tier: 2, priority: 9, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Austrian 2. Liga,      country: Austria,        league_id: 219, level: senior, tier: 2, priority: 9, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Scottish Championship, country: Scotland,       league_id: 180, level: senior, tier: 2, priority: 9, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Turkish 1. Lig,        country: Turkey,         league_id: 204, level: senior, tier: 2, priority: 9, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Czech FNL,             country: Czech-Republic, league_id: 346, level: senior, tier: 2, priority: 9, seasons: [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}
+  - {name: Danish 1. Division,    country: Denmark,        league_id: 120, level: senior, tier: 2, priority: 9, seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]}

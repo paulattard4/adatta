@@ -11,7 +11,7 @@ Each refit is gated (c): R-hat, ESS, divergences; the 0-0 half-time PPC; prior s
 3, 4, 5+) is reported, not gating (D48, as D20). Half-time scores never enter Layer 2.
 
 CLI (the model container, scripts/model.sh; one backtest-type run at a time):
-  run --variant S0|S1|S2 --upload RUN [--part i/n]
+  run --variant S0|S1|S2 --upload RUN [--part i/n] [--only YYYY-MM-DD,...]
       every dev share refit of the variant: posterior and gates to the store
       (half/share/RUN/<variant>/<as_of>.npz, .json); metrics only to stdout
 Holdout seasons are refused.
@@ -344,9 +344,16 @@ def refit(df: pl.DataFrame, train: IntArr, as_of: datetime, variant: str, league
 
 
 def run(df: pl.DataFrame, cfg: harness.EvalConfig, variant: str, store: Any, upload: str,
-        part: tuple[int, int] = (0, 1)) -> list[dict[str, Any]]:  # fmt: skip
+        part: tuple[int, int] = (0, 1), only: Sequence[str] = ()
+        ) -> list[dict[str, Any]]:  # fmt: skip
+    """`only` (YYYY-MM-DD) reruns just those dates, e.g. after a killed job; the seed is
+    fixed, so a rerun gives the refit an unbroken run would have."""
     plan = share_plan(df, cfg, DEV)
     mine = [p for i, p in enumerate(plan) if i % part[1] == part[0]]
+    if only:
+        mine = [p for p in mine if f"{p[0]:%Y-%m-%d}" in set(only)]
+        if len(mine) != len(set(only)):
+            raise SystemExit(f"--only {list(only)}: not all are share refit dates")
     out = []
     for as_of, _, train in mine:
         post, o, g = refit(df, train, as_of, variant, leagues(cfg))
@@ -369,13 +376,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     r.add_argument("--variant", required=True, choices=VARIANTS)
     r.add_argument("--upload", required=True)
     r.add_argument("--part", default="0/1")
+    r.add_argument("--only", default="", help="comma-separated YYYY-MM-DD dates to rerun")
     args = ap.parse_args(argv)
     cfg = harness.load_config()
     with get_session() as s:
         df = load(s, leagues(cfg))
         s.rollback()
     i, n = (int(v) for v in args.part.split("/"))
-    got = run(df, cfg, args.variant, make_store(get_settings()), args.upload, (i, n))
+    only = [x for x in args.only.split(",") if x]
+    got = run(df, cfg, args.variant, make_store(get_settings()), args.upload, (i, n), only)
     print(json.dumps({"variant": args.variant, "refits": len(got),
                       "passing": sum(g["passes"] for g in got),
                       "at": datetime.now(UTC).isoformat()}))  # fmt: skip

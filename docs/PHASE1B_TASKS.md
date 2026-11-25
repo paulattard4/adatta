@@ -908,6 +908,13 @@ Tasks:
         weekly.
 - [ ] Set `RESULTS_REFITS=on`, then item 4 on the first midweek round. Switched on
       2026-11-14 18:05 UTC by the project owner after item 3 passed; item 4 pending.
+      - Evidence so far (2026-11-25, read-only), not yet the midweek round item 4 names:
+        - Spain's trigger refit as of Fri 2026-11-20 23:00 (run 32) passed and was
+          recorded at 23:18. The weekend's T-24h projections used it (e.g. projection
+          run 116 at 11-21 17:37, for the 11-22 17:30 kickoff).
+        - The Mon 2026-11-23 23:00 trigger (run 39) was recorded at 23:18, and its D41
+          refit milestone re-projected the coming fixtures at 23:22 (run 170).
+        - The strict check is the 1-3 December midweek round.
 
 ### 7c. Strength uncertainty ahead of the refit (D34)
 

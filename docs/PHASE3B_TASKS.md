@@ -6,7 +6,8 @@ half split for goals, (2) discipline and corners, (3) goal decomposition (penalt
 set pieces need another signal, SOURCE_FEASIBILITY.md).
 
 Status (2026-11-25): **P3b-1 acceptance approved (owner: "Approve as drafted"); building.
-The dispersion PPC failed (under-dispersed splits); owner: "Report-only, as D20" (D48).**
+Dev result: FAILS check 2 alone (the 0-0 PPC on six 2020 refits); checks 1, 3-5 pass.
+Raised to the owner.**
 
 Tick each item only when its acceptance check passes.
 
@@ -207,6 +208,53 @@ Tick each item only when its acceptance check passes.
       - The posterior-mean half probabilities come from the mean 90' matrix and 200 share
         draws: the split is linear in the matrix and the fits are independent.
       - `tests/test_half_split.py` (12).
+
+      **Dev result (2026-11-25): FAILS check 2 alone; checks 1, 3, 4 and 5 pass. Not
+      promoted; nothing tuned.** Run `local-7d419a7`: matrices from run 43421580602's fit
+      cache, identical to its 1X2 on all 19,254 dev targets, and 183 share refits (S0, S1
+      and S2 × 61 dates).
+      - **Rerun of killed refits:** the S1 and S2 containers were killed mid-run, likely
+        out of memory: S1 after 58 dates, S2 after 45. The missing dates were rerun with
+        `--only`, with the same seed and code apart from that option.
+      - **Scope:**
+        - 17,723 targets scored. The 1,531 out of scope are 4 matches with no half-time
+          score, plus the 2022 seasons of Ligue 2, 2. Bundesliga, Serie B and Segunda.
+          Those four have no open `has_half_split_stats` row in the capability table (an
+          audit gap; their half-time scores are stored).
+        - Of the 17,723, 1,550 fall on the 6 S0 refits that failed (c) and have no
+          fallback, so checks 3-5 score 16,173.
+      1. **Coherence:** 0 of 16,173 incoherent. **Pass.**
+      2. **Share model chosen by the conditional score:** S0. **FAIL.**
+         - S1 vs S0: +0.0000 [-0.0002, +0.0002]. S2 vs S0: +0.0000 [-0.0002, +0.0003].
+           Neither league nor team terms help, so S0 stays.
+         - S0 passes (c) at 55 of 61 refits (90%, against the 97% needed). All 6 failures
+           are the 0-0 half-time PPC, at quantiles 0.000-0.020 against the 0.025 band
+           edge. They are the six refits from 2020-05-25 to 2020-11-09, whose training
+           windows include the 2020 restart (no crowds, five substitutes, drinks breaks).
+           Elsewhere that quantile has a median of 0.135 and a maximum of 0.37.
+         - S1 fails (c) at 11 of 61 refits and S2 at 59 of 61 (mostly convergence: tiny
+           league and team spreads). Neither is chosen anyway.
+      3. **Better than climatology: pass.**
+         - Half-time 1X2 log loss 1.0463 against B_clim 1.0759: -0.0296 [-0.0332, -0.0261]
+           (-2.8%).
+         - RPS: -0.0084 [-0.0094, -0.0074].
+         - HT/FT log loss 1.9098 against 1.9683: -0.0585 [-0.0635, -0.0534] (-3.0%).
+      4. **Calibrated** (ECE against its noise floor): half-time home 0.0083 (floor
+         0.0102), draw 0.0069 (0.0092), away 0.0043 (0.0092), over 1.5 0.0091 (0.0093).
+         **Pass.**
+      5. **Segments:** every league beats B_clim on half-time 1X2 log loss. **Pass.**
+      - **Reported, not gated:**
+        - Conditional score: S0 1.33369, S1 1.33344, S2 1.33347.
+        - Simplification check: after a level half time, 1.401 second-half goals observed
+          against 1.441 implied. Thinning overstates them by about 3%, the same
+          under-dispersion D48 recorded.
+        - Top fifth by expected goals: half-time O/U 0.5 ECE 0.0170 (floor 0.0162),
+          O/U 1.5 0.0140 (floor 0.0210).
+      - **Reading:** the half markets themselves do well: better than climatology by
+        about 3%, calibrated, and better in every league. The failure is in the share
+        model's own gate: the 0-0 PPC on six 2020 training windows. Following the
+        acceptance, the gate is not relaxed after seeing the score. Raised to the owner;
+        window (i) stays unopened.
 
       **Then.** A serving acceptance is drafted after the promotion result, before
       anything is shown. It covers the markets in the same projection run as the 1X2,

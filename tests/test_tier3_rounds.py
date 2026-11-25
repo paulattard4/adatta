@@ -119,3 +119,12 @@ def test_capture_reads_tier3_without_duplicate_ids() -> None:
     ids = [c.league_id for c in comps]
     assert len(ids) == len(set(ids))
     assert {41, 80, 63, 138, 942, 943, 435, 436} <= set(ids)
+
+
+def test_capture_reads_the_c2_top_flights_not_their_second_tiers() -> None:
+    from adatta.cli import CAPTURE_FILES
+    from adatta.config import load_competitions
+
+    ids = {c.league_id for path in CAPTURE_FILES for c in load_competitions(path)}
+    assert {94, 88, 144, 218, 179, 203, 345, 119} <= ids  # D49 top flights, captured live
+    assert not {95, 89, 145, 219, 180, 204, 346, 120} & ids  # second tiers: history only

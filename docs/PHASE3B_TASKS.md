@@ -6,8 +6,7 @@ half split for goals, (2) discipline and corners, (3) goal decomposition (penalt
 set pieces need another signal, SOURCE_FEASIBILITY.md).
 
 Status (2026-11-25): **P3b-1 acceptance approved (owner: "Approve as drafted"); building.
-The dispersion PPC fails (under-dispersed splits), raised to the owner before any dev
-score.**
+The dispersion PPC failed (under-dispersed splits); owner: "Report-only, as D20" (D48).**
 
 Tick each item only when its acceptance check passes.
 
@@ -170,6 +169,44 @@ Tick each item only when its acceptance check passes.
         a constant and the same posterior, at 13 s, 14 s and 38 s per fit. That is about
         3.3 hours for the dev share refits with the sensitivity fits, in the local model
         container (D13).
+
+      *Amended 2026-11-25, before any dev score (owner: "Report-only, as D20"; D48):*
+      1. The dispersion PPC (N = 1, 2, 3, 4, 5+) is **reported, not gating**, as D20 did
+         for goal totals. Binomial thinning stays as §8.2 writes it, a stated
+         simplification (goals spread across the halves more evenly than it implies).
+         The 0-0 half-time PPC stays gating. Checks 3-5 decide whether it matters for
+         the markets.
+      2. NUTS warm-up is 1,000 steps (draws stay 2,000), a sampler setting.
+      3. Reported, not gated, beside the dispersion PPC: half-time O/U 0.5 and 1.5 ECE
+         in the top fifth of matches by expected total goals, where most sides with 3+
+         goals are.
+
+      **Built (2026-11-25), before any dev score:**
+      - `adatta/sim/half_split.py` (numpy): thinning, the half markets (half-time 1X2,
+        HT/FT, half-time O/U 0.5 and 1.5, second-half 1X2, half-time correct score),
+        check 1's coherence, and the conditional score.
+      - `adatta/model/half_split.py` (model container, D13):
+        - the data (half-time score null when not stored; scope = league-seasons with
+          `has_half_split_stats` available; training uses any stored half-time score);
+        - the 28-day share plan (dev only), S0-S2, and the gates of (c) as amended;
+        - CLI `run --variant`.
+        The fit groups the sides by (side, league, team): the same likelihood up to a
+        constant and the same posterior.
+      - `adatta/eval/half_split.py`:
+        - `matrices` rebuilds each dev target's posterior-mean 90' matrix from run
+          43421580602's own fit cache (its stored config hash `2a82dbe0285182f9`). Every
+          target's 1X2 must equal the run's stored one to 1e-9, or the stage stops. The
+          current production hash `a215d52e759864ed` holds later refits at a few dates
+          (France 2019: up to 0.0084 apart in p_home), so it is not used.
+        - `assemble` implements (e) and the reported items.
+        - B_clim uses Jeffreys pseudo-counts (0.5 per outcome).
+        - A target's share is the latest share refit at or before its forecast's as-of.
+      - `adatta/model/backtest.py`: `score_targets(..., matrix=True)` adds the
+        posterior-mean matrix using the vectorised `serve.score_matrices` (equal to the
+        per-draw loop to 1e-12). The default path is unchanged.
+      - The posterior-mean half probabilities come from the mean 90' matrix and 200 share
+        draws: the split is linear in the matrix and the fits are independent.
+      - `tests/test_half_split.py` (12).
 
       **Then.** A serving acceptance is drafted after the promotion result, before
       anything is shown. It covers the markets in the same projection run as the 1X2,

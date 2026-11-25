@@ -246,7 +246,7 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
                   groups: Sequence[str] = (), horizon_ctx: timedelta = cv.HEADLINE_HORIZON,
                   walk: hz.Walk | None = None, exact: bool = False,
                   extra_offset: tuple[NDArray[np.float64], NDArray[np.float64]] | None = None,
-                  pmf: bool = False) -> list[dict[str, Any]]:  # fmt: skip
+                  pmf: bool = False, matrix: bool = False) -> list[dict[str, Any]]:  # fmt: skip
     """Per target: markets from the posterior-mean score matrix, their scores, tail mass.
     Prediction time (Phase 2, M1): the refit's draws (fitted as of the plan date) with each
     target's own context row, observed by kickoff - horizon_ctx (the headline T - 1 h);
@@ -257,7 +257,10 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
     `extra_offset` (P3-d): per (match, draw) terms on log lambda_home and log lambda_away,
     added to the others (the lineup offset times its coefficient).
     `pmf` (P3-e) adds each side's goal distribution, the margins of the posterior-mean
-    score matrix (`pmf_home`, `pmf_away`)."""
+    score matrix (`pmf_home`, `pmf_away`).
+    `matrix` (P3b-1) adds the posterior-mean score matrix itself (`matrix`, row-major), built
+    with the vectorised `serve.score_matrices` (equal to the per-draw loop to rounding); the
+    tail mass is then not computed (NaN)."""
     tix = {int(t): i for i, t in enumerate(fd.team_ids)}
     lix = {lid: i for i, lid in enumerate(fd.leagues)}
     home = np.array([tix.get(int(t), -1) for t in targets["home"]], dtype=np.int64)
@@ -294,13 +297,22 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
     kappa = np.asarray(draws["kappa"])[league] if "kappa" in draws else np.zeros_like(lam)  # D22
     out = []
     for k, (hg, ag) in enumerate(zip(targets["hg"], targets["ag"], strict=True)):
-        mats = [dc.score_matrix(float(lam[k, d]), float(mu_[k, d]), float(rho[k, d]), max_goals,
-                                float(kappa[k, d]))
-                for d in range(lam.shape[1])]  # fmt: skip
-        m = np.mean([x[0] for x in mats], axis=0)
+        if matrix:
+            from adatta.sim import serve
+
+            m = serve.score_matrices(lam[k], mu_[k], np.asarray(rho[k], dtype=np.float64),
+                                     np.asarray(kappa[k], dtype=np.float64),
+                                     max_goals).mean(axis=0)  # fmt: skip
+            tail = float("nan")
+        else:
+            mats = [dc.score_matrix(float(lam[k, d]), float(mu_[k, d]), float(rho[k, d]),
+                                    max_goals, float(kappa[k, d]))
+                    for d in range(lam.shape[1])]  # fmt: skip
+            m = np.mean([x[0] for x in mats], axis=0)
+            tail = float(np.mean([x[1] for x in mats]))
         mk = metrics.markets(m)
         out.append({
-            "tail_mass": float(np.mean([x[1] for x in mats])),
+            "tail_mass": tail,
             "exp_total": float(np.mean(lam[k] + mu_[k])),
             "p_home": mk["1X2"][0], "p_draw": mk["1X2"][1], "p_away": mk["1X2"][2],
             "p_over25": mk["OU2.5"][0], "p_btts": mk["BTTS"][0],
@@ -312,6 +324,7 @@ def score_targets(draws: Draws, fd: ts.FitData, targets: pl.DataFrame, max_goals
                 "draws_kappa": np.asarray(kappa[k]).tolist()} if exact else {}),  # fmt: skip
             **({"pmf_home": m.sum(axis=1).tolist(), "pmf_away": m.sum(axis=0).tolist()}
                if pmf else {}),  # fmt: skip
+            **({"matrix": m.ravel().tolist()} if matrix else {}),
         })  # fmt: skip
     return out
 

@@ -1191,6 +1191,142 @@ cover all relevant league bundles needed").** Metrics only.
     - The Scottish Premiership (nine of ten seasons) and the Challenger Pro League
       (2016-2019) have no regular-season round labels. Step 2 needs a rule for each before any fit.
 
+### C2 step 2 acceptance: the eight bundles on dev, then their holdout (drafted 2026-11-25 before building)
+
+**Seen so far, for this draft (read-only, no requests):**
+- The model in scope is the production spec (`production_spec`): strength_open, xG
+  auxiliary likelihood, weekly grid, 4 x 2,000 draws. Nothing about it is chosen or tuned
+  on the new leagues.
+- Its 1X2 gain over Phase 1a on the five bundles came from xG (D19). Without xG it was
+  level on 1X2 (+0.03%, interval across 0) and better on totals and cold start.
+- **xG in the new leagues (share of finished matches):**
+  - None in any league before 2023/24.
+  - From 2023/24: Eredivisie, Primeira Liga, Jupiler Pro League and Super Lig at
+    0.95-1.0; Danish Superliga at 0.56 (0.73 and 0.96 after); Czech Liga at 0.57.
+  - Scottish Premiership and Austrian Bundesliga only from 2025/26 (0.70, 0.71).
+  - Second tiers have none, except about half of 2025/26 in three of them.
+  - So in dev only 2023/24 has xG, and with no xG history before August 2023.
+- **Round labels:** the regular-season pattern (`REGULAR_ROUND`) misses three label sets:
+  - Scotland's "1st Phase" (nine of ten seasons) and "2nd Phase";
+  - Challenger Pro League "Opening" / "Closing" (2016-2019);
+  - the post-split group phases (Championship, Relegation, Promotion and Conference League
+    "Round" or "Group", "Play-offs I"). These are about an eighth to a third of each
+    season in Austria, Denmark, Belgium, Scotland and the Czech Republic.
+
+  Some of those labels also cover cross-tier play-offs: Czech "Relegation Round" is 15
+  group matches plus 4 against FNL sides. Knockout ties (play-off semi-finals and finals,
+  European play-offs) are in every league.
+- What was read about 2024/25-2025/26 is structure only: label counts, match statuses
+  and xG coverage. No score or outcome was read, so the holdout stays untouched.
+- Czech leagues start in 2018, so their warm-up is one season. Every other league has
+  three.
+- League rules (zones), venues and geocoding are not needed. The production spec has no
+  importance, travel or weather term, so those wait for a later layer.
+
+**Scope:**
+- **Bundles:** eight, each a top flight plus its second tier fitted jointly, as for the
+  five: Portugal (94, 95), Netherlands (88, 89), Belgium (144, 145), Austria (218, 219),
+  Scotland (179, 180), Turkey (203, 204), Czech Republic (345, 346), Denmark (119, 120).
+- **Targets:** top-flight league matches only, dev seasons 2019/20-2023/24 (about 10,000).
+  Second tiers are training rows only (D49). Warm and cold-start matches are reported
+  apart, as before.
+- **Windows:** the same as `evaluation.yml`: warm-up 2016-2018, dev 2019-2023 and holdout
+  2024-2025, under a holdout key of its own (opening "c2").
+
+**Checks:**
+- **(a) Data scope, in `config/c2_bundles.yml`:**
+  - The file holds the bundles and, per league, every round label seen in 2016-2025,
+    classed as regular, league phase or knockout.
+  - A test fails on any unclassed label.
+  - A league-phase match counts only if both sides played that league-season's regular
+    season. This drops the cross-tier play-offs (Czech and Scottish relegation ties,
+    Portugal's, Belgium's 2018 Play-offs II groups) by rule, not by hand.
+  - Knockout ties are excluded, as for the five.
+  - Matches that are awarded, walked over or cancelled stay out (not `FINISHED`).
+  - The six finished matches without a 90' score are reported as unscorable.
+  - A table per league-season reports rows kept against the format, for example 198 + 30
+    in Scotland.
+- **(b) No side effects:**
+  - `evaluation.yml` and `REGULAR_ROUND` are untouched.
+  - The five bundles' `load_matches` stays 39,873 rows, hash `39b1c7b7aa2c6655`.
+  - Their `config_hash` is unchanged, so their cached refits and Monday serving are
+    reused as they are.
+  - The C2 file joins the hash for C2 bundles only, as the cup model file does for A3.
+  - No new league gets forecasts (that is step 3).
+- **(c) Second tiers as production will see them:**
+  - Production loads second tiers once a summer, not live.
+  - So in every C2 refit, a second-tier match is a training row only from 1 July after
+    its season.
+  - A test checks this. Without it the backtest would train on second-tier results
+    production never has.
+- **(d) Inference gate (§14.5), audit sample fixed now:**
+  - One fit per bundle per dev season, 40 in all, by the five bundles' rule: the first
+    weekly refit on or after 1 January with targets that week.
+  - Every gating check as it stands for the five (D20-D23 included): R-hat, bulk and tail
+    ESS, 0 divergences, PPC per league, identifiability, prior sensitivity x0.5 / x2,
+    truncation, reproducibility.
+  - Winter breaks are longer here (Denmark, the Czech Republic, Austria, Turkey), and the
+    one mixing miss on the five came after the 2022 World Cup break, so this is a known
+    risk.
+  - A failure is reported as it stands, not tuned away on this sample. Any fix is
+    recorded and the whole sample rerun.
+- **(e) Dev walk-forward, weekly, 2019/20-2023/24:**
+  - The production spec and each bundle's own Phase 1a (results-only Dixon-Coles at the
+    selected settings, rule 5) are scored on the same plan, with a grid-identical check.
+  - What dev must show is owner choice 2.
+  - Reported: per league; the 2023/24 xG season apart; cold start; promoted and relegated
+    bias; reliability per 1X2 outcome.
+  - The weekly grid is also what the C1 rerun (step 4) reads, so these refits are not
+    fitted twice.
+- **(f) Predictive prior sensitivity:** 28-day dev backtests at prior scale 0.5 and 2,
+  paired with a scale-1 reference on the same grid. Dev 1X2 log loss moves less than 0.2%
+  relative for each.
+- **(g) Locked holdout, 2024/25-2025/26, opened once:**
+  - It opens only after (a)-(f) pass. The gate is written to `config/c2_gate.yml` before
+    opening.
+  - The gate is D18 with D28's segments: any gain on 1X2 log loss and RPS against Phase 1a
+    on the same plan, paired 95% interval excluding zero, pooled over the eight top
+    flights.
+  - No league x market segment may be worse than 1.0% (1X2 log loss, 1X2 RPS, OU2.5,
+    BTTS, total CRPS). A league that fails this is owner choice 3.
+  - Each league is recorded as `champion` or `rejected` in `model_run`, with reasons.
+- **(h) Reproducibility:** each run writes the usual manifest. Logs carry metrics only, and
+  match-level parts go to R2.
+
+**Owner choices:**
+1. **Post-split phases:**
+   - (a) League phases count as league matches for training and scoring (recommended).
+     They are home-and-away round robins between the same league's sides. A results model
+     needs nothing else from them (points halving and similar only matter to importance,
+     which is not in the spec). Leaving them out would leave a sixth to a third of spring
+     matches unforecast in five countries.
+   - (b) Regular season only. Scotland's "1st Phase" and Belgium's "Opening" / "Closing"
+     are still mapped.
+2. **What dev must show:**
+   - (a) Feasibility and no harm (recommended): (d) and (f) pass, and no top flight is
+     worse than Phase 1a by more than 1.0% on any D28 segment over 2019-2023. The holdout
+     then decides the gain. The spec is fixed and nothing is iterated on these leagues,
+     which is what the dev gain check protected against. With xG history starting only
+     in August 2023, a dev gain check would test the thinnest stretch of xG.
+   - (b) As the five under D19: a gain on 2023/24 with the interval excluding zero, before
+     the holdout opens.
+3. **A top flight failing the holdout segment rule:**
+   - (a) That league is rejected alone (recommended). The others are champions if the
+     pooled gain over them still excludes zero. Written into the gate before opening, so
+     it is not chosen after seeing the result.
+   - (b) The whole verdict fails, as D28 did for the five.
+
+**Order and cost:**
+- First (a)-(c) and their tests, locally.
+- Then on CI, one at a time, none on a Monday:
+  - the weekly dev backtest. About 1,700 refits; roughly a working day of runner time;
+  - the 40-fit audit sample;
+  - the two prior-scale backtests;
+  - on a pass, the holdout run.
+- No requests and no money. Monday serving is not touched.
+- On a holdout fail, nothing is served for the new leagues (step 3 needs a pass). The
+  dev refits stay usable for step 4's C1 rerun, which has its own acceptance.
+
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 

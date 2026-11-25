@@ -238,3 +238,24 @@ def test_refits_are_regated_with_both_ppcs_reported_only() -> None:
     assert not bad["passes"] and bad["failed"] == ["sensitivity"]
     conv_bad = [{"name": "rhat", "passed": False}]
     assert hm.regate({**stored, "convergence": conv_bad})["failed"] == ["convergence"]
+
+
+def test_window_plan_is_weekly_and_stops_at_the_cutoff() -> None:
+    cfg = harness.load_config()
+    rows = []
+    t0 = datetime(2026, 8, 8, 15, tzinfo=UTC)
+    for i in range(400):
+        k = t0 + timedelta(days=int(i // 4) * 2)
+        rows.append({"match_id": i + 1, "league_id": 39, "season": 2026 if i >= 40 else 2025,
+                     "kickoff": k - (timedelta(days=200) if i < 40 else timedelta(0)),
+                     "home": 1 + i % 10, "away": 11 + i % 10, "hg": 1, "ag": 0, "xh": 0,
+                     "xa": 0, "ht_ok": True})  # fmt: skip
+    df = pl.DataFrame(rows).sort("kickoff", "match_id")
+    plan = hm.window_plan(df, cfg)
+    assert plan and all(d < hm.WINDOW_END for d, _, _ in plan)
+    assert all(
+        (b - a) == timedelta(days=7)
+        for (a, _, _), (b, _, _) in zip(plan[:-1], plan[1:], strict=True)
+    )
+    with pytest.raises(HoldoutRefused):
+        eh.run_matrices(df, [39], "england", 2025, None, window=True)  # type: ignore[arg-type]

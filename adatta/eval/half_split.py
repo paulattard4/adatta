@@ -19,7 +19,7 @@ import io
 import json
 import time
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -40,6 +40,9 @@ ECE_MARGIN = 0.005  # check 4: ECE no more than this above its noise floor
 SEGMENT_MAX = 0.010  # check 5 (D18 rule)
 TOP_FIFTH = 0.8  # amendment 3: the top fifth by expected total goals
 G = 16  # max_goals 15
+WINDOW_SEASON = 2026  # window (i) (D46): 2026/27 matches with kickoff before the cutoff
+WINDOW_END = datetime(2026, 11, 24, tzinfo=UTC)
+LIVE_FROM = datetime(2026, 11, 9, tzinfo=UTC)  # the first stored live refit
 
 
 def _parquet(df: pl.DataFrame) -> bytes:
@@ -52,18 +55,27 @@ def matrix_key(run: str, bundle: str, season: int) -> str:
     return f"{PREFIX}/matrix/{run}/{bundle}_{season}.parquet"
 
 
+def live_key(run: str, bundle: str) -> str:
+    return f"{PREFIX}/matrix/{run}/{bundle}_live.parquet"
+
+
 # ------------------------------------------------------------------------------ matrices
 
 
 def run_matrices(df: pl.DataFrame, leagues: list[int], bundle: str, season: int,
-                 store: RawStore, ft_run: str = FT_RUN) -> pl.DataFrame:  # fmt: skip
-    """The posterior-mean 90' matrix of each dev target of one bundle-season, from run
+                 store: RawStore, ft_run: str = FT_RUN, window: bool = False
+                 ) -> pl.DataFrame:  # fmt: skip
+    """The posterior-mean 90' matrix of each target of one bundle-season, from run
     `ft_run`'s own cached weekly fits (its stored config hash), exactly as its 1X2 was
-    scored: every target's 1X2 must equal the run's stored one to 1e-9."""
+    scored: every target's 1X2 must equal the run's stored one to 1e-9. Dev seasons, or with
+    `window` window (i)'s season up to its cutoff (D46)."""
     from adatta.model import backtest as bt
     from adatta.model import team_strength as ts
 
-    if season not in DEV:
+    if window:
+        if season != WINDOW_SEASON:
+            raise HoldoutRefused(f"window (i) is season {WINDOW_SEASON}, not {season}")
+    elif season not in DEV:
         raise HoldoutRefused(f"season {season} is not a dev season")
     cfg = harness.load_config()
     P = bt.production_spec(cfg)
@@ -88,6 +100,10 @@ def run_matrices(df: pl.DataFrame, leagues: list[int], bundle: str, season: int,
         draws, _ = bt.decode(cached)
         fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, cfg.result_available_after_hours)
         targets = df[tgt]
+        if window:
+            targets = targets.filter(pl.col("kickoff") < WINDOW_END)
+            if targets.is_empty():
+                continue
         scored = bt.score_targets(draws, fd, targets, cfg.max_goals, matrix=True)
         for r, s in zip(targets.iter_rows(named=True), scored, strict=True):
             w = want.get((int(r["match_id"]), as_of))
@@ -99,8 +115,64 @@ def run_matrices(df: pl.DataFrame, leagues: list[int], bundle: str, season: int,
                          "home": int(r["home"]), "away": int(r["away"]), "bundle": bundle,
                          "hg": int(r["hg"]), "ag": int(r["ag"]), "p_home": s["p_home"],
                          "p_draw": s["p_draw"], "p_away": s["p_away"],
-                         "exp_total": s["exp_total"], "matrix": s["matrix"]})  # fmt: skip
-    return pl.DataFrame(rows)
+                         "exp_total": s["exp_total"], "matrix": s["matrix"],
+                         "source": "walk_forward", "model_run_id": None})  # fmt: skip
+    return pl.DataFrame(rows, schema_overrides={"model_run_id": pl.Int64})
+
+
+def live_matrices(session: Any, store: RawStore, df: pl.DataFrame, bundle: str,
+                  leagues: list[int]) -> pl.DataFrame:  # fmt: skip
+    """Window (i), from 9 November: each target's matrix from the stored live Monday refit
+    of its week, exactly as served. Used only when a stored 1X2 projection of the match
+    came from that refit (it was served from it, so it was recorded before kickoff); that
+    projection must equal the rebuilt 1X2 to 1e-9. Other targets keep the walk-forward."""
+    from sqlalchemy import select
+
+    from adatta.db import models
+    from adatta.eval.tournament import monday
+    from adatta.model import backtest as bt
+    from adatta.sim import serve
+
+    cfg = harness.load_config()
+    spec = bt.production_spec(cfg)
+    MR, PR, MP = models.ModelRun, models.ProjectionRun, models.MarketProjection
+    runs = {serve._utc(r.as_of): r for r in session.scalars(
+        select(MR).where(MR.component == serve.COMPONENT, MR.window == serve.WINDOW,
+                         MR.model_name == spec.model_name, MR.status == "ok"))
+            if r.manifest.get("bundle") == bundle and r.as_of is not None}  # fmt: skip
+    t = df.filter((pl.col("season") == WINDOW_SEASON) & (pl.col("kickoff") >= LIVE_FROM)
+                  & (pl.col("kickoff") < WINDOW_END))  # fmt: skip
+    rows: list[dict[str, Any]] = []
+    for r in t.iter_rows(named=True):
+        run = runs.get(monday(r["kickoff"]))
+        if run is None:
+            continue
+        served = [p for p, cv in session.execute(
+            select(MP.probability, PR.component_versions)
+            .join(PR, PR.projection_run_id == MP.projection_run_id)
+            .where(MP.match_id == r["match_id"], MP.market_type == "1X2",
+                   MP.selection == "home"))
+            if (cv or {}).get(bundle, {}).get("model_run_id") == run.model_run_id]  # fmt: skip
+        if not served:
+            continue
+        refit = serve.load_refit(store, run)
+        fx = serve.Fixture(match_id=int(r["match_id"]), kickoff=r["kickoff"],
+                           league_id=int(r["league_id"]), home=int(r["home"]),
+                           away=int(r["away"]), season=int(r["season"]))  # fmt: skip
+        m = serve.fixture_matrices(refit.draws, refit.fd, [fx], cfg.max_goals)[0].mean(axis=0)
+        mk = hs.result(m)
+        if max(abs(float(p) - float(mk[0])) for p in served) > 1e-9:
+            raise SystemExit(f"{bundle}: match {r['match_id']} differs from its served 1X2")
+        rows.append({"match_id": int(r["match_id"]), "league_id": int(r["league_id"]),
+                     "season": int(r["season"]), "kickoff": r["kickoff"],
+                     "as_of": refit.as_of, "home": int(r["home"]), "away": int(r["away"]),
+                     "bundle": bundle, "hg": int(r["hg"]), "ag": int(r["ag"]),
+                     "p_home": float(mk[0]), "p_draw": float(mk[1]), "p_away": float(mk[2]),
+                     "exp_total": float((m.sum(axis=1) * np.arange(G)).sum()
+                                        + (m.sum(axis=0) * np.arange(G)).sum()),
+                     "matrix": m.ravel().tolist(), "source": "live",
+                     "model_run_id": run.model_run_id})  # fmt: skip
+    return pl.DataFrame(rows, schema_overrides={"model_run_id": pl.Int64})
 
 
 # ------------------------------------------------------------------------------- shares
@@ -109,11 +181,13 @@ def run_matrices(df: pl.DataFrame, leagues: list[int], bundle: str, season: int,
 class Shares:
     """The share refits of one run: for each variant and date, the posterior and its gates."""
 
-    def __init__(self, store: RawStore, run: str, dates: list[datetime]):
+    def __init__(self, store: RawStore, run: str, dates: list[datetime],
+                 variants: Sequence[str] = hm.VARIANTS):  # fmt: skip
         self.dates = sorted(dates)
+        self.variants = tuple(variants)
         self.post: dict[tuple[str, datetime], tuple[dict[str, Arr], list[int], list[int]]] = {}
         self.gates: dict[tuple[str, datetime], dict[str, Any]] = {}
-        for v in hm.VARIANTS:
+        for v in self.variants:
             for d in self.dates:
                 raw = try_get(store, hm.key(run, v, d, "npz"))
                 g = try_get(store, hm.key(run, v, d, "json"))
@@ -133,6 +207,8 @@ class Shares:
         """(c): a refit failing the gates falls back to the next simpler passing variant."""
         order = hm.VARIANTS[: hm.VARIANTS.index(variant) + 1][::-1]
         for v in order:
+            if (v, d) not in self.gates:
+                continue
             if self.gates[(v, d)]["passes"]:
                 return v
         return None
@@ -193,7 +269,7 @@ def level_2h(m: Arr, ph: float, pa: float) -> tuple[float, float]:
     return float(lvl.sum()), float((lvl * second).sum())
 
 
-def score(mx: pl.DataFrame, df: pl.DataFrame, sh: Shares, cfg: harness.EvalConfig
+def score(mx: pl.DataFrame, df: pl.DataFrame, sh: Shares, plan: list[tuple[datetime, Any, Any]]
           ) -> tuple[pl.DataFrame, dict[str, Any]]:  # fmt: skip
     """Per target: the conditional score of every variant (as served, with fallbacks), the
     chosen variant's half markets and B_clim. Returns (rows, meta)."""
@@ -201,7 +277,6 @@ def score(mx: pl.DataFrame, df: pl.DataFrame, sh: Shares, cfg: harness.EvalConfi
     t = mx.join(ht, on="match_id", how="left")
     n_all = t.height
     t = t.filter(pl.col("ht_ok") & pl.col("xh").is_not_null() & pl.col("xa").is_not_null())
-    plan = hm.share_plan(df, cfg, DEV)
     train_of = {d: df[tr] for d, _, tr in plan}
     clim: dict[tuple[datetime, int], tuple[Arr, Arr]] = {}
     rows = []
@@ -211,7 +286,7 @@ def score(mx: pl.DataFrame, df: pl.DataFrame, sh: Shares, cfg: harness.EvalConfi
         out: dict[str, Any] = {k: r[k] for k in ("match_id", "league_id", "season", "bundle",
                                                  "hg", "ag", "xh", "xa", "exp_total")}  # fmt: skip
         out["share_date"] = d
-        for v in hm.VARIANTS:
+        for v in sh.variants:
             used = sh.served(v, d)
             out[f"used_{v}"] = used
             if used is None:
@@ -278,7 +353,10 @@ def markets(rows: pl.DataFrame, mx: pl.DataFrame, sh: Shares, variant: str) -> p
 
 
 def gate(rows: pl.DataFrame, mk: pl.DataFrame, sh: Shares, chosen: str,
-         steps: dict[str, Any], meta: dict[str, Any]) -> dict[str, Any]:  # fmt: skip
+         steps: dict[str, Any], meta: dict[str, Any],
+         checks: Sequence[str] = ("c1", "c2", "c3", "c4", "c5")) -> dict[str, Any]:  # fmt: skip
+    """The dev gate (e), or with `checks` ("c1", "c3", "c4") window (i)'s (f); the other
+    checks are then reported, not gating."""
     from adatta.eval import knockout as kb
 
     t = rows.join(mk, on="match_id", how="inner")
@@ -305,7 +383,7 @@ def gate(rows: pl.DataFrame, mk: pl.DataFrame, sh: Shares, chosen: str,
     # 2. the chosen variant passes (c) at >= 97% of refits
     dates = sh.dates
     passing = sum(sh.gates[(chosen, d)]["passes"] for d in dates)
-    fallback = {v: sum(1 for d in dates if sh.served(chosen, d) == v) for v in hm.VARIANTS}
+    fallback = {v: sum(1 for d in dates if sh.served(chosen, d) == v) for v in sh.variants}
     fails: dict[str, int] = {}
     for d in dates:
         for f in sh.gates[(chosen, d)]["failed"]:
@@ -356,7 +434,7 @@ def gate(rows: pl.DataFrame, mk: pl.DataFrame, sh: Shares, chosen: str,
     # reported, not gated
     rep: dict[str, Any] = {}
     rep["conditional"] = {v: float(rows[f"cond_{v}"].drop_nulls().mean())  # type: ignore[arg-type]
-                          for v in hm.VARIANTS}  # fmt: skip
+                          for v in sh.variants}  # fmt: skip
     rep["htft_ece"] = {hs.HTFT[k]: kb.ece(p_htft[:, k], (y_htft == k).astype(float))
                        for k in range(9)}  # fmt: skip
     top = t["exp_total"].to_numpy() >= np.quantile(t["exp_total"].to_numpy(), TOP_FIFTH)
@@ -390,7 +468,8 @@ def gate(rows: pl.DataFrame, mk: pl.DataFrame, sh: Shares, chosen: str,
                                                 strict=True)),
                                "team_u_sd": float(post["u"].mean(axis=0).std())}  # fmt: skip
     out["reported"] = rep
-    out["passes"] = all(out[c]["passes"] for c in ("c1", "c2", "c3", "c4", "c5"))
+    out["gating"] = list(checks)
+    out["passes"] = all(out[c]["passes"] for c in checks)
     return out
 
 
@@ -433,37 +512,72 @@ def main(argv: Sequence[str] | None = None) -> None:
     m.add_argument("--bundle", required=True)
     m.add_argument("--season", type=int, required=True)
     m.add_argument("--upload", required=True)
+    m.add_argument("--ft-run", default=FT_RUN)
+    m.add_argument("--window", action="store_true", help="window (i) (D46)")
+    lv = sub.add_parser("live")
+    lv.add_argument("--bundle", required=True)
+    lv.add_argument("--upload", required=True)
     a = sub.add_parser("assemble")
     a.add_argument("--matrices", required=True)
     a.add_argument("--shares", required=True)
     a.add_argument("--upload", default="")
+    a.add_argument("--window", action="store_true", help="window (i): S0, checks 1, 3, 4")
     args = ap.parse_args(argv)
     cfg = harness.load_config()
     store = make_store(get_settings())
-    if args.cmd == "matrices":
+    if args.cmd in ("matrices", "live"):
         leagues = cfg.bundles[args.bundle]
         t0 = time.monotonic()
-        rows = run_matrices(bt._load(leagues, xg=True), leagues, args.bundle, args.season, store)
-        store.put(matrix_key(args.upload, args.bundle, args.season), _parquet(rows))
-        print(json.dumps({"bundle": args.bundle, "season": args.season, "targets": rows.height,
+        if args.cmd == "matrices":
+            rows = run_matrices(bt._load(leagues, xg=True), leagues, args.bundle, args.season,
+                                store, args.ft_run, args.window)  # fmt: skip
+            season, key = args.season, matrix_key(args.upload, args.bundle, args.season)
+        else:
+            with get_session() as s:
+                rows = live_matrices(s, store, bt._load(leagues), args.bundle, leagues)
+                s.rollback()
+            season, key = WINDOW_SEASON, live_key(args.upload, args.bundle)
+        store.put(key, _parquet(rows))
+        print(json.dumps({"stage": args.cmd, "bundle": args.bundle, "season": season,
+                          "targets": rows.height,
                           "seconds": round(time.monotonic() - t0)}))  # fmt: skip
         return
     with get_session() as s:
         df = hm.load(s, hm.leagues(cfg))
         s.rollback()
     parts = []
+    seasons = [WINDOW_SEASON] if args.window else list(DEV)
     for b in cfg.bundles:
-        for season in DEV:
+        for season in seasons:
             raw = try_get(store, matrix_key(args.matrices, b, season))
             if raw is None:
                 raise SystemExit(f"matrix part {b} {season} of run {args.matrices} is missing")
             parts.append(pl.read_parquet(io.BytesIO(raw)))
-    mx = pl.concat(parts)
-    sh = Shares(store, args.shares, [d for d, _, _ in hm.share_plan(df, cfg, DEV)])
-    rows, meta = score(mx, df, sh, cfg)
-    chosen, steps = choose(rows)
-    mk = markets(rows, mx, sh, chosen)
-    v = gate(rows, mk, sh, chosen, steps, meta)
+    mx = pl.concat(parts, how="diagonal_relaxed")
+    if args.window:
+        live = []
+        for b in cfg.bundles:
+            raw = try_get(store, live_key(args.matrices, b))
+            if raw is None:
+                raise SystemExit(f"live part {b} of run {args.matrices} is missing")
+            live.append(pl.read_parquet(io.BytesIO(raw)))
+        lx = pl.concat(live, how="diagonal_relaxed")
+        # matches served from a stored live Monday refit use it; the rest the walk-forward
+        mx = pl.concat([mx.join(lx.select("match_id"), on="match_id", how="anti"), lx],
+                       how="diagonal_relaxed")  # fmt: skip
+        plan = hm.window_plan(df, cfg)
+        sh = Shares(store, args.shares, [d for d, _, _ in plan], variants=("S0",))
+        rows, meta = score(mx, df, sh, plan)
+        meta["sources"] = dict(mx.group_by("source").len().iter_rows())
+        mk = markets(rows, mx, sh, "S0")
+        v = gate(rows, mk, sh, "S0", {}, meta, checks=("c1", "c3", "c4"))
+    else:
+        plan = hm.share_plan(df, cfg, DEV)
+        sh = Shares(store, args.shares, [d for d, _, _ in plan])
+        rows, meta = score(mx, df, sh, plan)
+        chosen, steps = choose(rows)
+        mk = markets(rows, mx, sh, chosen)
+        v = gate(rows, mk, sh, chosen, steps, meta)
     if args.upload:
         store.put(f"{PREFIX}/v1/{args.upload}/rows.parquet",
                   _parquet(rows.join(mk, on="match_id", how="left")))  # fmt: skip

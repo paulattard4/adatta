@@ -149,6 +149,20 @@ def project(draws: Draws, fd: FitData, fixtures: list[Fixture], max_goals: int,
     Rates as `backtest.score_targets` computes them, for the production model (no D16 shift
     pending at prediction: the champion has no `delta`). `walk` (D34) adds the strength
     drift ahead of the refit; draws stored before D34 have no sigma_walk and get none."""
+    out = []
+    for m in fixture_matrices(draws, fd, fixtures, max_goals, walk):
+        mk = market_draws(m)
+        out.append({
+            sel: (float(p.mean()), *(float(q) for q in np.quantile(p, INTERVAL)))
+            for sel, p in mk.items()
+        })  # fmt: skip
+    return out  # type: ignore[return-value]
+
+
+def fixture_matrices(draws: Draws, fd: FitData, fixtures: list[Fixture], max_goals: int,
+                     walk: hz.Walk | None = None) -> list[Arr]:  # fmt: skip
+    """Per fixture, the (draws, n, n) score matrices `project` scores (P3b-1 reads them for
+    the half split of a served forecast)."""
     if "delta" in draws:
         raise ValueError("D16 shifts are not served; the champion has none")
     tix = {int(t): i for i, t in enumerate(fd.team_ids)}
@@ -167,14 +181,8 @@ def project(draws: Draws, fd: FitData, fixtures: list[Fixture], max_goals: int,
     rho = np.asarray(draws["rho"])
     rho = rho[league] if rho.ndim == 2 else np.broadcast_to(rho, lam.shape)
     kappa = np.asarray(draws["kappa"])[league] if "kappa" in draws else np.zeros_like(lam)
-    out = []
-    for k in range(len(fixtures)):
-        mk = market_draws(score_matrices(lam[k], mu_[k], rho[k], kappa[k], max_goals))
-        out.append({
-            sel: (float(p.mean()), *(float(q) for q in np.quantile(p, INTERVAL)))
-            for sel, p in mk.items()
-        })  # fmt: skip
-    return out  # type: ignore[return-value]
+    return [score_matrices(lam[k], mu_[k], rho[k], kappa[k], max_goals)
+            for k in range(len(fixtures))]  # fmt: skip
 
 
 # --------------------------------------------------------------------------- refits

@@ -11,7 +11,7 @@ league's mean share moves < 0.005). The dispersion PPC (N = 1, 2, 3, 4, 5+, D48)
 0-0 half-time PPC (D50) are reported, not gating. Half-time scores never enter Layer 2.
 
 CLI (the model container, scripts/model.sh; one backtest-type run at a time):
-  run --variant S0|S1|S2 --upload RUN [--part i/n] [--only YYYY-MM-DD,...]
+  run --variant S0|S1|S2 --upload RUN [--part i/n] [--only YYYY-MM-DD,...] [--window]
       every dev share refit of the variant: posterior and gates to the store
       (half/share/RUN/<variant>/<as_of>.npz, .json); metrics only to stdout
 Holdout seasons are refused.
@@ -98,12 +98,23 @@ def load(session: Session, league_ids: list[int]) -> pl.DataFrame:
     return df.sort("kickoff", "match_id")
 
 
+WINDOW_SEASON = 2026  # window (i) (D46)
+WINDOW_END = datetime(2026, 11, 24, tzinfo=UTC)
+
+
 def share_plan(df: pl.DataFrame, cfg: harness.EvalConfig, seasons: Sequence[int]
                ) -> list[tuple[datetime, IntArr, IntArr]]:  # fmt: skip
     """The 28-day share refits over `seasons` (dev only): (as_of, targets, training rows)."""
     if set(seasons) - set(DEV):
         raise HoldoutRefused(f"seasons {sorted(set(seasons) - set(DEV))} are not dev seasons")
     return harness.refit_plan(df, cfg, list(seasons), REFIT_DAYS)
+
+
+def window_plan(df: pl.DataFrame, cfg: harness.EvalConfig
+                ) -> list[tuple[datetime, IntArr, IntArr]]:  # fmt: skip
+    """Window (i): the share refit on each weekly Monday of the 2026/27 forecasts ("the
+    same Mondays"), before the cutoff."""
+    return [p for p in harness.refit_plan(df, cfg, [WINDOW_SEASON], 7) if p[0] < WINDOW_END]
 
 
 @dataclass
@@ -361,11 +372,11 @@ def refit(df: pl.DataFrame, train: IntArr, as_of: datetime, variant: str, league
 
 
 def run(df: pl.DataFrame, cfg: harness.EvalConfig, variant: str, store: Any, upload: str,
-        part: tuple[int, int] = (0, 1), only: Sequence[str] = ()
+        part: tuple[int, int] = (0, 1), only: Sequence[str] = (), window: bool = False
         ) -> list[dict[str, Any]]:  # fmt: skip
     """`only` (YYYY-MM-DD) reruns just those dates, e.g. after a killed job; the seed is
     fixed, so a rerun gives the refit an unbroken run would have."""
-    plan = share_plan(df, cfg, DEV)
+    plan = window_plan(df, cfg) if window else share_plan(df, cfg, DEV)
     mine = [p for i, p in enumerate(plan) if i % part[1] == part[0]]
     if only:
         mine = [p for p in mine if f"{p[0]:%Y-%m-%d}" in set(only)]
@@ -394,6 +405,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     r.add_argument("--upload", required=True)
     r.add_argument("--part", default="0/1")
     r.add_argument("--only", default="", help="comma-separated YYYY-MM-DD dates to rerun")
+    r.add_argument("--window", action="store_true", help="window (i)'s Mondays (D46)")
     args = ap.parse_args(argv)
     cfg = harness.load_config()
     with get_session() as s:
@@ -401,7 +413,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         s.rollback()
     i, n = (int(v) for v in args.part.split("/"))
     only = [x for x in args.only.split(",") if x]
-    got = run(df, cfg, args.variant, make_store(get_settings()), args.upload, (i, n), only)
+    got = run(
+        df, cfg, args.variant, make_store(get_settings()), args.upload, (i, n), only, args.window
+    )
     print(json.dumps({"variant": args.variant, "refits": len(got),
                       "passing": sum(g["passes"] for g in got),
                       "at": datetime.now(UTC).isoformat()}))  # fmt: skip

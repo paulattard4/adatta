@@ -5,14 +5,16 @@ production full-time model (`phase1b_strength_open_xg`) without changing it. Ord
 half split for goals, (2) discipline and corners, (3) goal decomposition (penalty, own goal;
 set pieces need another signal, SOURCE_FEASIBILITY.md).
 
-Status (2026-11-25): **P3b-1 acceptance drafted, awaiting the owner. Nothing built.**
+Status (2026-11-25): **P3b-1 acceptance approved (owner: "Approve as drafted"); building.
+The dispersion PPC fails (under-dispersed splits), raised to the owner before any dev
+score.**
 
 Tick each item only when its acceptance check passes.
 
 ## Tasks
 
-- [ ] **P3b-1 Half split for goals (§8.2).** Drafted 2026-11-25 before building; not
-      approved yet. Two owner decisions are open (D46, D47, at the end of this item).
+- [ ] **P3b-1 Half split for goals (§8.2).** Drafted 2026-11-25 before building; owner,
+      2026-11-25: "Approve as drafted" (D46: window (i); D47: logit-normal).
 
       **Seen so far** (metrics only, no requests, 2026-11-25; the holdout and 2026/27
       half-time outcomes not inspected beyond coverage counts):
@@ -147,6 +149,27 @@ Tick each item only when its acceptance check passes.
       construction. A Beta hierarchy (league mean ~ Beta, team ~ Beta(m·κ, (1 − m)·κ)) is
       the alternative. The per-match Beta share in (c) stays an option for overdispersion
       either way.
+
+      **Raised while building (2026-11-25), before any dev score:** the dispersion PPC
+      in (c) fails. This was found at the first share refit (as of 2019-07-22, training
+      2016-2019). The half-time splits are **under-dispersed**: goals are spread across
+      the halves more evenly than binomial thinning allows.
+      - PPC quantiles: N = 1 0.73, N = 2 0.47, N = 3 0.00, N = 4 0.01, N = 5+ 0.00. The
+        0-0 half-time PPC passes at 0.05. S0, S1 and S2 are alike.
+      - Direct check on warm-up + dev (62,138 sides with a goal, pooled share 0.4385):
+        the variance of first-half goals against binomial is 0.986 at N = 2, 0.96 at
+        N = 3, 0.92 at N = 4 and 0.78 at N = 5. At N = 5, all five or none in the first
+        half happen 3.7% of the time against 7.2% for a binomial. Per match (total
+        goals), the ratio is 0.94 at 3 goals and 0.85 at 6.
+      - (c)'s named fallback, a per-match Beta share, can only widen the split
+        (over-dispersion), so it doesn't apply. Nothing has been changed; it is raised to
+        the owner.
+      - Also seen: S2's R-hat was 1.012 at that refit (S0 1.007, S1 1.010; no
+        divergences).
+      - Cost: grouping the sides by (side, league, team) gives the same likelihood up to
+        a constant and the same posterior, at 13 s, 14 s and 38 s per fit. That is about
+        3.3 hours for the dev share refits with the sensitivity fits, in the local model
+        container (D13).
 
       **Then.** A serving acceptance is drafted after the promotion result, before
       anything is shown. It covers the markets in the same projection run as the 1X2,

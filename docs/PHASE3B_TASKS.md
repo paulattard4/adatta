@@ -8,7 +8,7 @@ set pieces need another signal, SOURCE_FEASIBILITY.md).
 Status (2026-11-25): **P3b-1 acceptance approved (owner: "Approve as drafted"); building.
 Dev result: FAILS check 2 alone (the 0-0 PPC on six 2020 refits); checks 1, 3-5 pass.
 Owner: "Amend, judge on (i)" (D50): re-gated on dev, PASSES. Window (i) PASSES
-(run `local-9de69db`); serving acceptance to draft next.**
+(run `local-9de69db`). P3b-2 (serving) drafted, awaiting the owner.**
 
 Tick each item only when its acceptance check passes.
 
@@ -334,3 +334,105 @@ Tick each item only when its acceptance check passes.
       (3 variants × about 60 dates), roughly 3 hours. They run as one backtest-type
       workflow, alone, and not on a Monday. Window option (i) adds about 65 Layer 2 NUTS
       refits in CI, as a second workflow after the dev one.
+
+- [ ] **P3b-2 Serve the half markets.** Drafted 2026-11-25, after the P3b-1 window (i)
+      pass and before building or showing anything. Awaiting the owner.
+
+      **What is served.** Only the markets that gated on dev and window (i):
+      - half-time 1X2 (`HT1X2`: home, draw, away; checks 3 and 4);
+      - HT/FT (`HTFT`: the nine combinations `1/1` ... `2/2`; check 3);
+      - half-time O/U 1.5 (`HTOU` 1.5: over, under; check 4).
+
+      Half-time O/U 0.5, second-half 1X2 and the half-time correct score were scored
+      but never gated (the top-fifth O/U 0.5 ECE was above its floor on dev; the
+      second-half rate after a level half time has opposite signs on dev and the
+      window). They stay unserved; owner choice (h).
+
+      **Scope.** As P3b-1: regular-season league matches of the ten bundle leagues, in
+      league-seasons where `has_half_split_stats` is available. Cup ties (served as the
+      home side's league fixture), national teams and the C2 leagues get no half markets
+      until their own acceptance. Out of scope means no half rows (rule 8), never an
+      imputed split.
+
+      **(a) The share refit in production.** S0 as chosen, with the (c) gates as amended
+      (D48, D50: convergence and prior sensitivity gate; both PPCs are reported).
+      - One refit every Monday as of 00:00 UTC, jointly over the ten leagues, on matches
+        final by then within `lookback_days`. These are the same Mondays as window (i).
+        Results-trigger refits of Layer 2 (D41) reuse the latest Monday share.
+      - It runs as its own job in `serve.yml`, on the Monday dispatch, after the bundle
+        refits. It is a single S0 fit plus two sensitivity fits, about 1 minute, with
+        `max-parallel 1` unchanged.
+      - Draws go to R2 under `serving/half/`. A `model_run` row (window live, component
+        `half_split`) records the as-of, the gates and the training hash.
+      - A refit that fails its gates is recorded and not used. There is no simpler
+        variant than S0, so the last passing refit stays in use. A share refit more than
+        28 days old (the dev grid) is not used, and in-scope fixtures then get no half
+        rows; the stale-refit report covers it as for Layer 2 (`STALE_AFTER`).
+
+      **(b) Projection.** Half markets are written by `serve.run_projection` in the same
+      projection run, for the same match and milestone as the 90' markets, and from the
+      same Layer 2 refit's draws. `component_versions` names the share refit used.
+      - The 2,000 share draws are thinned evenly to the 400 stored 90' draws
+        (`max_pred_draws`) and paired by index (as (b) of P3b-1; no correlation is
+        claimed).
+      - The published probability is the mean over draws. The 5th-95th interval is
+        taken per draw, as for every other market.
+      - A fixture already projected before deployment gets half markets from its next
+        milestone. No past milestone is rewritten.
+      - The leak rule is the same as Layer 2's. The share refit used has as-of ≤ the
+        projection time and reads only outcomes final by its as-of. Odds are not read.
+
+      **(c) Coherence at write time.** Before a fixture's half rows are written:
+      - the HT/FT nine sum to 1;
+      - they marginalise to the 90' 1X2 being written for that milestone, to 1e-9, and to
+        the half-time 1X2;
+      - half-time O/U 1.5 is computed from the same half-time matrix.
+      A fixture that fails is reported as a problem, and gets its 90' rows and no half
+      rows.
+
+      **(d) API and match page.**
+      - A "Half time" panel shows the half-time 1X2, the HT/FT 3×3 grid and half-time
+        O/U 1.5, with intervals, for the latest milestone.
+      - As for the score matrix (§11.2), the view recomputes the half markets from the
+        stored Layer 2 refit and share refit and checks them against the stored rows to
+        1e-9 (`COHERENCE_TOL`). An incoherent recomputation is not shown, and the
+        coherence flag says why.
+      - Out of scope, or no passing share refit: the panel says which, in one line.
+      - No odds anywhere on the panel.
+
+      **(e) Acceptance (all must pass before the panel is shown):**
+      1. **The 90' markets are untouched.** With the half split switched on, every 90'
+         row a projection writes is identical to the one written with it off (test, on a
+         stored refit).
+      2. **Replay of window (i).** For the 110 live window matches, the half-time 1X2,
+         HT/FT and O/U 1.5 recomputed by the serving code from the stored live refits
+         and the window's S0 Monday refits match the window (i) rows (`local-9de69db`)
+         to within 0.001 absolute. The difference is Monte Carlo only: the window used
+         the posterior-mean matrix with 200 share draws.
+      3. **Coherence:** (c) holds on every replayed match, and the unit tests break it
+         on purpose.
+      4. **Scope:** tests show no half rows for a cup tie, a national match, a
+         league-season without `has_half_split_stats`, a share refit failing its gates,
+         or a share refit older than 28 days.
+      5. **Leakage and idempotence:**
+         - a share refit dated after the projection time is refused;
+         - writing the same (match, milestone) twice adds nothing.
+      6. **Live, first week after deployment:** every in-scope fixture with a 90'
+         milestone has its half rows, or a stated reason. The page's coherence flag is
+         true on all of them. The Monday share refit passes its gates in CI.
+
+      **Reported, not gated:** the live half-time record (log loss and RPS against B_clim
+      per league, half-time 1X2 and HT/FT) on the played page, from the first served
+      match. Serie B is watched there (P3b-1 window: +3.1% against climatology, from its
+      90' model).
+
+      **(h) Owner choices.**
+      - **Markets: the three gated markets only (recommended),** or also O/U 0.5 and
+        second-half 1X2, shown as unvalidated.
+      - **Deployment: straight to the page after (e) 1-5 (recommended).** Window (i) was
+        the promotion test, and (e) 6 is checked in the first week. The alternative is a
+        shadow week with rows written but the panel hidden.
+
+      **Cost:** 0 API requests (half-time scores already arrive with results). About 1
+      minute of CI a week for the share refit. Projection time rises by the thinning:
+      400 draws × a 16 × 16 matrix per fixture, well under a second.

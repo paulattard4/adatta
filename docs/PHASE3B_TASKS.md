@@ -7,7 +7,7 @@ set pieces need another signal, SOURCE_FEASIBILITY.md).
 
 Status (2026-11-25): **P3b-1 acceptance approved (owner: "Approve as drafted"); building.
 Dev result: FAILS check 2 alone (the 0-0 PPC on six 2020 refits); checks 1, 3-5 pass.
-Owner: "Amend, judge on (i)" (D50): re-gated on dev, then window (i).**
+Owner: "Amend, judge on (i)" (D50): re-gated on dev, PASSES; window (i) running.**
 
 Tick each item only when its acceptance check passes.
 
@@ -267,6 +267,29 @@ Tick each item only when its acceptance check passes.
          checks 1-5. The result is recorded beside the first, which stands as run.
       3. **Window (i) (D46) decides,** with checks 1, 3 and 4 as in (f). It has never been
          inspected for half-time work.
+
+      **Dev re-gated under amendment 2 (2026-11-25, run `local-a21ae9d` on the stored
+      refits of `local-7d419a7`; no refit): PASSES, S0.** The first result above stands
+      as run.
+      - 17,723 scored (out of scope as before).
+      - **Check 2:** S0 passes (c) at 61 of 61 refits. S1 vs S0: -0.0000 [-0.0002,
+        +0.0002]; S2 vs S0: +0.0000 [-0.0002, +0.0002]; S0 stays.
+      - **Check 1:** 0 incoherent.
+      - **Check 3:**
+        - Half-time 1X2 log loss 1.0467 against 1.0755: -0.0287 [-0.0321, -0.0254]
+          (-2.7%).
+        - RPS: -0.0081 [-0.0091, -0.0072].
+        - HT/FT log loss 1.9111 against 1.9687: -0.0576 [-0.0624, -0.0528] (-2.9%).
+      - **Check 4, ECE against its floor:** home 0.0063 (0.0097), draw 0.0057 (0.0088),
+        away 0.0037 (0.0086), over 1.5 0.0095 (0.0090). Over 1.5 is within the 0.005
+        margin.
+      - **Check 5:** every league better than B_clim.
+      - **Reported:**
+        - After a level half time, 1.398 second-half goals observed against 1.441
+          implied.
+        - Top fifth by expected goals: O/U 0.5 ECE 0.0178 (floor 0.0149), O/U 1.5 0.0146
+          (floor 0.0198).
+      - Window (i) decides (checks 1, 3, 4).
 
       **Then.** A serving acceptance is drafted after the promotion result, before
       anything is shown. It covers the markets in the same projection run as the 1X2,

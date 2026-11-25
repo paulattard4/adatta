@@ -504,6 +504,60 @@ def markdown(v: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+REPLAY_TOL = 0.001  # P3b-2 (e) 2: Monte Carlo only (posterior-mean matrix, 200 share draws)
+
+
+def replay(session: Any, store: RawStore, matrices: str, shares: str, rows_run: str,
+           bundles: Sequence[str], max_goals: int) -> dict[str, Any]:  # fmt: skip
+    """P3b-2 (e) 2: the window's live matches through the serving code (per draw, the stored
+    live refit's matrices paired with the window's S0 Monday share draws) against the window
+    (i) rows: half-time 1X2, HT/FT and half-time O/U 1.5."""
+    from adatta.db import models
+    from adatta.sim import half_serve as hsv
+    from adatta.sim import serve
+
+    raw = try_get(store, f"{PREFIX}/v1/{rows_run}/rows.parquet")
+    if raw is None:
+        raise SystemExit(f"rows of run {rows_run} are missing")
+    win = {int(r["match_id"]): r for r in pl.read_parquet(io.BytesIO(raw)).iter_rows(named=True)}
+    shares_cache: dict[str, hsv.Share] = {}
+    worst: dict[str, float] = {"ht_1x2": 0.0, "ht_ft": 0.0, "ht_ou_1.5": 0.0}
+    n = 0
+    for b in bundles:
+        part = try_get(store, live_key(matrices, b))
+        if part is None:
+            raise SystemExit(f"live part {b} of run {matrices} is missing")
+        for r in pl.read_parquet(io.BytesIO(part)).iter_rows(named=True):
+            w = win[int(r["match_id"])]
+            run = session.get(models.ModelRun, int(r["model_run_id"]))
+            refit = serve.load_refit(store, run)
+            fx = serve.Fixture(match_id=int(r["match_id"]), kickoff=r["kickoff"],
+                               league_id=int(r["league_id"]), home=int(r["home"]),
+                               away=int(r["away"]), season=int(r["season"]))  # fmt: skip
+            m = serve.fixture_matrices(refit.draws, refit.fd, [fx], max_goals)[0]
+            d = w["share_date"]
+            k = hm.key(shares, "S0", d, "npz")
+            if k not in shares_cache:
+                post, lids, tids = hm.decode(store.get(k))
+                shares_cache[k] = hsv.Share(0, d, post, lids, tids)
+            ph, pa = shares_cache[k].sides(fx.league_id, fx.home, fx.away)
+            dm = hsv.draw_markets(m, hsv.pair(ph, len(m)), hsv.pair(pa, len(m)))
+            got = {s: float(v.mean()) for s, v in dm.items()}
+            ht = [got[("HT1X2", None, c)] for c in hsv.CODES]
+            htft = [got[("HTFT", None, s)] for s in hsv.HTFT_SELS]
+            ou = got[("HTOU", hsv.HT_OU_LINE, "over")]
+            for name, a, bb in (("ht_1x2", ht, w["ht_1x2"]), ("ht_ft", htft, w["ht_ft"]),
+                                 ("ht_ou_1.5", [ou], [w["ht_ou"][1]])):  # fmt: skip
+                worst[name] = max(worst[name], float(np.abs(np.subtract(a, bb)).max()))
+            n += 1
+    return {
+        "matches": n,
+        "max_abs_diff": worst,
+        "tolerance": REPLAY_TOL,
+        "passes": max(worst.values()) <= REPLAY_TOL,
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     from adatta.adapters.storage import make_store
     from adatta.config import get_settings
@@ -526,9 +580,20 @@ def main(argv: Sequence[str] | None = None) -> None:
     a.add_argument("--shares", required=True)
     a.add_argument("--upload", default="")
     a.add_argument("--window", action="store_true", help="window (i): S0, checks 1, 3, 4")
+    rp = sub.add_parser("replay", help="P3b-2 (e) 2: the window's live matches via serving")
+    rp.add_argument("--matrices", required=True)
+    rp.add_argument("--shares", required=True)
+    rp.add_argument("--rows", required=True)
     args = ap.parse_args(argv)
     cfg = harness.load_config()
     store = make_store(get_settings())
+    if args.cmd == "replay":
+        with get_session() as s:
+            out = replay(s, store, args.matrices, args.shares, args.rows, list(cfg.bundles),
+                         cfg.max_goals)  # fmt: skip
+            s.rollback()
+        print(json.dumps(out))
+        return
     if args.cmd in ("matrices", "live"):
         leagues = cfg.bundles[args.bundle]
         t0 = time.monotonic()

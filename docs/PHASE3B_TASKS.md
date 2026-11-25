@@ -8,7 +8,7 @@ set pieces need another signal, SOURCE_FEASIBILITY.md).
 Status (2026-11-25): **P3b-1 acceptance approved (owner: "Approve as drafted"); building.
 Dev result: FAILS check 2 alone (the 0-0 PPC on six 2020 refits); checks 1, 3-5 pass.
 Owner: "Amend, judge on (i)" (D50): re-gated on dev, PASSES. Window (i) PASSES
-(run `local-9de69db`). P3b-2 (serving) drafted, awaiting the owner.**
+(run `local-9de69db`). P3b-2 (serving) approved (D51), built; (e) 1-5 pass, (e) 6 is the first live week.**
 
 Tick each item only when its acceptance check passes.
 
@@ -336,7 +336,8 @@ Tick each item only when its acceptance check passes.
       refits in CI, as a second workflow after the dev one.
 
 - [ ] **P3b-2 Serve the half markets.** Drafted 2026-11-25, after the P3b-1 window (i)
-      pass and before building or showing anything. Awaiting the owner.
+      pass and before building or showing anything. Owner, 2026-11-25: "Approve as
+      drafted" (D51: the three gated markets; to the page after (e) 1-5).
 
       **What is served.** Only the markets that gated on dev and window (i):
       - half-time 1X2 (`HT1X2`: home, draw, away; checks 3 and 4);
@@ -436,3 +437,47 @@ Tick each item only when its acceptance check passes.
       **Cost:** 0 API requests (half-time scores already arrive with results). About 1
       minute of CI a week for the share refit. Projection time rises by the thinning:
       400 draws × a 16 × 16 matrix per fixture, well under a second.
+
+      **Built (2026-11-25), (e) 1-5 pass; (e) 6 after deployment.**
+      - **Share refit:** `python -m adatta.model.half_split live`. S0 as of Monday 00:00
+        UTC, 400 thinned draws, the (c) gates as amended. It writes to
+        `serving/half/S0/<date>.npz` and a `model_run` row (`half_split_S0`, component
+        `half_split`, live), and waits ("not ready") while a result before the as-of is
+        missing. It is the new `share` job in `serve.yml`, after the bundle refits, skipped
+        for a trigger as-of.
+      - **Projection:** `serve.run_projection(..., half_split=True)` from the capture tick
+        (`adatta/sim/half_serve.py`). The rows are `HT1X2` (1, X, 2), `HTFT` (`1/1` ...
+        `2/2`) and `HTOU` 1.5 (over, under). `component_versions["half_split"]` names the
+        share refit used.
+      - **Match view:** `half_coherence` and `half_reason` on the match API, and the "Half
+        time" panel (half-time 1X2, the HT/FT grid, half-time O/U 1.5). The half markets
+        are left out of the 90' market grid. The "Half-split" entry under "Not available
+        yet" is removed.
+      - **(e) 1:** the 90' rows are identical with the split on and off (probability and
+        interval, every selection).
+      - **(e) 2:** replay of window (i): 110 live matches through the serving code against
+        `local-9de69db` (`python -m adatta.eval.half_split replay --matrices local-81f6449
+        --shares local-81f6449 --rows local-9de69db`). The maximum absolute difference is
+        5.5e-5 on half-time 1X2, 5.5e-5 on HT/FT and 6.2e-5 on O/U 1.5, against 0.001.
+        **Passes.**
+      - **(e) 3:** the HT/FT nine sum to 1 and marginalise to the stored 90' 1X2 and the
+        half-time 1X2 to 1e-9; the per-draw markets equal P3b-1's split to 1e-12. Tests
+        break coherence on purpose:
+        - at write, the fixture keeps its 90' rows only and a problem is reported;
+        - at view, a stored row moved by 1e-6 is not shown.
+      - **(e) 4:** no half rows for a cup tie, a league-season with the capability
+        `partial`, a failed share refit, one older than 28 days, or none. The last passing
+        refit is used when the newest one failed.
+      - **(e) 5:** a share refit dated after the projection time is not used, and a second
+        tick adds no rows. The production refit records itself once, refuses a non-Monday
+        and waits for missing results.
+      - 583 tests pass; ruff and mypy are clean.
+      - **Local page check:** match 135 shows the reason line ("no usable share refit"),
+        because production has no share refit until this code runs in CI.
+      - **(e) 6, live, from deployment:**
+        - The first share refit runs on the next Monday dispatch (2026-11-30). A serve
+          dispatch with `as_of` 2026-11-23 would start the half markets this week: the
+          bundle refits for that Monday already exist and are reused.
+        - Then for a week: every in-scope fixture with a 90' milestone has its half rows
+          or a stated reason, the page's coherence flag is true, and the share refit
+          passes in CI.

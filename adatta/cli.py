@@ -190,7 +190,7 @@ def _projector(session: Session, settings: Any) -> Any:
     def run(now: datetime) -> serve.ProjectReport:
         return serve.run_projection(session, store, cfg.bundles, spec.model_name,
                                     cfg.max_goals, manifest, now=now, walk=walk,
-                                    cups=cups)  # fmt: skip
+                                    cups=cups, half_split=True)  # P3b-2, D51  # fmt: skip
 
     return run
 

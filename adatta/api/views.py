@@ -23,6 +23,7 @@ from adatta.api import lineups as al
 from adatta.api import schemas as sc
 from adatta.db import models
 from adatta.model.team_strength import FitData, rates_from_draws
+from adatta.sim import half_serve as hsv
 from adatta.sim import serve
 
 Arr = NDArray[np.float64]
@@ -35,8 +36,6 @@ UNAVAILABLE = [
     sc.Unavailable(panel="Player projections",
                    reason="The lineup offset failed on dev (D40); scorer forecasts (P3-e) are "
                           "not shown before their live verdict."),
-    sc.Unavailable(panel="Half-split",
-                   reason="Halves are deferred until half markets are needed (§8.2)."),
     sc.Unavailable(panel="Knockout", reason="Only regular-season fixtures are projected so far."),
     sc.Unavailable(panel="Edge",
                    reason="Edge analytics is wave 2 (§16.4); odds never feed the model."),
@@ -68,6 +67,15 @@ class Context:
     loader: Callable[[RawStore, models.ModelRun], serve.Refit] = serve.load_refit
     _refits: dict[int, serve.Refit] | None = None
     _national: dict[int, dict[str, Any]] | None = None
+    _shares: dict[int, hsv.Share] | None = None
+
+    def share(self, run: models.ModelRun) -> hsv.Share:
+        """A production share refit's draws (P3b-2), loaded once per process."""
+        if self._shares is None:
+            self._shares = {}
+        if run.model_run_id not in self._shares:
+            self._shares[run.model_run_id] = hsv.load_share(self.store, run)
+        return self._shares[run.model_run_id]
 
     def national_draws(self, run: models.ModelRun) -> dict[str, Any]:
         """A national live refit's stored draws, loaded once per process."""
@@ -153,6 +161,7 @@ class Recomputed:
     matrix: sc.ScoreMatrix
     decomposition: list[sc.Decomposition]
     markets: dict[tuple[str, float | None, str], Arr]
+    draws: Arr  # (draws, n, n) score matrices, for the half split (P3b-2)
 
 
 def recompute(refit: serve.Refit, fx: serve.Fixture, names: tuple[str, str], max_goals: int
@@ -187,7 +196,38 @@ def recompute(refit: serve.Refit, fx: serve.Fixture, names: tuple[str, str], max
             terms=[_term(n, x) for n, x in terms], log_rate=_term("log λ", total),
             goals=_prob(rate),
         ))  # fmt: skip
-    return Recomputed(matrix=matrix, decomposition=dec, markets=serve.market_draws(m))
+    return Recomputed(matrix=matrix, decomposition=dec, markets=serve.market_draws(m), draws=m)
+
+
+def _half(session: Session, ctx: Context, m: MatchRow, fx: serve.Fixture, rc: Recomputed,
+          last: sc.Milestone) -> tuple[sc.Coherence | None, str | None]:  # fmt: skip
+    """P3b-2 (d): the half markets of the latest milestone recomputed from its Layer 2 refit
+    and share refit and checked against the stored rows; or why there are none."""
+    stored = [s for s in last.selections if s.market in hsv.MARKETS]
+    if not stored:
+        if m.tier == "cup" or not (m.round or "").startswith("Regular Season"):
+            return None, "Half-time markets are forecast for league matches only."
+        season = session.get(models.Season, m.season_id)
+        year = season.year if season is not None else None
+        if year is None or not hsv.in_scope(session, {(m.league_id, year)}):
+            return None, "No half-time data for this league-season, so no half-time forecast."
+        return None, ("No half-time forecast at this milestone: there was no usable share "
+                      "refit, or it was made before half-time markets were served.")  # fmt: skip
+    pr = session.get(models.ProjectionRun, last.projection_run_id)
+    cv = (pr.component_versions or {}).get(serve.HALF_KEY, {}) if pr is not None else {}
+    run = session.get(models.ModelRun, cv["model_run_id"]) if "model_run_id" in cv else None
+    if run is None:
+        return sc.Coherence(milestone=last.milestone, coherent=False,
+                            max_abs_diff=1.0), None  # no share refit recorded  # fmt: skip
+    share = ctx.share(run)
+    ph, pa = share.sides(fx.league_id, fx.home, fx.away)
+    n = len(rc.draws)
+    half = hsv.draw_markets(rc.draws, hsv.pair(ph, n), hsv.pair(pa, n))
+    diff = max(abs(float(half[(s.market, s.line, s.selection)].mean()) - s.prob.p)
+               if (s.market, s.line, s.selection) in half else 1.0
+               for s in stored)  # fmt: skip
+    return sc.Coherence(milestone=last.milestone, coherent=diff <= COHERENCE_TOL,
+                        max_abs_diff=diff), None  # fmt: skip
 
 
 # --------------------------------------------------------------------------- queries
@@ -568,6 +608,8 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
     fresh = _freshness(bundle, run or serving, now)
     refit = ctx.refit(run) if run else None
     matrix, dec, coh, reason = None, [], None, None
+    half_coh: sc.Coherence | None = None
+    half_reason: str | None = None
     if refit is not None and milestones:
         last = milestones[-1]
         league = m.league_id
@@ -580,9 +622,10 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
         rc = recompute(refit, fx, (m.home, m.away), ctx.max_goals)
         matrix, dec = rc.matrix, rc.decomposition
         diff = max(abs(float(rc.markets[(s.market, s.line, s.selection)].mean()) - s.prob.p)
-                   for s in last.selections)  # fmt: skip
+                   for s in last.selections if s.market not in hsv.MARKETS)  # fmt: skip
         coh = sc.Coherence(milestone=last.milestone, coherent=diff <= COHERENCE_TOL,
                            max_abs_diff=diff)  # fmt: skip
+        half_coh, half_reason = _half(session, ctx, m, fx, rc, last)
     else:
         reason = _cup_reasons(session, ctx, [m.match_id]).get(m.match_id) if m.tier == "cup" \
             else None  # fmt: skip
@@ -598,6 +641,9 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
         milestones=milestones, matrix=matrix if coh is None or coh.coherent else None,
         decomposition=dec if coh is None or coh.coherent else [], coherence=coh,
         no_projection_reason=reason,
+        # P3b-2: the half markets are shown only when they recompute (§11.2)
+        half_coherence=half_coh if coh is not None and coh.coherent else None,
+        half_reason=half_reason,
         squad=squad(session, m, now, ctx.store),
         unavailable=UNAVAILABLE,
     )  # fmt: skip

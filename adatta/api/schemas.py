@@ -329,6 +329,10 @@ class MatchView(BaseModel):
     squad: Squad | None = None
     unavailable: list[Unavailable]
     qualify: Qualify | None = None  # national knockout ties (Stage D v2)
+    # P3b-2: the half markets (HT1X2, HTFT, HTOU) of the latest milestone recompute from
+    # its refits; shown only when coherent. Otherwise `half_reason` says why there are none.
+    half_coherence: Coherence | None = None
+    half_reason: str | None = None
 
 
 class TournamentEntry(BaseModel):

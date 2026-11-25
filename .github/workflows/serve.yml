@@ -58,3 +58,23 @@ jobs:
         run: >-
           uv run --frozen --group model python -m adatta.model.live refit
           --bundle ${{ matrix.bundle }} ${AS_OF:+--as-of "$AS_OF"}
+  share:
+    # P3b-2 (D51): this week's production S0 share refit as of Monday 00:00 UTC, after the
+    # bundle refits (also when one of them failed); a trigger as_of has no share refit.
+    # About a minute; an existing refit for the Monday is reused. Metrics only in the log.
+    needs: refit
+    if: ${{ always() && (inputs.as_of == '' || inputs.as_of == null || !contains(inputs.as_of, 'T')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: share refit
+        env:
+          AS_OF: ${{ inputs.as_of }}
+        run: >-
+          uv run --frozen --group model python -m adatta.model.half_split live
+          ${AS_OF:+--as-of "$AS_OF"}

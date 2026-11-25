@@ -9,7 +9,7 @@ import { ProbCell } from "@/components/Prob";
 import { SquadPanel } from "@/components/Squad";
 import { Waterfall } from "@/components/Waterfall";
 import { useJson, useNow } from "@/lib/fetch";
-import { cameIn, countdown, dateLocal, fairOdds, interval, kickoffLocal, liveClock, MARKET_LABEL, oddsInterval, pct, showsOdds, tierLabel } from "@/lib/format";
+import { cameIn, countdown, dateLocal, fairOdds, HALF_MARKETS, interval, kickoffLocal, liveClock, MARKET_LABEL, oddsInterval, pct, showsOdds, tierLabel } from "@/lib/format";
 import type { LiveList, MatchView, Milestone, Qualify, Result, Selection } from "@/lib/types";
 
 const SEL_LABEL: Record<string, string> = { home: "Home", draw: "Draw", away: "Away", over: "Over", under: "Under", yes: "Yes", no: "No" };
@@ -17,6 +17,7 @@ const SEL_LABEL: Record<string, string> = { home: "Home", draw: "Draw", away: "A
 function Markets({ m, odds, result }: { m: Milestone; odds: boolean; result: Result | null }) {
   const groups = new Map<string, Selection[]>();
   for (const s of m.selections) {
+    if (HALF_MARKETS.includes(s.market)) continue; // the Half time panel
     const k = s.line == null ? s.market : `${s.market} ${s.line}`;
     groups.set(k, [...(groups.get(k) ?? []), s]);
   }
@@ -32,6 +33,47 @@ function Markets({ m, odds, result }: { m: Milestone; odds: boolean; result: Res
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+const RES = [["1", "Home"], ["X", "Draw"], ["2", "Away"]];
+
+/** P3b-2: half-time 1X2, the HT/FT grid (rows half time, columns full time) and half-time
+ *  O/U 1.5 of the latest milestone, posterior mean and 90% interval. */
+function HalfTime({ m, odds }: { m: Milestone; odds: boolean }) {
+  const get = (market: string, sel: string) => m.selections.find((s) => s.market === market && s.selection === sel);
+  const ht = RES.map(([c, l]) => [get("HT1X2", c), l] as const);
+  const ou = ["over", "under"].map((c) => [get("HTOU", c), SEL_LABEL[c]] as const);
+  return (
+    <div className="markets">
+      <div className="market wide">
+        <div className="market-name">{MARKET_LABEL.HT1X2}</div>
+        <div className="market-sels">{ht.map(([s, l]) => s && <ProbCell key={l} prob={s.prob} label={l} odds={odds} />)}</div>
+      </div>
+      <div className="market">
+        <div className="market-name">{MARKET_LABEL.HTOU}<span className="num"> 1.5</span></div>
+        <div className="market-sels">{ou.map(([s, l]) => s && <ProbCell key={l} prob={s.prob} label={l} odds={odds} />)}</div>
+      </div>
+      <div className="market wide">
+        <div className="market-name">{MARKET_LABEL.HTFT} <span className="dim">· rows half time, columns full time</span></div>
+        <table className="history htft">
+          <thead><tr><th></th>{RES.map(([c, l]) => <th key={c} className="r">FT {l}</th>)}</tr></thead>
+          <tbody>
+            {RES.map(([a, la]) => (
+              <tr key={a}>
+                <td>HT {la}</td>
+                {RES.map(([b]) => {
+                  const s = get("HTFT", `${a}/${b}`);
+                  return <td key={b} className="num r" title={s && odds ? `fair odds ${fairOdds(s.prob.p)} (${oddsInterval(s.prob.lo, s.prob.hi)})` : undefined}>
+                    {s ? <>{pct(s.prob.p)} <span className="dim">{interval(s.prob.lo, s.prob.hi)}</span></> : "–"}
+                  </td>;
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -160,6 +202,22 @@ export default function MatchPage() {
         </section>
       ) : (
         <section className="panel dim">{v.no_projection_reason}</section>
+      )}
+
+      {last && v.half_coherence?.coherent && (
+        <section className="panel">
+          <h3>Half time <span className="dim">· {last.milestone} projection, the 90-minute score split by each side&apos;s first-half share; posterior mean and 90% interval</span></h3>
+          <HalfTime m={last} odds={showsOdds(h.team_level)} />
+        </section>
+      )}
+      {last && v.half_coherence && !v.half_coherence.coherent && (
+        <section className="panel error">
+          The half-time markets recomputed from the stored draws do not reproduce the published {v.half_coherence.milestone}{" "}
+          projection (max difference {v.half_coherence.max_abs_diff.toExponential(2)}), so they are not shown (§11.2).
+        </section>
+      )}
+      {last && !v.half_coherence && v.half_reason && (
+        <section className="panel dim">Half time: {v.half_reason}</section>
       )}
 
       {v.qualify && (

@@ -103,6 +103,7 @@ export interface MatchView {
   milestones: Milestone[]; matrix: ScoreMatrix | null; decomposition: Decomposition[];
   coherence: Coherence | null; no_projection_reason: string | null; squad: Squad | null; unavailable: Unavailable[];
   qualify?: Qualify | null;
+  half_coherence?: Coherence | null; half_reason?: string | null; // P3b-2 half markets
 }
 
 export interface QualifyLeg { match_id: number; home: string; away: string; kickoff: string; score: string | null }

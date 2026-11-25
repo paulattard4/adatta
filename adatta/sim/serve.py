@@ -32,8 +32,10 @@ from adatta.adapters.storage import RawStore
 from adatta.capture import snapshots
 from adatta.db import models
 from adatta.eval import harness
+from adatta.model import half_split as hm
 from adatta.model import horizon as hz
 from adatta.model.team_strength import FitData, rates_from_draws
+from adatta.sim import half_serve as hsv
 
 Arr = NDArray[np.float64]
 Draws = dict[str, Arr]
@@ -45,6 +47,8 @@ HORIZON = snapshots.INITIAL_HORIZON  # project fixtures this far ahead
 STALE_AFTER = timedelta(days=9)  # a weekly refit older than this is reported
 MILESTONES: tuple[str, ...] = ("initial", *snapshots.TIMED)
 OU_LINES = (1.5, 2.5, 3.5)
+RESULTS = ("home", "draw", "away")
+HALF_KEY = "half_split"  # component_versions entry of the share refit used (P3b-2)
 INTERVAL = (0.05, 0.95)  # 90% credible interval of the per-draw probability
 NO_MATCH = {"PST", "CANC", "ABD", "AWD", "WO", "TBD"}  # no kickoff time to project at
 NO_OVERRIDES = hashlib.sha256(b"[]").hexdigest()  # overrides arrive with §8.5 / §16.3
@@ -149,14 +153,15 @@ def project(draws: Draws, fd: FitData, fixtures: list[Fixture], max_goals: int,
     Rates as `backtest.score_targets` computes them, for the production model (no D16 shift
     pending at prediction: the champion has no `delta`). `walk` (D34) adds the strength
     drift ahead of the refit; draws stored before D34 have no sigma_walk and get none."""
-    out = []
-    for m in fixture_matrices(draws, fd, fixtures, max_goals, walk):
-        mk = market_draws(m)
-        out.append({
-            sel: (float(p.mean()), *(float(q) for q in np.quantile(p, INTERVAL)))
-            for sel, p in mk.items()
-        })  # fmt: skip
-    return out  # type: ignore[return-value]
+    return [summarise(m) for m in fixture_matrices(draws, fd, fixtures, max_goals, walk)]
+
+
+def summarise(m: Arr) -> dict[tuple[str, float | None, str], tuple[float, float, float]]:
+    """Every 90' selection of one fixture's (draws, n, n) matrices: (mean, 5th, 95th)."""
+    return {
+        sel: (float(p.mean()), *(float(q) for q in np.quantile(p, INTERVAL)))  # type: ignore[misc]
+        for sel, p in market_draws(m).items()
+    }  # fmt: skip
 
 
 def fixture_matrices(draws: Draws, fd: FitData, fixtures: list[Fixture], max_goals: int,
@@ -399,6 +404,7 @@ class ProjectReport:
     no_refit: int = 0  # fixtures whose bundle has no passing refit yet
     problems: list[str] = field(default_factory=list)
     projection_run_id: int | None = None
+    half: int = 0  # fixtures with half markets (P3b-2)
 
 
 def run_projection(
@@ -406,14 +412,17 @@ def run_projection(
     max_goals: int, manifest: dict[str, Any], now: datetime | None = None,
     loader: Callable[[RawStore, models.ModelRun], Refit] = load_refit,
     walk: hz.Walk | None = None, cups: dict[int, str] | None = None,
+    half_split: bool = False,
 ) -> ProjectReport:  # fmt: skip
     """Write the due milestone projections for every upcoming bundle fixture. Idempotent:
     a (match, milestone) already in market_projection is never written again. `manifest`
-    carries git_commit, lockfile_hash and seed (§14.8)."""
+    carries git_commit, lockfile_hash and seed (§14.8). `half_split` (P3b-2, D51) adds the
+    half markets of in-scope league fixtures in the same run, from the same draws."""
     now = now or datetime.now(UTC)
     report = ProjectReport()
     league_bundle = {lid: b for b, ls in bundles.items() for lid in ls}
     fixtures = upcoming(session, league_bundle, now)
+    league_ids = {f.match_id for f in fixtures}  # cup ties below get no half markets
     if cups:  # A1: cup ties between bundle teams, scored as the home side's league fixture
         fixtures += [t.fixture for t in cup_ties(session, cups, bundles, now=now)
                      if t.fixture is not None]  # fmt: skip
@@ -436,6 +445,19 @@ def run_projection(
     if not fixtures:
         return report
     report.problems = problems
+    share: hsv.Share | None = None
+    half_ok: set[int] = set()
+    if half_split:
+        share_run, share_problems = hsv.latest_share(session, now)
+        report.problems = report.problems + share_problems
+        if share_run is not None:
+            share = hsv.load_share(store, share_run)
+            if share.as_of > now:
+                raise ValueError(f"share refit {share.model_run_id} is from the future")
+            cand = [f for f in fixtures if f.match_id in league_ids and f.season is not None]
+            ok = hsv.in_scope(session, {(f.league_id, int(f.season)) for f in cand
+                                        if f.season is not None})  # fmt: skip
+            half_ok = {f.match_id for f in cand if (f.league_id, f.season) in ok}
     by_bundle: dict[str, list[Fixture]] = {}
     for f in fixtures:
         by_bundle.setdefault(league_bundle[f.league_id], []).append(f)
@@ -449,17 +471,34 @@ def run_projection(
         if refit.as_of > now:
             raise ValueError(f"refit {refit.model_run_id} is from the future")  # never leak
         refits[b] = refit
-        for f, proj in zip(fx, project(refit.draws, refit.fd, fx, max_goals, walk), strict=True):
-            results[f.match_id] = proj
+        mats = fixture_matrices(refit.draws, refit.fd, fx, max_goals, walk)
+        for f, m in zip(fx, mats, strict=True):
+            results[f.match_id] = summarise(m)
+            if share is None or f.match_id not in half_ok:
+                continue
+            ph, pa = share.sides(f.league_id, f.home, f.away)
+            half = hsv.summarise(hsv.draw_markets(m, hsv.pair(ph, len(m)), hsv.pair(pa, len(m))),
+                                 INTERVAL)  # fmt: skip
+            ft = tuple(results[f.match_id][("1X2", None, k)][0] for k in RESULTS)
+            bad = hsv.coherence(half, ft)  # type: ignore[arg-type]
+            if bad:
+                report.problems.append(f"half split: match {f.match_id} incoherent: {bad}")
+                continue
+            results[f.match_id].update(half)
+            report.half += 1
     if not results:
         return report
     pr = models.ProjectionRun(
         generated_at=now, as_of=now, git_commit=manifest["git_commit"],
         lockfile_hash=manifest["lockfile_hash"],
         config_hash=",".join(sorted({r.config_hash for r in refits.values()})),
-        component_versions={b: {"model_run_id": r.model_run_id, "model": model_name,
-                                "as_of": r.as_of.isoformat()}
-                            for b, r in sorted(refits.items())},
+        component_versions={**{b: {"model_run_id": r.model_run_id, "model": model_name,
+                                   "as_of": r.as_of.isoformat()}
+                               for b, r in sorted(refits.items())},
+                            **({HALF_KEY: {"model_run_id": share.model_run_id,
+                                           "model": hm.LIVE_MODEL,
+                                           "as_of": share.as_of.isoformat()}}
+                               if share is not None and report.half else {})},
         training_snapshot_hash=hashlib.sha256(
             "".join(f"{b}:{r.training_hash}" for b, r in sorted(refits.items())).encode()
         ).hexdigest(),

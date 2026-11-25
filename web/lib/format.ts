@@ -51,7 +51,11 @@ export function countdown(iso: string, now: number): string {
 
 export const MARKET_LABEL: Record<string, string> = {
   "1X2": "Match result", OU: "Total goals", BTTS: "Both teams score",
+  HT1X2: "Half-time result", HTFT: "Half time / full time", HTOU: "Half-time goals",
 };
+
+/** The half markets (P3b-2): shown in their own panel, not with the 90-minute markets. */
+export const HALF_MARKETS = ["HT1X2", "HTFT", "HTOU"];
 
 /** Whether a selection came in at this 90-minute score (1X2, over/under a line, BTTS). */
 export function cameIn(s: { market: string; line: number | null; selection: string }, h: number, a: number): boolean {

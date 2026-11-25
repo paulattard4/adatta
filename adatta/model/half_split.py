@@ -14,6 +14,9 @@ CLI (the model container, scripts/model.sh; one backtest-type run at a time):
   run --variant S0|S1|S2 --upload RUN [--part i/n] [--only YYYY-MM-DD,...] [--window]
       every dev share refit of the variant: posterior and gates to the store
       (half/share/RUN/<variant>/<as_of>.npz, .json); metrics only to stdout
+  live [--as-of YYYY-MM-DD]
+      P3b-2 (D51): this week's production S0 refit as of Monday 00:00 UTC (serve.yml),
+      400 draws to serving/half/, recorded as a model_run (component half_split, live)
 Holdout seasons are refused.
 """
 
@@ -350,9 +353,9 @@ def decode(data: bytes) -> tuple[dict[str, Arr], list[int], list[int]]:
     return post, [int(v) for v in z["league_ids"]], [int(v) for v in z["team_ids"]]
 
 
-def refit(df: pl.DataFrame, train: IntArr, as_of: datetime, variant: str, league_ids: list[int]
-          ) -> tuple[dict[str, Arr], Obs, dict[str, Any]]:  # fmt: skip
-    """One share refit with its gates."""
+def refit(df: pl.DataFrame, train: IntArr, as_of: datetime, variant: str, league_ids: list[int],
+          n_draws: int = PRED_DRAWS) -> tuple[dict[str, Arr], Obs, dict[str, Any]]:  # fmt: skip
+    """One share refit with its gates; `n_draws` thinned draws kept."""
     rows = df[train]
     lag = harness.load_config().result_available_after_hours
     last = rows["kickoff"].max()
@@ -362,7 +365,7 @@ def refit(df: pl.DataFrame, train: IntArr, as_of: datetime, variant: str, league
     o = observations(rows, league_ids)
     t0 = time.monotonic()
     idata = fit(o, variant)
-    post = posterior(idata, o)
+    post = posterior(idata, o, n_draws)
     sens = {s: posterior(fit(o, variant, s), o) for s in SENS_SCALES}
     g = gates(idata, post, sens, o, np.random.default_rng(SEED))
     g["seconds"] = time.monotonic() - t0
@@ -393,6 +396,93 @@ def run(df: pl.DataFrame, cfg: harness.EvalConfig, variant: str, store: Any, upl
     return out
 
 
+# ------------------------------------------------------------------------- production
+
+
+LIVE_VARIANT = "S0"  # chosen on dev, promoted on window (i)
+LIVE_MODEL = "half_split_S0"
+LIVE_COMPONENT = "half_split"
+SERVE_DRAWS = 400  # as the stored 90' draws (backtest.RunSpec.max_pred_draws)
+
+
+def live_key(as_of: datetime, ext: str) -> str:
+    return f"serving/half/{LIVE_VARIANT}/{as_of:%Y%m%d}.{ext}"
+
+
+def live_config_hash(cfg: harness.EvalConfig) -> str:
+    import hashlib
+
+    spec = {"variant": LIVE_VARIANT, "beta_sd": BETA_SD, "sigma_sd": SIGMA_SD, "draws": DRAWS,
+            "chains": CHAINS, "tune": TUNE, "seed": SEED, "kept": SERVE_DRAWS,
+            "lookback_days": cfg.lookback_days, "lag_h": cfg.result_available_after_hours,
+            "sens": SENS_SCALES, "sens_max": SENS_MAX}  # fmt: skip
+    return hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def training_rows(df: pl.DataFrame, cfg: harness.EvalConfig, as_of: datetime) -> IntArr:
+    """Rows final by `as_of` (kickoff + lag) within `lookback_days`, as `harness.refit_plan`
+    selects them."""
+    kick = np.array([round(t.timestamp()) for t in df["kickoff"].to_list()], dtype=np.int64)
+    lag = round(cfg.result_available_after_hours * 3600)
+    asof = round(as_of.timestamp())
+    return np.flatnonzero((kick + lag <= asof) & (kick >= asof - cfg.lookback_days * 86400))
+
+
+def live_refit(session: Session, store: Any, cfg: harness.EvalConfig, df: pl.DataFrame,
+               as_of: datetime, git_commit: str = "unknown",
+               fitter: Any = None) -> Any:  # fmt: skip
+    """The production share refit as of a Monday, recorded as a model_run; an existing row
+    for the same as_of and config is returned unchanged. `fitter(df, train, as_of)` replaces
+    the NUTS fit in tests."""
+    from adatta.db import models
+    from adatta.model import backtest as bt
+    from adatta.model import live
+
+    if as_of != harness.week_start(as_of):
+        raise SystemExit(f"{as_of:%Y-%m-%dT%H:%M} is not a Monday 00:00 UTC")
+    h = live_config_hash(cfg)
+    MR = models.ModelRun
+    for row in session.scalars(
+        select(MR).where(MR.component == LIVE_COMPONENT, MR.window == "live",
+                         MR.config_hash == h, MR.as_of == as_of)
+    ):  # fmt: skip
+        return row
+    lids = leagues(cfg)
+    pending = live.pending_results(session, lids, as_of, cfg.result_available_after_hours)
+    if pending:
+        raise live.NotReady(f"{pending} matches before {as_of:%Y-%m-%d} have no result yet")
+    session.commit()  # end the read transaction before the fit (live.refit)
+    train = training_rows(df, cfg, as_of)
+    if fitter is not None:
+        post, o, g = fitter(df, train, as_of)
+    else:
+        post, o, g = refit(df, train, as_of, LIVE_VARIANT, lids, SERVE_DRAWS)
+    store.put(live_key(as_of, "npz"), encode(post, o))
+    store.put(live_key(as_of, "json"), json.dumps(g).encode())
+    digest = hashlib_sha(df[train].select("match_id", "xh", "xa", "hg", "ag"))
+    row = MR(
+        model_name=LIVE_MODEL, component=LIVE_COMPONENT,
+        status="ok" if g["passes"] else "failed", created_at=datetime.now(UTC), as_of=as_of,
+        window="live", git_commit=git_commit, config_hash=h,
+        lockfile_hash=bt._file_hash("uv.lock"), data_snapshot_hash=digest, seed=SEED,
+        trace_path=live_key(as_of, "npz"), report_path=live_key(as_of, "json"),
+        manifest={"variant": LIVE_VARIANT, "leagues": lids, "n_obs": g["n_obs"],
+                  "n_matches": g["n_matches"], "failed": g["failed"],
+                  "convergence": g["convergence"], "ppc": g["ppc"],
+                  "sensitivity_max_move": g["sensitivity_max_move"],
+                  "draws_stored": int(len(post["beta"]))},
+    )  # fmt: skip
+    session.add(row)
+    session.flush()
+    return row
+
+
+def hashlib_sha(frame: pl.DataFrame) -> str:
+    import hashlib
+
+    return hashlib.sha256(frame.write_csv().encode()).hexdigest()
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     from adatta.adapters.storage import make_store
     from adatta.config import get_settings
@@ -406,8 +496,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     r.add_argument("--part", default="0/1")
     r.add_argument("--only", default="", help="comma-separated YYYY-MM-DD dates to rerun")
     r.add_argument("--window", action="store_true", help="window (i)'s Mondays (D46)")
+    lv = sub.add_parser("live", help="this week's production S0 share refit (P3b-2)")
+    lv.add_argument("--as-of", default=None, help="a Monday, YYYY-MM-DD; default this week's")
     args = ap.parse_args(argv)
     cfg = harness.load_config()
+    if args.cmd == "live":
+        _live(cfg, args.as_of)
+        return
     with get_session() as s:
         df = load(s, leagues(cfg))
         s.rollback()
@@ -419,6 +514,33 @@ def main(argv: Sequence[str] | None = None) -> None:
     print(json.dumps({"variant": args.variant, "refits": len(got),
                       "passing": sum(g["passes"] for g in got),
                       "at": datetime.now(UTC).isoformat()}))  # fmt: skip
+
+
+def _live(cfg: harness.EvalConfig, as_of_text: str | None) -> None:
+    from adatta.adapters.storage import make_store
+    from adatta.config import get_settings
+    from adatta.db.session import get_session
+    from adatta.eval.baseline import _git_sha
+    from adatta.model import live
+
+    as_of = (datetime.strptime(as_of_text, "%Y-%m-%d").replace(tzinfo=UTC) if as_of_text
+             else harness.week_start(datetime.now(UTC)))  # fmt: skip
+    with get_session() as s:
+        df = load(s, leagues(cfg))
+        try:
+            row = live_refit(s, make_store(get_settings()), cfg, df, as_of, _git_sha())
+        except live.NotReady as exc:
+            if as_of_text:
+                raise SystemExit(f"not ready: {exc}") from None
+            print(f"not ready: {exc}")  # the next dispatch or schedule retries
+            return
+        s.commit()
+        print(
+            f"share {LIVE_VARIANT} as of {as_of:%Y-%m-%d}: model_run {row.model_run_id} "
+            f"{row.status}; {row.manifest['n_obs']} sides; failed {row.manifest['failed']}"
+        )
+        if row.status != "ok":
+            raise SystemExit("share refit failed its gates; the last passing one stays in use")
 
 
 if __name__ == "__main__":

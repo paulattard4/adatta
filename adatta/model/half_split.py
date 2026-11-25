@@ -6,9 +6,9 @@ For side j of match i with N 90' goals, the observed first-half goals x ~ Binomi
 - S2: + u_team = sigma_team w_team, sigma_team ~ HalfNormal(0.2) (the scoring team)
 Fitted jointly over the ten bundle leagues by NUTS (NumPyro; the model group, D13), 2,000
 draws, as of each 28-day dev Monday (D14) on matches final by then within `lookback_days`.
-Each refit is gated (c): R-hat, ESS, divergences; the 0-0 half-time PPC; prior sensitivity
-(scales x0.5, x2: every league's mean share moves < 0.005). The dispersion PPC (N = 1, 2,
-3, 4, 5+) is reported, not gating (D48, as D20). Half-time scores never enter Layer 2.
+Each refit is gated (c): R-hat, ESS, divergences; prior sensitivity (scales x0.5, x2: every
+league's mean share moves < 0.005). The dispersion PPC (N = 1, 2, 3, 4, 5+, D48) and the
+0-0 half-time PPC (D50) are reported, not gating. Half-time scores never enter Layer 2.
 
 CLI (the model container, scripts/model.sh; one backtest-type run at a time):
   run --variant S0|S1|S2 --upload RUN [--part i/n] [--only YYYY-MM-DD,...]
@@ -280,25 +280,42 @@ def gates(idata: Any, post: dict[str, Arr], sens: dict[float, dict[str, Arr]], o
     q = ppc(post, o, rng)
     base = league_means(post)
     moves = {str(k): float(np.abs(league_means(v) - base).max()) for k, v in sens.items()}
-    ok_conv = all(c["passed"] for c in conv)
-    # D48: the dispersion PPC is reported, not gating (as D20); the 0-0 PPC gates
-    ok_ppc = PPC_BAND[0] <= q["ht00"] <= PPC_BAND[1]
-    ok_sens = all(v < SENS_MAX for v in moves.values())
+    ok_ppc = PPC_BAND[0] <= q["ht00"] <= PPC_BAND[1]  # reported (D50)
     ident: dict[str, float] = {}
     if np.abs(post["u"]).sum() > 0:
         u_sd = post["u"].std(axis=1).mean()
         ident["sigma_team_post_mean_sd_of_u"] = float(u_sd)
         ident["sigma_team_prior_mean"] = SIGMA_SD * math.sqrt(2 / math.pi)
-    return {
+    out = {
         "convergence": conv, "ppc": q,
         "dispersion_in_band": {k: PPC_BAND[0] <= v <= PPC_BAND[1] for k, v in q.items()
                                if k.startswith("disp_")},
-        "sensitivity_max_move": moves, "identifiability": ident,
-        "passes": ok_conv and ok_ppc and ok_sens,
-        "failed": [n for n, ok in (("convergence", ok_conv), ("ppc", ok_ppc),
-                                   ("sensitivity", ok_sens)) if not ok],
+        "ht00_in_band": ok_ppc, "sensitivity_max_move": moves, "identifiability": ident,
         "n_obs": len(o.n), "n_matches": o.n_matches, "n_teams": len(o.team_ids),
     }  # fmt: skip
+    return regate(out)
+
+
+def failed(g: dict[str, Any]) -> list[str]:
+    """The gates of (c) a stored refit fails. D48 and D50: both PPCs (dispersion and 0-0)
+    are reported, not gating, so a refit passes on convergence and prior sensitivity."""
+    bad = []
+    if not all(c["passed"] for c in g["convergence"]):
+        bad.append("convergence")
+    if not all(v < SENS_MAX for v in g["sensitivity_max_move"].values()):
+        bad.append("sensitivity")
+    return bad
+
+
+def regate(g: dict[str, Any]) -> dict[str, Any]:
+    """`passes` and `failed` under the current rule; a refit stored under the earlier one
+    keeps its verdict as `passes_as_run` / `failed_as_run`."""
+    out = dict(g)
+    if "passes" in g and "passes_as_run" not in g:
+        out["passes_as_run"], out["failed_as_run"] = g["passes"], g.get("failed", [])
+    out["failed"] = failed(g)
+    out["passes"] = not out["failed"]
+    return out
 
 
 # ----------------------------------------------------------------------------------- store

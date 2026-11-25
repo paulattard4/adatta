@@ -224,3 +224,17 @@ def test_simplification_check_terms() -> None:
     s = x == y
     assert abs(lvl - j[s].sum()) < 1e-12
     assert abs(second - (j * (h + a - x - y))[s].sum()) < 1e-10
+
+
+def test_refits_are_regated_with_both_ppcs_reported_only() -> None:
+    conv = [{"name": "rhat", "passed": True}, {"name": "divergences", "passed": True}]
+    stored = {"convergence": conv, "sensitivity_max_move": {"0.5": 0.001, "2.0": 0.002},
+              "ppc": {"disp_3": 0.0, "ht00": 0.0}, "passes": False, "failed": ["ppc"]}  # fmt: skip
+    g = hm.regate(stored)
+    assert g["passes"] and g["failed"] == []
+    assert g["passes_as_run"] is False and g["failed_as_run"] == ["ppc"]
+    assert hm.regate(g)["passes_as_run"] is False  # re-gating twice keeps the verdict as run
+    bad = hm.regate({**stored, "sensitivity_max_move": {"0.5": 0.01}})
+    assert not bad["passes"] and bad["failed"] == ["sensitivity"]
+    conv_bad = [{"name": "rhat", "passed": False}]
+    assert hm.regate({**stored, "convergence": conv_bad})["failed"] == ["convergence"]

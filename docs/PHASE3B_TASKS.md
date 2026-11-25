@@ -7,7 +7,7 @@ set pieces need another signal, SOURCE_FEASIBILITY.md).
 
 Status (2026-11-25): **P3b-1 acceptance approved (owner: "Approve as drafted"); building.
 Dev result: FAILS check 2 alone (the 0-0 PPC on six 2020 refits); checks 1, 3-5 pass.
-Raised to the owner.**
+Owner: "Amend, judge on (i)" (D50): re-gated on dev, then window (i).**
 
 Tick each item only when its acceptance check passes.
 
@@ -255,6 +255,18 @@ Tick each item only when its acceptance check passes.
         model's own gate: the 0-0 PPC on six 2020 training windows. Following the
         acceptance, the gate is not relaxed after seeing the score. Raised to the owner;
         window (i) stays unopened.
+
+      *Amendment 2 (2026-11-25, after the dev result; owner: "Amend, judge on (i)"; D50),
+      disclosed as made after seeing the dev score:*
+      1. **The 0-0 half-time PPC is reported, not gating,** like the dispersion PPC (D48).
+         Both measure the shape of the split, which binomial thinning cannot fit exactly.
+         A share refit then passes (c) on convergence (R-hat, ESS, divergences) and prior
+         sensitivity.
+      2. **Dev is re-gated from the stored refits of run `local-7d419a7`,** with no refit
+         and nothing else changed: the same matrices, draws, variants, selection rule and
+         checks 1-5. The result is recorded beside the first, which stands as run.
+      3. **Window (i) (D46) decides,** with checks 1, 3 and 4 as in (f). It has never been
+         inspected for half-time work.
 
       **Then.** A serving acceptance is drafted after the promotion result, before
       anything is shown. It covers the markets in the same projection run as the 1X2,

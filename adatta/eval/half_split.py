@@ -120,7 +120,7 @@ class Shares:
                 if raw is None or g is None:
                     raise SystemExit(f"share refit {v} {d:%Y-%m-%d} of run {run} is missing")
                 self.post[(v, d)] = hm.decode(raw)
-                self.gates[(v, d)] = json.loads(g)
+                self.gates[(v, d)] = hm.regate(json.loads(g))  # D50: the current rule
 
     def date_for(self, as_of: datetime) -> datetime:
         """The latest share refit at or before a forecast's as-of."""
@@ -310,7 +310,10 @@ def gate(rows: pl.DataFrame, mk: pl.DataFrame, sh: Shares, chosen: str,
     for d in dates:
         for f in sh.gates[(chosen, d)]["failed"]:
             fails[f] = fails.get(f, 0) + 1
+    as_run = sum(sh.gates[(chosen, d)].get("passes_as_run", sh.gates[(chosen, d)]["passes"])
+                 for d in dates)  # fmt: skip
     out["c2"] = {"refits": len(dates), "passing": passing, "share": passing / len(dates),
+                 "passing_as_run": as_run,
                  "served_by": fallback, "failed_by": fails,
                  "passes": passing / len(dates) >= hm.PASS_SHARE}  # fmt: skip
 

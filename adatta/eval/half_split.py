@@ -165,7 +165,8 @@ def live_matrices(session: Any, store: RawStore, df: pl.DataFrame, bundle: str,
             raise SystemExit(f"{bundle}: match {r['match_id']} differs from its served 1X2")
         rows.append({"match_id": int(r["match_id"]), "league_id": int(r["league_id"]),
                      "season": int(r["season"]), "kickoff": r["kickoff"],
-                     "as_of": refit.as_of, "home": int(r["home"]), "away": int(r["away"]),
+                     "as_of": refit.as_of.astimezone(UTC),
+                     "home": int(r["home"]), "away": int(r["away"]),
                      "bundle": bundle, "hg": int(r["hg"]), "ag": int(r["ag"]),
                      "p_home": float(mk[0]), "p_draw": float(mk[1]), "p_away": float(mk[2]),
                      "exp_total": float((m.sum(axis=1) * np.arange(G)).sum()
@@ -477,7 +478,8 @@ def markdown(v: dict[str, Any]) -> str:
     c3, c4, c5 = v["c3"], v["c4"], v["c5"]
     f = "{:+.4f} [{:+.4f}, {:+.4f}]".format
     lines = [
-        f"## P3b-1 dev: {'PASSES' if v['passes'] else 'FAILS'} (chosen {v['chosen']})", "",
+        f"## P3b-1 {v.get('stage', 'dev')}: {'PASSES' if v['passes'] else 'FAILS'} "
+        f"(chosen {v['chosen']}; gating {', '.join(v.get('gating', []))})", "",
         f"- targets {v['targets']}, scored {v['scored']} (out of scope {v['out_of_scope']})",
         f"- 1 coherence: {v['c1']['incoherent']} incoherent",
         *[f"- 2 {k}: n {s['n']}, {f(*s['diff'])} ({s['rel']:+.2%})"
@@ -492,6 +494,8 @@ def markdown(v: dict[str, Any]) -> str:
                                 for k, x in c4["ece"].items()),
         f"- 5 worst league {c5['worst']:+.2%}",
     ]  # fmt: skip
+    if "sources" in v:
+        lines.append(f"- matrices by source: {v['sources']}")
     r = v["reported"]
     lines.append(f"- reported: conditional {r['conditional']}; 2H if level observed "
                  f"{r['second_half_if_level']['observed']:.3f} vs implied "
@@ -562,6 +566,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                 raise SystemExit(f"live part {b} of run {args.matrices} is missing")
             live.append(pl.read_parquet(io.BytesIO(raw)))
         lx = pl.concat(live, how="diagonal_relaxed")
+        # the database labels its timestamps GMT; same instants, relabelled UTC to concat
+        lx = lx.with_columns(pl.col(pl.Datetime).dt.convert_time_zone("UTC"))
         # matches served from a stored live Monday refit use it; the rest the walk-forward
         mx = pl.concat([mx.join(lx.select("match_id"), on="match_id", how="anti"), lx],
                        how="diagonal_relaxed")  # fmt: skip
@@ -578,6 +584,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         chosen, steps = choose(rows)
         mk = markets(rows, mx, sh, chosen)
         v = gate(rows, mk, sh, chosen, steps, meta)
+    v["stage"] = "window (i)" if args.window else "dev"
     if args.upload:
         store.put(f"{PREFIX}/v1/{args.upload}/rows.parquet",
                   _parquet(rows.join(mk, on="match_id", how="left")))  # fmt: skip

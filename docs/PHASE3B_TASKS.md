@@ -7,7 +7,8 @@ set pieces need another signal, SOURCE_FEASIBILITY.md).
 
 Status (2026-11-25): **P3b-1 acceptance approved (owner: "Approve as drafted"); building.
 Dev result: FAILS check 2 alone (the 0-0 PPC on six 2020 refits); checks 1, 3-5 pass.
-Owner: "Amend, judge on (i)" (D50): re-gated on dev, PASSES; window (i) running.**
+Owner: "Amend, judge on (i)" (D50): re-gated on dev, PASSES. Window (i) PASSES
+(run `local-9de69db`); serving acceptance to draft next.**
 
 Tick each item only when its acceptance check passes.
 
@@ -290,6 +291,40 @@ Tick each item only when its acceptance check passes.
         - Top fifth by expected goals: O/U 0.5 ECE 0.0178 (floor 0.0149), O/U 1.5 0.0146
           (floor 0.0198).
       - Window (i) decides (checks 1, 3, 4).
+
+      **Window (i) result (2026-11-25, run `local-9de69db`): PASSES, S0.** Gating checks 1,
+      3 and 4 (D46, D50).
+      - **Scored:** 1,247 matches, the 2026/27 matches with kickoff before 2026-11-24,
+        none out of scope.
+        - 1,137 use walk-forward matrices from CI run 45603457907.
+        - 110 use the live Monday refit they were served from, identical to the served
+          1X2 to 1e-9.
+      - **Shares:** S0 refit on the 17 weekly Mondays from 2026-08-03 to 11-23
+        (`local-81f6449`). All 17 pass (c).
+      - **Check 1:** 0 incoherent.
+      - **Check 3:**
+        - Half-time 1X2 log loss 1.0592 against 1.0849: -0.0257 [-0.0377, -0.0138]
+          (-2.4%).
+        - RPS: -0.0074 [-0.0107, -0.0040].
+        - HT/FT log loss 1.9232 against 1.9788: -0.0557 [-0.0731, -0.0383] (-2.8%).
+      - **Check 4, ECE against its floor:** home 0.0279 (0.0358), draw 0.0135 (0.0313),
+        away 0.0138 (0.0328), over 1.5 0.0269 (0.0332). All are under the floor.
+      - **Reported, not gating on (i):**
+        - **Check 5:** nine leagues are better than B_clim. Serie B (136, 120 matches)
+          is worse: +3.07%, a log loss difference of +0.0329 [+0.0067, +0.0592] by
+          bootstrap.
+          - It comes from the full-time model, not the split. Serie B's full-time 1X2
+            log loss on the same matches is 1.1001, against 1.0931 for a constant fitted
+            in-sample to these results.
+          - Recorded for the Layer 2 watch; nothing tuned.
+        - After a level half time: 1.567 second-half goals observed against 1.476
+          implied. On dev it was 1.398 against 1.441, so the sign differs and neither
+          window points to a correction.
+        - Top fifth by expected goals (250 matches): O/U 0.5 ECE 0.0219 (floor 0.0579),
+          O/U 1.5 0.0398 (floor 0.0742).
+      - **Fixed while assembling, no score effect:** live rows carried `as_of` labelled
+        GMT and walk-forward rows UTC, which polars would not concatenate. Both are now
+        UTC: at the source, and on load for the parts already stored.
 
       **Then.** A serving acceptance is drafted after the promotion result, before
       anything is shown. It covers the markets in the same projection run as the 1X2,

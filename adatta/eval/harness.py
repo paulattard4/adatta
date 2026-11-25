@@ -134,6 +134,25 @@ def load_matches(session: Session, league_ids: list[int]) -> tuple[pl.DataFrame,
     """Finished regular-season league matches with a known 90' score, plus the ones that
     can't be scored (finished but 90' score unknown) with the reason. A fixture the provider
     lists twice (same sides and kickoff) is kept once, under its lowest match id."""
+    df = finished_rows(session, league_ids).filter(pl.col("round").str.contains(REGULAR_ROUND))
+    return split_known(dedupe(df))
+
+
+def dedupe(df: pl.DataFrame) -> pl.DataFrame:
+    """A fixture the provider lists twice (same sides and kickoff), once: the lowest id."""
+    return df.sort("match_id").unique(["home", "away", "kickoff"], keep="first",
+                                      maintain_order=True)  # fmt: skip
+
+
+def split_known(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """(rows with a known 90' score sorted by kickoff, the rest with the reason)."""
+    known = pl.col("hg").is_not_null() & pl.col("ag").is_not_null()
+    unscorable = df.filter(~known).with_columns(reason=pl.lit("90' score unknown"))
+    return df.filter(known).sort("kickoff", "match_id"), unscorable
+
+
+def finished_rows(session: Session, league_ids: list[int]) -> pl.DataFrame:
+    """Every finished match of these leagues, any round, with its 90' score if known."""
     M, S, C, R = models.Match, models.Season, models.Competition, models.MatchResult
     rows = session.execute(
         select(
@@ -164,14 +183,7 @@ def load_matches(session: Session, league_ids: list[int]) -> tuple[pl.DataFrame,
             "round": pl.Utf8, "hg": pl.Int64, "ag": pl.Int64,
         },
     )  # fmt: skip
-    df = (
-        df.filter(pl.col("round").str.contains(REGULAR_ROUND))
-        .sort("match_id")
-        .unique(["home", "away", "kickoff"], keep="first", maintain_order=True)
-    )
-    known = pl.col("hg").is_not_null() & pl.col("ag").is_not_null()
-    unscorable = df.filter(~known).with_columns(reason=pl.lit("90' score unknown"))
-    return df.filter(known).sort("kickoff", "match_id"), unscorable
+    return df
 
 
 def load_xg(session: Session, league_ids: list[int]) -> pl.DataFrame:
@@ -435,9 +447,15 @@ def refit_plan(
     # whole seconds, so the comparisons are exact and agree with `prepare`'s datetimes
     kick = np.array([round(t.timestamp()) for t in df["kickoff"].to_list()], dtype=np.int64)
     targets_mask = np.isin(df["season"].to_numpy(), seasons)
+    if "target" in df.columns:  # C2: top-flight targets only, second tiers train only
+        targets_mask &= df["target"].to_numpy().astype(bool)
     if not targets_mask.any():
         return []
     lag = round(cfg.result_available_after_hours * 3600)
+    # C2: a row observable later than kickoff + lag (second tiers, loaded once a summer)
+    avail = (np.array([round(t.timestamp()) for t in df["available_at"].to_list()],
+                      dtype=np.int64) if "available_at" in df.columns
+             else kick + lag)  # fmt: skip
     lookback = cfg.lookback_days * int(DAY)
     t_first = datetime.fromtimestamp(int(kick[targets_mask].min()), UTC)
     t_last = datetime.fromtimestamp(int(kick[targets_mask].max()), UTC)
@@ -449,7 +467,8 @@ def refit_plan(
     plan = []
     for asof_dt, asof, end in zip(times, starts, ends, strict=True):
         tgt = np.flatnonzero(targets_mask & (kick >= asof) & (kick < end))
-        train = np.flatnonzero((kick + lag <= asof) & (kick >= asof - lookback))
+        train = np.flatnonzero((avail <= asof) & (kick + lag <= asof)
+                               & (kick >= asof - lookback))  # fmt: skip
         if len(tgt) and len(train):
             # leakage guard: nothing in training was unobservable at the as-of time
             assert (kick[train] + lag <= asof).all(), "training row not observable at as-of"

@@ -25,6 +25,7 @@ import numpy as np
 import polars as pl
 
 from adatta.db.session import get_session
+from adatta.eval import c2
 from adatta.eval.baseline import _file_hash, _git_sha
 from adatta.eval.harness import (
     EvalConfig,
@@ -152,9 +153,12 @@ def main() -> None:
     started = time.time()
     code_sha = _git_sha()
     cfg = load_config()
-    leagues = cfg.bundles[args.bundle]
+    leagues = c2.leagues_of(args.bundle, cfg.bundles)
     with get_session() as s:
-        df, _ = load_matches(s, leagues)
+        if c2.is_c2(args.bundle):  # C2 scope: rounds, top-flight targets, availability
+            df, _ = c2.load_matches(s, leagues, cfg.result_available_after_hours)
+        else:
+            df, _ = load_matches(s, leagues)
         if args.xg:
             df = df.join(load_xg(s, leagues), on="match_id", how="left")
         if args.manager:
@@ -173,14 +177,16 @@ def main() -> None:
         as_of = datetime.fromisoformat(args.as_of).replace(tzinfo=UTC)
     else:
         as_of = audit_date(df, cfg, args.season)
-    fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, cfg.result_available_after_hours,
-                    groups)  # fmt: skip
+    fd = ts.prepare(c2.observable(df, as_of), leagues, as_of, cfg.lookback_days,
+                    cfg.result_available_after_hours, groups)  # fmt: skip
     from adatta.eval.harness import mover_codes
 
     mh, ma = mover_codes(df, leagues)  # leak-free: season s and s - 1 only
     targets = df.with_columns(mover_home=pl.Series(mh), mover_away=pl.Series(ma)).filter(
         (pl.col("kickoff") >= as_of) & (pl.col("kickoff") < as_of + timedelta(days=28))
     )
+    if "target" in targets.columns:  # C2: top flights only
+        targets = targets.filter(pl.col("target"))
     print(f"{args.bundle} as of {as_of:%Y-%m-%d}: {len(fd.hg)} matches, "
           f"{len(fd.team_ids)} teams, {fd.n_steps} steps; {targets.height} targets")  # fmt: skip
 

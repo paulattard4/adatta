@@ -1191,7 +1191,7 @@ cover all relevant league bundles needed").** Metrics only.
     - The Scottish Premiership (nine of ten seasons) and the Challenger Pro League
       (2016-2019) have no regular-season round labels. Step 2 needs a rule for each before any fit.
 
-### C2 step 2 acceptance: the eight bundles on dev, then their holdout (drafted 2026-11-25 before building)
+### C2 step 2 acceptance: the eight bundles on dev, then their holdout (drafted 2026-11-25 before building; owner: "Approve as drafted", D52, the recommended choice in each)
 
 **Seen so far, for this draft (read-only, no requests):**
 - The model in scope is the production spec (`production_spec`): strength_open, xG
@@ -1326,6 +1326,58 @@ cover all relevant league bundles needed").** Metrics only.
 - No requests and no money. Monday serving is not touched.
 - On a holdout fail, nothing is served for the new leagues (step 3 needs a pass). The
   dev refits stay usable for step 4's C1 rerun, which has its own acceptance.
+
+**Built (2026-11-25): (a)-(c) pass locally; the CI runs (d)-(f) are next.**
+- **Code and config:**
+  - `config/c2_bundles.yml` holds the eight bundles, the second-tier load date (1 July)
+    and every round-label family per league.
+  - `adatta/eval/c2.py` holds the scope, the availability rule and the dev verdict, with
+    `python -m adatta.eval.c2 report`.
+  - `harness.refit_plan` reads optional `target` and `available_at` columns. They are
+    absent for the five, so their plans are unchanged.
+  - `backtest.run` and `gate.py` filter to `c2.observable` before `prepare`.
+    `team_strength.py` and `covariates.py` are untouched; both are in every fit's hash.
+- **(a) Scope report** (`reports/c2/scope_20261125T163005Z.csv`, counts only), 2016-2025:
+  - kept: 38,028 regular rows and 2,363 league-phase rows (40,391 in all);
+  - excluded: 422 knockout or play-off matches;
+  - dropped by rule: 50 cross-tier play-off matches, and no ties (the one two-side tie,
+    Challenger Pro League 2019, was cancelled).
+  - The six finished matches with no 90' score are all in excluded play-off rounds, so
+    none is unscorable in scope.
+  - Dev targets: 10,780 top-flight matches for 2019/20-2023/24, 972 of them in league
+    phases.
+  - The cross-tier rule is checked against what it should drop: Czech relegation ties
+    with FNL sides, Scottish and Belgian play-offs, Austria 2020's two.
+- **(b) No side effects:**
+  - The five bundles' `load_matches` is still 39,873 rows, hash `39b1c7b7aa2c6655`.
+  - The production spec's config hash is `a215d52e759864ed` before and after.
+  - `evaluation.yml` and `REGULAR_ROUND` are untouched.
+  - A C2 bundle's cache hash adds the digest of `config/c2_bundles.yml` and
+    `adatta/eval/c2.py` (`backtest.bundle_hash`). The five's hash is returned as it was.
+- **(c) Second tiers:** a test checks every refit of a C2 plan:
+  - the targets are top flight;
+  - no current-season second-tier row is used;
+  - no second-tier row is used before 1 July after its season.
+
+  `run()` asserts that `prepare`'s window after `observable` equals the plan's training
+  rows. Phase 1a is planned on the same grid.
+- **Holdout keys:**
+  - A C2 bundle refuses any holdout key except an opening "c2", and the five refuse
+    "c2".
+  - The "c2" opening itself is built before the holdout run, after dev passes:
+    - its marker;
+    - `config/c2_gate.yml`, with D52's rule that a league failing the segment rule is
+      rejected alone;
+    - the assembly's set of required parts.
+- **Dev assembly:** a C2-only dev run writes `c2_dev.json` (the no-harm verdict), the
+  2023/24 comparison apart, and reliability.
+- **Tests:** `tests/test_c2.py`, 10 tests.
+- **Smoke on stored data:** Scotland, 2019, two weekly refits in the model container, at
+  2 x 100 draws so mixing is not judged. It ran end to end: 12 top-flight targets, all
+  warm, and the training window equals the plan.
+- **Full suite:** 593 passed, 9 skipped; ruff and mypy clean.
+- **Next:** dispatch `backtest.yml` with the eight bundles x 2019-2023 at the weekly
+  grid, after the push. One at a time, not on a Monday.
 
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.

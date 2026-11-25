@@ -32,8 +32,8 @@ import polars as pl
 from numpy.typing import NDArray
 
 from adatta.adapters.storage import LocalStore, RawStore, make_store, try_get
+from adatta.eval import c2, harness, metrics, phase2
 from adatta.eval import cadence as refit_cadence
-from adatta.eval import harness, metrics, phase2
 from adatta.eval import holdout as ho
 from adatta.features import context_table
 from adatta.model import covariates as cv
@@ -160,6 +160,14 @@ def fit_hash(spec: RunSpec) -> str:
     prediction-time widening, so a results-grid run (D33) or a widened run (D34) shares its
     fits with the plain weekly run."""
     return config_hash(replace(spec, grid="weekly", widen=False))
+
+
+def bundle_hash(h: str, bundle: str) -> str:
+    """A C2 bundle's hash adds its data scope (config/c2_bundles.yml, adatta/eval/c2.py), so
+    a change there refits the C2 bundles and never the five (whose hash is `h` as before)."""
+    if not c2.is_c2(bundle):
+        return h
+    return hashlib.sha256(f"{h}:{c2.digest()}".encode()).hexdigest()[:16]
 
 
 def cache_key(h: str, bundle: str, as_of: datetime) -> str:
@@ -358,11 +366,14 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
         raise harness.HoldoutLocked(
             f"the holdout's {holdout.opening} opening does not score {spec}"
         )
+    if holdout is not None and c2.is_c2(bundle) != (holdout.opening == "c2"):
+        raise harness.HoldoutLocked(f"bundle {bundle} is not scored by the {holdout.opening} "
+                                    "opening")  # fmt: skip
     fitter = fitter or nuts_fitter(spec)
     walk = hz.Walk(spec.seed, spec.structure) if spec.widen else None
     plan = harness.refit_plan(df, cfg, seasons, spec.every_days, holdout, spec.grid)[:limit]
     plan = plan[k_part::n_part]
-    h = config_hash(spec)
+    h = bundle_hash(config_hash(spec), bundle)
     log(
         f"{bundle} seasons {seasons}"
         + (f" part {k_part}/{n_part}" if n_part > 1 else "")
@@ -375,10 +386,12 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
     df = df.with_columns(mover_home=pl.Series(mh), mover_away=pl.Series(ma))
     rows: list[dict[str, Any]] = []
     for i, (as_of, tgt, train) in enumerate(plan):
-        fd = ts.prepare(df, leagues, as_of, cfg.lookback_days, lag, spec.groups)
+        # C2: second-tier rows only once loaded (available_at); the five: df unchanged
+        fd = ts.prepare(c2.observable(df, as_of), leagues, as_of, cfg.lookback_days, lag,
+                        spec.groups)  # fmt: skip
         # the 1b window is the plan's training set: same rows, all observable at as_of
         assert len(fd.hg) == len(train), "1b training window differs from the refit plan"
-        key = cache_key(fit_hash(spec), bundle, as_of)
+        key = cache_key(bundle_hash(fit_hash(spec), bundle), bundle, as_of)
         cached = try_get(store, key)
         if cached is not None:
             draws, diag = decode(cached)
@@ -625,7 +638,7 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
     cadence = every.pop() if every else 28
     frames, grid_ok = [b1], True
     for bundle, g in b1.group_by("bundle"):
-        leagues = cfg.bundles[str(bundle[0])]
+        leagues = c2.leagues_of(str(bundle[0]), cfg.bundles)
         # 1a must use the same refit plans as the parts: a plan's 28-day grid starts at its
         # first target, so a part planned for one season has a different phase from a plan
         # over several. Each part records its plan's seasons (older parts: one per season).
@@ -814,6 +827,7 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
         lines += [f"| {r['model']} | {r['outcome']} | {int(r['bin'])} | {r['n']} | "
                   f"{r['predicted']:.3f} | {r['observed']:.3f} |"
                   for r in rel.iter_rows(named=True)]  # fmt: skip
+    lines += c2_dev_section(pred, comps, cfg, out, holdout)
     (out / "summary.md").write_text("\n".join(lines) + "\n")
     manifest = {
         "run": ("phase2_holdout" if phase2_challenger is not None else "phase1b_holdout"
@@ -831,6 +845,59 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str))
     print("\n".join(lines))
     return out
+
+
+C2_XG_SEASON = 2023  # the one dev season with xG in the C2 top flights (reported apart)
+
+
+def c2_dev_section(pred: pl.DataFrame, comps: dict[str, pl.DataFrame], cfg: harness.EvalConfig,
+                   out: Path, holdout: harness.HoldoutKey | None) -> list[str]:  # fmt: skip
+    """C2 step 2 (e), D52: on a dev run of C2 bundles only, the no-harm verdict per model
+    (no top flight worse than Phase 1a by more than the segment limit on any D28 metric),
+    the 2023/24 xG season apart, and 1X2 reliability. Nothing for the five or a holdout."""
+    bundles = pred["bundle"].unique().to_list()
+    if holdout is not None or not bundles or not all(c2.is_c2(str(b)) for b in bundles):
+        return []
+    lines: list[str] = []
+    verdicts = {}
+    for c, t in comps.items():
+        v = c2.dev_verdict(t, cfg.phase1b_gate)
+        verdicts[c] = v
+        xs = compare(pred.filter(pl.col("season") == C2_XG_SEASON), c)
+        xs.write_csv(out / f"compare_{c}_{C2_XG_SEASON}.csv")
+        lines += ["", f"## C2 dev, no harm (D52): {c} — **{v['verdict']}**", "",
+                  f"No top flight worse than Phase 1a by more than "
+                  f"{100 * cfg.phase1b_gate.max_segment_rel_worse:.1f}% on any D28 metric "
+                  "(warm matches). The gain is the holdout's to decide.", "",
+                  "| check | value | limit | pass |", "|---|---|---|---|"]  # fmt: skip
+        lines += [f"| {k['name']} | {100 * k['value']:+.2f}% | {100 * k['limit']:+.2f}% | "
+                  f"{'yes' if k['passed'] else '**no**'} |" for k in v["checks"]]  # fmt: skip
+        lines += ["", f"### {c} vs Phase 1a, {C2_XG_SEASON}/{C2_XG_SEASON + 1 - 2000} only "
+                  "(the xG season; reported)", "",
+                  "| segment | metric | n | rel | 95% interval |",
+                  "|---|---|---|---|---|"]  # fmt: skip
+        for r in xs.filter(pl.col("segment_type").is_in(["all", "league_id"])
+                           & pl.col("metric").is_in(["1X2:log_loss", "1X2:rps"])
+                           ).iter_rows(named=True):  # fmt: skip
+            lines.append(f"| {r['segment_type']} {r['seg']} | {r['metric']} | {r['n']} | "
+                         f"{100 * r['rel']:+.2f}% | [{100 * r['rel_lo']:+.2f}%, "
+                         f"{100 * r['rel_hi']:+.2f}%] |")  # fmt: skip
+    (out / "c2_dev.json").write_text(json.dumps(verdicts, indent=2))
+    rel = ho.reliability(pred)
+    rel.write_csv(out / "reliability.csv")
+    lines += [
+        "",
+        "## 1X2 reliability (warm matches)",
+        "",
+        "| model | outcome | bin | n | predicted | observed |",
+        "|---|---|---|---|---|---|",
+    ]
+    lines += [
+        f"| {r['model']} | {r['outcome']} | {int(r['bin'])} | {r['n']} | "
+        f"{r['predicted']:.3f} | {r['observed']:.3f} |"
+        for r in rel.iter_rows(named=True)
+    ]
+    return lines
 
 
 def record(out: Path, session: Any, seed: int = RunSpec.seed) -> int:
@@ -884,7 +951,10 @@ def _load(leagues: list[int], xg: bool = False, manager: bool = False) -> pl.Dat
     from adatta.db.session import get_session
 
     with get_session() as s:
-        df, _ = harness.load_matches(s, leagues)
+        if c2.bundle_for(leagues) is not None:  # C2 scope: rounds, targets, availability
+            df, _ = c2.load_matches(s, leagues, harness.load_config().result_available_after_hours)
+        else:
+            df, _ = harness.load_matches(s, leagues)
         if xg:
             df = df.join(harness.load_xg(s, leagues), on="match_id", how="left")
         if manager:
@@ -1045,7 +1115,7 @@ def main() -> None:
                    xg=args.structure == "strength_open" if args.xg is None else args.xg,
                    manager=args.manager, groups=cv.resolve(args.group),
                    grid=args.grid, widen=args.widen)  # fmt: skip
-    leagues = cfg.bundles[args.bundle]
+    leagues = c2.leagues_of(args.bundle, cfg.bundles)
     df = _load(leagues, spec.xg, spec.manager)
     target_ctx, target_h = None, timedelta(hours=args.target_horizon_hours)
     if spec.groups:  # training rows at kickoff - 1 h; targets at the chosen horizon

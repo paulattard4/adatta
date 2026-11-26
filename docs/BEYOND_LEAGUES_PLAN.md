@@ -1953,7 +1953,7 @@ scored.
     bundles needed". C1 is not reopened before then; the UEFA holdout stays closed.
 
 
-### C2 step 4: the C1 rerun over all thirteen bundles (drafted 2026-11-26 before building; owner decision pending, D56 on approval)
+### C2 step 4: the C1 rerun over all thirteen bundles (drafted 2026-11-26 before building; owner: "Approve as drafted", D56, the recommended choice in each)
 
 **Why now.** C1 failed on power, not on the model: 384 dev matches gave intervals of about
 ±0.019 on a -0.010 log-loss gain (D45). The owner waited for more league bundles (2026-11-25).
@@ -2042,6 +2042,37 @@ The eight C2 bundles are loaded and fitted, so the rerun is the step C2 was for.
   cached from C1's run; C2's are L-BFGS fits, seconds each), then the fit (about 60 refits
   of a small NUTS model, now with 12 Q). 0 API requests, no money.
 - After C2 serving goes live (D54), so the two do not share a Monday.
+
+**Built (2026-11-26, local, nothing scored):**
+- `continental.py`:
+  - the 13 bundles (`bundles()`; `BUNDLE_ORDER` checked against both configs), 12 free Q;
+  - a C2 side from `c2_live.fit_as_of` at the match's Monday (`c2_side`, `c2_strengths`;
+    constant across draws, the fit's ρ, κ 0);
+  - the venue rule reads every bundle league's grounds (`league_competition_ids`);
+  - matrices to 20 goals, with the largest tail per prediction (`tails`) reported;
+  - the gate reports C1's 384 and the 698 with a C2 side apart; `venue_check` prints (b).
+- `continental.yml`'s strengths matrix has the 13 bundles. Tests: 4 new in
+  `tests/test_continental.py`.
+- **(b) as written passes** (database, venues and targets only): C1's 384 dev matches keep
+  their roles (0 changed); all 53 C2 clubs with a dev UEFA home match have a known ground.
+- **Found while checking (b), raised with the owner before any run:**
+  - With C2 grounds known, neutral dev matches rise from 30 to 71. 38 of the new ones have a
+    C2 club at home outside a final:
+    - 28 at a stadium in the club's own country but another city (a temporary UEFA home,
+      such as a national stadium);
+    - 7 at a venue with no stored country in the club's own city (Linz, Liège: the city
+      match misses on spelling, such as Liège against "Liege");
+    - 3 genuinely abroad (February to April 2021, COVID relocations).
+  - `neutral.derive` calls a venue neutral when it is in neither club's city. That was rare
+    for the five; for the eight it would drop the home advantage from about 35 home games
+    (3% of the 1,082).
+  - The rule is shared with Stage A's cups, so changing it is the owner's call. Options:
+    1. (recommended) a venue in the home club's country and not the away club's counts as
+       home unless a round rule or override says neutral; city names are compared without
+       accents; every role change across C1, A and D reported before the rerun;
+    2. overrides in `config/neutral_venues.yml` for these dev matches only (future UEFA
+       matches would hit the same rule);
+    3. leave them neutral.
 
 ## Stage D: national teams (§10.4)
 

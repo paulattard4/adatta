@@ -5,6 +5,11 @@ log lambda_home = c + h (1 - neutral) + att_home - def_away + Q[home bundle] - Q
 (England Q = 0), each side's att / def from its own bundle's production weekly refit as of
 the match's Monday (as Stage A's A1). Against B_own (Q = 0) and an Elo-style baseline.
 
+C2 step 4 (D56): the rerun over all 13 bundles, the five and the eight C2 bundles (12 free
+Q). A C2 side's att / def come from Phase 1a as served (`c2_live.fit_as_of` at the match's
+Monday; a point fit, so constant across draws, kappa 0). The venue rule sees every bundle's
+league grounds, and matrices are scored to 20 goals a side (D53), the tail reported.
+
 CLI (CI, model group for `strengths` and `fit`; one backtest-type run at a time):
   strengths --bundle B --part i/n --upload RUN
             each side's attack / defence draws as of its match's Monday, from the cached
@@ -42,7 +47,8 @@ LAG = timedelta(hours=3)
 SEED = 20261121
 DRAWS, CHAINS = 2000, 4
 SIDE_DRAWS = 400  # draws per side kept for prediction
-MAX_GOALS = 10
+MAX_GOALS = 20  # D53 / D56 (C1 scored to 10)
+TAIL_MAX = 1e-4  # reported per prediction
 ELO_START, ELO_K, ELO_HOME = 1500.0, 20.0, 60.0  # fixed in the acceptance, not tuned
 ELO_FROM = datetime(2016, 7, 1, tzinfo=UTC)
 LEAKAGE_N = 50
@@ -55,6 +61,28 @@ TARGET_SCHEMA: dict[str, Any] = {
     "league_home": pl.Int64, "league_away": pl.Int64, "hg": pl.Int64, "ag": pl.Int64,
     "neutral": pl.Boolean, "cross": pl.Boolean, "swapped": pl.Boolean,
 }  # fmt: skip
+
+
+def bundles() -> dict[str, list[int]]:
+    """The 13 bundles of the rerun (D56): the five (evaluation.yml), then the eight C2
+    bundles (config/c2_bundles.yml), top flight first in each."""
+    from adatta.eval import c2, harness
+
+    return {**harness.load_config().bundles, **c2.load_config().bundles}
+
+
+def league_competition_ids(session: Any, bundles_: dict[str, list[int]]) -> list[int]:
+    """Internal competition ids of every bundle league (the venue rule's grounds, D56 (b))."""
+    from sqlalchemy import select
+
+    from adatta.adapters.normalize import SOURCE_ID
+    from adatta.db import models
+
+    C = models.Competition
+    refs = [str(x) for ls in bundles_.values() for x in ls]
+    return sorted(session.scalars(
+        select(C.competition_id).where(C.source_id == SOURCE_ID, C.source_ref.in_(refs))
+    ).all())  # fmt: skip
 
 
 def _utc(t: datetime) -> datetime:
@@ -74,7 +102,6 @@ def targets(session: Any, bundles: dict[str, list[int]]) -> pl.DataFrame:
     season (league matches), with the 90' score; a swapped venue swaps the sides."""
     from sqlalchemy import select
 
-    from adatta.cli import _bundle_competition_ids
     from adatta.db import models
     from adatta.features import neutral
     from adatta.sim import serve
@@ -94,7 +121,7 @@ def targets(session: Any, bundles: dict[str, list[int]]) -> pl.DataFrame:
         for b, ls in bundles.items():
             for t, lg in serve.team_leagues(session, ls, y).items():
                 by_season[y][t] = (b, lg)
-    league_ids, _ = _bundle_competition_ids(session)
+    league_ids = league_competition_ids(session, bundles)  # D56 (b): every bundle's grounds
     roles = neutral.venue_roles(session, [r[0] for r in rows], league_ids, neutral.load_rules(),
                                 {r[0].season_id: int(r[1]) for r in rows})  # fmt: skip
     role = dict(zip(roles["match_id"].to_list(), roles["role"].to_list(), strict=True))
@@ -153,14 +180,15 @@ def strengths(store: RawStore, session: Any, bundle: str, part: tuple[int, int],
               log: Any = print) -> pl.DataFrame:  # fmt: skip
     """Rows (match, side) for this bundle's sides, from the weekly refit of each match's
     Monday: cached, else fitted and cached under the league backtest's key."""
-    from adatta.eval import harness
+    from adatta.eval import c2, harness
     from adatta.model import backtest as bt
     from adatta.model import team_strength as ts
 
     cfg = harness.load_config()
     spec = bt.production_spec(cfg)
-    leagues = cfg.bundles[bundle]
-    tg = targets(session, cfg.bundles)
+    every = bundles()
+    leagues = every[bundle]
+    tg = targets(session, every)
     session.rollback()
     sides = pl.concat([
         tg.filter(pl.col("bundle_home") == bundle).select(
@@ -168,7 +196,8 @@ def strengths(store: RawStore, session: Any, bundle: str, part: tuple[int, int],
         tg.filter(pl.col("bundle_away") == bundle).select(
             "match_id", "monday", team="away", league="league_away", side=pl.lit("away")),
     ])  # fmt: skip
-    df = bt._load(leagues, spec.xg, spec.manager)
+    is_c2 = c2.is_c2(bundle)
+    df = bt._load(leagues) if is_c2 else bt._load(leagues, spec.xg, spec.manager)
     first = _utc(df["kickoff"].min())  # type: ignore[arg-type]
     early = sides.filter(pl.col("monday") < first + MIN_HISTORY)
     if early.height:  # under a year of the bundle's stored league history: not used
@@ -176,6 +205,8 @@ def strengths(store: RawStore, session: Any, bundle: str, part: tuple[int, int],
             f"(under {MIN_HISTORY.days} days of league history)")  # fmt: skip
     sides = sides.filter(pl.col("monday") >= first + MIN_HISTORY)
     mondays = sorted(set(sides["monday"].to_list()))[part[0] :: part[1]]
+    if is_c2:
+        return c2_strengths(df, leagues, bundle, sides, mondays, log)
     h, lag = bt.fit_hash(spec), cfg.result_available_after_hours
     fitter = bt.nuts_fitter(spec)
     out: list[dict[str, Any]] = []
@@ -200,6 +231,47 @@ def strengths(store: RawStore, session: Any, bundle: str, part: tuple[int, int],
     return pl.DataFrame(out)
 
 
+def c2_side(fit: Any, team: int, league: int) -> dict[str, Any]:
+    """A C2 side from its bundle's Phase 1a fit (D56 choice 1a): att / def at the point fit,
+    constant across the SIDE_DRAWS draws; an unseen team gets its league's average (the fit's
+    rule, as served); rho is the fit's, kappa 0 (Phase 1a has none)."""
+    tix = {int(t): i for i, t in enumerate(fit.team_ids)}
+    lg = fit.leagues.index(league)
+    t = tix.get(team, -1)
+    p = fit.params
+    a = float(p.attack[t]) if t >= 0 else float(fit.league_att[lg])
+    d = float(p.defence[t]) if t >= 0 else float(fit.league_def[lg])
+    return {
+        "att_mean": a,
+        "def_mean": d,
+        "att": [a] * SIDE_DRAWS,
+        "def": [d] * SIDE_DRAWS,
+        "rho": [float(p.rho)] * SIDE_DRAWS,
+        "kappa": [0.0] * SIDE_DRAWS,
+        "cold": t < 0,
+    }
+
+
+def c2_strengths(df: pl.DataFrame, leagues: list[int], bundle: str, sides: pl.DataFrame,
+                 mondays: list[datetime], log: Any = print) -> pl.DataFrame:  # fmt: skip
+    """Rows (match, side) of a C2 bundle's sides from Phase 1a as of each match's Monday,
+    the code path that serves these leagues (`c2_live.fit_as_of`)."""
+    from adatta.model import c2_live
+
+    cfg = c2_live.scoring_config()
+    out: list[dict[str, Any]] = []
+    log(f"{bundle}: {len(mondays)} Mondays, Phase 1a (D56)")
+    for mon in mondays:
+        fit = c2_live.fit_as_of(df, leagues, cfg, mon, bundle)
+        ok = not c2_live.gate_failures(fit)
+        for r in sides.filter(pl.col("monday") == mon).iter_rows(named=True):
+            sd = c2_side(fit, int(r["team"]), int(r["league"]))
+            out.append({"match_id": r["match_id"], "side": r["side"], "team": r["team"],
+                        "bundle": bundle, "monday": mon, "refit_as_of": mon, "gates_ok": ok,
+                        "cached": False, **sd})  # fmt: skip
+    return pl.DataFrame(out)
+
+
 def _gates_ok(diag: dict[str, float]) -> bool:
     from adatta.model import diagnostics as dg
 
@@ -209,13 +281,15 @@ def _gates_ok(diag: dict[str, float]) -> bool:
 
 # -------------------------------------------------------------------------------- C1 fit
 
-BUNDLE_ORDER = ("england", "spain", "italy", "germany", "france")  # England is Q = 0
+# England is Q = 0; then the five, then the eight C2 bundles (D56; a test checks the configs)
+BUNDLE_ORDER = ("england", "spain", "italy", "germany", "france", "portugal", "netherlands",
+                "belgium", "austria", "scotland", "turkey", "czechia", "denmark")  # fmt: skip
 
 
 def fit_q(train: pl.DataFrame, with_q: bool, prior_scale: float = 1.0,
           seed: int = SEED) -> tuple[dict[str, Arr], dict[str, Any]]:  # fmt: skip
     """C1 (with_q) or B_own on the training matches: Poisson goals, att/def at their means.
-    Returns thinned draws {c, h, Q (n, 5)} and diagnostics (§14.5 gates, PPC of goals)."""
+    Returns thinned draws {c, h, Q (n, 13)} and diagnostics (§14.5 gates, PPC of goals)."""
     import pymc as pm
 
     from adatta.model import diagnostics as dg
@@ -231,7 +305,7 @@ def fit_q(train: pl.DataFrame, with_q: bool, prior_scale: float = 1.0,
         c = pm.Normal("c", 0.2, 0.5 * prior_scale)
         hh = pm.Normal("h", 0.25, 0.25 * prior_scale)
         if with_q:
-            q4 = pm.Normal("q", 0.0, 0.5 * prior_scale, shape=4)
+            q4 = pm.Normal("q", 0.0, 0.5 * prior_scale, shape=len(BUNDLE_ORDER) - 1)
             import pytensor.tensor as pt
 
             q = pt.concatenate([pt.zeros(1), q4])
@@ -247,7 +321,7 @@ def fit_q(train: pl.DataFrame, with_q: bool, prior_scale: float = 1.0,
     flat = {v: np.asarray(post[v].values).reshape(-1, *post[v].shape[2:]) for v in post.data_vars}
     idx = np.linspace(0, len(flat["c"]) - 1, SIDE_DRAWS).astype(np.int64)
     q = (np.concatenate([np.zeros((len(flat["c"]), 1)), flat["q"]], axis=1) if with_q
-         else np.zeros((len(flat["c"]), 5)))  # fmt: skip
+         else np.zeros((len(flat["c"]), len(BUNDLE_ORDER))))  # fmt: skip
     out = {"c": flat["c"][idx], "h": flat["h"][idx], "Q": q[idx]}
     # PPC: total goals per match, posterior predictive mean against the observed
     lam = np.exp(out["c"][:, None] + out["h"][:, None] * (1 - neu) + base_h
@@ -259,6 +333,29 @@ def fit_q(train: pl.DataFrame, with_q: bool, prior_scale: float = 1.0,
     diag["ppc_total_obs"] = float((hg + ag).mean())
     diag["n_train"] = len(hg)
     return out, diag
+
+
+def tails(post: dict[str, Arr], tg: pl.DataFrame) -> Arr:
+    """Per target, the largest mass beyond MAX_GOALS a side over the draws (D53), before
+    renormalising: 1 - P(home <= MAX_GOALS) P(away <= MAX_GOALS) at each draw's rates."""
+    from scipy.stats import poisson
+
+    bi = {b: i for i, b in enumerate(BUNDLE_ORDER)}
+    out = []
+    for r in tg.iter_rows(named=True):
+        dq = post["Q"][:, bi[r["bundle_home"]]] - post["Q"][:, bi[r["bundle_away"]]]
+        lam = np.exp(
+            post["c"]
+            + post["h"] * (1 - float(r["neutral"]))
+            + np.asarray(r["att_draws_home"])
+            - np.asarray(r["def_draws_away"])
+            + dq
+        )
+        mu = np.exp(post["c"] + np.asarray(r["att_draws_away"]) - np.asarray(r["def_draws_home"])
+                    - dq)  # fmt: skip
+        both = np.asarray(poisson.cdf(MAX_GOALS, lam) * poisson.cdf(MAX_GOALS, mu))
+        out.append(float((1 - both).max()))
+    return np.asarray(out)
 
 
 def predict(post: dict[str, Arr], tg: pl.DataFrame) -> Arr:
@@ -478,8 +575,10 @@ def run_fit(tg: pl.DataFrame, elo: dict[int, float]) -> tuple[pl.DataFrame, list
         b, c1, c2 = ordered_logit(x, y)
         pe = logit_probs(np.array([elo[m] for m in tgt["match_id"]]) / 100, b, c1, c2)
         pq, p0 = predict(post_q, tgt), predict(post_0, tgt)
-        rows.append(tgt.select("match_id", "comp", "season", "hg", "ag", "neutral").with_columns(
-            refit=pl.lit(t), **{f"{m}_{o}": pl.Series(p[:, k]) for m, p in
+        rows.append(tgt.select("match_id", "comp", "season", "hg", "ag", "neutral",
+                               "bundle_home", "bundle_away").with_columns(
+            refit=pl.lit(t), c1_tail=pl.Series(tails(post_q, tgt)),
+            **{f"{m}_{o}": pl.Series(p[:, k]) for m, p in
                                 (("c1", pq), ("own", p0), ("elo", pe))
                                 for k, o in enumerate(("home", "draw", "away"))}))  # fmt: skip
         qm = post_q["Q"].mean(axis=0)
@@ -511,6 +610,18 @@ def gate(scored: pl.DataFrame, diags: list[dict[str, Any]]) -> tuple[str, dict[s
                                              / ll[b][s].mean())
                             for b in ("own", "elo")}}  # fmt: skip
     cal = calibration(p["c1"], y)
+    # D56 (d): C1's 384 (both sides in the five) apart from the matches with a C2 side
+    five = set(BUNDLE_ORDER[:5])
+    in_five = (scored["bundle_home"].is_in(five) & scored["bundle_away"].is_in(five)).to_numpy() \
+        if "bundle_home" in scored.columns else np.ones(len(y), dtype=bool)  # fmt: skip
+    split: dict[str, dict[str, Any]] = {}
+    for name, sel in (("five only (C1's matches)", in_five), ("with a C2 side", ~in_five)):
+        if sel.sum() > 1:
+            split[name] = {
+                "n": int(sel.sum()),
+                **{b: paired(ll["c1"][sel], ll[b][sel]) for b in ("own", "elo")},
+            }
+    tail = float(scored["c1_tail"].max()) if "c1_tail" in scored.columns else 0.0  # type: ignore[arg-type]
     checks = {
         "1 C1 beats B_own (log loss and RPS, intervals below 0)":
             cmp["own"]["log_loss"]["hi"] < 0 and cmp["own"]["rps"]["hi"] < 0,
@@ -526,9 +637,10 @@ def gate(scored: pl.DataFrame, diags: list[dict[str, Any]]) -> tuple[str, dict[s
     mll = {m: float(v.mean()) for m, v in ll.items()}
     mrp = {m: float(v.mean()) for m, v in rp.items()}
     rep: dict[str, Any] = {"n": len(y), "ll": mll, "rps": mrp, "cmp": cmp, "by_comp": by_comp,
-                           "calibration": cal, "checks": checks}  # fmt: skip
+                           "calibration": cal, "checks": checks, "split": split,
+                           "max_tail": tail}  # fmt: skip
     last = diags[-1]
-    lines = ["# C1 on dev: continental matches between bundles", "",
+    lines = ["# C1 on dev: continental matches between bundles (13 bundles, D56)", "",
              f"{len(y)} dev cross-bundle UEFA matches, {len(diags)} refits.",
              "| model | 1X2 log loss | RPS |", "|---|---|---|",
              *[f"| {m} | {mll[m]:.4f} | {mrp[m]:.4f} |" for m in ("c1", "own", "elo")],
@@ -548,7 +660,13 @@ def gate(scored: pl.DataFrame, diags: list[dict[str, Any]]) -> tuple[str, dict[s
         f"PPC total goals at the last refit: predicted {last['c1']['ppc_total_pred']:.3f}, "
         f"observed {last['c1']['ppc_total_obs']:.3f}. Worst C1 R-hat "
         f"{max(d['c1']['rhat'] for d in diags):.3f}, divergences "
-        f"{sum(d['c1']['divergences'] for d in diags):.0f}.", "",
+        f"{sum(d['c1']['divergences'] for d in diags):.0f}.",
+        "Log loss, C1 minus each baseline, by subset (D56, reported): " + "; ".join(
+            f"{k} n {v['n']}: vs own {v['own']['mean']:+.4f} [{v['own']['lo']:+.4f}, "
+            f"{v['own']['hi']:+.4f}], vs Elo {v['elo']['mean']:+.4f} [{v['elo']['lo']:+.4f}, "
+            f"{v['elo']['hi']:+.4f}]" for k, v in split.items()),
+        f"Largest C1 tail beyond {MAX_GOALS} goals a side: {tail:.1e} "
+        f"({'under' if tail < TAIL_MAX else 'OVER'} {TAIL_MAX:.0e}).", "",
         "Checks: " + "; ".join(f"{k}: {'pass' if v else 'FAIL'}"
                                for k, v in checks.items())]  # fmt: skip
     return "\n".join(lines) + "\n", rep
@@ -558,6 +676,41 @@ def sensitivity(tg: pl.DataFrame, t: datetime) -> dict[str, list[float]]:
     """Q at the last refit with every prior sd halved and doubled (reported)."""
     train = tg.filter(pl.col("cross") & (pl.col("kickoff") + LAG <= t))
     return {str(s): fit_q(train, True, s)[0]["Q"].mean(axis=0).tolist() for s in (0.5, 1.0, 2.0)}
+
+
+def venue_check(session: Any, tg: pl.DataFrame, five: dict[str, list[int]]) -> dict[str, Any]:
+    """D56 (b): with every bundle's grounds, (i) C1's cross-five dev matches keep their venue
+    roles (neutral, swapped) from C1's five-only rule, and (ii) every C2 club with a UEFA home
+    match in dev that is not on neutral ground has a known league ground."""
+    from adatta.features import neutral
+
+    dev = tg.filter(pl.col("season").is_in(list(DEV)))
+    old = targets(session, five).filter(pl.col("cross") & pl.col("season").is_in(list(DEV)))
+    both = old.select("match_id", n0="neutral", s0="swapped").join(
+        dev.select("match_id", "neutral", "swapped"), on="match_id", how="inner"
+    )
+    changed = both.filter((pl.col("n0") != pl.col("neutral")) | (pl.col("s0") != pl.col("swapped")))
+    c2b = set(BUNDLE_ORDER[5:])
+    homes = dev.filter(pl.col("cross") & ~pl.col("neutral") & pl.col("bundle_home").is_in(c2b))
+    clubs = sorted(set(homes["home"].to_list()))
+    grounds = neutral.team_grounds(session, league_competition_ids(session, bundles()), clubs)
+    unknown = [c for c in clubs if not grounds.get(c)]
+    return {
+        "c1_matches": both.height,
+        "roles_changed": changed.height,
+        "c2_home_clubs": len(clubs),
+        "c2_unknown_ground": len(unknown),
+        "ok": changed.is_empty() and not unknown,
+    }
+
+
+def venue_lines(v: dict[str, Any]) -> str:
+    return (
+        f"Venues (D56 (b)): C1's {v['c1_matches']} dev matches, roles changed "
+        f"{v['roles_changed']}; C2 clubs with a dev UEFA home match {v['c2_home_clubs']}, "
+        f"without a known ground {v['c2_unknown_ground']}: "
+        f"{'pass' if v['ok'] else 'FAIL'}."
+    )
 
 
 def leakage(tg: pl.DataFrame, hist: pl.DataFrame, elo: dict[int, float],
@@ -604,8 +757,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         print(f"{args.bundle} {i}/{n}: {rows.height} side rows")
         return
+    every = bundles()
     parts = []
-    for b in cfg.bundles:
+    for b in every:
         for i in range(args.parts):
             raw = try_get(store, f"{PREFIX}/strengths/{args.fetch}/{b}_{i}of{args.parts}.parquet")
             if raw is None:
@@ -613,9 +767,11 @@ def main(argv: Sequence[str] | None = None) -> None:
             parts.append(pl.read_parquet(io.BytesIO(raw)))
     st = pl.concat([p for p in parts if p.height], how="diagonal_relaxed")
     with get_session() as s:
-        tg0 = targets(s, cfg.bundles)
-        hist = elo_history(s, cfg.bundles)
+        tg0 = targets(s, every)
+        hist = elo_history(s, every)
+        venues = venue_check(s, tg0, cfg.bundles)
         s.rollback()
+    print(venue_lines(venues))
     tg = join_sides(tg0, st)
     print(f"targets with both sides' strengths: {tg.height} of {tg0.height} (cross-bundle "
           f"{tg.filter(pl.col('cross')).height}); cold sides "

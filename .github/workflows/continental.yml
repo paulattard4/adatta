@@ -1,4 +1,5 @@
-# Stage C, C1 (docs/BEYOND_LEAGUES_PLAN.md): continental matches between bundle teams on a
+# Stage C, C1 (docs/BEYOND_LEAGUES_PLAN.md), rerun over all 13 bundles as C2 step 4 (D56):
+# continental matches between bundle teams on a
 # common scale (Q_league), against "each league's own scale" and an Elo-style baseline, on
 # the dev seasons. Manual dispatch only, one stage per run:
 #   strengths  one job per bundle x part: each side's attack / defence as of its match's
@@ -42,7 +43,9 @@ jobs:
       fail-fast: false
       max-parallel: 18
       matrix:
-        bundle: [england, spain, italy, germany, france]
+        # the five (production 1b refits) and the eight C2 bundles (Phase 1a, D56)
+        bundle: [england, spain, italy, germany, france, portugal, netherlands, belgium,
+                 austria, scotland, turkey, czechia, denmark]
         part: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4

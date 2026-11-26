@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import polars as pl
@@ -85,3 +86,61 @@ def test_scores_and_paired_differences() -> None:
     d = ct.paired(np.array([1.0, 1.1, 0.9]), np.array([1.2, 1.2, 1.2]))
     assert d["mean"] < 0 and d["hi"] < 0
     assert ct.outcome(np.array([2, 1, 0]), np.array([1, 1, 3])).tolist() == [0, 1, 2]
+
+
+# ------------------------------------------------------------------ C2 step 4 (D56)
+
+
+def test_the_rerun_covers_the_five_then_the_eight_c2_bundles() -> None:
+    from adatta.eval import c2, harness
+
+    five, eight = list(harness.load_config().bundles), list(c2.load_config().bundles)
+    assert list(ct.BUNDLE_ORDER) == five + eight and ct.BUNDLE_ORDER[0] == "england"
+    assert list(ct.bundles()) == list(ct.BUNDLE_ORDER)
+    assert ct.MAX_GOALS == 20
+
+
+def _c2_fit() -> Any:
+    from test_c2_projection import a_fit
+
+    return a_fit()
+
+
+def test_a_c2_side_is_phase1a_as_served_constant_across_draws() -> None:
+    fit = _c2_fit()
+    s = ct.c2_side(fit, 3, 94)
+    assert not s["cold"] and s["att_mean"] == pytest.approx(float(fit.params.attack[2]))
+    assert len(s["att"]) == ct.SIDE_DRAWS and len(set(s["att"])) == 1
+    assert set(s["rho"]) == {fit.params.rho} and set(s["kappa"]) == {0.0}
+    cold = ct.c2_side(fit, 999, 94)
+    assert cold["cold"] and cold["att_mean"] == float(fit.league_att[0])
+
+
+def test_c2_strengths_come_from_the_live_fit_at_the_monday() -> None:
+    from test_c2 import C2L, c2_matches
+
+    from adatta.model import c2_live
+
+    df = c2_matches()
+    mon = datetime(2019, 11, 4, tzinfo=UTC)
+    sides = pl.DataFrame({"match_id": [1, 2], "monday": [mon, mon], "team": [1001, 1002],
+                          "league": [94, 94], "side": ["home", "away"]})  # fmt: skip
+    rows = ct.c2_strengths(df, C2L, "portugal", sides, [mon], log=lambda _: None)
+    fit = c2_live.fit_as_of(df, C2L, c2_live.scoring_config(), mon, "portugal")
+    assert rows.height == 2 and rows["gates_ok"].all() and not rows["cached"].any()
+    assert rows["att_mean"][0] == pytest.approx(ct.c2_side(fit, 1001, 94)["att_mean"], abs=0)
+
+
+def test_predict_and_tails_reach_the_c2_bundles_at_20_goals() -> None:
+    row = {"bundle_home": "denmark", "bundle_away": "england", "neutral": False,
+           "att_draws_home": [0.0], "def_draws_home": [0.0], "att_draws_away": [0.0],
+           "def_draws_away": [0.0], "rho_home": [0.0], "kappa_home": [0.0]}  # fmt: skip
+    tg = pl.DataFrame([row])
+    q = np.zeros((1, len(ct.BUNDLE_ORDER)))
+    q[0, ct.BUNDLE_ORDER.index("denmark")] = -0.4
+    post = {"c": np.array([0.2]), "h": np.array([0.0]), "Q": q}
+    p = ct.predict(post, tg)
+    assert np.allclose(p.sum(axis=1), 1) and p[0, 2] > p[0, 0]  # the weaker league at home
+    assert ct.tails(post, tg)[0] < 1e-12
+    big = {"c": np.array([2.6]), "h": np.array([0.0]), "Q": np.zeros((1, len(ct.BUNDLE_ORDER)))}
+    assert ct.tails(big, tg)[0] > ct.TAIL_MAX  # rates of about 13 goals a side

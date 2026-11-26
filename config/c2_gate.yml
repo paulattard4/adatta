@@ -1,0 +1,21 @@
+# C2 step 2 (g), D52: the pre-registered gate for the locked holdout of the eight C2 bundles
+# (opening "c2", made once; docs/BEYOND_LEAGUES_PLAN.md "C2 step 2 acceptance").
+# Written 2026-11-26, before the opening; never edited after it.
+#
+# The production spec against each bundle's own Phase 1a on the same weekly plan, 2024/25 and
+# 2025/26, warm top-flight matches (second tiers are training rows only, D49):
+#   1. D28 segments, per top flight: no league x market segment worse than Phase 1a by more
+#      than max_segment_rel_worse (point estimate). A top flight failing any is rejected
+#      alone (D52 3a).
+#   2. D18, pooled over the top flights left after step 1: any gain on 1X2 log loss and 1X2
+#      RPS, with the paired 95% interval excluding zero. Pass: each of them is champion.
+#      Fail, or none left: all eight are rejected.
+# Each top flight is recorded in model_run as champion or rejected, with its reasons.
+c2_gate:
+  min_rel_logloss_gain_1x2: 0.0
+  min_rel_rps_gain: 0.0
+  paired_interval: 0.95
+  max_segment_rel_worse: 0.010
+  segment_metrics: ["1X2:log_loss", "1X2:rps", "OU2.5:log_loss", "BTTS:log_loss", "total:crps"]
+  segment_fail: league_alone          # D52 3a (not: the whole verdict fails, as D28)
+  top_flights: [94, 88, 144, 218, 179, 203, 345, 119]

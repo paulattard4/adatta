@@ -9,6 +9,9 @@
 # opening phase2 (D30, the second opening; its own marker and confirm phrase): scores the
 # promotion spec pinned in config/phase2_promotion.yml and the production spec again on this
 # code as its reference, then applies the D36 gate (config/phase2_gate.yml).
+# opening c2 (C2 step 2 (g), D52; its own marker and confirm phrase): scores the production
+# spec on the eight C2 bundles (top flights as targets), then applies config/c2_gate.yml per
+# top flight and records each as champion or rejected.
 # The repo is public: logs carry metrics only; match-level parts and the report go to R2.
 # `parts` splits each bundle-season into jobs (assemble fetches every piece and refuses a
 # missing or repeated one).
@@ -18,12 +21,12 @@ on:
   workflow_dispatch:
     inputs:
       opening:
-        description: "phase1b (made 2026-11-11) or phase2 (D30)"
+        description: "phase1b (made 2026-11-11), phase2 (D30) or c2 (D52)"
         type: choice
-        options: [phase2, phase1b]
+        options: [phase2, phase1b, c2]
         default: phase2
       confirm:
-        description: 'type "open the locked holdout once" (phase1b) or "open the locked holdout for phase 2 once" (phase2)'
+        description: 'type "open the locked holdout once" (phase1b), "open the locked holdout for phase 2 once" (phase2) or "open the locked holdout for c2 once" (c2)'
         required: true
       parts:
         description: 'JSON list of pieces per bundle-season, K/N: ["0/1"] = whole; ["0/2","1/2"] halves each (weekly fits of the biggest bundle-seasons outlast 6 h)'
@@ -44,7 +47,8 @@ jobs:
   claim:
     if: >-
       ${{ (inputs.opening == 'phase1b' && inputs.confirm == 'open the locked holdout once') ||
-          (inputs.opening == 'phase2' && inputs.confirm == 'open the locked holdout for phase 2 once') }}
+          (inputs.opening == 'phase2' && inputs.confirm == 'open the locked holdout for phase 2 once') ||
+          (inputs.opening == 'c2' && inputs.confirm == 'open the locked holdout for c2 once') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -65,7 +69,7 @@ jobs:
       # Same budget as backtest.yml: 18 of the account's 20 concurrent jobs.
       max-parallel: 18
       matrix:
-        bundle: ["england", "spain", "italy", "germany", "france"]
+        bundle: ${{ fromJSON(inputs.opening == 'c2' && '["portugal","netherlands","belgium","austria","scotland","turkey","czechia","denmark"]' || '["england","spain","italy","germany","france"]') }}
         season: [2024, 2025]
         part: ${{ fromJSON(inputs.parts) }}
         spec: ${{ fromJSON(inputs.opening == 'phase2' && '["production","promotion"]' || '["production"]') }}
@@ -96,10 +100,11 @@ jobs:
         run: |
           names=$(uv run python -c "
           from adatta.eval import harness
-          from adatta.model.backtest import production_spec, promotion_spec
+          from adatta.model.backtest import holdout_bundles, production_spec, promotion_spec
           cfg = harness.load_config()
-          specs = [production_spec(cfg)] + ([promotion_spec(cfg)] if '${{ inputs.opening }}' == 'phase2' else [])
-          print(' '.join(f'${{ github.run_id }}/{sp.model_name}_{b}_{s}.parquet' for sp in specs for b in cfg.bundles for s in cfg.holdout_seasons))")
+          key = harness.HoldoutKey('${{ github.run_id }}', '${{ inputs.opening }}')
+          specs = [production_spec(cfg)] + ([promotion_spec(cfg)] if key.opening == 'phase2' else [])
+          print(' '.join(f'${{ github.run_id }}/{sp.model_name}_{b}_{s}.parquet' for sp in specs for b in holdout_bundles(cfg, key) for s in cfg.holdout_seasons))")
           uv run python -m adatta.model.backtest assemble --fetch $names \
             --holdout ${{ github.run_id }} --opening ${{ inputs.opening }} \
             --upload-report --record | tee -a "$GITHUB_STEP_SUMMARY"

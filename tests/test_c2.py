@@ -1,9 +1,11 @@
 """C2 step 2 data scope (docs/BEYOND_LEAGUES_PLAN.md "C2 step 2 acceptance" (a)-(c), D52):
 round classes, the cross-tier and tie rules, top-flight targets, second tiers observable
-only after the summer load, the five bundles untouched, the holdout keys kept apart."""
+only after the summer load, the five bundles untouched, the holdout keys kept apart; (g)
+the c2 opening and its pre-registered per-top-flight gate. Synthetic data only."""
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -12,9 +14,13 @@ import numpy as np
 import polars as pl
 import pytest
 import yaml
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
 
 from adatta.adapters.storage import LocalStore
+from adatta.db import models
 from adatta.eval import c2, harness
+from adatta.eval import holdout as ho
 from adatta.model import backtest as bt
 from adatta.model import team_strength as ts
 
@@ -147,8 +153,8 @@ def test_annotate_targets_top_flight_and_delays_second_tiers_to_the_summer_load(
     assert c2.observable(df, k) is df  # the five: no column, nothing filtered
 
 
-def c2_matches() -> pl.DataFrame:
-    df = matches((2017, 2018, 2019)).with_columns(
+def c2_matches(seasons: tuple[int, ...] = (2017, 2018, 2019)) -> pl.DataFrame:
+    df = matches(seasons).with_columns(
         league_id=pl.col("league_id").replace_strict({39: 94, 40: 95})
     )
     return c2.annotate(df, C2L, c2cfg(), config().result_available_after_hours)
@@ -268,3 +274,126 @@ def test_config_covers_the_sixteen_loaded_leagues() -> None:
     for ls in cfg.bundles.values():
         assert c2.bundle_for(ls, cfg) is not None
     assert c2.bundle_for([39, 40], cfg) is None
+
+
+# --------------------------------------------------------------- (g) the c2 holdout opening
+
+PROD = "phase1b_strength_open_xg"
+TOP = [94, 88, 144, 218, 179, 203, 345, 119]
+
+
+def test_c2_gate_is_d18_with_d28_segments_over_the_eight_top_flights() -> None:
+    g, base = ho.load_c2_gate(), harness.load_config().phase1b_gate
+    assert g.model_dump(exclude={"segment_fail", "top_flights"}) == base.model_dump()
+    assert g.segment_fail == "league_alone"
+    assert sorted(g.top_flights) == sorted(b[0] for b in c2.load_config().bundles.values())
+    assert sorted(g.top_flights) == sorted(TOP)
+
+
+def c2_cmp(leagues: list[int], seg: dict[int, float] | None = None,
+           pooled: tuple[float, float] = (-0.004, -0.001)) -> pl.DataFrame:  # fmt: skip
+    """A compare() table: overall 1X2 rows, and every D28 segment per league at -0.2% except
+    `seg` (league -> its total:crps rel)."""
+    rows: list[dict[str, Any]] = [
+        {"segment_type": "all", "seg": "all", "metric": m, "rel": pooled[0], "rel_hi": pooled[1]}
+        for m in ("1X2:log_loss", "1X2:rps")
+    ]
+    for lg in leagues:
+        for m in ho.load_c2_gate().segment_metrics:
+            rel = (seg or {}).get(lg, -0.002) if m == "total:crps" else -0.002
+            rows.append({"segment_type": "league_id", "seg": str(lg), "metric": m, "rel": rel,
+                         "rel_hi": 0.01})  # fmt: skip
+    return pl.DataFrame(rows)
+
+
+def test_c2_verdict_rejects_a_failing_top_flight_alone_and_pools_the_rest() -> None:
+    gate, asked = ho.load_c2_gate(), []
+
+    def pooled_ok(lids: list[int]) -> pl.DataFrame:
+        asked.append(sorted(lids))
+        return c2_cmp(lids)
+
+    v = ho.c2_verdict(c2_cmp(TOP), pooled_ok, gate)
+    assert v["verdict"] == "champion" and v["pooled_over"] == sorted(TOP)
+    assert all(x["status"] == "champion" for x in v["leagues"].values())
+
+    v = ho.c2_verdict(c2_cmp(TOP, {218: 0.0101}), pooled_ok, gate)
+    assert asked[-1] == sorted(lg for lg in TOP if lg != 218)  # pooled again without it
+    assert v["leagues"][218] == {"status": "rejected", "reasons": ["league 218 total:crps"]}
+    champions = [lg for lg, x in v["leagues"].items() if x["status"] == "champion"]
+    assert champions == [lg for lg in TOP if lg != 218]
+    assert v["verdict"] == "champion" and v["failed"] == ["league 218 total:crps"]
+
+    # the pooled gain over the rest has an interval reaching zero: all eight rejected
+    v = ho.c2_verdict(c2_cmp(TOP, {218: 0.0101}),
+                      lambda lids: c2_cmp(lids, pooled=(-0.004, 0.0002)), gate)  # fmt: skip
+    assert v["verdict"] == "rejected"
+    assert v["leagues"][94]["reasons"] == [
+        "pooled overall 1X2:log_loss interval upper bound",
+        "pooled overall 1X2:rps interval upper bound",
+    ]
+    assert v["leagues"][218]["reasons"] == ["league 218 total:crps"]
+
+    # every top flight fails a segment: nothing is pooled, all rejected
+    v = ho.c2_verdict(c2_cmp(TOP, dict.fromkeys(TOP, 0.02)), pooled_ok, gate)
+    assert v["verdict"] == "rejected" and v["pooled_over"] == []
+    with pytest.raises(ValueError, match="top flights"):  # a top flight missing: no verdict
+        ho.c2_verdict(c2_cmp(TOP[:-1]), pooled_ok, gate)
+
+
+def test_the_c2_opening_is_a_marker_of_its_own_after_phase1b(tmp_path: Path) -> None:
+    store = LocalStore(tmp_path)
+    with pytest.raises(harness.HoldoutLocked, match="comes first"):
+        ho.claim(store, "9", PROD, "abc", "c2")
+    ho.claim(store, "1", PROD, "abc")  # the five's opening, by another run
+    assert ho.claim(store, "9", PROD, "abc", "c2")["opening"] == "c2"
+    assert ho.claim(store, "9", PROD, "abc", "c2")["run_id"] == "9"  # a rerun of the same run
+    with pytest.raises(harness.HoldoutLocked):
+        ho.claim(store, "10", PROD, "abc", "c2")  # made once
+    assert ho.unlock(store, "9", PROD, "c2") == harness.HoldoutKey("9", "c2")
+    with pytest.raises(harness.HoldoutLocked):
+        ho.unlock(store, "9", PROD)  # the phase1b opening is run 1's
+    with pytest.raises(harness.HoldoutLocked):
+        ho.unlock(store, "9", "phase1b_strength_open_xg_k2", "c2")  # production spec only
+    assert ho.unlock(store, "1", PROD) == harness.HoldoutKey("1")
+    cfg = harness.load_config()
+    assert bt.holdout_bundles(cfg, harness.HoldoutKey("9", "c2")) == list(c2.load_config().bundles)
+    assert bt.holdout_bundles(cfg, harness.HoldoutKey("1")) == list(cfg.bundles)
+
+
+def test_c2_holdout_report_end_to_end(tmp_path: Path, monkeypatch: Any) -> None:
+    """One C2 bundle as the whole C2 set: run, assemble with the c2 key, the per-top-flight
+    gate, and one model_run row per top flight under its own name (serving's champion
+    lookup by model name never sees it)."""
+    small = c2cfg()
+    gate = ho.load_c2_gate().model_copy(update={"top_flights": [94]})
+    monkeypatch.setattr(c2, "load_config", lambda path=c2.FILE: small)
+    monkeypatch.setattr(ho, "load_c2_gate", lambda path=ho.C2_GATE_FILE: gate)
+    df = c2_matches((2022, 2023, 2024))
+    cfg = config().model_copy(update={"holdout_seasons": [2024]})
+    key, spec = harness.HoldoutKey("9", "c2"), bt.production_spec(config())
+    pred = bt.run(df, C2L, "portugal", cfg, [2024], spec, LocalStore(tmp_path / "store"),
+                  FakeFitter(), log=lambda _: None, holdout=key)  # fmt: skip
+    assert set(pred["league_id"].unique()) == {94}
+    parts = tmp_path / "parts"
+    parts.mkdir()
+    pred.with_columns(refit_every_days=pl.lit(7), plan_seasons=pl.lit("2024")).write_parquet(
+        parts / f"{spec.model_name}_portugal_2024.parquet"
+    )
+    with pytest.raises(SystemExit, match="incomplete"):  # the five's key wants the five
+        bt.assemble(parts, tmp_path / "out", cfg, lambda _: df, holdout=harness.HoldoutKey("1"))
+    out = bt.assemble(parts, tmp_path / "out", cfg, lambda _: df, holdout=key)
+    g = json.loads((out / "gate.json").read_text())
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert g["opening"] == "c2" and set(g["leagues"]) == {"94"}
+    assert manifest["run"] == "c2_holdout" and manifest["c2_leagues"] == g["leagues"]
+    assert manifest["verdict"] == g["verdict"]
+    assert "Pre-registered C2 gate" in (out / "summary.md").read_text()
+    engine = create_engine("sqlite://")
+    models.Base.metadata.create_all(engine)
+    with Session(engine) as s:
+        assert bt.record(out, s) == 1
+        r = s.scalars(select(models.ModelRun)).one()
+        assert r.model_name == "phase1b_strength_open_xg_c2_94" and r.component == "c2"
+        assert r.status == g["leagues"]["94"]["status"] and r.window == "holdout"
+        assert r.manifest["league_id"] == 94 and "1X2:log_loss" in r.backtest_scores

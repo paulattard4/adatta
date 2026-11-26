@@ -640,8 +640,10 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
         if set(b1["model"].unique()) != allowed:
             raise harness.HoldoutLocked(f"a {holdout.opening} holdout report holds exactly "
                                         f"{sorted(allowed)}")  # fmt: skip
-        # the gate is applied to the whole holdout or not at all, every model on every part
-        want = {(b, s) for b in cfg.bundles for s in cfg.holdout_seasons}
+        # the gate is applied to the whole holdout or not at all, every model on every part;
+        # the c2 opening is the eight C2 bundles' holdout, every other the five's
+        bundles = holdout_bundles(cfg, holdout)
+        want = {(b, s) for b in bundles for s in cfg.holdout_seasons}
         for (m,), g in b1.group_by("model"):
             have = set(zip(g["bundle"].to_list(), g["season"].to_list(), strict=True))
             if have != want:
@@ -712,6 +714,11 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
                 "failed": [f"{c['route']}: {c['name']}" for c in checks if not c["passed"]]
                 + [sg["name"] for sg in cg["segments"] if not sg["passed"]],
                 "gate": cfg.phase2_gate.model_dump(), "holdout_run": holdout.run_id}  # fmt: skip
+        (out / "gate.json").write_text(json.dumps(gate, indent=2))
+        rel = ho.reliability(pred)
+        rel.write_csv(out / "reliability.csv")
+    elif holdout is not None and holdout.opening == "c2":
+        gate = c2_holdout_gate(pred, comps[prod], prod, holdout)
         (out / "gate.json").write_text(json.dumps(gate, indent=2))
         rel = ho.reliability(pred)
         rel.write_csv(out / "reliability.csv")
@@ -827,7 +834,9 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
                   f"Against {prod} rescored on this run's code; the gate's checks are in the "
                   "combined-model section above."]  # fmt: skip
     if gate is not None:
-        if phase2_challenger is None:
+        if gate.get("opening") == "c2":
+            lines += c2_gate_lines(gate)
+        elif phase2_challenger is None:
             lines += ["", f"## Pre-registered gate (D18, D28): **{gate['verdict']}**", "",
                       "| check | value | limit | pass |", "|---|---|---|---|"]  # fmt: skip
             lines += [f"| {c['name']} | {100 * c['value']:+.2f}% | {100 * c['limit']:+.2f}% "
@@ -846,7 +855,8 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
     lines += c2_dev_section(pred, comps, cfg, out, holdout)
     (out / "summary.md").write_text("\n".join(lines) + "\n")
     manifest = {
-        "run": ("phase2_holdout" if phase2_challenger is not None else "phase1b_holdout"
+        "run": ("phase2_holdout" if phase2_challenger is not None else "c2_holdout"
+                if holdout is not None and holdout.opening == "c2" else "phase1b_holdout"
                 if holdout is not None else "phase1b_dev_backtest"),
         "opening": holdout.opening if holdout else None,
         "created_at": stamp, "parts": [p.name for p in parts],
@@ -857,10 +867,53 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
         "reference": reference, "holdout_run": holdout.run_id if holdout else None,
         "verdict": gate["verdict"] if gate else None,
         "gate_failed": gate["failed"] if gate else None,
+        **({"c2_model": gate["model"], "c2_leagues": gate["leagues"]}
+           if gate and gate.get("opening") == "c2" else {}),
     }  # fmt: skip
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str))
     print("\n".join(lines))
     return out
+
+
+def holdout_bundles(cfg: harness.EvalConfig, key: harness.HoldoutKey) -> list[str]:
+    """The bundles a holdout opening scores: the eight C2 bundles for "c2" (D52), else the
+    five."""
+    return list(c2.load_config().bundles) if key.opening == "c2" else list(cfg.bundles)
+
+
+def c2_model_name(model: str, league: int) -> str:
+    """A C2 top flight's model_run name. Not the model's own name: serving finds its champion
+    by model name alone (live.champion), which must stay the five's row (D52)."""
+    return f"{model}_c2_{league}"
+
+
+def c2_holdout_gate(pred: pl.DataFrame, cmp: pl.DataFrame, prod: str,
+                    holdout: harness.HoldoutKey) -> dict[str, Any]:  # fmt: skip
+    """C2 step 2 (g): the pre-registered D52 gate (config/c2_gate.yml), per top flight."""
+    g = ho.load_c2_gate()
+    top = {int(lg) for b in c2.load_config().bundles.values() for lg in b[:1]}
+    if top != set(g.top_flights):
+        raise SystemExit(f"c2_gate.yml top flights {sorted(g.top_flights)} are not the C2 "
+                         f"bundles' {sorted(top)}")  # fmt: skip
+    res = ho.c2_verdict(
+        cmp, lambda lids: compare(pred.filter(pl.col("league_id").is_in(lids)), prod), g
+    )
+    return {"model": prod, "opening": "c2", **res,
+            "leagues": {str(k): v for k, v in res["leagues"].items()},
+            "gate": g.model_dump(), "holdout_run": holdout.run_id}  # fmt: skip
+
+
+def c2_gate_lines(gate: dict[str, Any]) -> list[str]:
+    lines = ["", f"## Pre-registered C2 gate (D52; D18, D28 per top flight): "
+             f"**{gate['verdict']}**", "",
+             f"Pooled over: {', '.join(str(x) for x in gate['pooled_over']) or 'none'}.", "",
+             "| top flight | status | reasons |", "|---|---|---|"]  # fmt: skip
+    lines += [f"| {lg} | **{v['status']}** | {'; '.join(v['reasons']) or '-'} |"
+              for lg, v in gate["leagues"].items()]  # fmt: skip
+    lines += ["", "| check | value | limit | pass |", "|---|---|---|---|"]
+    lines += [f"| {c['name']} | {100 * c['value']:+.2f}% | {100 * c['limit']:+.2f}% "
+              f"| {'yes' if c['passed'] else '**no**'} |" for c in gate["checks"]]  # fmt: skip
+    return lines
 
 
 C2_XG_SEASON = 2023  # the one dev season with xG in the C2 top flights (reported apart)
@@ -932,17 +985,36 @@ def record(out: Path, session: Any, seed: int = RunSpec.seed) -> int:
     n = 0
     s = session
     ref = manifest.get("reference")
+    created = datetime.strptime(manifest["created_at"], "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
+    if manifest.get("opening") == "c2":  # D52: one row per top flight, with its reasons
+        model = manifest["c2_model"]
+        cmp = pl.read_csv(out / f"compare_{model}.csv", schema_overrides={"seg": pl.String})
+        for lg, v in manifest["c2_leagues"].items():
+            c = cmp.filter((pl.col("segment_type") == "league_id") & (pl.col("seg") == lg))
+            keys = ("n", "base", "challenger", "rel", "rel_lo", "rel_hi")
+            s.add(models.ModelRun(
+                model_name=c2_model_name(model, int(lg)), component="c2",
+                status=v["status"], created_at=created, window="holdout",
+                git_commit=_git_sha(), config_hash=hashes,
+                lockfile_hash=manifest["lockfile_hash"], data_snapshot_hash=snap_hash,
+                seed=seed, report_path=str(out),
+                backtest_scores={r["metric"]: {k: r[k] for k in keys}
+                                 for r in c.iter_rows(named=True)},
+                manifest={**manifest, "league_id": int(lg), "reasons": v["reasons"]},
+            ))  # fmt: skip
+            n += 1
+        s.flush()
+        return n
     for f in sorted(out.glob("compare_*.csv")):
         if ref is not None and f.stem == f"compare_{ref}":
             continue  # recorded by its own run
         c = pl.read_csv(f).filter(pl.col("segment_type") == "all")
         keys = ("n", "base", "challenger", "rel", "rel_lo", "rel_hi")
         scores = {r["metric"]: {k: r[k] for k in keys} for r in c.iter_rows(named=True)}
-        created = datetime.strptime(manifest["created_at"], "%Y%m%dT%H%M%SZ")
         s.add(models.ModelRun(
             model_name=f.stem.removeprefix("compare_"),
             component="phase2" if "_ctx-" in f.stem else "phase1b",
-            status=manifest.get("verdict") or "ok", created_at=created.replace(tzinfo=UTC),
+            status=manifest.get("verdict") or "ok", created_at=created,
             window="holdout" if manifest.get("holdout_run") else "dev", git_commit=_git_sha(),
             config_hash=hashes, lockfile_hash=manifest["lockfile_hash"],
             data_snapshot_hash=snap_hash, seed=seed, report_path=str(out),
@@ -1089,7 +1161,7 @@ def main() -> None:
             marker = ho.claim(_store(args.cache), args.run_id, promo.model_name, _git_sha(),
                               "phase2", [promo.model_name, prod])  # fmt: skip
         else:
-            marker = ho.claim(_store(args.cache), args.run_id, prod, _git_sha())
+            marker = ho.claim(_store(args.cache), args.run_id, prod, _git_sha(), args.opening)
         print(f"holdout {args.opening} opening made by run {marker['run_id']} for "
               f"{', '.join(marker.get('models') or [marker['model']])} "
               f"at {marker['opened_at']}")  # fmt: skip

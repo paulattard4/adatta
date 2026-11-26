@@ -1537,6 +1537,51 @@ still passes.**
   reference on the same 28-day grid. `every_days` is in the fit hash, so the weekly fits
   are not shared and the reference is fitted first. Three runs, one at a time.
 
+**(g) The c2 opening built (2026-11-26, while (f) runs; nothing opened, no holdout row
+read):**
+- **Gate:** `config/c2_gate.yml`, written before the opening. It holds:
+  - D18 and D28's thresholds, the same as `evaluation.yml`'s `phase1b_gate` (a test checks
+    this);
+  - `segment_fail: league_alone` (D52 3a);
+  - the eight top flights (a test checks them against `c2_bundles.yml`).
+- **Verdict** (`holdout.c2_verdict`):
+  - A top flight with any D28 segment worse than +1.0% is rejected alone.
+  - D18 is then applied to a fresh comparison pooled over the top flights left. Pass:
+    each is champion. Fail, or none left: all are rejected, each with its reasons.
+  - A missing top flight raises an error, so there is no verdict.
+- **Opening:**
+  - The `c2` marker is `backtest/holdout/opened_c2.json`. It is claimed once, and only
+    after the Phase 1b opening.
+  - Its key scores the production spec on the eight C2 bundles only, and the five refuse
+    it.
+  - `claim-holdout` now passes the opening it is given. Before, every opening other than
+    phase2 claimed phase1b's marker.
+- **Assembly:**
+  - The want-set is the eight C2 bundles x 2024-2025 for c2 (`holdout_bundles`), the
+    five otherwise.
+  - The gate goes to `gate.json`, the summary and the manifest (`c2_leagues`).
+- **Record:**
+  - One `model_run` row per top flight, named `phase1b_strength_open_xg_c2_<league>`
+    with component `c2`. It carries its status, its league segment scores and its
+    reasons.
+  - Not the model's own name: serving finds its champion by model name alone
+    (`live.champion`), and that must stay the five's row.
+- **Workflow:** `holdout.yml` takes opening `c2` with its own confirm phrase, "open the
+  locked holdout for c2 once". The matrix is the eight bundles, and the assembly fetches
+  their parts.
+- **No side effects:**
+  - `c2.py` and `c2_bundles.yml` are untouched, so the C2 fit cache key is still
+    `c86d1b65c7025139`;
+  - the production hash is still `a215d52e759864ed`.
+- **Tests:** four in `tests/test_c2.py`:
+  - the gate file;
+  - the verdict cases: one league out, the rest pooled; the pooled interval reaching zero;
+    all out; a league missing;
+  - the marker;
+  - an end-to-end c2 holdout through `record`.
+- **Dispatch, once (f) passes:** `holdout.yml`, opening `c2`, parts `["0/2","1/2"]`. The
+  weekly C2 jobs took up to 147 minutes per half on dev.
+
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 

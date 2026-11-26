@@ -1,6 +1,8 @@
 """Opening the locked holdout, once per opening, and the pre-registered Phase 1b promotion
 gate (spec §14.3; D18, D28; `config/evaluation.yml` phase1b_gate). D30: a second opening for
 the Phase 2 promotion, its own marker, judged with the D36 gate (`config/phase2_gate.yml`).
+C2 step 2 (g), D52: an opening for the eight C2 bundles, judged per top flight with
+`config/c2_gate.yml`.
 
 A holdout run first claims a marker in the store. Every later step of the same run (refit
 jobs, their reruns, assembly) checks the marker carries its run id; any other run is refused.
@@ -10,10 +12,13 @@ Only `unlock` issues the `HoldoutKey` that `harness.refit_plan` needs for holdou
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
 import polars as pl
+import yaml
 
 from adatta.adapters.storage import RawStore, try_get
 from adatta.eval import harness
@@ -25,7 +30,9 @@ MARKERS = {
     "phase2": "backtest/holdout/opened_phase2.json",  # D30
     "cups": "backtest/holdout/opened_cups.json",  # Stage A/B: the cup ties, once
     "international": "backtest/holdout/opened_international.json",  # Stage D, once
+    "c2": "backtest/holdout/opened_c2.json",  # C2 step 2 (g), D52: the eight C2 bundles
 }
+C2_GATE_FILE = "config/c2_gate.yml"
 
 
 def _marker(opening: str) -> str:
@@ -116,3 +123,59 @@ def reliability(pred: pl.DataFrame) -> pl.DataFrame:
     """Reliability per 1X2 outcome for every model (acceptance item 4), warm matches."""
     return pl.concat([harness.reliability(pred, m).with_columns(model=pl.lit(m))
                       for m in sorted(pred["model"].unique())])  # fmt: skip
+
+
+class C2Gate(Phase1bGate):
+    """The C2 holdout gate (D52): D18 with D28's segments, per top flight, pooled over those
+    that pass their segments (`segment_fail` league_alone, choice 3a)."""
+
+    segment_fail: Literal["league_alone"]
+    top_flights: list[int]
+
+
+def load_c2_gate(path: Path | str = C2_GATE_FILE) -> C2Gate:
+    return C2Gate(**yaml.safe_load(Path(path).read_text())["c2_gate"])
+
+
+def c2_verdict(cmp: pl.DataFrame, pooled: Callable[[list[int]], pl.DataFrame],
+               gate: C2Gate) -> dict[str, Any]:  # fmt: skip
+    """D52 on a `backtest.compare` table of the production spec vs Phase 1a over the eight
+    top flights (warm matches). Step 1: a top flight with any D28 segment worse than the
+    limit is rejected alone. Step 2: `pooled(leagues)` compares over the top flights left;
+    D18 there (gain on 1X2 log loss and RPS, interval excluding zero) makes each of them
+    champion, else every top flight is rejected. Returns the verdict per league with
+    reasons, the checks of both steps, and "champion" overall if any league is."""
+    seen = {int(x) for x in cmp.filter(pl.col("segment_type") == "league_id")["seg"].to_list()}
+    if seen != set(gate.top_flights):
+        raise ValueError(f"league segments {sorted(seen)} are not the gate's top flights "
+                         f"{sorted(gate.top_flights)}")  # fmt: skip
+    _, checks = verdict(cmp, gate)
+    segments = [c for c in checks if c["name"].startswith("league ")]
+    failed_seg: dict[int, list[str]] = {}
+    for c in segments:
+        if not c["passed"]:
+            failed_seg.setdefault(int(c["name"].split()[1]), []).append(c["name"])
+    kept = sorted(lg for lg in gate.top_flights if lg not in failed_seg)
+    pooled_checks: list[dict[str, Any]] = []
+    if kept:
+        _, kc = verdict(pooled(kept), gate)
+        pooled_checks = [{**c, "name": f"pooled {c['name']}"} for c in kc
+                         if c["name"].startswith("overall ")]  # fmt: skip
+    pooled_ok = bool(kept) and all(c["passed"] for c in pooled_checks)
+    pooled_fail = [c["name"] for c in pooled_checks if not c["passed"]] or (
+        [] if kept else ["no top flight left after the segment rule"]
+    )
+    leagues = {
+        lg: ({"status": "rejected", "reasons": failed_seg[lg]} if lg in failed_seg
+             else {"status": "champion", "reasons": []} if pooled_ok
+             else {"status": "rejected", "reasons": pooled_fail})
+        for lg in gate.top_flights
+    }  # fmt: skip
+    champions = [lg for lg, v in leagues.items() if v["status"] == "champion"]
+    return {
+        "verdict": "champion" if champions else "rejected",
+        "leagues": leagues,
+        "pooled_over": kept,
+        "checks": segments + pooled_checks,
+        "failed": [c["name"] for c in segments + pooled_checks if not c["passed"]],
+    }

@@ -1504,6 +1504,20 @@ the rule stays as written. Acceptance, stated before building:**
   - the weekly dev backtest, rescored from the cache (eight bundles x 2019-2023);
   - then the 40-fit audit sample.
 
+**(iv) Dev rescored at 20 (2026-11-26, backtest run 45762566536, commit d12307a): no harm
+still passes.**
+- **The run:** 81 jobs green in under 5 minutes. All 1,325 refits came from the cache
+  (none fitted), and every part hashes `5fbc994ced917081`.
+- **Truncation:** all 10,780 predictions have tail mass < 1e-4. The largest is 1.0e-5,
+  where at 15 it was 3.8e-4.
+- **Against the 15-goal run:**
+  - largest change in any 1X2 or OU2.5 probability: 1.0e-5;
+  - largest change in a match's 1X2 log loss: 3.6e-5.
+  - Every comparison table is identical at the precision reported, so the (e) result
+    above stands as it is.
+- **Verdict:** D52 no harm passes, and the grid is identical to Phase 1a.
+- **Next:** the audit sample is rerun, gate run 45763482966.
+
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 

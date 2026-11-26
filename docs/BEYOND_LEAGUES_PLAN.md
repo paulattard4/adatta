@@ -1597,6 +1597,33 @@ each, all on the same grid as Phase 1a, scored to 20 goals (D53):
 - **(a)-(f) all pass**, so (g) may open. Owner, 2026-11-26: "just proceed with what you
   recommend". The holdout is dispatched once, as built in `82b7174`.
 
+**(g) result (2026-11-26): REJECTED, all eight top flights; nothing tuned, nothing served.**
+Holdout run 45837877281 (opening `c2`, claimed once), 2024/25-2025/26, weekly, scored to 20
+goals, gate `config/c2_gate.yml` as written before the opening:
+- **Fits:** 557 weekly refits. R-hat > 1.01 in 1 (worst 1.010), ESS < 400 in 0,
+  divergences in 5. Grid identical to Phase 1a.
+- **Step 1, D28 segments per top flight:** all eight pass, so none is rejected alone. The
+  largest segment is Denmark OU2.5 log loss at +0.99% (limit +1.00%), then Denmark total
+  CRPS +0.82%.
+- **Step 2, D18 pooled over all eight** (4,259 warm top-flight matches):
+  - 1X2 log loss -0.38% [-0.81%, +0.06%]: a gain, but the interval reaches zero. **Fail.**
+  - 1X2 RPS -0.50% [-1.18%, +0.18%]: the same. **Fail.**
+  - Every pooled market's point estimate is a gain (BTTS -0.09%, OU2.5 -0.27%, total
+    CRPS -0.30%); none of their intervals excludes zero.
+- **Per league, 1X2 log loss** (reported, not gating): Belgium -1.66% [-2.86%, -0.46%] is
+  the only league whose interval excludes zero. Czechia -0.63%, Turkey -0.28%, Denmark
+  -0.25%, Netherlands -0.24%, Austria -0.06%; Scotland +0.14%, Portugal +0.32%.
+- **Recorded:** eight `model_run` rows, `phase1b_strength_open_xg_c2_<league>`, component
+  `c2`, window `holdout`, all `rejected` with the two pooled reasons. The five's
+  `phase1b_strength_open_xg` champion row is untouched (checked).
+- **Consequences, as the acceptance states them:**
+  - Nothing is served for the eight leagues; step 3 (C2 serving) needs a pass.
+  - The 2024-2025 holdout for these leagues is now spent. A different spec cannot be
+    judged on it, and picking Belgium alone after seeing it would be choosing on the
+    holdout.
+  - The dev refits stay usable for step 4's C1 rerun, which has its own acceptance.
+- **Owner decision pending** on what C2 does next.
+
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 

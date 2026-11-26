@@ -1763,9 +1763,9 @@ the Monday 30 November half-market launch). Nothing is served until the champion
     slightly different point within L-BFGS's tolerance (gtol 1e-6). Measured on 6 dev
     weeks per bundle, 387 predictions: at most 2.3e-4 in any 1X2 probability (Netherlands;
     5.3e-5 to 2.3e-4 per bundle).
-  - The live path cannot replay a multi-year warm-start chain. Recommended reading: (a)
-    passes as the same code path to 1e-9; the 2.3e-4 is the benchmark's own optimiser
-    noise. Owner decision pending; nothing is served before it.
+  - The live path cannot replay a multi-year warm-start chain. Owner, 2026-11-26: "Accept
+    (a) as read" (D55): (a) passes as the same code path to 1e-9; the 2.3e-4 against the
+    warm-started grid is recorded as the benchmark's own optimiser tolerance.
 - **(c) Truncation:** a matrix with a tail at or above 1e-4 at 20 goals is not served and
   is reported (a test). On the shadow the largest tail is 6.7e-10.
 - **(d) Shadow, run locally first (CI run pending), metrics only:** 801 top-flight matches
@@ -1793,7 +1793,7 @@ the Monday 30 November half-market launch). Nothing is served until the champion
 - **Tests:** `tests/test_c2_live.py` (5), `tests/test_c2_projection.py` (9, including the
   match view and fixture list), `tests/test_c2_serve.py` (5).
 - **To go live, in order (none on a Monday):**
-  1. the owner's call on (a);
+  1. ~~the owner's call on (a)~~ (D55, accepted);
   2. the push, after Monday's half-market launch;
   3. `c2_shadow.yml` once;
   4. `record` with that run's verdict;

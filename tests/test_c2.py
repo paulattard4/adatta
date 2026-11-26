@@ -182,13 +182,41 @@ def test_c2_run_fits_the_plans_rows_and_shares_phase1a_grid(tmp_path: Path) -> N
     assert set(zip(p["match_id"], p["as_of"], strict=True)) == set(
         zip(a["match_id"], a["as_of"], strict=True)
     )
-    assert p["config_hash"][0] == bt.bundle_hash(bt.config_hash(spec), "portugal")
+    assert p["config_hash"][0] == bt.bundle_hash(bt.config_hash(spec), "portugal",
+                                                 bt.C2_MAX_GOALS)  # fmt: skip
+
+
+def test_c2_scores_to_20_goals_on_the_same_fits_and_the_five_keep_15(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """D53: the cap is prediction-time only. A rescore at another cap reuses every cached
+    fit, its parts carry a different hash, and the truncated tail only shrinks; the five
+    are scored with evaluation.yml as it is."""
+    df, cfg = c2_matches(), config()
+    assert harness.load_config().max_goals == 15 and bt.C2_MAX_GOALS == 20
+    assert bt.scoring_config(cfg, "england") is cfg
+    assert bt.scoring_config(cfg, "portugal").max_goals == 20
+    spec, store, fake = bt.RunSpec(every_days=28), LocalStore(tmp_path), FakeFitter()
+    p20 = bt.run(df, C2L, "portugal", cfg, [2019], spec, store, fake, log=lambda _: None)
+    fitted = fake.calls
+    monkeypatch.setattr(bt, "C2_MAX_GOALS", 15)
+    p15 = bt.run(df, C2L, "portugal", cfg, [2019], spec, store, fake, log=lambda _: None)
+    assert fake.calls == fitted and p15["cached"].all()  # no refits: same fit cache key
+    assert p15["config_hash"][0] != p20["config_hash"][0]
+    assert (p20["tail_mass"] <= p15["tail_mass"]).all()
+    assert np.abs(p20["p_home"].to_numpy() - p15["p_home"].to_numpy()).max() < 1e-6
+    # Phase 1a on the C2 bundle is scored to the same cap as 1b
+    a20 = bt.phase1a_on_grid(df, C2L, bt.scoring_config(cfg, "portugal"), [2019], 28)
+    a15 = bt.phase1a_on_grid(df, C2L, cfg, [2019], 28)
+    assert (a20.sort("match_id")["tail_mass"] <= a15.sort("match_id")["tail_mass"]).all()
 
 
 def test_bundle_hash_leaves_the_five_and_moves_with_the_c2_scope(tmp_path: Path) -> None:
     h = bt.config_hash(bt.RunSpec())
     assert bt.bundle_hash(h, "england") == h
+    assert bt.bundle_hash(h, "england", 20) == h  # the five: the cap never enters
     assert bt.bundle_hash(h, "portugal") != h
+    assert bt.bundle_hash(h, "portugal", 20) != bt.bundle_hash(h, "portugal")
     f = tmp_path / "c2.yml"
     f.write_text("a: 1\n")
     d1 = c2.digest((str(f),))

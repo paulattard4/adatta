@@ -152,7 +152,9 @@ def main() -> None:
 
     started = time.time()
     code_sha = _git_sha()
-    cfg = load_config()
+    from adatta.model.backtest import scoring_config
+
+    cfg = scoring_config(load_config(), args.bundle)  # C2: matrices to 20 a side (D53)
     leagues = c2.leagues_of(args.bundle, cfg.bundles)
     with get_session() as s:
         if c2.is_c2(args.bundle):  # C2 scope: rounds, top-flight targets, availability
@@ -272,6 +274,7 @@ def main() -> None:
         "bundle": args.bundle, "structure": args.structure, "as_of": as_of.isoformat(),
         "passed": passed,
         "code_sha": code_sha, "config_hash": _file_hash("config/evaluation.yml"),
+        "max_goals": cfg.max_goals,
         "lockfile_hash": _file_hash("uv.lock"), "seed": SEED, "draws": args.draws,
         "chains": args.chains, "tune": tune, "trace_path": str(trace_path), "timings_s": timings,
         "runtime_s": round(time.time() - started), "n_matches": len(fd.hg),
@@ -285,7 +288,8 @@ def main() -> None:
              f"({args.structure}{', context ' + ', '.join(groups) if groups else ''})", "",
              f"**{'PASS' if passed else 'FAIL'}** ({sum(c.passed for c in gating)}/"
              f"{len(gating)} gating checks; warnings don't block). Code {code_sha}, seed {SEED}, "
-             f"{args.chains} x {args.draws} draws, {tune} tuning.", "",
+             f"{args.chains} x {args.draws} draws, {tune} tuning, score matrices to "
+             f"{cfg.max_goals} goals.", "",
              "| check | pass | value | detail |", "|---|---|---|---|"]  # fmt: skip
 
     def mark(c: dg.Check) -> str:

@@ -1452,6 +1452,58 @@ failure, truncation.**
 - **Not tuned:** the failure is reported as it stands. The owner decision on it is
   pending, and (f) waits for it.
 
+**D53 (owner: "Score C2 at 20 goals"): the C2 bundles are scored to 20 goals per team;
+the rule stays as written. Acceptance, stated before building:**
+- **The change:**
+  - C2 bundles build their score matrices to 20 goals a side instead of 15. This covers
+    the production spec, the Phase 1a pairing and the gate's predictions.
+  - The truncation rule is unchanged: tail mass < 1e-4 for 99.9% of each fit's
+    predictions.
+  - The fitted likelihood is untouched. Its draw mass is summed exactly (D22), with no
+    cap, so the cap is prediction-time only.
+- **Checks:**
+  - **(i) The five unchanged:**
+    - `evaluation.yml` keeps `max_goals: 15`;
+    - the production config hash stays `a215d52e759864ed`;
+    - the five's scored rows are bit-identical to before (test);
+    - serving, the half split and the API are untouched.
+  - **(ii) No refits:**
+    - the C2 fit cache key is unchanged, so the 1,325 dev refits are reused;
+    - `config/c2_bundles.yml` and `adatta/eval/c2.py` (the scope digest) are untouched.
+
+    A C2 part's `config_hash` adds the cap, so 15- and 20-goal parts are never mixed.
+  - **(iii) Same cap on both sides:** Phase 1a is scored at 20 for C2 bundles too, so
+    the pairing compares like with like.
+  - **(iv) Reruns, one at a time, not on a Monday:**
+    - the weekly dev backtest is rescored from the cache, with no harm rechecked under
+      D52 2a;
+    - then the whole 40-fit audit sample is rerun. All 40 must pass every gating check,
+      with no exception for Netherlands 2023.
+    - Then (f).
+  - **(v) Step 3 carries it:** C2 serving must build to 20 as well. That includes the
+    half split, whose 16-cell grid assumes 15. This is recorded for step 3's acceptance.
+
+**D53 built (2026-11-26): (i)-(iii) pass locally; (iv) needs the push.**
+- **Code:**
+  - `backtest.C2_MAX_GOALS = 20` and `backtest.scoring_config(cfg, bundle)` return the
+    five's config as it is, and a C2 bundle's with `max_goals` 20.
+  - `run()`, the assembly's Phase 1a per bundle and `gate.py` use it.
+  - A gate report states its `max_goals`.
+- **(i) The five:** the production config hash is `a215d52e759864ed` and the five's fit
+  and part hashes are unchanged. `scoring_config` returns their config object itself.
+- **(ii) No refits:**
+  - The C2 fit cache key is `c86d1b65c7025139`, the same as at HEAD. Dev fits are there
+    in R2; Netherlands 2023-01-02, Portugal 2020-01-06 and Denmark 2024-02-12 were
+    checked.
+  - C2 parts now hash `5fbc994ced917081` (was `c86d1b65c7025139`).
+  - A test rescores a C2 run at another cap: no refits, a different part hash, the tail
+    only shrinks and 1X2 is unchanged to 1e-6.
+- **(iii)** Phase 1a on a C2 bundle is scored to the same cap (test).
+- **Suite:** 594 passed, 9 skipped; ruff and mypy clean.
+- **Next, after the push, one at a time, not on a Monday:**
+  - the weekly dev backtest, rescored from the cache (eight bundles x 2019-2023);
+  - then the 40-fit audit sample.
+
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 

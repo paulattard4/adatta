@@ -162,12 +162,27 @@ def fit_hash(spec: RunSpec) -> str:
     return config_hash(replace(spec, grid="weekly", widen=False))
 
 
-def bundle_hash(h: str, bundle: str) -> str:
+C2_MAX_GOALS = 20  # D53: C2 score matrices to 20 goals a side (the five keep evaluation.yml)
+
+
+def scoring_config(cfg: harness.EvalConfig, bundle: str) -> harness.EvalConfig:
+    """The evaluation config a bundle is scored with: the five as configured, a C2 bundle
+    with its score matrices to C2_MAX_GOALS a side (D53). The cap is prediction-time only:
+    the fitted draw mass is exact (D22), so fits and their cache are shared."""
+    if not c2.is_c2(bundle):
+        return cfg
+    return cfg.model_copy(update={"max_goals": C2_MAX_GOALS})
+
+
+def bundle_hash(h: str, bundle: str, max_goals: int | None = None) -> str:
     """A C2 bundle's hash adds its data scope (config/c2_bundles.yml, adatta/eval/c2.py), so
-    a change there refits the C2 bundles and never the five (whose hash is `h` as before)."""
+    a change there refits the C2 bundles and never the five (whose hash is `h` as before).
+    `max_goals`: a scored part's hash also carries the C2 scoring cap (D53), so parts
+    scored to different caps never mix; the fit cache key is taken without it."""
     if not c2.is_c2(bundle):
         return h
-    return hashlib.sha256(f"{h}:{c2.digest()}".encode()).hexdigest()[:16]
+    cap = "" if max_goals is None else f":max_goals={max_goals}"
+    return hashlib.sha256(f"{h}:{c2.digest()}{cap}".encode()).hexdigest()[:16]
 
 
 def cache_key(h: str, bundle: str, as_of: datetime) -> str:
@@ -371,9 +386,10 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
                                     "opening")  # fmt: skip
     fitter = fitter or nuts_fitter(spec)
     walk = hz.Walk(spec.seed, spec.structure) if spec.widen else None
+    cfg = scoring_config(cfg, bundle)  # C2: score matrices to 20 a side (D53)
     plan = harness.refit_plan(df, cfg, seasons, spec.every_days, holdout, spec.grid)[:limit]
     plan = plan[k_part::n_part]
-    h = bundle_hash(config_hash(spec), bundle)
+    h = bundle_hash(config_hash(spec), bundle, cfg.max_goals)
     log(
         f"{bundle} seasons {seasons}"
         + (f" part {k_part}/{n_part}" if n_part > 1 else "")
@@ -648,8 +664,8 @@ def assemble(parts_dir: Path, out_root: Path, cfg: harness.EvalConfig,
             plans = [str(int(s)) for s in sorted(g["season"].unique())]
         df_b = load(leagues)
         a = pl.concat([
-            phase1a_on_grid(df_b, leagues, cfg, [int(x) for x in plan.split("-")], cadence,
-                            holdout)
+            phase1a_on_grid(df_b, leagues, scoring_config(cfg, str(bundle[0])),
+                            [int(x) for x in plan.split("-")], cadence, holdout)
             for plan in plans
         ], how="diagonal_relaxed").with_columns(bundle=pl.lit(str(bundle[0])))  # fmt: skip
         for name, gm in g.group_by("model"):

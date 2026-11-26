@@ -685,6 +685,7 @@ def run_capture(
     refits_due: Callable[[datetime], list[str]] | None = None,
     dispatch: Callable[[], None] | None = None,
     national: Callable[[datetime], Any] | None = None,
+    c2: Callable[[datetime], Any] | None = None,
 ) -> CaptureReport:  # fmt: skip
     now = now or datetime.now(UTC)
     started = clock()
@@ -735,6 +736,12 @@ def run_capture(
                 report.actions.update({f"national_{k}": v for k, v in nat.written.items()})
                 report.actions["national_no_refit"] += nat.no_refit
                 report.errors += _alert_once(session, "national_alert", nat.problems, now)
+        if c2 is not None:  # C2 step 3 (adatta.sim.c2_serve, D54): no API requests
+            c2r = step("project_c2", "all", lambda: c2(now))
+            if c2r is not None:
+                report.actions.update({f"c2_{k}": v for k, v in c2r.written.items()})
+                report.actions["c2_no_refit"] += c2r.no_refit
+                report.errors += _alert_once(session, "c2_alert", c2r.problems, now)
         if weather is not None:
             w = step("weather", "all", lambda: capture_weather(session, weather, now))
             report.actions.update({f"weather_{k}": v for k, v in (w or {}).items()})

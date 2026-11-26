@@ -56,6 +56,7 @@ def test_a_finished_match_shows_its_pre_kickoff_forecast_and_scores(tmp_path: Pa
     assert (m.home_p.p, m.draw_p.p, m.away_p.p) == (p[("1X2", None, "home")],
                                                     p[("1X2", None, "draw")],
                                                     p[("1X2", None, "away")])  # fmt: skip
+    assert m.home_p.lo is not None and m.home_p.hi is not None
     assert m.home_p.lo <= m.home_p.p <= m.home_p.hi
     x = np.array([m.home_p.p, m.draw_p.p, m.away_p.p])
     assert m.scores.log_loss_1x2 == pytest.approx(-np.log(x[0]))

@@ -263,14 +263,14 @@ def competition_order(country: str, tier: str, name: str) -> tuple[str, int, int
     return (country, {"cup": 1, "national": 2}.get(tier, 3), 0, name)
 
 
-def _matches(session: Session, ctx: Context, where: list[Any],
-             national: bool = False) -> list[MatchRow]:  # fmt: skip
-    """The bundle leagues' (and their cups') matches, or with `national` those of the
-    national-team competitions (Stage D)."""
+def _matches(session: Session, ctx: Context, where: list[Any], national: bool = False,
+             leagues: list[int] | None = None) -> list[MatchRow]:  # fmt: skip
+    """The bundle leagues' (and their cups') matches, with `national` those of the
+    national-team competitions (Stage D), with `leagues` those leagues' (C2, D54)."""
     M, S, C, T = models.Match, models.Season, models.Competition, models.Team
     H, A = T.__table__.alias("h"), T.__table__.alias("a")
-    leagues = [str(x) for x in ctx.league_bundle]
-    scope = C.is_national.is_(True) if national else C.source_ref.in_(leagues)
+    refs = [str(x) for x in (ctx.league_bundle if leagues is None else leagues)]
+    scope = C.is_national.is_(True) if national else C.source_ref.in_(refs)
     rows = session.execute(
         select(M.match_id, M.kickoff_time, M.status, M.round, C.source_ref, C.competition_id,
                C.name, C.country, C.level, M.season_id, M.home_team_id, M.away_team_id,
@@ -530,10 +530,11 @@ def fixture_list(session: Session, ctx: Context, now: datetime, start: datetime 
                                   _freshness(bundle, row_run, now), caps[r.season_id], champ,
                                   now, newer),
         ))  # fmt: skip
-    from adatta.api import national
+    from adatta.api import c2, national
 
     every = [*groups.values(), *national.groups(session, ctx, now, start, end, competition_id,
-                                                 team_level)]  # fmt: skip
+                                                 team_level),
+             *c2.groups(session, ctx, now, start, end, competition_id, team_level)]  # fmt: skip
     order = sorted(every, key=lambda g: competition_order(g.country, g.tier, g.name))
     return sc.FixtureList(generated_at=now, start=start, end=end, competitions=order)
 
@@ -552,6 +553,13 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
     from adatta.adapters.normalize import FINISHED
 
     rows = _matches(session, ctx, [models.Match.match_id == match_id])
+    is_c2 = False
+    if not rows:  # C2 step 3 (D54): a C2 top flight's match (adatta.api.c2)
+        from adatta.api import c2
+
+        rows = _matches(session, ctx, [models.Match.match_id == match_id],
+                        leagues=list(c2.leagues()))  # fmt: skip
+        is_c2 = bool(rows)
     is_national = not rows
     if is_national:  # Stage D v1: a national-team match (adatta.api.national)
         rows = _matches(session, ctx, [models.Match.match_id == match_id], national=True)
@@ -584,6 +592,10 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
         from adatta.api import national
 
         return national.match_view(session, ctx, m, header, now)
+    if is_c2:
+        from adatta.api import c2
+
+        return c2.match_view(session, ctx, m, header, now)
     bundle = ctx.league_bundle[m.league_id]
     by_ms = _projections(session, [match_id]).get(match_id, {})
     runs = _serving(session, ctx, now)

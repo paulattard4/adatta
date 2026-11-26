@@ -1739,6 +1739,68 @@ recorded as such.
   - The margins are wider than the five's (-0.052 pooled): these leagues have larger
     strength gaps, which a league-level baseline cannot see.
 
+**Serving path built (2026-11-26, local; owner: "Yes, start now", kept off main until after
+the Monday 30 November half-market launch). Nothing is served until the champion rows of
+(g) exist, and they are written only after (d) runs on CI:**
+- **Code:**
+  - `adatta/model/c2_live.py` (the live Phase 1a refit, its store and `model_run` rows,
+    component `c2`, window `live`);
+  - `adatta/sim/c2_serve.py` (the C2 round scope and the projection, point forecasts with
+    null intervals, only for champion top flights);
+  - `adatta/api/c2.py` (fixture groups and the match view, labelled as the baseline);
+  - a `project_c2` step of its own in the capture tick (`capture/jobs.py`, `cli.py`), so a
+    C2 failure cannot roll back the five's projections;
+  - a `c2` job in `serve.yml` after the bundle refits, Mondays only;
+  - `.github/workflows/c2_shadow.yml` for (d);
+  - In the API a probability without an interval must say so (`Prob.point`); any other
+    `Prob` without one is still refused (a test), and the five's rows still refuse a
+    missing interval (`views._p`). The dashboard shows a point forecast without the band.
+- **(a) Same model as scored: raised with the owner.**
+  - Against one `walk_forward` refit at the same time (same rows, same cold-started fit),
+    the live refit reproduces every prediction to 1e-9 and the tail mass to 1e-12 (a test).
+  - Against the dev backtest's grid itself (`phase1a_on_grid`, as the draft wrote it), it
+    cannot. There each refit starts from the previous week's optimum, so it stops at a
+    slightly different point within L-BFGS's tolerance (gtol 1e-6). Measured on 6 dev
+    weeks per bundle, 387 predictions: at most 2.3e-4 in any 1X2 probability (Netherlands;
+    5.3e-5 to 2.3e-4 per bundle).
+  - The live path cannot replay a multi-year warm-start chain. Recommended reading: (a)
+    passes as the same code path to 1e-9; the 2.3e-4 is the benchmark's own optimiser
+    noise. Owner decision pending; nothing is served before it.
+- **(c) Truncation:** a matrix with a tail at or above 1e-4 at 20 goals is not served and
+  is reported (a test). On the shadow the largest tail is 6.7e-10.
+- **(d) Shadow, run locally first (CI run pending), metrics only:** 801 top-flight matches
+  of 2026/27, 16 Monday refits:
+  - every fixture gets initial and every timed milestone; markets sum to 1 within 1.1e-16;
+    largest tail 6.7e-10;
+  - pooled 1X2 log loss, Phase 1a minus league base rate: -0.093 [-0.117, -0.070]; every
+    league below zero (-0.069 to -0.155);
+  - reliability (weighted mean |predicted - observed| over probability deciles): home
+    0.030, draw 0.038, away 0.042, on 801 matches;
+  - **passes locally.** No 1b score on this season was computed.
+- **(e) No side effects:**
+  - `sim/serve.py`, `model/live.py`, `eval/harness.py`, `dixon_coles.py`, `c2.py`,
+    `c2_bundles.yml` and `evaluation.yml` are unchanged; the production hash is still
+    `a215d52e759864ed`.
+  - The five's serving selects component `phase1b`, C2's selects `c2` (a test).
+  - The Monday C2 refit of all eight bundles takes about 12 s, almost all loading. No API
+    requests.
+- **(f) Labelled:** the API's model component says "baseline" with the reason; the
+  dashboard tags the competition "baseline model" and shows probabilities without an
+  interval. Half-time markets, decomposition and squad are listed as unavailable.
+- **(g) Record:** `python -m adatta.eval.c2_serve record --bar ... --shadow ...
+  --shadow-run ...` writes `phase1a_c2_<league>` champion rows for the top flights passing
+  (b), when (d) passes. Not run yet.
+- **Tests:** `tests/test_c2_live.py` (5), `tests/test_c2_projection.py` (9, including the
+  match view and fixture list), `tests/test_c2_serve.py` (5).
+- **To go live, in order (none on a Monday):**
+  1. the owner's call on (a);
+  2. the push, after Monday's half-market launch;
+  3. `c2_shadow.yml` once;
+  4. `record` with that run's verdict;
+  5. `serve.yml` dispatched with `as_of` 2026-11-30 (the five's refits for that Monday
+     already exist and are returned unchanged), which writes the eight C2 refits; the next
+     capture tick publishes.
+
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 

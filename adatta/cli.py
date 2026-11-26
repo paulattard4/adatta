@@ -216,6 +216,23 @@ def _national_projector(session: Session, settings: Any) -> Any:
     return run
 
 
+def _c2_projector(session: Session, settings: Any) -> Any:
+    """C2 step 3 (D54): the eight C2 top flights' baseline forecasts (Phase 1a) from the
+    latest passing live refit, for the leagues recorded as champion. Numpy only."""
+    from adatta.eval.baseline import _file_hash, _git_sha
+    from adatta.model import c2_live
+    from adatta.sim import c2_serve
+
+    store = make_store(settings)
+    manifest = {"git_commit": _git_sha(), "lockfile_hash": _file_hash("uv.lock"),
+                "seed": c2_live.SEED}  # fmt: skip
+
+    def run(now: datetime) -> c2_serve.Report:
+        return c2_serve.run_projection(session, store, manifest, now=now)
+
+    return run
+
+
 def _refits_due(session: Session) -> Any:
     """Live refits due now (D33), as "bundle stamp" labels for the capture log."""
     from adatta.eval import harness
@@ -282,6 +299,7 @@ def capture() -> None:
             session, client, comps, weather=weather,
             projector=_projector(session, settings), refits_due=_refits_due(session),
             dispatch=_serve_dispatcher(), national=_national_projector(session, settings),
+            c2=_c2_projector(session, settings),
         )  # fmt: skip
     summary = ", ".join(f"{k}={v}" for k, v in sorted(report.actions.items())) or "nothing due"
     typer.echo(

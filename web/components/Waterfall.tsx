@@ -24,7 +24,8 @@ export function Waterfall({ dec }: { dec: Decomposition }) {
         {dec.cold_start && <span className="tag s-limited" title="Not in the training window: league average">cold start</span>}
         <span className="wf-goals">
           λ <span className="num">{dec.goals.p.toFixed(2)}</span>{" "}
-          <span className="num dim">({dec.goals.lo.toFixed(2)}–{dec.goals.hi.toFixed(2)})</span>
+          {dec.goals.lo != null && dec.goals.hi != null &&
+            <span className="num dim">({dec.goals.lo.toFixed(2)}–{dec.goals.hi.toFixed(2)})</span>}
         </span>
       </div>
       <div className="wf-body">

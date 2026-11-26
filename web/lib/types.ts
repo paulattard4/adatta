@@ -1,8 +1,9 @@
-// Mirrors adatta/api/schemas.py. Every probability is a Prob: never without its interval.
+// Mirrors adatta/api/schemas.py. Every probability is a Prob with its interval, except the
+// C2 baseline model's point forecasts (D54): lo and hi null, shown without an interval.
 
 export type Status = "ok" | "limited" | "stale" | "missing" | "not_modelled";
 
-export interface Prob { p: number; lo: number; hi: number }
+export interface Prob { p: number; lo: number | null; hi: number | null; point?: boolean }
 
 export interface Selection { market: string; line: number | null; selection: string; prob: Prob }
 

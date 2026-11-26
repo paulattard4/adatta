@@ -79,7 +79,7 @@ def test_match_view_reproduces_the_published_milestone(tmp_path: Path) -> None:
     assert 0 <= v.matrix.tail_mass < 1e-3
     for row in v.matrix.cells:
         for c in row:
-            assert c.lo <= c.p <= c.hi
+            assert c.lo is not None and c.hi is not None and c.lo <= c.p <= c.hi
     # the waterfall sums to the log rate, and both sides are labelled
     for dec in v.decomposition:
         assert abs(sum(t.mean for t in dec.terms) - dec.log_rate.mean) < 1e-9
@@ -139,7 +139,7 @@ def test_cold_start_team_is_flagged(tmp_path: Path) -> None:
 
 def test_probabilities_cannot_lose_their_interval() -> None:
     with pytest.raises(pydantic.ValidationError):
-        sc.Prob(p=0.5)  # type: ignore[call-arg]
+        sc.Prob(p=0.5)
 
 
 def test_http_endpoints(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

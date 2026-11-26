@@ -67,6 +67,9 @@ export default function Browser() {
         <section key={g.competition_id} className="panel comp">
           <div className="comp-head">
             <h2>{g.name} <span className="dim">{g.country}</span> <span className="tier">{tierLabel(g.tier)}</span></h2>
+            {g.fixtures.some((f) => f.confidence.some((c) => c.key === "model" && c.value === "baseline")) &&
+              <span className="tag" style={{ ["--c" as string]: "var(--limited)" }}
+                title="Phase 1a, results-only Dixon-Coles: the full model was not proven better in this league (D54). Point forecasts, no interval.">baseline model</span>}
             <FreshnessBadge f={g.freshness} />
             <CapabilityBadge caps={g.capabilities} />
           </div>
@@ -94,6 +97,7 @@ export default function Browser() {
       ))}
       <p className="note">
         Probabilities are posterior means with 90% credible intervals (small numbers, and the band in each bar).
+        Leagues tagged baseline model show point forecasts, without an interval.
         The @ figure is the fair decimal price 1/p, with no margin (senior football only); hover for its interval.
         Kickoffs in your local time. Each dot is one named confidence component; hover for its value.
       </p>

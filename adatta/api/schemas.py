@@ -6,15 +6,28 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 Status = Literal["ok", "limited", "stale", "missing", "not_modelled"]
 
 
 class Prob(BaseModel):
-    p: float  # posterior mean
-    lo: float  # 5th percentile of the per-draw probability
-    hi: float  # 95th percentile
+    """A probability with its 90% interval. Only an explicit point forecast (the C2
+    baseline model, D54 choice 1a: `point`) has none; any other Prob without one is
+    refused."""
+
+    p: float  # posterior mean, or the point forecast
+    lo: float | None = None  # 5th percentile of the per-draw probability
+    hi: float | None = None  # 95th percentile
+    point: bool = False
+
+    @model_validator(mode="after")
+    def _interval(self) -> Prob:
+        if self.point != (self.lo is None and self.hi is None) or (self.lo is None) != (
+            self.hi is None
+        ):
+            raise ValueError("a probability carries its interval unless it is a point forecast")
+        return self
 
 
 class Selection(BaseModel):

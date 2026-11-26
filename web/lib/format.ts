@@ -1,6 +1,10 @@
+import type { Prob } from "@/lib/types";
+
 export const pct = (p: number, digits = 1) => (100 * p).toFixed(digits);
 
-export const interval = (lo: number, hi: number, digits = 1) => `${pct(lo, digits)}–${pct(hi, digits)}`;
+/** A 90% interval as "lo–hi" in %; empty for a point forecast (the C2 baseline, D54). */
+export const interval = (lo: number | null, hi: number | null, digits = 1) =>
+  lo == null || hi == null ? "" : `${pct(lo, digits)}–${pct(hi, digits)}`;
 
 /** A competition's tier as shown beside its name: "1" -> "tier 1", "cup", "national teams". */
 export const tierLabel = (tier: string | null | undefined) =>
@@ -21,7 +25,8 @@ export const timeLocal = (iso: string) =>
 export const fairOdds = (p: number) => (p < 0.001 ? ">1000" : (1 / p).toFixed(2));
 
 /** The odds interval of a probability interval: 1/p is decreasing, so 1/hi to 1/lo. */
-export const oddsInterval = (lo: number, hi: number) => `${fairOdds(hi)}–${fairOdds(lo)}`;
+export const oddsInterval = (lo: number | null, hi: number | null) =>
+  lo == null || hi == null ? "" : `${fairOdds(hi)}–${fairOdds(lo)}`;
 
 /** Principle 10: no betting-facing output for youth levels without review. */
 export const showsOdds = (teamLevel: string) => teamLevel === "senior";
@@ -66,4 +71,5 @@ export function cameIn(s: { market: string; line: number | null; selection: stri
 }
 
 /** The other side of a two-way market: 1 − p, the interval flipped. */
-export const complement = (x: { p: number; lo: number; hi: number }) => ({ p: 1 - x.p, lo: 1 - x.hi, hi: 1 - x.lo });
+export const complement = (x: Prob) =>
+  ({ p: 1 - x.p, lo: x.hi == null ? null : 1 - x.hi, hi: x.lo == null ? null : 1 - x.lo });

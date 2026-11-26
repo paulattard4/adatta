@@ -78,3 +78,24 @@ jobs:
         run: >-
           uv run --frozen --group model python -m adatta.model.half_split live
           ${AS_OF:+--as-of "$AS_OF"}
+  c2:
+    # C2 step 3 (D54): this week's Phase 1a refit of the eight C2 bundles as of Monday
+    # 00:00 UTC, after the bundle refits (also when one of them failed); a trigger as_of has
+    # no C2 refit (Mondays only). L-BFGS point fits, about a minute; a stored fit is reused.
+    # Forecasts are written by the capture tick, for the top flights recorded as champion.
+    needs: refit
+    if: ${{ always() && (inputs.as_of == '' || inputs.as_of == null || !contains(inputs.as_of, 'T')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: C2 Phase 1a refit
+        env:
+          AS_OF: ${{ inputs.as_of }}
+        run: >-
+          uv run --frozen --group model python -m adatta.model.c2_live refit
+          ${AS_OF:+--as-of "$AS_OF"}

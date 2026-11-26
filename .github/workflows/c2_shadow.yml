@@ -1,0 +1,34 @@
+# C2 step 3 (D54) acceptance (d): the Phase 1a serving path on the eight C2 top flights'
+# 2026/27 matches played so far, metrics only (docs/BEYOND_LEAGUES_PLAN.md "C2 step 3
+# amendment"). Manual dispatch, once. L-BFGS point fits: minutes, one job. The repo is
+# public: the log and the artifact carry metrics only; match-level predictions stay on the
+# runner. Only Phase 1a is scored on this period (D54 (h)).
+name: c2_shadow
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: c2_shadow
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+jobs:
+  shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: shadow, metrics only
+        run: |
+          uv run --frozen --group model python -m adatta.eval.c2_serve shadow --out shadow \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          mkdir verdict && cp shadow/*/verdict.json verdict/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: c2-shadow-verdict
+          path: verdict/verdict.json

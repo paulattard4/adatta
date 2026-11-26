@@ -1425,6 +1425,33 @@ cover all relevant league bundles needed").** Metrics only.
   seasons, 4 x 2,000 draws, at the first weekly refit on or after 1 January. Then (f),
   the two prior-scale backtests, one at a time and not on a Monday.
 
+**(d) Audit sample (2026-11-26, gate run 45735355899): 39 of 40 pass; one blocking
+failure, truncation.**
+- **The run:** 40 jobs, all green, 8-26 minutes each. Config hash `d2b7b316dc76` in all
+  40; seed 20261105; 4 x 2,000 draws and 2,000 tuning steps.
+- **Convergence, all 40:**
+  - 0 divergences in every fit (the dev run's 24 do not recur in the sample);
+  - R-hat at most 1.009 (Portugal 2021/22), every other fit at most 1.006;
+  - bulk ESS at least 668 (Czech Republic 2019/20); tail ESS at least 852.
+- **Other checks:** identifiability, rho-kappa, prior sensitivity x0.5 / x2 and
+  reproducibility pass in all 40.
+- **Warnings (non-blocking):**
+  - total dispersion, warning only under D20, in 14 fits (Belgium, Denmark and Portugal
+    most often);
+  - the 4-week predictive-sensitivity proxy in 20 fits. (f) is the binding sensitivity
+    check.
+- **The failure:** Netherlands as of 2023-01-02, score-matrix truncation.
+  - Share of predictions with tail mass < 1e-4: 0.977, which is 43 of 44 (limit 0.999,
+    per fit).
+  - The one is an Eredivisie top side at home to a far weaker one. In dev the same
+    fixtures predict 4.7-5.5 total goals, and the largest truncated tail is 3.8e-4.
+  - Over all 10,780 dev predictions, 7 have tail mass >= 1e-4 (99.935%, above the 0.999
+    share). The audit fits hold 14-61 targets each, so per fit the rule allows no such
+    prediction at all.
+  - Every other C2 fit and the five's 25 fits have 100%.
+- **Not tuned:** the failure is reported as it stands. The owner decision on it is
+  pending, and (f) waits for it.
+
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 

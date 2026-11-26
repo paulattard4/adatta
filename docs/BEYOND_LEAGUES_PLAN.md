@@ -1518,6 +1518,25 @@ still passes.**
 - **Verdict:** D52 no harm passes, and the grid is identical to Phase 1a.
 - **Next:** the audit sample is rerun, gate run 45763482966.
 
+**(d) Audit sample rerun at 20 goals (2026-11-26, gate run 45763482966, commit d12307a):
+40 of 40 pass. (d) passes.**
+- **Setup:** the same 40 dates as attempt 1. Every report states `max_goals` 20.
+- **Truncation:** 100% in all 40, Netherlands 2023-01-02 included (was 0.977).
+- **Convergence:**
+  - 0 divergences in every fit;
+  - R-hat at most 1.009;
+  - bulk ESS at least 668, tail ESS at least 852.
+- **Other checks:** identifiability, rho-kappa, prior sensitivity x0.5 / x2 and
+  reproducibility pass in all 40.
+- **Warnings (non-blocking), as in attempt 1:** total dispersion in 14 fits, the 4-week
+  predictive proxy in 20.
+- **Reproducibility across attempts:** 38 of 40 fits give the same R-hat to the last
+  digit. Belgium 2023/24 (+0.0009) and Portugal 2023/24 (+0.00002) differ slightly, which
+  is runner floating point; within a run the seed check passes.
+- **Next, (f):** 28-day dev backtests at prior scale 0.5 and 2 against a scale-1
+  reference on the same 28-day grid. `every_days` is in the fit hash, so the weekly fits
+  are not shared and the reference is fitted first. Three runs, one at a time.
+
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 

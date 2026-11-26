@@ -33,6 +33,7 @@ MARKERS = {
     "c2": "backtest/holdout/opened_c2.json",  # C2 step 2 (g), D52: the eight C2 bundles
 }
 C2_GATE_FILE = "config/c2_gate.yml"
+C2_RETEST_GATE_FILE = "config/c2_retest_gate.yml"  # D54 (h): the 1b retest, 2026/27-2027/28
 
 
 def _marker(opening: str) -> str:

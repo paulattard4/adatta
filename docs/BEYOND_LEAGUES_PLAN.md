@@ -1622,9 +1622,9 @@ goals, gate `config/c2_gate.yml` as written before the opening:
     judged on it, and picking Belgium alone after seeing it would be choosing on the
     holdout.
   - The dev refits stay usable for step 4's C1 rerun, which has its own acceptance.
-- **Owner decision pending** on what C2 does next.
+- **Owner decision:** D54, the step 3 amendment below.
 
-### C2 step 3 amendment: serve Phase 1a on the eight top flights, retest 1b later (drafted 2026-11-26 after the holdout result; owner decision pending, D54 on approval)
+### C2 step 3 amendment: serve Phase 1a on the eight top flights, retest 1b later (drafted 2026-11-26 after the holdout result; owner: "Approve as drafted", D54, the recommended choice in each)
 
 **Why, and what it changes.** Step 2's acceptance says nothing is served for the new
 leagues on a holdout fail. This amendment is made after that result was seen and is
@@ -1710,6 +1710,34 @@ recorded as such.
 - No requests and no money.
 - On a fail in (b), that league is not served. On a fail in (c)-(e), nothing is served
   until it is fixed and the check reruns.
+
+**Started 2026-11-26, the parts that do not touch serving (the serving path, (a) and
+(c)-(g), waits until after Monday 30 November as drafted):**
+- **(h) Retest gate written:** `config/c2_retest_gate.yml`, before any 1b score on 2026/27
+  exists.
+  - It holds `c2_gate.yml`'s rule unchanged (a test checks this) and the window: seasons
+    2026 and 2027, opened after 2028-06-30.
+  - The window is disjoint from the holdout seasons (a test checks this too).
+- **(b) PASSES, all eight top flights** (`python -m adatta.eval.c2_serve baseline-bar`,
+  local, dev 2019/20-2023/24, weekly plan, 20 goals, warm matches; match-level output
+  local only).
+  - 1X2 log loss, Phase 1a against the league-only Poisson / the base rate, paired, with
+    95% intervals; every interval is below zero:
+
+    | top flight | n | Phase 1a | league Poisson | base rate | 1a - Poisson | 1a - base rate |
+    |---|---|---|---|---|---|---|
+    | 94 Portugal | 1,530 | 0.9431 | 1.0749 | 1.0760 | -0.132 [-0.151, -0.112] | -0.133 [-0.152, -0.114] |
+    | 88 Netherlands | 1,456 | 0.9432 | 1.0666 | 1.0673 | -0.124 [-0.145, -0.102] | -0.124 [-0.145, -0.103] |
+    | 144 Belgium | 1,532 | 0.9974 | 1.0692 | 1.0703 | -0.072 [-0.089, -0.055] | -0.073 [-0.090, -0.056] |
+    | 218 Austria | 960 | 1.0074 | 1.0940 | 1.0930 | -0.087 [-0.111, -0.062] | -0.086 [-0.110, -0.061] |
+    | 179 Scotland | 1,091 | 0.9371 | 1.0713 | 1.0715 | -0.134 [-0.160, -0.109] | -0.134 [-0.159, -0.110] |
+    | 203 Turkey | 1,827 | 1.0106 | 1.0706 | 1.0713 | -0.060 [-0.073, -0.047] | -0.061 [-0.074, -0.047] |
+    | 345 Czechia | 1,380 | 0.9608 | 1.0703 | 1.0709 | -0.110 [-0.130, -0.090] | -0.110 [-0.130, -0.090] |
+    | 119 Denmark | 1,004 | 1.0302 | 1.0796 | 1.0808 | -0.049 [-0.067, -0.032] | -0.051 [-0.068, -0.033] |
+
+  - The prediction counts equal step 2's dev counts per bundle, so it is the same plan.
+  - The margins are wider than the five's (-0.052 pooled): these leagues have larger
+    strength gaps, which a league-level baseline cannot see.
 
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.

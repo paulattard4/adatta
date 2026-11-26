@@ -290,6 +290,14 @@ def test_c2_gate_is_d18_with_d28_segments_over_the_eight_top_flights() -> None:
     assert sorted(g.top_flights) == sorted(TOP)
 
 
+def test_c2_retest_gate_is_the_c2_gate_over_the_next_two_seasons() -> None:
+    """D54 (h): the 1b retest is pre-registered with the c2 holdout's rule unchanged."""
+    assert ho.load_c2_gate(ho.C2_RETEST_GATE_FILE) == ho.load_c2_gate()
+    window = yaml.safe_load(Path(ho.C2_RETEST_GATE_FILE).read_text())["window"]
+    assert window == {"seasons": [2026, 2027], "opens_after": "2028-06-30"}
+    assert not set(window["seasons"]) & set(harness.load_config().holdout_seasons)
+
+
 def c2_cmp(leagues: list[int], seg: dict[int, float] | None = None,
            pooled: tuple[float, float] = (-0.004, -0.001)) -> pl.DataFrame:  # fmt: skip
     """A compare() table: overall 1X2 rows, and every D28 segment per league at -0.2% except

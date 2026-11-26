@@ -1,0 +1,28 @@
+# C2 1b retest (D54 (h); docs/BEYOND_LEAGUES_PLAN.md "C2 step 3 amendment"): the
+# pre-registered gate for retesting 1b on the eight top flights after the c2 holdout rejected
+# all eight (run 45837877281). Written 2026-11-26, before any 1b score on these seasons
+# exists; never edited after it.
+#
+# Window (D54 choice 3a): the eight top flights' 2026/27 and 2027/28 seasons, decided once
+# after both end (about June 2028). No 1b score on these seasons is computed or looked at
+# before then.
+#
+# Opened by one walk-forward backtest of the then-production spec against Phase 1a on the
+# same weekly plan, warm top-flight matches, scored to 20 goals (D53). The rule is the same
+# as config/c2_gate.yml (a test checks this):
+#   1. D28 segments, per top flight: any league x market segment worse than Phase 1a by more
+#      than max_segment_rel_worse rejects that league alone (D52 3a).
+#   2. D18, pooled over the top flights left: a gain on 1X2 log loss and 1X2 RPS, with the
+#      paired 95% interval excluding zero. Pass: each of them moves from Phase 1a to 1b
+#      (after its own serving check). Fail, or none left: all stay on Phase 1a.
+window:
+  seasons: [2026, 2027]
+  opens_after: "2028-06-30"
+c2_gate:
+  min_rel_logloss_gain_1x2: 0.0
+  min_rel_rps_gain: 0.0
+  paired_interval: 0.95
+  max_segment_rel_worse: 0.010
+  segment_metrics: ["1X2:log_loss", "1X2:rps", "OU2.5:log_loss", "BTTS:log_loss", "total:crps"]
+  segment_fail: league_alone
+  top_flights: [94, 88, 144, 218, 179, 203, 345, 119]

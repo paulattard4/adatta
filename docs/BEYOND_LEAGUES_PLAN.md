@@ -2073,6 +2073,10 @@ The eight C2 bundles are loaded and fitted, so the rerun is the step C2 was for.
     2. overrides in `config/neutral_venues.yml` for these dev matches only (future UEFA
        matches would hit the same rule);
     3. leave them neutral.
+  - **Owner, 2026-11-26: "Leave them neutral" (D57).** The venue rule is unchanged; these
+    games keep the neutral role, so no home advantage. The rerun's report states how many
+    C2 home games are neutral by this rule (in-country, city misses, abroad), as a known
+    limit, not a gating check.
 
 ## Stage D: national teams (§10.4)
 

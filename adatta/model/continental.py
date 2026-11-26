@@ -695,11 +695,14 @@ def venue_check(session: Any, tg: pl.DataFrame, five: dict[str, list[int]]) -> d
     clubs = sorted(set(homes["home"].to_list()))
     grounds = neutral.team_grounds(session, league_competition_ids(session, bundles()), clubs)
     unknown = [c for c in clubs if not grounds.get(c)]
+    # D57: C2 home games the rule calls neutral (no home advantage), a known limit
+    c2_neutral = dev.filter(pl.col("cross") & pl.col("neutral") & pl.col("bundle_home").is_in(c2b))
     return {
         "c1_matches": both.height,
         "roles_changed": changed.height,
         "c2_home_clubs": len(clubs),
         "c2_unknown_ground": len(unknown),
+        "c2_home_neutral": c2_neutral.height,
         "ok": changed.is_empty() and not unknown,
     }
 
@@ -709,7 +712,8 @@ def venue_lines(v: dict[str, Any]) -> str:
         f"Venues (D56 (b)): C1's {v['c1_matches']} dev matches, roles changed "
         f"{v['roles_changed']}; C2 clubs with a dev UEFA home match {v['c2_home_clubs']}, "
         f"without a known ground {v['c2_unknown_ground']}: "
-        f"{'pass' if v['ok'] else 'FAIL'}."
+        f"{'pass' if v['ok'] else 'FAIL'}. Known limit (D57): {v['c2_home_neutral']} dev "
+        "matches with a C2 club at home are neutral by the city rule (no home advantage)."
     )
 
 

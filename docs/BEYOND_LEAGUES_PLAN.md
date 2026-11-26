@@ -1379,6 +1379,52 @@ cover all relevant league bundles needed").** Metrics only.
 - **Next:** dispatch `backtest.yml` with the eight bundles x 2019-2023 at the weekly
   grid, after the push. One at a time, not on a Monday.
 
+**(e) Dev result (2026-11-26): no harm, passes (D52 choice 2a).**
+- **Run:** backtest run 45663417654, 80 refit jobs and the assembly, all green; assembled
+  2026-11-26T00:06:58Z. Job times were 40-147 minutes, with Portugal the slowest.
+- **Plan:**
+  - 10,780 top-flight targets, all warm. No team is under 10 prior matches, because
+    the second tiers give promoted sides their history.
+  - The grid is identical to Phase 1a: **yes**.
+- **Refit diagnostics:** 1,325 weekly refits:
+  - R-hat over 1.01 in 3 (worst 1.013);
+  - ESS under 400 in 1;
+  - divergences in 24 (1.8% of refits). The five bundles' weekly production-spec run
+    (43421580602) had 0 of 928, so this is higher. The audit sample (d) requires 0
+    divergences in every fit, so it is the check to watch. A failure there is reported
+    as it stands, not tuned away on the sample.
+- **No harm:**
+  - Worst top-flight change against Phase 1a on any D28 metric: Austria at +0.33%
+    1X2 RPS and total CRPS (limit +1.0%).
+  - Every other league is at or below +0.25%.
+- **Pooled over the eight, against Phase 1a (reported; the holdout decides the gain):**
+
+  | metric | change | 95% interval |
+  |---|---|---|
+  | 1X2 log loss | -0.09% | [-0.26%, +0.08%] |
+  | 1X2 RPS | -0.17% | [-0.42%, +0.07%] |
+  | OU2.5 log loss | -0.47% | [-0.75%, -0.19%] |
+  | BTTS log loss | -0.35% | [-0.58%, -0.11%] |
+  | total CRPS | -0.51% | [-0.78%, -0.25%] |
+
+  This is the same pattern as the five without xG: level on 1X2, better on totals.
+- **Per league:** Turkey gains on every metric, with 1X2 log loss at -0.58%
+  [-1.06%, -0.10%].
+- **2023/24, the xG season (2,186 matches):**
+  - 1X2 log loss -0.60% [-1.12%, -0.08%];
+  - RPS -0.78% [-1.58%, +0.03%];
+  - Turkey -2.14% log loss; Belgium +0.42% and Scotland +0.16% (no xG in Scotland that
+    season).
+- **Promoted sides** (2,403 matches):
+  - 1X2 log loss -0.39%, and the points bias narrows from -0.125 to -0.100 per match
+    after 10 matches.
+  - There is no relegated segment, because second-tier matches are not targets.
+- **Reliability:** per 1X2 outcome, in line with Phase 1a. The summary artifact carries
+  metrics only.
+- **Next:** the audit sample (d) is dispatched, gate run 45735355899: 8 bundles x 5 dev
+  seasons, 4 x 2,000 draws, at the first weekly refit on or after 1 January. Then (f),
+  the two prior-scale backtests, one at a time and not on a Monday.
+
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 

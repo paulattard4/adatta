@@ -1953,6 +1953,96 @@ scored.
     bundles needed". C1 is not reopened before then; the UEFA holdout stays closed.
 
 
+### C2 step 4: the C1 rerun over all thirteen bundles (drafted 2026-11-26 before building; owner decision pending, D56 on approval)
+
+**Why now.** C1 failed on power, not on the model: 384 dev matches gave intervals of about
+±0.019 on a -0.010 log-loss gain (D45). The owner waited for more league bundles (2026-11-25).
+The eight C2 bundles are loaded and fitted, so the rerun is the step C2 was for.
+
+**Seen so far, for this draft (counts only; nothing scored; holdout seasons not read):**
+- UEFA dev matches (2019/20-2023/24) between teams of two different bundles, over all 13
+  bundles: **1,082** (C1: 384):
+  - Champions League 512 (256 with a C2 side);
+  - Europa League 434 (317);
+  - Conference League 136 (125).
+  - 698 of them have at least one C2 side; the other 384 are C1's matches, whose score was
+    seen on 2026-11-21.
+  - 30 of the 1,082 are on neutral ground.
+- Training-only cross-bundle matches before dev (2016/17-2018/19): 514 (305 with a C2 side).
+- C1's interval shrinks as 1/sqrt(n): about ±0.011 at 1,082. C1's dev gain (-0.010) would
+  sit at the edge of significance. The new pairings are further apart in quality, where Q
+  may matter more. This is an expectation, not a promise.
+- The venue-role rule (`neutral.venue_roles`) learns each club's grounds from the five
+  bundles' league matches (`cli._bundle_competition_ids`). C2 clubs have no known ground
+  yet, so the rerun must pass them in (check (b) below).
+- The C2 bundles are served on Phase 1a (D54). Phase 1a is a point fit (`c2_live`); 1b has
+  cached weekly dev refits for them, rejected on the c2 holdout.
+
+**The model, unchanged from the C1 acceptance** (§10.1; `adatta/model/continental.py`):
+- log λ_home = c + h × (1 - neutral) + att_home - def_away + Q[bundle home] - Q[bundle away];
+  England Q = 0, so **12 free Q** (C1: 4). Priors, sampler, seed, 28-day walk-forward refits,
+  the inference gates and prediction (Dixon-Coles with the home side's ρ and κ) are as in
+  C1.
+- Matrices are scored to 20 goals a side (D53; C1 used 10), with the tail reported per
+  prediction (under 1e-4).
+- B_own (Q = 0) and B_elo (start 1,500, K 20, home 60, ordered logit; not tuned) on the same
+  matches. The Elo runs over every stored match of the 13 bundles' leagues, the five's cups
+  and the UEFA competitions since 2016-07-01. C2 domestic cups are not stored, so C2 clubs
+  are rated from league and UEFA matches only. This is stated, not fixed.
+
+**Acceptance (stated before building):**
+- **(a) Side strengths, as of the match's Monday:**
+  - a side from one of the five: its bundle's production 1b weekly refit, as in C1 (cached);
+  - a C2 side: owner choice 1.
+  - The 365-day league-history rule of C1 holds for every bundle.
+- **(b) Venues:** the venue-role rule sees all 13 bundles' league grounds. Every C2 club
+  with a UEFA home match in dev has a known ground. Reported: matches whose role changes
+  from C1's (expected: none among C1's 384).
+- **(c) Gate on dev, C1's six checks unchanged:**
+  1. C1 beats B_own on 1X2 log loss and on RPS, each paired 95% interval excluding 0;
+  2. C1 beats B_elo the same way;
+  3. no competition (CL, EL, ECL) worse than either baseline by more than 1.0%
+     (point estimate);
+  4. 1X2 ECE per outcome within its noise floor;
+  5. the inference gates pass on every refit, plus prior sensitivity (×0.5, ×2) at the last
+     refit;
+  6. leakage: on 50 sampled targets, nothing final after the match's Monday changes any
+     input.
+  - Scored on the matches of owner choice 2.
+- **(d) Reported, not gating:** Q per bundle over time with intervals; the split into C1's
+  384 and the 698 with a C2 side; by season, competition, home and neutral; same-bundle
+  matches apart; C2 sides' cold starts; the truncation tails.
+- **(e) Then, on a dev pass only:** the UEFA holdout (2024/25-2025/26, never opened) is
+  opened once with its own marker ("uefa"), scored the same way, with checks 1-4 as the
+  promotion gate, written to `config/uefa_gate.yml` before the opening. On a holdout pass,
+  serving UEFA matches between bundle teams gets its own acceptance.
+- **On a dev fail:** nothing changes; UEFA matches keep showing why there is no forecast,
+  and the holdout stays closed.
+
+**Owner choices:**
+1. **Strengths of a C2 side:**
+   - (a) Phase 1a as served (recommended): `c2_live.fit_as_of` at the match's Monday,
+     the code path that serves these leagues (D54). It is a point fit, so the side's att
+     and def are constant across draws; ρ is the fit's, κ is 0. On a later pass, serving
+     would use the same refits it already makes.
+   - (b) The 1b weekly dev refits (cached; draws of att and def). The c2 holdout rejected
+     1b for these leagues, so a UEFA forecast would rest on a model not served for its
+     league.
+2. **Which matches the gate scores:**
+   - (a) All 1,082 (recommended). The C1 model is unchanged since before its score was
+     seen, so including C1's 384 matches selects nothing; the split is reported.
+   - (b) Only the 698 with a C2 side: none of them has been scored, but n is smaller and
+     the five's pairings are left out of a model that would serve them.
+
+**Order and cost:**
+- Build: `continental.py` takes the 13 bundles and choice 1's strengths; the venue rule
+  takes the C2 leagues; `continental.yml` gains the eight bundles in its strengths matrix;
+  tests for (a), (b) and the 20-goal scoring.
+- CI, one backtest-type run at a time and none on a Monday: the strengths (the five's are
+  cached from C1's run; C2's are L-BFGS fits, seconds each), then the fit (about 60 refits
+  of a small NUTS model, now with 12 Q). 0 API requests, no money.
+- After C2 serving goes live (D54), so the two do not share a Monday.
+
 ## Stage D: national teams (§10.4)
 
 Its own fit, not inside the club model:

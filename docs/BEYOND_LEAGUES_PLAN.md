@@ -2093,7 +2093,64 @@ The eight C2 bundles are loaded and fitted, so the rerun is the step C2 was for.
     C2 home games are neutral by this rule (in-country, city misses, abroad), as a known
     limit, not a gating check.
 
-## Stage D: national teams (§10.4)
+#### C2 step 4 dev result (2026-11-26): PASSES all six checks
+
+Runs: strengths run 45904644304 (52 jobs, 16 minutes); fit run 45906449835. The scored
+rows are in R2 at `continental/reports/45904644304/`. There were 1,082 dev cross-bundle
+UEFA matches and 44 refits.
+
+| model | 1X2 log loss | RPS |
+|---|---|---|
+| C1 | 0.9783 | 0.1996 |
+| B_own | 1.0438 | 0.2222 |
+| B_elo | 1.0064 | 0.2090 |
+
+- **Check 1, against B_own:** log loss -0.0655 [-0.0866, -0.0443]; RPS -0.0226
+  [-0.0297, -0.0155]. Pass.
+- **Check 2, against B_elo:** log loss -0.0281 [-0.0451, -0.0111]; RPS -0.0094
+  [-0.0150, -0.0038]. Pass.
+- **Check 3, by competition (C1 relative):**
+
+  | competition | n | vs own | vs Elo |
+  |---|---|---|---|
+  | CL | 512 | -7.53% | -3.32% |
+  | ECL | 136 | -7.41% | -4.60% |
+  | EL | 434 | -4.54% | -1.67% |
+
+  Pass.
+- **Check 4, ECE against its limit:** home 0.021/0.045, draw 0.023/0.030, away 0.033/0.043.
+  Pass.
+- **Check 5, inference:**
+  - worst R-hat 1.002, 0 divergences;
+  - PPC total goals 2.954 predicted, 2.953 observed;
+  - prior sensitivity at ×0.5 and ×2 moves Q by up to 0.055 (Scotland).
+
+  Pass.
+- **Check 6, leakage:** 0 of 50 targets changed. Pass.
+- **Venues, (b):** 0 role changes among C1's 384; all 53 C2 home clubs have a ground. Known
+  limit (D57): 38 dev matches with a C2 club at home are neutral by the city rule.
+
+**Reported, (d):**
+- **Q at the last refit:** England 0, Spain -0.008, Germany -0.019, Italy -0.134,
+  France -0.180, Portugal -0.334, Netherlands -0.352, Belgium -0.368, Turkey -0.406,
+  Denmark -0.469, Austria -0.477, Czechia -0.617, Scotland -0.634. The sd is 0.04-0.07.
+- **Split, log loss:**
+  - C1's own 384 matches: vs own -0.0104 [-0.0282, +0.0074], vs Elo -0.0058
+    [-0.0275, +0.0158]. This is no better powered than C1 alone.
+  - The 698 with a C2 side: vs own -0.0958 [-0.1269, -0.0647], vs Elo -0.0403
+    [-0.0638, -0.0169].
+
+  The pass comes from the C2 matches. That is the scored set the owner chose (D56), and
+  the split selects nothing.
+- **Truncation tails, against the stated 1e-4:**
+  - The largest is 1.1e-3, which is **over** the limit. Two of the 1,082 matches exceed
+    1e-4: 1.1e-3 and 8.0e-4. Both have a Czech club at home.
+  - The figure is the worst single posterior draw's mass beyond 20 goals a side, before
+    renormalising. The averaged matrix's tail is no larger.
+  - Missing mass of that size cannot move the gate.
+  - Not gating as drafted ((d)), but it is above the figure stated, so it is raised
+    before the holdout opens ((e)).
+
 
 Its own fit, not inside the club model:
 - **v0 (team only, from results):** one global strength scale with confederation effects,

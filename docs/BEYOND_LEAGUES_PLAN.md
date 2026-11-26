@@ -1624,6 +1624,93 @@ goals, gate `config/c2_gate.yml` as written before the opening:
   - The dev refits stay usable for step 4's C1 rerun, which has its own acceptance.
 - **Owner decision pending** on what C2 does next.
 
+### C2 step 3 amendment: serve Phase 1a on the eight top flights, retest 1b later (drafted 2026-11-26 after the holdout result; owner decision pending, D54 on approval)
+
+**Why, and what it changes.** Step 2's acceptance says nothing is served for the new
+leagues on a holdout fail. This amendment is made after that result was seen and is
+recorded as such.
+- Principle 8: where a layer is not proven for a competition, serving falls back to the
+  simpler layer. Phase 1a (results-only Dixon-Coles, rule 5) is that layer.
+- Phase 1a's spec was fixed before the holdout opened (half-life 365 days, team prior sd
+  0.5, tuned on the five's dev window; `phase1a_selected`). Nothing about it is chosen on
+  the new leagues or on the holdout, so serving it is not selection on the holdout.
+- Belgium alone is **not** served on 1b. It was the only league with a significant gain,
+  but picking it after seeing the holdout would be selection on the holdout.
+
+**Seen so far, for this draft (read-only):**
+- Serving projects from a refit's stored posterior draws (`sim/serve.py`) and
+  `live.champion` serves only the production spec. Phase 1a is a deterministic L-BFGS
+  point fit (`dixon_coles.fit`), never served or refitted live, and has no draws.
+- `market_projection.interval_lo/hi` are nullable.
+- The Phase 1a acceptance for the five (`PHASE0_TASKS.md`) required beating league base
+  rates and a league-only Poisson on 1X2 log loss in every league over dev. That
+  comparison has not been run on the eight.
+- On the holdout, 1b against 1a pooled: 1X2 log loss -0.38% [-0.81%, +0.06%]. Serving 1a
+  gives up at most that on the point estimate.
+
+**Acceptance (stated before building):**
+- **(a) Same model as scored:** the live Phase 1a refit for a C2 bundle reproduces
+  `phase1a_on_grid`'s predictions for the same as-of week, to 1e-9, on a dev week (a
+  test). It uses the same training rows, including step 2 (c)'s 1 July rule for second
+  tiers, and scores matrices to 20 goals (D53).
+- **(b) The Phase 1a bar on the eight, over dev 2019/20-2023/24, warm matches:** beat
+  league base rates and a league-only Poisson on 1X2 log loss in each of the eight top
+  flights. A league that does not is flagged as a probable bug and not served, as for the
+  five.
+- **(c) Truncation:** every served matrix has a tail under 1e-4 at 20 goals.
+- **(d) Shadow, live period to date, metrics only:** the serving code path (not the
+  backtest) projects the eight top flights' 2026/27 matches played so far, as of each
+  Monday.
+  - Each fixture gets its milestones, and each market's probabilities sum to 1.
+  - Pooled 1X2 log loss beats league base rates. Reliability per 1X2 outcome is reported.
+  - Nothing is published.
+  - Only Phase 1a is scored on this period; no 1b score is computed (see (h)).
+- **(e) No side effects:**
+  - The five's projections for a fixed as-of are identical before and after.
+  - The production hash stays `a215d52e759864ed`, and `c2.py` and `c2_bundles.yml` are
+    untouched (fit key `c86d1b65c7025139`).
+  - The Monday serve run gains under 10 minutes of CI and no API requests (the top flights
+    are already captured, step 1).
+- **(f) Labelled:** the API and dashboard mark these forecasts as the baseline model and
+  show no intervals (owner choice 1). They show 90-minute markets only (choice 2).
+- **(g) Record:** one `model_run` row per top flight passing (b)-(d), named
+  `phase1a_c2_<league>`, component `c2`, status `champion`, with its scores. Serving reads
+  these rows. The eight `phase1b_strength_open_xg_c2_<league>` rows stay `rejected`.
+- **(h) 1b retest, pre-registered now:**
+  - `config/c2_retest_gate.yml` is written before any 1b score on the live period exists.
+    It holds the same rule as `c2_gate.yml`: D28 segments per top flight (a failing league
+    out alone), then D18 pooled over the rest.
+  - Window: owner choice 3. It is opened once, after the window ends, by a walk-forward
+    backtest of the then-production spec against Phase 1a on the same weekly plan.
+  - No 1b score on these seasons is computed or looked at before then.
+  - A league that passes moves from Phase 1a to 1b, with its own serving check.
+
+**Owner choices:**
+1. **Intervals:**
+   - (a) None (recommended). Phase 1a is a point estimate, and an interval invented for it
+     would be uncalibrated. The forecast is labelled as the baseline model.
+   - (b) A Laplace approximation at the fit (draws from the inverse Hessian), plus an
+     interval-coverage check added to (d).
+2. **Half markets:**
+   - (a) Not in this step (recommended). The share model (P3b-2) was built for the five,
+     and its 16-cell grid assumes 15 goals (D53 (v)). Halves for the eight get their own
+     acceptance later.
+   - (b) Included. This needs the share model's scope checked and its grid moved to 20.
+3. **Retest window:**
+   - (a) Two seasons, 2026/27-2027/28, decided once after both end, about June 2028
+     (recommended). Two holdout seasons gave an interval half-width of about 0.44%, so if
+     the true gain is the 0.38% seen here, two seasons detect it about 40% of the time.
+     One season would detect it about 23% of the time.
+   - (b) One season, 2026/27, decided about June 2027.
+
+**Order and cost:**
+- Build after the half markets go live on Monday 30 November, and not on a Monday.
+- (b) is a local dev run in minutes, because Phase 1a is an L-BFGS fit. (d) runs on CI
+  once, metrics only.
+- No requests and no money.
+- On a fail in (b), that league is not served. On a fail in (c)-(e), nothing is served
+  until it is fixed and the check reruns.
+
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 

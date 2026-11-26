@@ -1800,6 +1800,21 @@ the Monday 30 November half-market launch). Nothing is served until the champion
   5. `serve.yml` dispatched with `as_of` 2026-11-30 (the five's refits for that Monday
      already exist and are returned unchanged), which writes the eight C2 refits; the next
      capture tick publishes.
+- **Live, Thursday 2026-11-26.** The owner pushed before Monday 30 November, not after it,
+  so the steps ran that Thursday with `as_of` 2026-11-23, this week's Monday. A fit dated
+  the 30th would not serve until that date. In order:
+  - the push CI passed, and the first capture tick on the new code ran the C2 step with no
+    champion (nothing written);
+  - `c2_shadow.yml` run 45903210394 passed, identical to the local run: 801 matches,
+    pooled 1X2 log loss -0.093 [-0.117, -0.070] against base rates, every league below
+    zero, max tail 6.7e-10;
+  - `record` wrote `phase1a_c2_<league>` for all eight top flights;
+  - `serve.yml` run 45903380569 (`as_of` 2026-11-23) wrote the eight C2 refits, all ok;
+    the five's refits and the share refit for that Monday were returned unchanged;
+  - the capture tick at 22:22 UTC published 125 forecasts (121 initial, 4 at T-24h) over
+    all eight leagues, with no intervals and a maximum sum error of 1.1e-16.
+
+  From here the Monday `serve.yml` schedule refits C2 each week.
 
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.

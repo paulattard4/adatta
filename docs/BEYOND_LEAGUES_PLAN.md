@@ -1582,6 +1582,21 @@ read):**
 - **Dispatch, once (f) passes:** `holdout.yml`, opening `c2`, parts `["0/2","1/2"]`. The
   weekly C2 jobs took up to 147 minutes per half on dev.
 
+**(f) result (2026-11-26): PASSES.** 28-day dev backtests, 2019/20-2023/24, 412 refits
+each, all on the same grid as Phase 1a, scored to 20 goals (D53):
+- **Reference, scale 1** (backtest run 45768678437): R-hat > 1.01 in 2 refits (worst
+  1.013), ESS < 400 in 0, divergences in 6. No harm passes.
+- **Scale 0.5** (backtest run 45788902765), against the reference:
+  - Dev 1X2 log loss moves 0.007% (limit 0.2%). Paired change +0.01% [-0.02%, +0.03%].
+  - Per league, at most 0.08% (Austria).
+  - R-hat > 1.01 in 0 refits, divergences in 3. No harm passes.
+- **Scale 2** (backtest run 45811190560), against the reference:
+  - Dev 1X2 log loss moves 0.007%. Paired change -0.01% [-0.02%, +0.01%].
+  - Per league, at most 0.09% (Austria).
+  - R-hat > 1.01 in 1 refit, divergences in 5. No harm passes.
+- **(a)-(f) all pass**, so (g) may open. Owner, 2026-11-26: "just proceed with what you
+  recommend". The holdout is dispatched once, as built in `82b7174`.
+
 Acceptance: on dev continental matches between bundle teams, beats the "each league's
 own scale, no Q_league" model and an Elo-style baseline on 1X2 log loss and RPS.
 

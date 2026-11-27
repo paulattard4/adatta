@@ -132,12 +132,18 @@ export interface PlayedScores {
   log_loss_ou25: number | null; log_loss_btts: number | null;
 }
 
+/** The bookmakers' de-margined view, last price before kickoff (evaluation only, principle 1). */
+export interface PlayedMarket {
+  home: number; draw: number; away: number; over25: number | null; btts: number | null;
+  bookmakers: number; scores: PlayedScores;
+}
+
 export interface PlayedMatch {
   match_id: number; kickoff: string; competition_id: number; competition: string; competition_tier: string; team_level: string;
   home: string; away: string; home_goals: number; away_goals: number;
   outcome: "home" | "draw" | "away"; milestone: string; generated_at: string;
   home_p: Prob; draw_p: Prob; away_p: Prob; over25: Prob | null; btts: Prob | null;
-  scores: PlayedScores;
+  scores: PlayedScores; market: PlayedMarket | null;
   home_lineup: LineupScore | null; away_lineup: LineupScore | null;
 }
 
@@ -149,7 +155,9 @@ export interface LineupSummary {
   n_slot: number; slot_acc: number | null; slot_acc_last: number | null;
 }
 export interface ScoreSummary {
-  segment: string; competition_id: number | null; tier: string | null; n: number; scores: MeanScore[]; lineup: LineupSummary | null;
+  segment: string; competition_id: number | null; tier: string | null; n: number; scores: MeanScore[];
+  market_scores: MeanScore[]; vs_market: MeanScore[]; // ours minus the market's, paired (< 0: ours better)
+  lineup: LineupSummary | null;
 }
 
 export interface PlayedList {

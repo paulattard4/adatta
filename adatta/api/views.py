@@ -972,13 +972,20 @@ def _lineup_summary(ms: list[sc.PlayedMatch]) -> sc.LineupSummary | None:
 def _summary(
     segment: str, cid: int | None, ms: list[sc.PlayedMatch], tier: str | None = None
 ) -> sc.ScoreSummary:
-    scores = []
+    scores, market, diff = [], [], []
     for metric in PLAYED_METRICS:
         xs = [v for m in ms if (v := getattr(m.scores, metric)) is not None]
         if xs:
             scores.append(_mean_score(metric, xs))
+        pairs = [(a, b) for m in ms if m.market is not None
+                 and (a := getattr(m.scores, metric)) is not None
+                 and (b := getattr(m.market.scores, metric)) is not None]  # fmt: skip
+        if pairs:
+            market.append(_mean_score(metric, [b for _, b in pairs]))
+            diff.append(_mean_score(metric, [a - b for a, b in pairs]))
     return sc.ScoreSummary(segment=segment, competition_id=cid, tier=tier, n=len(ms),
-                           scores=scores, lineup=_lineup_summary(ms))  # fmt: skip
+                           scores=scores, market_scores=market, vs_market=diff,
+                           lineup=_lineup_summary(ms))  # fmt: skip
 
 
 def _lineup_scores(session: Session, store: RawStore, ms: list[sc.PlayedMatch],
@@ -1021,6 +1028,7 @@ def played(
     """Finished bundle league matches against the forecast published before their kickoff
     (docs/DASHBOARD_TASKS.md, played view)."""
     from adatta.adapters.normalize import FINISHED
+    from adatta.api.market import market_view, played_market
     from adatta.eval import metrics
 
     end = end or now
@@ -1040,6 +1048,10 @@ def played(
     forecasts = _pre_kickoff_forecasts(
         session, {r.match_id: r.kickoff for r in rows if r.match_id in results}
     )
+    priced = {
+        r.match_id: r.kickoff for r in rows if r.match_id in forecasts and r.match_id in results
+    }
+    market = market_view(session, priced)
     out: list[sc.PlayedMatch] = []
     for r in rows:
         if r.match_id not in forecasts or r.match_id not in results:
@@ -1066,7 +1078,7 @@ def played(
             outcome=("home", "draw", "away")[k["1X2"]], milestone=ms, generated_at=gen,
             home_p=_p(x[0]), draw_p=_p(x[1]), away_p=_p(x[2]),
             over25=None if over is None else _p(over), btts=None if btts is None else _p(btts),
-            scores=scores,
+            scores=scores, market=played_market(market.get(r.match_id), hg, ag),
         ))  # fmt: skip
     _lineup_scores(session, ctx.store, out, {r.match_id: r for r in rows})
     out.sort(key=lambda m: (m.kickoff, m.match_id), reverse=True)

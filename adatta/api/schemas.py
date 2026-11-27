@@ -401,6 +401,21 @@ class PlayedScores(BaseModel):
     log_loss_btts: float | None
 
 
+class PlayedMarket(BaseModel):
+    """The bookmakers' view of a played match, for evaluation only (principle 1: odds are
+    never a model input). Per bookmaker, the last price observed at or before kickoff for
+    every selection of a market, de-margined proportionally; averaged over the bookmakers
+    quoting the whole market."""
+
+    home: float
+    draw: float
+    away: float
+    over25: float | None  # P(over 2.5)
+    btts: float | None  # P(both teams score)
+    bookmakers: int  # quoting the whole 1X2
+    scores: PlayedScores
+
+
 class PlayedMatch(BaseModel):
     match_id: int
     kickoff: datetime
@@ -421,6 +436,7 @@ class PlayedMatch(BaseModel):
     over25: Prob | None
     btts: Prob | None
     scores: PlayedScores
+    market: PlayedMarket | None = None  # None without a pre-kickoff 1X2 price
     home_lineup: LineupScore | None = None  # how the projection as of kickoff - 24 h did
     away_lineup: LineupScore | None = None
 
@@ -454,6 +470,8 @@ class ScoreSummary(BaseModel):
     tier: str | None  # the competition's tier; None for "all"
     n: int
     scores: list[MeanScore]
+    market_scores: list[MeanScore] = []  # the market's, over the matches it priced
+    vs_market: list[MeanScore] = []  # ours minus the market's, paired by match (< 0: ours better)
     lineup: LineupSummary | None = None
 
 

@@ -758,3 +758,31 @@ and matches from the last day for played".
 - A played range with no finished match now says so and suggests widening the dates. The
   "no forecast match has been played yet" note appears only when nothing has been played
   at all.
+
+## Market benchmark on the played view (requested 2026-11-27)
+
+Owner: "Yes, add it", after the played matches were scored against the bookmakers. This is
+the first piece of the wave 2 edge view. It is for evaluation only: odds never reach a
+model (principle 1).
+
+**The market forecast for a match:**
+- For each bookmaker, the last price observed at or before kickoff for every selection.
+- The margin is removed proportionally.
+- The result is averaged over the bookmakers that quote the whole market. A bookmaker
+  missing a selection is not used.
+- Markets: 1X2, over/under 2.5 and both teams to score.
+
+**The page:**
+- An "Against the market" table: the market's mean score and ours minus the market's,
+  paired by match, with a 95% interval. It is green when ours is clearly better and red
+  when clearly worse.
+- Each played match shows a "Market:" line with the de-margined probabilities.
+
+**Amends acceptance item 7 ("never reads odds tables"):**
+- `adatta/api/market.py` is the one API module that reads odds, and only `views.played`
+  imports it.
+- No model, simulation, evaluation or feature code imports it.
+- The AST test in `tests/test_dashboard_api.py` enforces all of this.
+
+**Checked live on 132 played matches:** 1X2 log loss, ours minus the market, +0.016
+[-0.007, +0.040]. **Tests:** 2 new in `tests/test_played_view.py`.

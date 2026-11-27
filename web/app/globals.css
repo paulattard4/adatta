@@ -215,6 +215,8 @@ h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 .final-score { color: var(--text); font-weight: 600; }
 .result { font-weight: 600; }
 .played-comp, .played-pp { font-size: 11px; display: block; }
+.scores .better { color: var(--up); }  /* ours better than the market, interval below 0 */
+.scores .worse { color: var(--down); } /* ours worse, interval above 0 */
 .table-wrap { overflow-x: auto; }
 table.scores { border-collapse: collapse; width: 100%; font-size: 12px; }
 table.scores th, table.scores td { text-align: left; padding: 6px var(--row-pad); border-bottom: 1px solid var(--line); white-space: nowrap; }

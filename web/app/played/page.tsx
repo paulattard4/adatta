@@ -45,6 +45,66 @@ function Side({ prob, hit, yes, no, market, ll, odds }:
   );
 }
 
+/** The bookmakers' de-margined 1X2 before kickoff, beside ours (evaluation only). */
+function MarketLine({ m }: { m: PlayedMatch }) {
+  if (!m.market) return <span className="dim played-comp">Market: no price before kickoff</span>;
+  const k = m.market;
+  return (
+    <span className="dim played-comp" title={`last price before kickoff, margin removed, averaged over ${k.bookmakers} bookmakers; 1X2 log loss ${k.scores.log_loss_1x2.toFixed(3)}`}>
+      Market: <span className="num">{pct(k.home)}% · {pct(k.draw)}% · {pct(k.away)}%</span>
+      {k.over25 !== null && <> · over 2.5 <span className="num">{pct(k.over25)}%</span></>}
+      {k.btts !== null && <> · BTTS <span className="num">{pct(k.btts)}%</span></>}
+    </span>
+  );
+}
+
+/** Our scores against the bookmakers' on the same matches, paired by match. */
+function MarketScores({ summary }: { summary: ScoreSummary[] }) {
+  const rows = summary.filter((s) => s.vs_market.length > 0);
+  if (!rows.length) return null;
+  const keys = ["log_loss_1x2", "rps_1x2", "log_loss_ou25", "log_loss_btts"];
+  const diff = (s: MeanScore | undefined) => {
+    if (!s) return <span className="dim">—</span>;
+    const sure = s.lo !== null && s.hi !== null && (s.hi < 0 || s.lo > 0);
+    return (
+      <span className={sure ? (s.mean < 0 ? "better" : "worse") : undefined}>
+        <span className="num">{s.mean >= 0 ? "+" : ""}{s.mean.toFixed(3)}</span>
+        {s.lo !== null && s.hi !== null && <> <span className="num dim">[{s.lo >= 0 ? "+" : ""}{s.lo.toFixed(3)}, {s.hi >= 0 ? "+" : ""}{s.hi.toFixed(3)}]</span></>}
+      </span>
+    );
+  };
+  return (
+    <section className="panel">
+      <h2>Against the market</h2>
+      <p className="note">
+        The bookmakers&apos; last price before kickoff, margin removed, averaged over the bookmakers quoting the whole market, scored
+        on the same matches. Ours minus the market&apos;s, paired by match, with its 95% interval: below zero means our forecast
+        scored better. For evaluation only: odds are never a model input.
+      </p>
+      <div className="table-wrap">
+        <table className="scores">
+          <thead>
+            <tr><th>Segment</th><th className="num">Priced</th>
+              {keys.map((k) => <th key={k}>{METRIC_LABEL[k]}: market · ours − market</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => (
+              <tr key={s.segment}>
+                <td>{s.segment === "all" ? "All" : <>{s.segment} <span className="tier">{tierLabel(s.tier)}</span></>}</td>
+                <td className="num">{s.vs_market[0]?.n ?? 0} <span className="dim">of {s.n}</span></td>
+                {keys.map((k) => {
+                  const mk = s.market_scores.find((x) => x.metric === k);
+                  return <td key={k}>{mk ? <span className="num">{mk.mean.toFixed(3)}</span> : "—"} · {diff(s.vs_market.find((x) => x.metric === k))}</td>;
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 /** How each side's projected lineup (as of kickoff - 24 h) did: starters, bench, formation. */
 function LineupLine({ m }: { m: PlayedMatch }) {
   const xs = [m.home_lineup, m.away_lineup];
@@ -171,6 +231,7 @@ export default function Played() {
           </div>
         </section>
       )}
+      {data && overall && <MarketScores summary={data.summary} />}
       {data && overall?.lineup && <LineupScores summary={data.summary} />}
       {data && data.matches.length > 0 && (
         <section className="panel">
@@ -185,6 +246,7 @@ export default function Played() {
                   title={`${m.competition} (${tierLabel(m.competition_tier)}) · forecast ${m.milestone}, published ${kickoffLocal(m.generated_at)}`}>
               <span className="num kickoff">{kickoffLocal(m.kickoff)}</span>
               <span className="teams">{m.home} <span className="dim">v</span> {m.away}<span className="dim played-comp"> · {m.competition} <span className="tier">{tierLabel(m.competition_tier)}</span></span>
+                <MarketLine m={m} />
                 <LineupLine m={m} /></span>
               <span className="num c result">{m.home_goals}–{m.away_goals}</span>
               <Outcome m={m} />

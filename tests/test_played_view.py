@@ -165,3 +165,58 @@ def test_no_result_before_the_match_or_without_a_result_row(tmp_path: Path) -> N
     m.status = "FT"  # finished, result not ingested yet
     w.s.commit()
     assert views.match_view(w.s, ctx(w), mid, AFTER).header.result is None
+
+
+# ---------------------------------------------- the market benchmark (owner, 2026-11-27)
+
+
+def _odds(w: World, mid: int, book: str, market: str, prices: dict[str, float],
+          at: timedelta, line: float | None = None) -> None:  # fmt: skip
+    for sel, odds in prices.items():
+        w.s.add(models.OddsSnapshot(match_id=mid, source_id=SOURCE_ID, bookmaker=book,
+                                    market=market, line=line, selection=sel, decimal_odds=odds,
+                                    snapshot_kind="pre", observed_at=K + at))  # fmt: skip
+    w.s.commit()
+
+
+def test_the_market_is_the_last_pre_kickoff_price_de_margined_over_bookmakers(
+    tmp_path: Path,
+) -> None:
+    w, mid = played_world(tmp_path, (2, 1))
+    hour = timedelta(hours=1)
+    _odds(w, mid, "A", "1X2", {"Home": 3.0, "Draw": 3.0, "Away": 3.0}, -3 * hour)  # replaced
+    _odds(w, mid, "A", "1X2", {"Home": 1.8, "Draw": 3.6, "Away": 4.5}, -hour)
+    _odds(w, mid, "A", "1X2", {"Home": 9.0, "Draw": 9.0, "Away": 1.1}, hour)  # after kickoff
+    _odds(w, mid, "B", "1X2", {"Home": 2.0, "Draw": 3.4, "Away": 3.8}, -2 * hour)
+    _odds(w, mid, "C", "1X2", {"Home": 1.5, "Draw": 4.0}, -hour)  # no away price: not used
+    _odds(w, mid, "A", "OU", {"Over": 1.9, "Under": 1.9}, -hour, line=2.5)
+    _odds(w, mid, "A", "OU", {"Over": 1.2, "Under": 4.0}, -hour, line=1.5)  # another line
+    _odds(w, mid, "B", "BTTS", {"Yes": 1.7, "No": 2.1}, -hour)
+    m = views.played(w.s, ctx(w), AFTER).matches[0]
+    assert m.market is not None and m.market.bookmakers == 2
+
+    def fair(prices: list[float]) -> np.ndarray:
+        inv = 1 / np.asarray(prices)
+        return np.asarray(inv / inv.sum())
+
+    want = (fair([1.8, 3.6, 4.5]) + fair([2.0, 3.4, 3.8])) / 2
+    got = np.array([m.market.home, m.market.draw, m.market.away])
+    assert got == pytest.approx(want, abs=1e-12) and got.sum() == pytest.approx(1)
+    assert m.market.over25 == pytest.approx(0.5)
+    assert m.market.btts == pytest.approx(fair([1.7, 2.1])[0])
+    assert m.market.scores.log_loss_1x2 == pytest.approx(metrics.log_loss(want, 0))
+    assert m.market.scores.log_loss_ou25 == pytest.approx(np.log(2))  # 3 goals: over
+    summary = views.played(w.s, ctx(w), AFTER).summary[0]
+    vs = {x.metric: x for x in summary.vs_market}
+    assert vs["log_loss_1x2"].mean == pytest.approx(
+        m.scores.log_loss_1x2 - m.market.scores.log_loss_1x2
+    )
+    assert {x.metric for x in summary.market_scores} == set(views.PLAYED_METRICS)
+
+
+def test_no_pre_kickoff_price_means_no_market(tmp_path: Path) -> None:
+    w, mid = played_world(tmp_path)
+    _odds(w, mid, "A", "1X2", {"Home": 1.8, "Draw": 3.6, "Away": 4.5}, timedelta(minutes=5))
+    out = views.played(w.s, ctx(w), AFTER)
+    assert out.matches[0].market is None
+    assert out.summary[0].vs_market == [] and out.summary[0].market_scores == []

@@ -418,7 +418,7 @@ def fit_q(train: pl.DataFrame, with_q: bool, prior_scale: float = 1.0, seed: int
             import pytensor.tensor as pt
 
             ph = np.array([PHASES.index(x) for x in train["phase"]])
-            rho0 = float(np.mean([np.mean(x) for x in train["rho_home"]]))
+            rho0 = float(train["rho_home"].list.mean().mean())  # type: ignore[arg-type]
             r_all = pm.Normal("rho_u", rho0, RHO_PRIOR_SD * prior_scale, shape=len(PHASES))
             r = r_all[ph]
             m00, m01 = (hg == 0) & (ag == 0), (hg == 0) & (ag == 1)

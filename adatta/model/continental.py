@@ -382,7 +382,8 @@ BUNDLE_ORDER = ("england", "spain", "italy", "germany", "france", "portugal", "n
 
 
 def fit_q(train: pl.DataFrame, with_q: bool, prior_scale: float = 1.0, seed: int = SEED,
-          rho_u: bool = False) -> tuple[dict[str, Arr], dict[str, Any]]:  # fmt: skip
+          rho_u: bool = False, target_accept: float = 0.9, draws: int = DRAWS
+          ) -> tuple[dict[str, Arr], dict[str, Any]]:  # fmt: skip
     """C1 (with_q) or B_own on the training matches: Poisson goals, att/def at their means.
     With `rho_u` (C1 v2, D62) the Dixon-Coles low-score term rho_U per format phase is
     fitted too, prior Normal(the training matches' mean domestic rho, RHO_PRIOR_SD).
@@ -426,8 +427,9 @@ def fit_q(train: pl.DataFrame, with_q: bool, prior_scale: float = 1.0, seed: int
             tau = (m00 * (1 - lam_t * mu_t * r) + m01 * (1 + lam_t * r) + m10 * (1 + mu_t * r)
                    + m11 * (1 - r) + ~(m00 | m01 | m10 | m11) * 1.0)  # fmt: skip
             pm.Potential("dixon_coles", pt.log(pt.maximum(tau, 1e-10)).sum())
-        idata = pm.sample(draws=DRAWS, tune=DRAWS, chains=CHAINS, nuts_sampler="numpyro",
-                          random_seed=seed, target_accept=0.9, progressbar=False)  # fmt: skip
+        idata = pm.sample(draws=draws, tune=draws, chains=CHAINS, nuts_sampler="numpyro",
+                          random_seed=seed, target_accept=target_accept,
+                          progressbar=False)  # fmt: skip
     checks = dg.convergence(idata)
     post = idata["posterior"]
     flat = {v: np.asarray(post[v].values).reshape(-1, *post[v].shape[2:]) for v in post.data_vars}
@@ -449,6 +451,19 @@ def fit_q(train: pl.DataFrame, with_q: bool, prior_scale: float = 1.0, seed: int
     if rho_u:
         diag["rho_u"] = dict(zip(PHASES, out["rho_u"].mean(axis=0).tolist(), strict=True))
     return out, diag
+
+
+def fit_redo(train: pl.DataFrame, with_q: bool, rho_u: bool = False
+             ) -> tuple[dict[str, Arr], dict[str, Any]]:  # fmt: skip
+    """C1 v2 (D62, amended 2026-11-27 after the dev check): a refit failing its inference
+    gates is redone once at REDO_TARGET_ACCEPT and REDO_DRAWS, as the side refits are; the
+    redo's diagnostics stand, with diag["redone"] set."""
+    post, diag = fit_q(train, with_q, rho_u=rho_u)
+    if diag["gates_ok"]:
+        return post, {**diag, "redone": False}
+    post, diag = fit_q(train, with_q, rho_u=rho_u, target_accept=REDO_TARGET_ACCEPT,
+                       draws=REDO_DRAWS)  # fmt: skip
+    return post, {**diag, "redone": True}
 
 
 def tails(post: dict[str, Arr], tg: pl.DataFrame) -> Arr:
@@ -692,8 +707,12 @@ def run_fit(tg: pl.DataFrame, elo: dict[int, float], scored: Sequence[int] = DEV
             continue
         train = cross.filter(pl.col("kickoff") + LAG <= t)
         assert (train["kickoff"] + LAG <= t).all()
-        post_q, dq = fit_q(train, True, rho_u=variant == "v2")
-        post_0, d0 = fit_q(train, False)
+        if variant == "v2":
+            post_q, dq = fit_redo(train, True, rho_u=True)
+            post_0, d0 = fit_redo(train, False)
+        else:
+            post_q, dq = fit_q(train, True)
+            post_0, d0 = fit_q(train, False)
         x = np.array([elo[m] for m in train["match_id"]]) / 100
         y = outcome(train["hg"].to_numpy(), train["ag"].to_numpy())
         b, c1, c2 = ordered_logit(x, y)
@@ -712,7 +731,10 @@ def run_fit(tg: pl.DataFrame, elo: dict[int, float], scored: Sequence[int] = DEV
                                        strict=True)),
                       "elo_logit": [b, c1, c2]})  # fmt: skip
         print(f"refit {t:%Y-%m-%d}: {dq['n_train']} train, {tgt.height} targets; C1 rhat "
-              f"{dq['rhat']:.3f} div {dq['divergences']:.0f}; Q " +
+              f"{dq['rhat']:.3f} div {dq['divergences']:.0f}"
+              + ("".join(f" ({m} redone)" for m, d in (("C1", dq), ("B_own", d0))
+                         if d.get("redone")))
+              + "; Q " +
               " ".join(f"{k[:3]} {v:+.2f}" for k, v in zip(BUNDLE_ORDER, qm, strict=True)),
               flush=True)  # fmt: skip
     return pl.concat(rows), diags
@@ -805,9 +827,18 @@ def sensitivity(tg: pl.DataFrame, t: datetime, variant: str = "c1"
     for s_ in (0.5, 1.0, 2.0):
         post = fit_q(train, True, s_, rho_u=variant == "v2")[0]
         out[str(s_)] = {"Q": post["Q"].mean(axis=0).tolist(),
-                        **({"rho_u": post["rho_u"].mean(axis=0).tolist()} if "rho_u" in post
+                        **({"rho_u": post["rho_u"].mean(axis=0).tolist(),
+                            "rho_u_sd": post["rho_u"].std(axis=0).tolist()} if "rho_u" in post
                            else {})}  # fmt: skip
     return out
+
+
+def rho_shifts(sens: dict[str, dict[str, list[float]]]) -> dict[str, float]:
+    """Per phase, the larger move of rho_U's mean under prior sd x0.5 and x2, in posterior
+    sds at x1 (the project's prior sensitivity rule, diagnostics.SENS_SHIFT_SD)."""
+    base, sd = sens["1.0"]["rho_u"], sens["1.0"]["rho_u_sd"]
+    return {ph: max(abs(sens[k]["rho_u"][j] - base[j]) for k in ("0.5", "2.0"))
+            / max(sd[j], 1e-12) for j, ph in enumerate(PHASES)}  # fmt: skip
 
 
 def venue_check(session: Any, tg: pl.DataFrame, five: dict[str, list[int]],
@@ -916,6 +947,7 @@ def passed(checks: dict[str, bool], holdout: bool) -> bool:
 def main(argv: Sequence[str] | None = None) -> None:
     from adatta.db.session import get_session
     from adatta.eval import harness
+    from adatta.model import diagnostics as dg
 
     ap = argparse.ArgumentParser(prog="adatta.model.continental")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -1002,6 +1034,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     text, rep = gate(scored, diags, label)
     text += draw_lines(scored)
     sens = sensitivity(tg, datetime.fromisoformat(diags[-1]["as_of"]), args.variant)
+    shifts = rho_shifts(sens) if args.variant == "v2" else {}
     leak = leakage(tg, hist, elo, neutral, scored_seasons)
     rep["checks"]["6 leakage"] = leak["ok"]
     rep["passed"] = passed(rep["checks"], key is not None)
@@ -1011,8 +1044,11 @@ def main(argv: Sequence[str] | None = None) -> None:
              + "; ".join(f"{b} " + " / ".join(f"{sens[k]['Q'][j]:+.3f}"
                                                for k in ("0.5", "1.0", "2.0"))
                          for j, b in enumerate(BUNDLE_ORDER)) + "\n"
-             + ("rho_U at the last refit (prior sd x0.5 / x1 / x2): " + "; ".join(
+             + ("rho_U at the last refit (prior sd x0.5 / x1 / x2; posterior sd at x1; "
+                f"largest shift in posterior sds, limit {dg.SENS_SHIFT_SD:.1f}): " + "; ".join(
                  f"{ph} " + " / ".join(f"{sens[k]['rho_u'][j]:+.3f}" for k in ("0.5", "1.0", "2.0"))
+                 + f" (sd {sens['1.0']['rho_u_sd'][j]:.3f}; shift {shifts[ph]:.2f}"
+                 + f" {'pass' if shifts[ph] < dg.SENS_SHIFT_SD else 'FAIL'})"
                  for j, ph in enumerate(PHASES)) + "\n" if args.variant == "v2" else "")
              + ("Gating on the holdout: checks 1-4 (config/uefa_gate.yml); 5 and 6 reported.\n"
                 if key else "")

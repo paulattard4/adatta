@@ -304,3 +304,29 @@ def test_the_dev_check_compares_v2_with_c1_on_shared_matches() -> None:
 
     assert "pass" in ct.compare_lines(rows(0.3), rows(0.2))  # both draws: v2 better
     assert "FAIL" in ct.compare_lines(rows(0.2), rows(0.3))
+
+
+def test_a_failing_v2_refit_is_redone_once_and_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def fake(train: Any, with_q: bool, **kw: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+        calls.append(kw)
+        return {}, {"gates_ok": len(calls) > 1 or not kw.get("rho_u")}
+
+    monkeypatch.setattr(ct, "fit_q", fake)
+    assert ct.fit_redo(None, True, rho_u=True)[1] == {"gates_ok": True, "redone": True}  # type: ignore[arg-type]
+    assert calls[1] == {"rho_u": True, "target_accept": ct.REDO_TARGET_ACCEPT,
+                        "draws": ct.REDO_DRAWS}  # fmt: skip
+    calls.clear()
+    assert ct.fit_redo(None, False)[1] == {"gates_ok": True, "redone": False}  # type: ignore[arg-type]
+    assert len(calls) == 1
+
+
+def test_rho_u_prior_sensitivity_is_in_posterior_sds() -> None:
+    sens = {"0.5": {"rho_u": [0.0, -0.065, 0.0, 0.0]},
+            "1.0": {"rho_u": [0.0, -0.096, 0.0, 0.0], "rho_u_sd": [0.02, 0.04, 0.1, 0.02]},
+            "2.0": {"rho_u": [0.01, -0.128, 0.0, 0.0]}}  # fmt: skip
+    s = ct.rho_shifts(sens)
+    assert s["group_stage"] == pytest.approx(0.5)
+    assert s["league_phase"] == pytest.approx(0.032 / 0.04)
+    assert s["qualifying"] == 0.0

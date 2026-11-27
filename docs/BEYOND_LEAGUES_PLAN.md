@@ -2476,6 +2476,15 @@ one divergence.**
   - 1 target left out because a side's refit still fails after its redo.
   - Leakage: 0 of 50 sampled targets changed.
 
+**Amended 2026-11-27, after that dev result** (owner: "Yes, redo and rerun"):
+- A C1 v2 or B_own refit that fails its inference gates is redone once at target_accept
+  0.99 and 4,000 draws, the rule the side refits already follow (`fit_redo`). The redo's
+  diagnostics stand, and the refit line says it was redone.
+- The report prints ρ_U's posterior sd at ×1 and each phase's largest shift under ×0.5
+  and ×2 in posterior sds. It applies the project's rule: a shift under 1 sd passes.
+- This changes a sampler setting and a report, not the model. It was decided after a dev
+  result and is recorded as such. Only the fit stage reruns, on the same cached strengths.
+
 
 Its own fit, not inside the club model:
 - **v0 (team only, from results):** one global strength scale with confederation effects,

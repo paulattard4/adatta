@@ -140,3 +140,22 @@ def test_stretch_and_walk_forward_recalibration() -> None:
     assert s[0] == pytest.approx(prior) and prior == pytest.approx(1.025, abs=0.002)
     assert s[-1] > s[10] > prior  # the prior first (the grid is not symmetric), then up
     assert out["p"][-1] > 0.6
+
+
+def test_the_cups_live_gate_keeps_the_holdout_checks() -> None:
+    """D63: B3 unstretched is judged on 2026/27 cup ties with the cup holdout's checks."""
+    import inspect
+    from pathlib import Path
+
+    import yaml
+
+    from adatta.eval import knockout as ek
+    from adatta.features import cup_ties
+
+    g = yaml.safe_load(Path("config/cups_live_gate.yml").read_text())["cups_live_gate"]
+    assert g["max_cup_rel_worse"] == ek.CUP_WORSE_MAX and g["stretch"] is False
+    assert sorted(g["cups"]) == sorted(cup_ties.cup_bundles()) and g["seasons"] == [2026]
+    sig = inspect.signature(ek.ece_null).parameters
+    assert sig["n_sims"].default == g["ece_sims"]
+    assert inspect.signature(ek.ece).parameters["bins"].default == g["ece_bins"]
+    assert g["ece_quantile"] == 0.95 and g["checks"] == [1, 2, 3]

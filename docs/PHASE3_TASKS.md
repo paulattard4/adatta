@@ -1811,8 +1811,8 @@ Consequences:
       the same pitch on 20 of 20. Per (e), the panel shows the three options and the pitch on
       the match page. Live monitoring, (d)2, starts with the interim reports.
 - [ ] **P3-h2 Projected pitch: the last lineup in the formation, with unavailable players
-      replaced.** Drafted 2026-11-27 before building (owner: "Yes, that order"); not
-      approved.
+      replaced.** Drafted 2026-11-27 before building; owner: "Approve both as drafted"
+      (D64, shadow then show).
 
       **Why.** P3-g's slot-by-slot XI lost to "the team's last lineup in the projected
       formation" (D42), and P3-h now shows that lineup unchanged ("no player is swapped in

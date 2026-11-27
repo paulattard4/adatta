@@ -1079,7 +1079,7 @@ asked for B, C, D and then A3, in that order, each with its own acceptance.
       Copa del Rey +0.93%.
 
 
-### Stage B live: unstretched P(advance) on 2026/27 cup ties (drafted 2026-11-27 before building; owner: "Yes, that order"; not approved)
+### Stage B live: unstretched P(advance) on 2026/27 cup ties (drafted 2026-11-27 before building; owner: "Approve both as drafted", D63, the recommended choice in each)
 
 **Why.**
 - B3' (B3 with a stretch fitted on dev) failed the cup holdout: log loss +1.07% against

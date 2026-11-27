@@ -1,0 +1,29 @@
+# Stage B live (D63; docs/BEYOND_LEAGUES_PLAN.md "Stage B live"): the pre-registered gate for
+# B3 unstretched, P(advance) on 2026/27 domestic cup ties. Written 2026-11-27, before any B3
+# score on 2026/27 exists; never edited after it.
+#
+# Model: B3 as on the cup holdout (B0's rules in config/cup_formats.yml, extra time from the
+# same matrices, kappa 1, the coin-flip shootout, no stretch), from the production refits A1
+# serves from. Ties: the five cups' 2026/27 ties where both sides play a league of the cup's
+# bundle (A1's served scope), read once after opens_after. Two-legged ties are scored
+# before leg 2; before leg 1 is reported.
+#
+# Gate (the cup holdout's checks for B3, unchanged):
+#   1. P(advance) log loss no worse than the baseline "90' model, level = coin flip" (point
+#      estimate <= 0; interval reported);
+#   2. ECE within its noise floor (ece_quantile of ece_sims draws of outcomes from the
+#      forecast);
+#   3. no cup worse than the baseline by more than max_cup_rel_worse (point estimate).
+# A pass means P(advance) for domestic cup ties gets its own serving acceptance; a fail
+# changes nothing.
+cups_live_gate:
+  model: b3_unstretched
+  stretch: false
+  seasons: [2026]
+  opens_after: "2027-06-15"
+  cups: [45, 143, 137, 81, 66]
+  ece_bins: 10
+  ece_sims: 2000
+  ece_quantile: 0.95
+  max_cup_rel_worse: 0.010
+  checks: [1, 2, 3]

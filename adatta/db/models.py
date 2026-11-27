@@ -636,6 +636,9 @@ class FormationProjection(Base):
                                                           nullable=True)  # fmt: skip
     positional: Mapped[bool] = mapped_column(Boolean, default=False)  # full codes vs lines
     slots: Mapped[list[Any] | None] = mapped_column(JsonType, nullable=True)  # [{code, player_id}]
+    # P3-h2 (D64), shadow: the pitch with players the feed lists as out replaced
+    slots_replaced: Mapped[list[Any] | None] = mapped_column(JsonType, nullable=True)
+    replacements: Mapped[int | None] = mapped_column(Integer, nullable=True)
     __table_args__ = (Index("ix_formation_projection_match", "match_id", "generated_at"),)
 
 

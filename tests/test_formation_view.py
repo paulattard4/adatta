@@ -80,7 +80,13 @@ def test_pitch_is_the_last_lineup_in_that_formation_final_by_the_as_of() -> None
     after_first = T1 + timedelta(days=10)
     p = sf.pitch(lu, idx, 1, "4-4-2", after_first)
     assert p is not None and p["match_id"] == 10 and p["positional"]
-    assert p["slots"][0] == {"code": "GK", "player_id": 1, "row": 1, "col": 1}
+    assert p["slots"][0] == {
+        "code": "GK",
+        "player_id": 1,
+        "row": 1,
+        "col": 1,
+        "line": "G",
+    }  # P3-h2 keeps the line (D64)
     # the third match is final only RESULT_LAG after kickoff
     third = T1 + timedelta(weeks=2)
     assert sf.pitch(lu, idx, 1, "4-4-2", third + RESULT_LAG / 2)["match_id"] == 10  # type: ignore[index]
@@ -145,3 +151,60 @@ def test_squad_panel_shows_three_formations_and_the_pitch(tmp_path: Path) -> Non
     assert [(p.name, p.code, p.p_start, p.status) for p in f.pitch] == [
         ("Ana", "GK", None, None), ("Bea", "ST", None, "out")]  # fmt: skip
     assert sum(o.p for o in f.options) == pytest.approx(0.85)
+
+
+# ------------------------------------------------------------ P3-h2 (D64): replaced pitch
+
+
+def _slots() -> list[dict[str, object]]:
+    return [{"code": "GK", "line": "G", "player_id": 1, "row": 1, "col": 1},
+            {"code": "LCB", "line": "D", "player_id": 2, "row": 2, "col": 2},
+            {"code": "RCB", "line": "D", "player_id": 3, "row": 2, "col": 3},
+            {"code": "ST", "line": "F", "player_id": 4, "row": 4, "col": 1}]  # fmt: skip
+
+
+def test_an_out_player_is_replaced_from_his_slot_then_his_line() -> None:
+    from adatta.sim import formations as fs
+
+    squad = {1: (0.95, None), 2: (0.1, "missing"), 3: (0.6, "questionable"),
+             4: (0.05, "missing"), 10: (0.4, None), 11: (0.7, None), 12: (0.9, None),
+             13: (0.2, "missing")}  # fmt: skip
+    coded = {10: {"LCB"}, 11: {"LCB", "RCB"}, 12: {"ST"}, 13: {"LCB"}}
+    lines = {10: {"D"}, 11: {"D"}, 12: {"F"}, 13: {"D"}}
+    got, n = fs.replace_unavailable(_slots(), squad, coded, lines, positional=True)
+    by = {x["code"]: x for x in got}
+    assert n == 2
+    assert by["LCB"]["player_id"] == 11 and by["LCB"]["replaced"] == 2  # highest p_start
+    assert by["ST"]["player_id"] == 12 and by["ST"]["replaced"] == 4
+    assert by["RCB"]["player_id"] == 3 and by["RCB"]["status"] == "questionable"  # kept
+    assert by["GK"] == _slots()[0]  # untouched
+    assert len({x["player_id"] for x in got}) == 4  # each player once
+
+
+def test_with_no_slot_match_the_line_is_used_and_an_empty_pool_is_flagged() -> None:
+    from adatta.sim import formations as fs
+
+    squad = {1: (0.9, None), 2: (0.2, "missing"), 3: (0.8, None), 4: (0.1, "missing"),
+             20: (0.5, None)}  # fmt: skip
+    got, n = fs.replace_unavailable(_slots(), squad, {20: {"LB"}}, {20: {"D"}}, positional=True)
+    by = {x["code"]: x for x in got}
+    assert n == 1 and by["LCB"]["player_id"] == 20  # no LCB start: same line
+    assert by["ST"]["player_id"] == 4 and by["ST"]["unfilled"] is True  # nobody up front
+    lines_only = [dict(x, code=x["line"]) for x in _slots()]
+    got2, n2 = fs.replace_unavailable(lines_only, squad, {}, {20: {"D"}}, positional=False)
+    assert n2 == 1 and next(x for x in got2 if x.get("replaced") == 2)["player_id"] == 20
+
+
+def test_coded_starts_use_only_lineups_final_by_the_cutoff() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    import polars as pl
+
+    from adatta.sim import formations as fs
+
+    t = datetime(2026, 11, 20, tzinfo=UTC)
+    lu = pl.DataFrame({"player_id": [1, 1, 2], "slot": ["LB", "LCB", "ST"],
+                       "line": ["D", "D", "F"], "positional": [True, False, True],
+                       "kickoff": [t - timedelta(days=10), t - timedelta(days=5), t]})  # fmt: skip
+    slots, lines = fs.coded_starts(lu, t)
+    assert slots == {1: {"LB"}} and lines == {1: {"D"}}  # the later match is not final yet

@@ -99,11 +99,85 @@ def pitch(lineups: pl.DataFrame, index: dict[tuple[int, str], list[tuple[datetim
     positional = bool(rows["positional"][0])
     slots = [
         {"code": (slot if positional else line), "player_id": int(pid), "row": int(r),
-         "col": int(c)}
+         "col": int(c), "line": line}
         for pid, slot, line, r, c in rows.sort("row", "col")
         .select("player_id", "slot", "line", "row", "col").iter_rows()
     ]  # fmt: skip
     return {"match_id": mid, "kickoff": kick, "positional": positional, "slots": slots}
+
+
+Pools = dict[int, set[str]]
+
+
+def coded_starts(lineups: pl.DataFrame, cutoff: datetime) -> tuple[Pools, Pools]:
+    """Per player, the slot codes (positional league-seasons) and lines he has started in,
+    final by `cutoff` (kickoff <= cutoff - RESULT_LAG): P3-h2's replacement pools."""
+    cut = _utc(cutoff).astimezone(UTC) - RESULT_LAG
+    s = lineups.filter(pl.col("kickoff") <= cut)
+    slots: dict[int, set[str]] = {}
+    lines: dict[int, set[str]] = {}
+    for pid, slot, line, pos in s.select("player_id", "slot", "line", "positional").iter_rows():
+        if pos and slot is not None:
+            slots.setdefault(int(pid), set()).add(str(slot))
+        if line is not None:
+            lines.setdefault(int(pid), set()).add(str(line))
+    return slots, lines
+
+
+def replace_unavailable(slots: list[dict[str, Any]], squad: dict[int, tuple[float, str | None]],
+                        coded: dict[int, set[str]], lines: dict[int, set[str]],
+                        positional: bool) -> tuple[list[dict[str, Any]], int]:  # fmt: skip
+    """P3-h2 (D64): the pitch with each player the feed lists as out ("missing") replaced by
+    the available squad player with the highest P3-b start probability who has started in
+    the same slot code (positional) or line, else the same line; with none, the slot keeps
+    its player, flagged. `squad`: player -> (P3-b p_start, feed status). Each player is used
+    once. Nothing is fitted. Returns the slots and the number of replacements."""
+    used = {int(x["player_id"]) for x in slots}
+    out, n = [], 0
+    for x in slots:
+        pid = int(x["player_id"])
+        st = squad.get(pid, (0.0, None))[1]
+        if st != "missing":
+            out.append({**x, "status": st} if st else dict(x))
+            continue
+        pool = {q: v for q, v in squad.items() if q not in used and v[1] != "missing"}
+        pools = ([(x["code"], coded)] if positional else []) + [(x["line"], lines)]
+        pick = None
+        for want, have in pools:
+            cands = [q for q in pool if want in have.get(q, set())]
+            if cands:
+                pick = max(cands, key=lambda q: (pool[q][0], -q))
+                break
+        if pick is None:
+            out.append({**x, "status": st, "unfilled": True})
+            continue
+        used.add(pick)
+        n += 1
+        out.append({**x, "player_id": pick, "replaced": pid, "status": pool[pick][1]})
+    return out, n
+
+
+def _squads(session: Session, match_ids: list[int], now: datetime
+            ) -> dict[tuple[int, int], dict[int, tuple[float, str | None]]]:  # fmt: skip
+    """P3-b's latest stored projection published by `now` per (match, team): player ->
+    (p_start, the feed status it carried)."""
+    from sqlalchemy import func, select
+
+    LP = models.LineupProjection
+    if not match_ids:
+        return {}
+    last = (select(LP.match_id, LP.team_id, func.max(LP.generated_at).label("g"))
+            .where(LP.match_id.in_(match_ids), LP.generated_at <= now)
+            .group_by(LP.match_id, LP.team_id).subquery())  # fmt: skip
+    rows = session.execute(
+        select(LP.match_id, LP.team_id, LP.player_id, LP.p_start, LP.status)
+        .join(last, (last.c.match_id == LP.match_id) & (last.c.team_id == LP.team_id)
+              & (last.c.g == LP.generated_at))
+    ).all()  # fmt: skip
+    out: dict[tuple[int, int], dict[int, tuple[float, str | None]]] = {}
+    for mid, tid, pid, p, st in rows:
+        out.setdefault((int(mid), int(tid)), {})[int(pid)] = (float(p), st)
+    return out
 
 
 # ----------------------------------------------------------------- squad rules (panel)
@@ -254,6 +328,9 @@ def run(session: Session, store: RawStore, bundles: dict[str, list[int]],
     table = fe.build(inp, vocab, unplayed=True).join(tg.select("match_id", "as_of"),
                                                      on="match_id")  # fmt: skip
     index = last_lineups(lineups)
+    coded, lines = coded_starts(lineups, cutoff)  # P3-h2 (D64) pools, final by the cutoff
+    squads = _squads(session, [int(x) for x in tg["match_id"].to_list()], now)
+    report["replaced"] = 0
     out: list[models.FormationProjection] = []
     for b, ls in bundles.items():
         block = table.filter(pl.col("league_ref").is_in([str(x) for x in ls]))
@@ -274,6 +351,11 @@ def run(session: Session, store: RawStore, bundles: dict[str, list[int]],
             pt = pitch(lineups, index, int(r["team_id"]), f_pitch, _utc(r["as_of"]))
             report["no_last"] += pt is None
             report["positional"] += bool(pt and pt["positional"])
+            sq = squads.get((int(r["match_id"]), int(r["team_id"])), {})
+            rs, n_rep = (replace_unavailable(pt["slots"], sq, coded, lines,
+                                             bool(pt["positional"]))
+                         if pt else (None, None))  # fmt: skip
+            report["replaced"] += n_rep or 0
             out.append(models.FormationProjection(
                 match_id=r["match_id"], team_id=r["team_id"], generated_at=now,
                 as_of=r["as_of"], refit_key=key, refit_as_of=refit_as_of,
@@ -283,6 +365,7 @@ def run(session: Session, store: RawStore, bundles: dict[str, list[int]],
                 last_kickoff=pt["kickoff"] if pt else None,
                 positional=bool(pt and pt["positional"]),
                 slots=pt["slots"] if pt else None,
+                slots_replaced=rs, replacements=n_rep,
             ))  # fmt: skip
     session.add_all(out)
     session.flush()

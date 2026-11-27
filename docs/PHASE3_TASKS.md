@@ -1857,6 +1857,21 @@ Consequences:
 
       **Cost:** 0 API requests; one migration.
 
+      **Built (2026-11-27), shadow only:**
+      - `adatta/sim/formations.py`:
+        - `replace_unavailable` (the rule);
+        - `coded_starts`, the slot codes and lines each player started in, final by the
+          run's cutoff;
+        - `_squads`, P3-b's latest stored start probabilities and feed status per match
+          and team, published by the run time.
+      - The daily formation run stores `slots_replaced` and `replacements` beside
+        `slots`. The API and the panel don't read them.
+      - Migration 0019 is additive (two nullable columns) and was applied 2026-11-27.
+      - **Tests:** 3 new in `tests/test_formation_view.py`.
+      - **Still to build before the window opens (winter break):** the verdict script.
+        It reads both pitches against the announced lineups (XI overlap, and slot accuracy
+        in positional league-seasons), paired by team-match. It is run once.
+
 - [ ] **P3-i Lineup offset with attack and defence, live shadow (D43). Closed (D44).** Owner, 2026-11-21:
       "any way we can have lineup projections and changes affect our match projections?",
       then "Live shadow, attack + defence".

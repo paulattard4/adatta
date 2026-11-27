@@ -2218,7 +2218,8 @@ Consequences:
         - J_lk targets read the same. J_24 targets read the signals of P3-b's projected
           XI: the 11 likeliest starters in P3-b's pool (selection report 44406512773, the
           export P3-d used), as of kickoff − 24 h.
-        - The table is `features/lineup_signals/v2` (all seasons 2016-2023): 99.6% dev
+        - The table is `features/lineup_signals/v2/021eb8f8c77ed8f1` (2016-2023; the same
+          digest from two builds, manifest code 5ac8f2e): 99.6% dev
           coverage at both horizons. A rebuild of 20 sampled dev team-matches, from the
           matches before kickoff plus the match with its minutes and ratings removed,
           changed 0.

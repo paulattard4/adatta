@@ -70,6 +70,18 @@ class Headline(BaseModel):
     away: Prob
 
 
+class MarketLine(BaseModel):
+    """The market beside an upcoming forecast, de-margined from each bookmaker's latest
+    price: information only, never an edge flag and never a model input (principle 1)."""
+
+    home: float
+    draw: float
+    away: float
+    over25: float | None
+    btts: float | None
+    bookmakers: int
+
+
 class FixtureRow(BaseModel):
     match_id: int
     kickoff: datetime
@@ -80,6 +92,7 @@ class FixtureRow(BaseModel):
     headline: Headline | None
     no_projection_reason: str | None
     confidence: list[Component]
+    market: MarketLine | None = None  # information only, no edge flag (owner, 2026-11-27)
 
 
 class CompetitionGroup(BaseModel):
@@ -346,6 +359,7 @@ class MatchView(BaseModel):
     # its refits; shown only when coherent. Otherwise `half_reason` says why there are none.
     half_coherence: Coherence | None = None
     half_reason: str | None = None
+    market: MarketLine | None = None  # information only, no edge flag (owner, 2026-11-27)
 
 
 class TournamentEntry(BaseModel):
@@ -416,6 +430,51 @@ class PlayedMarket(BaseModel):
     scores: PlayedScores
 
 
+class PlayedClv(BaseModel):
+    """Closing-line value inputs of one played match (adatta.api.market.clv_inputs): with
+    d = our first 1X2 - the market when it was published, m = the closing market - that
+    opening market: moved = d.m (> 0: towards us), gap = d.d."""
+
+    moved: float
+    gap: float
+    bookmakers: int
+
+
+class ClvSummary(BaseModel):
+    """The market's movement towards our first forecasts over a segment."""
+
+    n: int  # matches with an opening and a later closing market
+    n_moved: int  # of them, where the market moved relative to our forecast
+    toward: float | None  # share of n_moved where it moved towards us
+    toward_lo: float | None
+    toward_hi: float | None
+    closed: float | None  # share of our disagreement closed by kickoff: sum(d.m) / sum(d.d)
+    closed_lo: float | None  # bootstrap 95% interval over matches
+    closed_hi: float | None
+
+
+class ReliabilityBin(BaseModel):
+    """1X2 calibration: every outcome's forecast probability, pooled, in tenths."""
+
+    lo: float
+    hi: float
+    n: int
+    predicted: float  # mean forecast probability in the bin
+    observed: float  # share of those outcomes that happened
+
+
+class TrendPoint(BaseModel):
+    """The running 1X2 log loss gap to the market, by kickoff day (cumulative)."""
+
+    day: str  # YYYY-MM-DD, UTC
+    n: int  # matches so far with a market
+    ours: float
+    market: float
+    diff: float  # ours minus the market's (< 0: ours better)
+    diff_lo: float | None
+    diff_hi: float | None
+
+
 class PlayedMatch(BaseModel):
     match_id: int
     kickoff: datetime
@@ -437,6 +496,7 @@ class PlayedMatch(BaseModel):
     btts: Prob | None
     scores: PlayedScores
     market: PlayedMarket | None = None  # None without a pre-kickoff 1X2 price
+    clv: PlayedClv | None = None  # None without an opening and a later closing market
     home_lineup: LineupScore | None = None  # how the projection as of kickoff - 24 h did
     away_lineup: LineupScore | None = None
 
@@ -472,6 +532,7 @@ class ScoreSummary(BaseModel):
     scores: list[MeanScore]
     market_scores: list[MeanScore] = []  # the market's, over the matches it priced
     vs_market: list[MeanScore] = []  # ours minus the market's, paired by match (< 0: ours better)
+    clv: ClvSummary | None = None
     lineup: LineupSummary | None = None
 
 
@@ -482,6 +543,8 @@ class PlayedList(BaseModel):
     end: datetime
     uniform_log_loss_1x2: float  # ln 3: a forecast of 1/3 each
     summary: list[ScoreSummary]
+    reliability: list[ReliabilityBin] = []
+    trend: list[TrendPoint] = []
     matches: list[PlayedMatch]  # newest first
 
 

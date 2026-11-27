@@ -571,7 +571,25 @@ def fixture_list(session: Session, ctx: Context, now: datetime, start: datetime 
                                                  team_level),
              *c2.groups(session, ctx, now, start, end, competition_id, team_level)]  # fmt: skip
     order = sorted(every, key=lambda g: competition_order(g.country, g.tier, g.name))
+    lines = _market_lines(session, {f.match_id: f.kickoff for g in order for f in g.fixtures
+                                    if f.team_level == "senior" and f.headline is not None},
+                          now)  # fmt: skip
+    for g in order:
+        for f in g.fixtures:
+            f.market = lines.get(f.match_id)
     return sc.FixtureList(generated_at=now, start=start, end=end, competitions=order)
+
+
+def _market_lines(session: Session, upcoming: dict[int, datetime], now: datetime
+                  ) -> dict[int, sc.MarketLine]:  # fmt: skip
+    """The bookmakers' latest de-margined prices for upcoming senior forecasts {match:
+    kickoff}, shown beside ours for information only (owner, 2026-11-27): no edge flag until
+    an edge test is written and passed; senior only (principle 10)."""
+    from adatta.api.market import market_view, upcoming_market
+
+    view = market_view(session, {mid: min(now, _utc(k)) for mid, k in upcoming.items()
+                                 if _utc(k) > now})  # fmt: skip
+    return {mid: line for mid in view if (line := upcoming_market(view[mid])) is not None}
 
 
 def _kickoff_then(session: Session, m: MatchRow, at: datetime) -> datetime:
@@ -585,6 +603,15 @@ def _kickoff_then(session: Session, m: MatchRow, at: datetime) -> datetime:
 
 
 def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> sc.MatchView:
+    """The match page, with the market line beside an upcoming senior forecast."""
+    view = _match_view(session, ctx, match_id, now)
+    h = view.header
+    if view.milestones and h.team_level == "senior":
+        view.market = _market_lines(session, {h.match_id: h.kickoff}, now).get(h.match_id)
+    return view
+
+
+def _match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> sc.MatchView:
     from adatta.adapters.normalize import FINISHED
 
     rows = _matches(session, ctx, [models.Match.match_id == match_id])
@@ -933,10 +960,11 @@ def _formation(session: Session, match_id: int, team_id: int, now: datetime,
 
 
 def _pre_kickoff_forecasts(
-    session: Session, kickoffs: dict[int, datetime]
+    session: Session, kickoffs: dict[int, datetime], first: bool = False
 ) -> dict[int, tuple[str, datetime, list[models.MarketProjection]]]:
-    """Per match: the latest milestone whose projection run was generated before kickoff,
-    its generation time and rows. A run generated at or after kickoff is never used."""
+    """Per match: the latest milestone whose projection run was generated before kickoff
+    (with `first`, the earliest), its generation time and rows. A run generated at or after
+    kickoff is never used."""
     MP, PR = models.MarketProjection, models.ProjectionRun
     found: dict[int, dict[str, tuple[datetime, list[models.MarketProjection]]]] = {}
     ids = list(kickoffs)
@@ -958,7 +986,8 @@ def _pre_kickoff_forecasts(
             slot[r.milestone] = (t, rows)
     out = {}
     for mid, slot in found.items():
-        ms = max(slot, key=lambda m: slot[m][0])  # the latest published before kickoff
+        pick = min if first else max
+        ms = pick(slot, key=lambda m: slot[m][0])  # the latest (or first) before kickoff
         out[mid] = (ms, *slot[ms])
     return out
 
@@ -1018,8 +1047,11 @@ def _summary(
         if pairs:
             market.append(_mean_score(metric, [b for _, b in pairs]))
             diff.append(_mean_score(metric, [a - b for a, b in pairs]))
+    from adatta.api.market import clv_summary
+
     return sc.ScoreSummary(segment=segment, competition_id=cid, tier=tier, n=len(ms),
                            scores=scores, market_scores=market, vs_market=diff,
+                           clv=clv_summary([m.clv for m in ms if m.clv is not None]),
                            lineup=_lineup_summary(ms))  # fmt: skip
 
 
@@ -1060,10 +1092,11 @@ def played(
     end: datetime | None = None,
     competition_id: int | None = None,
 ) -> sc.PlayedList:
-    """Finished bundle league matches against the forecast published before their kickoff
+    """Finished matches of every served competition (the five's leagues and cups, the C2
+    top flights, senior internationals) against the forecast published before their kickoff
     (docs/DASHBOARD_TASKS.md, played view)."""
     from adatta.adapters.normalize import FINISHED
-    from adatta.api.market import market_view, played_market
+    from adatta.api.market import clv_inputs, market_view, played_market
     from adatta.eval import metrics
 
     end = end or now
@@ -1079,6 +1112,16 @@ def played(
     rows = [r for r in _matches(session, ctx, where)
             if (r.round or "").startswith("Regular Season") or r.tier == "cup"] \
         if since else []  # fmt: skip
+    if since:  # every served competition (owner, 2026-11-27): C2 top flights, internationals
+        from adatta.api import c2 as c2v
+
+        c2_rows = _matches(session, ctx, where, leagues=list(c2v.leagues()))
+        point_ids = {r.match_id for r in c2_rows}  # baseline point forecasts (D54)
+        rows += c2_rows
+        rows += [r for r in _matches(session, ctx, where, national=True)
+                 if r.team_level == "senior"]  # principle 10: no youth output  # fmt: skip
+    else:
+        point_ids = set()
     results = _results(session, [r.match_id for r in rows])
     forecasts = _pre_kickoff_forecasts(
         session, {r.match_id: r.kickoff for r in rows if r.match_id in results}
@@ -1087,6 +1130,12 @@ def played(
         r.match_id: r.kickoff for r in rows if r.match_id in forecasts and r.match_id in results
     }
     market = market_view(session, priced)
+    clv_in: dict[int, tuple[datetime, datetime, Any]] = {}
+    for mid, (_, gen0, prs0) in _pre_kickoff_forecasts(session, priced, first=True).items():
+        x0 = {q.selection: q.probability for q in prs0 if q.market_type == "1X2"}
+        if {"home", "draw", "away"} <= x0.keys():
+            clv_in[mid] = (gen0, priced[mid], np.array([x0["home"], x0["draw"], x0["away"]]))
+    clv = clv_inputs(session, clv_in)
     out: list[sc.PlayedMatch] = []
     for r in rows:
         if r.match_id not in forecasts or r.match_id not in results:
@@ -1094,6 +1143,7 @@ def played(
         ms, gen, prs = forecasts[r.match_id]
         sel = {(p.market_type, p.line, p.selection): p for p in prs}
         hg, ag = results[r.match_id]
+        pp = c2v._p if r.match_id in point_ids else _p  # a C2 point forecast has no interval
         x = [sel[("1X2", None, s)] for s in ("home", "draw", "away")]
         p1x2 = np.array([p.probability for p in x])
         k = metrics.outcomes(hg, ag)
@@ -1111,9 +1161,10 @@ def played(
             competition=r.competition, competition_tier=r.tier, team_level=r.team_level,
             home=r.home, away=r.away, home_goals=hg, away_goals=ag,
             outcome=("home", "draw", "away")[k["1X2"]], milestone=ms, generated_at=gen,
-            home_p=_p(x[0]), draw_p=_p(x[1]), away_p=_p(x[2]),
-            over25=None if over is None else _p(over), btts=None if btts is None else _p(btts),
+            home_p=pp(x[0]), draw_p=pp(x[1]), away_p=pp(x[2]),
+            over25=None if over is None else pp(over), btts=None if btts is None else pp(btts),
             scores=scores, market=played_market(market.get(r.match_id), hg, ag),
+            clv=clv.get(r.match_id),
         ))  # fmt: skip
     _lineup_scores(session, ctx.store, out, {r.match_id: r for r in rows})
     out.sort(key=lambda m: (m.kickoff, m.match_id), reverse=True)
@@ -1134,8 +1185,49 @@ def played(
         end=end,
         uniform_log_loss_1x2=float(np.log(3)),
         summary=summary,
+        reliability=_reliability(out),
+        trend=_trend(out),
         matches=out,
     )
+
+
+def _reliability(ms: list[sc.PlayedMatch], bins: int = 10) -> list[sc.ReliabilityBin]:
+    """1X2 calibration: every outcome's forecast probability pooled, in equal-width bins."""
+    p = np.array([[m.home_p.p, m.draw_p.p, m.away_p.p] for m in ms]).reshape(-1)
+    y = np.array([[m.outcome == o for o in ("home", "draw", "away")] for m in ms],
+                 dtype=float).reshape(-1)  # fmt: skip
+    out = []
+    for i in range(bins):
+        lo, hi = i / bins, (i + 1) / bins
+        sel = (p >= lo) & ((p < hi) if i < bins - 1 else (p <= hi))
+        if sel.any():
+            out.append(sc.ReliabilityBin(lo=lo, hi=hi, n=int(sel.sum()),
+                                         predicted=float(p[sel].mean()),
+                                         observed=float(y[sel].mean())))  # fmt: skip
+    return out
+
+
+TREND_MIN = 10  # the running gap starts once this many matches have a market
+
+
+def _trend(ms: list[sc.PlayedMatch]) -> list[sc.TrendPoint]:
+    """The cumulative 1X2 log loss of ours and the market's, by kickoff day (UTC)."""
+    xs = sorted((m for m in ms if m.market is not None), key=lambda m: (m.kickoff, m.match_id))
+    ours, mkt, out = [], [], []
+    for i, m in enumerate(xs):
+        assert m.market is not None
+        ours.append(m.scores.log_loss_1x2)
+        mkt.append(m.market.scores.log_loss_1x2)
+        day = _utc(m.kickoff).strftime("%Y-%m-%d")
+        if i + 1 < len(xs) and _utc(xs[i + 1].kickoff).strftime("%Y-%m-%d") == day:
+            continue
+        if len(ours) < TREND_MIN:  # a handful of matches would set the scale
+            continue
+        d = _mean_score("diff", [a - b for a, b in zip(ours, mkt, strict=True)])
+        out.append(sc.TrendPoint(day=day, n=len(ours), ours=float(np.mean(ours)),
+                                 market=float(np.mean(mkt)), diff=d.mean, diff_lo=d.lo,
+                                 diff_hi=d.hi))  # fmt: skip
+    return out
 
 
 def live(session: Session, ctx: Context, now: datetime, feed: Any | None) -> sc.LiveList:

@@ -220,3 +220,69 @@ def test_no_pre_kickoff_price_means_no_market(tmp_path: Path) -> None:
     out = views.played(w.s, ctx(w), AFTER)
     assert out.matches[0].market is None
     assert out.summary[0].vs_market == [] and out.summary[0].market_scores == []
+
+
+def test_closing_line_value_measures_the_move_towards_our_first_forecast(tmp_path: Path) -> None:
+    """Owner, 2026-11-27: opening market at or after our first forecast, closing market at or
+    before kickoff, per bookmaker with a later closing price; d = ours - open, m = close -
+    open."""
+    w, mid = played_world(tmp_path, (2, 1))
+    first = views._pre_kickoff_forecasts(w.s, {mid: K}, first=True)[mid]
+    p = {q.selection: q.probability for q in first[2] if q.market_type == "1X2"}
+    ours = np.array([p["home"], p["draw"], p["away"]])
+    gen = first[1]
+    mins = timedelta(minutes=1)
+    # A: an earlier price (before our forecast) is ignored; opens after it, then closes
+    _odds(w, mid, "A", "1X2", {"Home": 9.0, "Draw": 9.0, "Away": 1.1}, gen - K - mins)
+    _odds(w, mid, "A", "1X2", {"Home": 3.0, "Draw": 3.4, "Away": 2.4}, gen - K + mins)
+    _odds(w, mid, "A", "1X2", {"Home": 2.6, "Draw": 3.4, "Away": 2.8}, -timedelta(hours=1))
+    # B: one price only, so no movement to measure: not counted
+    _odds(w, mid, "B", "1X2", {"Home": 2.0, "Draw": 3.4, "Away": 3.8}, -timedelta(hours=2))
+
+    def fair(xs: list[float]) -> np.ndarray:
+        inv = 1 / np.asarray(xs)
+        return np.asarray(inv / inv.sum())
+
+    q0, q1 = fair([3.0, 3.4, 2.4]), fair([2.6, 3.4, 2.8])
+    out = views.played(w.s, ctx(w), AFTER)
+    clv = out.matches[0].clv
+    assert clv is not None and clv.bookmakers == 1
+    assert clv.moved == pytest.approx((ours - q0) @ (q1 - q0))
+    assert clv.gap == pytest.approx((ours - q0) @ (ours - q0))
+    s = out.summary[0].clv
+    assert s is not None and s.n == 1 and s.closed == pytest.approx(clv.moved / clv.gap)
+    assert s.toward == (1.0 if clv.moved > 0 else 0.0)
+
+
+def test_calibration_bins_and_the_running_gap_to_the_market(tmp_path: Path) -> None:
+    w, mid = played_world(tmp_path, (0, 0))
+    _odds(w, mid, "A", "1X2", {"Home": 2.0, "Draw": 3.4, "Away": 3.8}, -timedelta(hours=1))
+    out = views.played(w.s, ctx(w), AFTER)
+    m = out.matches[0]
+    assert sum(b.n for b in out.reliability) == 3  # three outcomes of one match
+    hit = [b for b in out.reliability if b.lo <= m.draw_p.p <= b.hi]
+    assert any(b.observed > 0 for b in hit)
+    assert m.market is not None
+    assert out.trend == []  # one match: under TREND_MIN, so no running gap yet
+    mp = pytest.MonkeyPatch()
+    mp.setattr(views, "TREND_MIN", 1)
+    try:
+        [t] = views.played(w.s, ctx(w), AFTER).trend
+    finally:
+        mp.undo()
+    assert t.n == 1
+    assert t.diff == pytest.approx(m.scores.log_loss_1x2 - m.market.scores.log_loss_1x2)
+
+
+def test_upcoming_forecasts_show_the_latest_market_before_now(tmp_path: Path) -> None:
+    w = World(tmp_path)
+    w.refit(AS_OF)
+    mid = w.fixture(K)
+    w.tick(NOW)
+    _odds(w, mid, "A", "1X2", {"Home": 2.0, "Draw": 3.4, "Away": 3.8}, NOW - K - timedelta(hours=1))
+    _odds(w, mid, "A", "1X2", {"Home": 9.0, "Draw": 9.0, "Away": 1.1}, NOW - K + timedelta(hours=1))
+    fl = views.fixture_list(w.s, ctx(w), NOW, end=K + timedelta(days=1))
+    row = next(f for g in fl.competitions for f in g.fixtures if f.match_id == mid)
+    assert row.market is not None and row.market.home > row.market.away  # the earlier price
+    assert views.match_view(w.s, ctx(w), mid, NOW).market == row.market
+    assert views.match_view(w.s, ctx(w), mid, AFTER).market is None  # not once it has started

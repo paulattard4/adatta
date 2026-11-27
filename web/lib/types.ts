@@ -18,10 +18,15 @@ export interface Freshness {
 
 export interface Headline { milestone: string; home: Prob; draw: Prob; away: Prob }
 
+/** The bookmakers' latest de-margined prices beside an upcoming forecast: information only, no edge flag. */
+export interface MarketLine {
+  home: number; draw: number; away: number; over25: number | null; btts: number | null; bookmakers: number;
+}
+
 export interface FixtureRow {
   match_id: number; kickoff: string; round: string | null; home: string; away: string;
   team_level: string; headline: Headline | null; no_projection_reason: string | null;
-  confidence: Component[];
+  confidence: Component[]; market?: MarketLine | null;
 }
 
 export interface CompetitionGroup {
@@ -105,6 +110,7 @@ export interface MatchView {
   coherence: Coherence | null; no_projection_reason: string | null; squad: Squad | null; unavailable: Unavailable[];
   qualify?: Qualify | null;
   half_coherence?: Coherence | null; half_reason?: string | null; // P3b-2 half markets
+  market?: MarketLine | null;
 }
 
 export interface QualifyLeg { match_id: number; home: string; away: string; kickoff: string; score: string | null }
@@ -138,12 +144,22 @@ export interface PlayedMarket {
   bookmakers: number; scores: PlayedScores;
 }
 
+/** Closing-line value inputs: d = our first 1X2 − the market then, m = closing − that market. */
+export interface PlayedClv { moved: number; gap: number; bookmakers: number }
+export interface ClvSummary {
+  n: number; n_moved: number;
+  toward: number | null; toward_lo: number | null; toward_hi: number | null;
+  closed: number | null; closed_lo: number | null; closed_hi: number | null;
+}
+export interface ReliabilityBin { lo: number; hi: number; n: number; predicted: number; observed: number }
+export interface TrendPoint { day: string; n: number; ours: number; market: number; diff: number; diff_lo: number | null; diff_hi: number | null }
+
 export interface PlayedMatch {
   match_id: number; kickoff: string; competition_id: number; competition: string; competition_tier: string; team_level: string;
   home: string; away: string; home_goals: number; away_goals: number;
   outcome: "home" | "draw" | "away"; milestone: string; generated_at: string;
   home_p: Prob; draw_p: Prob; away_p: Prob; over25: Prob | null; btts: Prob | null;
-  scores: PlayedScores; market: PlayedMarket | null;
+  scores: PlayedScores; market: PlayedMarket | null; clv: PlayedClv | null;
   home_lineup: LineupScore | null; away_lineup: LineupScore | null;
 }
 
@@ -157,12 +173,14 @@ export interface LineupSummary {
 export interface ScoreSummary {
   segment: string; competition_id: number | null; tier: string | null; n: number; scores: MeanScore[];
   market_scores: MeanScore[]; vs_market: MeanScore[]; // ours minus the market's, paired (< 0: ours better)
+  clv: ClvSummary | null;
   lineup: LineupSummary | null;
 }
 
 export interface PlayedList {
   generated_at: string; forecasts_since: string | null; start: string | null; end: string;
-  uniform_log_loss_1x2: number; summary: ScoreSummary[]; matches: PlayedMatch[];
+  uniform_log_loss_1x2: number; summary: ScoreSummary[]; reliability: ReliabilityBin[]; trend: TrendPoint[];
+  matches: PlayedMatch[];
 }
 
 // In play (docs/DASHBOARD_TASKS.md, option 1): live score beside the pre-match projection.

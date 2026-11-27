@@ -188,6 +188,23 @@ export default function MatchPage() {
         <button className="override" disabled title="Override drawer comes with the §8.5 override mechanisms">Override…</button>
       </section>
 
+      {v.market && last && !h.result && (
+        <section className="panel">
+          <h3>Market <span className="dim">· bookmakers&apos; latest prices, margin removed, averaged over {v.market.bookmakers}; for information only, not a model input and not an edge signal</span></h3>
+          <div className="market-cmp">
+            {([["Home", "home"], ["Draw", "draw"], ["Away", "away"]] as const).map(([label, k]) => {
+              const ours = last.selections.find((x) => x.market === "1X2" && x.selection === k);
+              return (
+                <span key={k}>{label}: market <span className="num">{pct(v.market![k])}%</span>
+                  {ours && <> · ours <span className="num">{pct(ours.prob.p)}%</span></>}</span>
+              );
+            })}
+            {v.market.over25 !== null && <span>Over 2.5: market <span className="num">{pct(v.market.over25)}%</span></span>}
+            {v.market.btts !== null && <span>Both teams score: market <span className="num">{pct(v.market.btts)}%</span></span>}
+          </div>
+        </section>
+      )}
+
       <section className="panel">
         <h3>Confidence</h3>
         <ConfidencePanel components={v.confidence} />

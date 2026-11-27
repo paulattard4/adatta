@@ -51,8 +51,8 @@ def confidence(m: v.MatchRow, run: models.ModelRun | None, fit: c2_live.Fit | No
                caps: list[models.CompetitionSourceCapability]) -> list[sc.Component]:  # fmt: skip
     out = [sc.Component(key="model", label="Model", status="limited",
                         value="baseline · results only",
-                        detail=cs.LABEL + ". It uses results alone, not the xG or other data "
-                               "the source has (D54).")]  # fmt: skip
+                        detail=cs.LABEL.rstrip(".") + ". It uses results alone, not the "
+                               "xG or other data the source has (D54).")]  # fmt: skip
     if fit is None or run is None:
         out.append(
             sc.Component(

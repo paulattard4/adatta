@@ -302,3 +302,18 @@ table.scores th { color: var(--dim); font-weight: 500; font-size: 11px; }
 .tournament-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 560px), 1fr)); gap: 12px; }
 .shadow-flag { border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-size: 11px; text-transform: uppercase; }
 .htft { margin-top: 4px; }
+
+/* Charts (played view): one series each, recessive grid, text in text tokens */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.chart { margin: 0; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart figcaption { font-size: 11px; margin-top: 4px; min-height: 2.6em; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .tick { fill: var(--dim); font: 10px var(--mono); }
+.chart .ref { stroke: var(--dim); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart .dot-mark { fill: var(--accent); stroke: var(--panel); stroke-width: 2; }
+.chart .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.chart .band { fill: rgba(var(--home), 0.15); stroke: none; }
+.chart .hit { fill: transparent; }
+.market-line { font-size: 11px; display: block; }
+.market-cmp { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; }

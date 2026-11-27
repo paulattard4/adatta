@@ -171,26 +171,34 @@ def test_read_only_and_never_reads_odds() -> None:
     eng = readonly_engine("postgresql+psycopg://u:p@localhost/x")
     assert eng.get_execution_options().get("postgresql_readonly") is True
     # Amended 2026-11-27 (owner: the played view's market benchmark): odds are read in
-    # adatta/api/market.py alone, which only the played view imports; nothing else in the API
-    # names an odds table, and no model or projection code imports the module.
+    # adatta/api/market.py alone, which only adatta/api/views.py imports; nothing else in the
+    # API names an odds table, and no model or projection code imports the module.
     for f in Path("adatta/api").glob("*.py"):
         tree = ast.parse(f.read_text())
         names = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
         names |= {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
         if f.name != "market.py":
             assert not {x for x in names if "Odds" in x}, f
-    users = [
-        f
-        for d in ("adatta", "tests")
-        for f in Path(d).rglob("*.py")
-        if "adatta.api.market" in f.read_text() and f.name != "test_dashboard_api.py"
-    ]
-    assert {f.as_posix() for f in users} <= {"adatta/api/views.py", "tests/test_played_view.py"}
-    views_src = Path("adatta/api/views.py").read_text()
-    assert views_src.count("adatta.api.market") == 1  # inside played() only
-    for d in ("adatta/model", "adatta/sim", "adatta/eval", "adatta/features"):
-        for f in Path(d).rglob("*.py"):
-            assert "api.market" not in f.read_text(), f
+
+    def imports_market(f: Path) -> bool:
+        for n in ast.walk(ast.parse(f.read_text())):
+            if isinstance(n, ast.ImportFrom) and n.module == "adatta.api.market":
+                return True
+            if (
+                isinstance(n, ast.ImportFrom)
+                and n.module == "adatta.api"
+                and any(a.name == "market" for a in n.names)
+            ):
+                return True
+            if isinstance(n, ast.Import) and any(a.name == "adatta.api.market" for a in n.names):
+                return True
+        return False
+
+    users = {f.as_posix() for d in ("adatta", "tests") for f in Path(d).rglob("*.py")
+             if imports_market(f)}  # fmt: skip
+    # amended again 2026-11-27 (owner: the market line on upcoming forecasts, closing-line
+    # value): views.py may import it in several places; nothing else in adatta/ may
+    assert {u for u in users if u.startswith("adatta/")} == {"adatta/api/views.py"}
 
 
 def test_competitions_list_tier_1_before_tier_2_within_a_country() -> None:

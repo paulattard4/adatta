@@ -245,3 +245,25 @@ def test_only_an_explicit_point_forecast_has_no_interval() -> None:
     for bad in ({"p": 0.4}, {"p": 0.4, "lo": 0.3}, {"p": 0.4, "lo": 0.3, "hi": 0.5, "point": True}):
         with pytest.raises(ValueError):
             sc.Prob(**bad)
+
+
+def test_a_played_c2_match_is_scored_on_the_played_view(tmp_path: Path) -> None:
+    """Owner, 2026-11-27: the played view covers every served competition."""
+    w = World(tmp_path)
+    w.champion()
+    w.refit(a_fit())
+    m = w.fixture(K, 3, 6)
+    w.tick(K - timedelta(days=3))
+    match = w.s.get(models.Match, m)
+    assert match is not None
+    match.status = "FT"
+    w.s.add(models.MatchResult(match_id=m, source_id="api_football", home_goals_nt=1,
+                               away_goals_nt=1, observed_at=K + timedelta(hours=2)))  # fmt: skip
+    w.s.commit()
+    ctx = v.Context(bundles={}, model_name="phase1b_strength_open_xg", max_goals=15,
+                    store=w.store)  # fmt: skip
+    out = v.played(w.s, ctx, K + timedelta(hours=3))
+    assert [x.match_id for x in out.matches] == [m]
+    got = out.matches[0]
+    assert got.outcome == "draw" and got.home_p.point and got.home_p.lo is None
+    assert out.summary[0].n == 1 and out.summary[1].segment == "L94"

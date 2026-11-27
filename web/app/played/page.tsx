@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { ProbCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
 import { complement, dateLocal, fairOdds, kickoffLocal, pct, showsOdds, tierLabel } from "@/lib/format";
-import type { MeanScore, PlayedList, PlayedMatch, ScoreSummary } from "@/lib/types";
+import { GapTrend, Reliability } from "@/components/Charts";
+import type { ClvSummary, MeanScore, PlayedList, PlayedMatch, ScoreSummary } from "@/lib/types";
 
 const METRIC_LABEL: Record<string, string> = {
   log_loss_1x2: "1X2 log loss", rps_1x2: "1X2 RPS", brier_1x2: "1X2 Brier",
@@ -58,6 +59,31 @@ function MarketLine({ m }: { m: PlayedMatch }) {
   );
 }
 
+const sign = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}`;
+
+/** Closing-line value: did the market move towards our first forecast? */
+function Toward({ c }: { c: ClvSummary | null }) {
+  if (!c || c.toward === null) return <span className="dim">—</span>;
+  return (
+    <span title={`${c.n_moved} matches where the market moved, of ${c.n} with an opening and a later closing price`}>
+      <span className="num">{pct(c.toward, 0)}%</span>
+      {c.toward_lo !== null && c.toward_hi !== null && <> <span className="num dim">[{pct(c.toward_lo, 0)}, {pct(c.toward_hi, 0)}]</span></>}
+      <span className="dim"> of {c.n_moved}</span>
+    </span>
+  );
+}
+
+function Closed({ c }: { c: ClvSummary | null }) {
+  if (!c || c.closed === null) return <span className="dim">—</span>;
+  const sure = c.closed_lo !== null && c.closed_hi !== null && (c.closed_lo > 0 || c.closed_hi < 0);
+  return (
+    <span className={sure ? (c.closed > 0 ? "better" : "worse") : undefined}>
+      <span className="num">{sign(c.closed)}</span>
+      {c.closed_lo !== null && c.closed_hi !== null && <> <span className="num dim">[{sign(c.closed_lo)}, {sign(c.closed_hi)}]</span></>}
+    </span>
+  );
+}
+
 /** Our scores against the bookmakers' on the same matches, paired by match. */
 function MarketScores({ summary }: { summary: ScoreSummary[] }) {
   const rows = summary.filter((s) => s.vs_market.length > 0);
@@ -79,13 +105,16 @@ function MarketScores({ summary }: { summary: ScoreSummary[] }) {
       <p className="note">
         The bookmakers&apos; last price before kickoff, margin removed, averaged over the bookmakers quoting the whole market, scored
         on the same matches. Ours minus the market&apos;s, paired by match, with its 95% interval: below zero means our forecast
-        scored better. For evaluation only: odds are never a model input.
+        scored better. The last two columns are closing-line value: between our first forecast and kickoff, did the market move
+        towards us? It reads skill far sooner than results do. For evaluation only: odds are never a model input.
       </p>
       <div className="table-wrap">
         <table className="scores">
           <thead>
             <tr><th>Segment</th><th className="num">Priced</th>
-              {keys.map((k) => <th key={k}>{METRIC_LABEL[k]}: market · ours − market</th>)}</tr>
+              {keys.map((k) => <th key={k}>{METRIC_LABEL[k]}: market · ours − market</th>)}
+              <th title="Between our first forecast and kickoff, the share of matches where the market moved towards our forecast (of those where it moved), with its 95% interval">Market moved our way</th>
+              <th title="The share of our disagreement with the market that it closed by kickoff, sum(d·m)/sum(d·d), with a bootstrap 95% interval: 0 is no information, 1 is all the way">Disagreement closed</th></tr>
           </thead>
           <tbody>
             {rows.map((s) => (
@@ -96,6 +125,8 @@ function MarketScores({ summary }: { summary: ScoreSummary[] }) {
                   const mk = s.market_scores.find((x) => x.metric === k);
                   return <td key={k}>{mk ? <span className="num">{mk.mean.toFixed(3)}</span> : "—"} · {diff(s.vs_market.find((x) => x.metric === k))}</td>;
                 })}
+                <td><Toward c={s.clv} /></td>
+                <td><Closed c={s.clv} /></td>
               </tr>
             ))}
           </tbody>
@@ -192,7 +223,7 @@ export default function Played() {
       </div>
       {error && <div className="panel error">Could not load played matches: {error}. Is the API running on 127.0.0.1:8000?</div>}
       {loading && !data && <div className="panel dim">Loading played matches…</div>}
-      {data && data.matches.length === 0 && (all.data?.matches.length ?? 0) > 0 && (
+      {!loading && data && data.matches.length === 0 && (all.data?.matches.length ?? 0) > 0 && (
         <div className="panel dim">
           No forecast match finished {from || to ? <>between {from || "the start"} and {to || "now"}</> : "in this selection"}.
           {" "}Widen the dates, or clear them for every played match.
@@ -232,6 +263,20 @@ export default function Played() {
         </section>
       )}
       {data && overall && <MarketScores summary={data.summary} />}
+      {data && overall && (data.reliability.length > 0 || data.trend.length > 0) && (
+        <section className="panel">
+          <h2>Calibration and trend</h2>
+          <p className="note">
+            Left: when we gave an outcome a probability, how often it happened (home, draw and away pooled).
+            Right: the running 1X2 log loss gap to the market as matches are added, from the tenth match on.
+            {overall.n < FEW && <> With {overall.n} matches both are a first look.</>}
+          </p>
+          <div className="charts">
+            {data.reliability.length > 0 && <Reliability bins={data.reliability} />}
+            {data.trend.length > 0 && <GapTrend points={data.trend} />}
+          </div>
+        </section>
+      )}
       {data && overall?.lineup && <LineupScores summary={data.summary} />}
       {data && data.matches.length > 0 && (
         <section className="panel">

@@ -839,3 +839,46 @@ and Eredivisie stores xG for about 99% of matches.
 a 2026 audit on 2026-11-27. It took 32 requests and found every league with lineups,
 player stats, shots, xG, corners, cards, half-time splits and substitution times available
 (Scotland's referee history partial).
+
+## Played view for every competition, closing-line value, calibration, market lines (owner, 2026-11-27)
+
+The owner asked for items 1-5 of the dashboard review ("yes and then do these for the
+dashboard"). Item 4, the audit, is recorded above.
+
+**1. Every competition on the played page.** `views.played` now also scores the C2 top
+flights and senior internationals; the five's cups were already in scope. C2 baseline
+forecasts are shown as point forecasts. Youth internationals stay out (principle 10).
+
+**2. Closing-line value.** Per played match:
+- the opening market is each bookmaker's first whole 1X2 at or after our *first*
+  forecast;
+- the closing market is its last at or before kickoff;
+- a bookmaker counts only if its closing price is later than its opening one, and the
+  prices are averaged over those bookmakers.
+
+With d = our first forecast − the opening market and m = the closing market − the opening
+market, each segment of the "Against the market" table shows:
+- the share of matches where the market moved towards us (d·m > 0), with a 95% interval;
+- the share of our disagreement it closed, Σd·m / Σd·d, with a bootstrap 95% interval
+  (2,000 resamples, seed 20261127).
+
+First read, 132 matches: moved our way 44% [35%, 52%]; closed −0.03 [−0.08, +0.02]. No
+sign yet that the market moves towards us.
+
+**3. Calibration and trend.**
+- A reliability chart: home, draw and away pooled, in tenths.
+- The running 1X2 log loss gap to the market by kickoff day, with its 95% band, from the
+  tenth match on.
+
+Both are single-series SVG charts (`web/components/Charts.tsx`) with hover read-outs.
+
+**5. The market line on upcoming matches.** The bookmakers' latest de-margined prices
+appear under each upcoming senior fixture with a forecast, and on the match page beside
+ours. It is information only: no edge flag and no "has edge" filter until an edge test is
+written and passed.
+
+**The odds guard** (`tests/test_dashboard_api.py`) now checks imports by syntax tree:
+`adatta/api/market.py` is the only module that reads odds, and `adatta/api/views.py` is
+the only module that imports it.
+
+**Tests:** 4 new in `tests/test_played_view.py`, plus one in `tests/test_c2_projection.py`.

@@ -1079,6 +1079,56 @@ asked for B, C, D and then A3, in that order, each with its own acceptance.
       Copa del Rey +0.93%.
 
 
+### Stage B live: unstretched P(advance) on 2026/27 cup ties (drafted 2026-11-27 before building; owner: "Yes, that order"; not approved)
+
+**Why.**
+- B3' (B3 with a stretch fitted on dev) failed the cup holdout: log loss +1.07% against
+  the coin-flip baseline, and the FA Cup and Coupe de France were worse by more than 1%.
+- B3 unstretched, reported then and not judged, scored 0.6107 against the baseline's
+  0.6119, with ECE 0.052 inside its 0.085 noise floor.
+- Choosing it on that holdout would be selection, so the owner agreed (2026-11-27) to keep
+  the unstretched B3 and judge it on fresh ties.
+
+**Acceptance (stated before building):**
+- **(a) The model, unchanged:** B3 as on the holdout.
+  - B0's format rules (`config/cup_formats.yml`), extra time from the same matrices,
+    κ = 1, the coin-flip shootout, no stretch.
+  - Rates from the same production refits A1 serves from.
+- **(b) Window:** ties of the five domestic cups in 2026/27 where both sides play a league
+  of the cup's bundle (A1's served scope).
+  - Every 2026/27 tie qualifies, including those already played, because no B3 score on
+    2026/27 has been computed.
+  - It is read once, after all five finals (opens after 2027-06-15), by the walk-forward
+    path the cup holdout used, with a live-window key.
+  - About 150 ties are expected (the holdout had 309 over two seasons).
+- **(c) Gate,** the cup holdout's checks for B3, unchanged, written to
+  `config/cups_live_gate.yml` before any score:
+  1. B3's P(advance) log loss is no worse than the baseline "90' model, level = coin flip"
+     (point estimate ≤ 0, interval reported);
+  2. B3's ECE is within its noise floor (95th percentile of a calibrated forecast's ECE on
+     the same ties, 2,000 draws);
+  3. no cup is worse than the baseline by more than 1.0% (owner choice 2).
+
+  Two-legged ties are scored before leg 2; the before-leg-1 scores are reported.
+- **(d) Reported:** by cup, by tier pairing and by round; the favourites' bins
+  (0.8-0.9); the stretched B3' beside it for information.
+- **(e) On a pass,** P(advance) for domestic cup ties gets its own serving acceptance: a
+  "going through" panel like the internationals' ties. **On a fail,** nothing changes.
+
+**Power statement (D59):**
+- Checks 1 and 3 are point estimates. At about 150 ties, a single cup's estimate rests on
+  about 30 ties, so check 3 is noisy: on the holdout, cups moved by ±7%.
+- D59's margin routes don't apply here. There is no served P(advance) to be non-inferior
+  to; the baseline is a coin flip on level ties.
+
+**Owner choices:**
+1. **Window:**
+   - (a) 2026/27, read once in June 2027 (recommended);
+   - (b) 2026/27 and 2027/28 together, read in June 2028.
+2. **Check 3:**
+   - (a) kept as the holdout had it (recommended: the same gate as before);
+   - (b) reported only, with ~30 ties a cup too few to judge alone.
+
 ## Stage C: continental club competitions (§10.1)
 
 The problem: teams from different leagues meet, so league strengths need a common scale.

@@ -1810,6 +1810,53 @@ Consequences:
       probabilities to 4.95e-07 (the 6-decimal rounding), with the same pitch formation and
       the same pitch on 20 of 20. Per (e), the panel shows the three options and the pitch on
       the match page. Live monitoring, (d)2, starts with the interim reports.
+- [ ] **P3-h2 Projected pitch: the last lineup in the formation, with unavailable players
+      replaced.** Drafted 2026-11-27 before building (owner: "Yes, that order"); not
+      approved.
+
+      **Why.** P3-g's slot-by-slot XI lost to "the team's last lineup in the projected
+      formation" (D42), and P3-h now shows that lineup unchanged ("no player is swapped in
+      or out"). On 2026-11-27 the owner agreed the next step: start from that lineup and
+      replace only the players who can't play. The played page already scores the pitch
+      against the last lineup unchanged ("Positions right: pitch · last lineup"), so the
+      judge costs nothing new.
+
+      (a) **The rule, nothing fitted.** As of the projection time:
+      - A pitch player is replaced if the injury feed lists him out (status "missing").
+        A questionable player stays, tagged.
+      - The replacement is the available squad player with the highest P3-b start
+        probability among those with a coded start in the same slot code. With none, it
+        comes from the same line; with none there either, the slot keeps its player,
+        flagged.
+      - Each player is used once.
+      - Inputs are final before the projection time only: lineups, slot codes, feed
+        status and P3-b.
+
+      (b) **Shadow first.** Stored beside P3-h's pitch (a new column, forward-only
+      migration), not shown until (d) passes. The panel keeps today's pitch.
+
+      (c) **Window.** Team-matches of the five bundles from approval to the winter break,
+      at least 1,000 with an announced lineup. It is read once (D59 default).
+
+      (d) **Gate, against the last lineup unchanged on the same team-matches:**
+      1. XI overlap (projected pitch players who started) is better, with the paired 95%
+         interval excluding zero;
+      2. in positional league-seasons, slot accuracy is not worse by more than 0.01
+         (point estimate).
+
+      Reported: the number of replacements, replacement hit rate, and by bundle.
+
+      (e) **On a pass,** the panel shows the replaced pitch, labelled "projected from the
+      last lineup in this formation (dd Mon), N changes", with replaced players marked.
+      **On a fail,** the panel stays as it is.
+
+      **Power (D59):** a team-match changes only when a pitch player is out (often 0-2),
+      so most pairs are tied. About 1,000 team-matches detect a mean XI gain of about
+      0.05 players if a fifth of them have a replacement. This is stated as an estimate,
+      to be checked when the window opens.
+
+      **Cost:** 0 API requests; one migration.
+
 - [ ] **P3-i Lineup offset with attack and defence, live shadow (D43). Closed (D44).** Owner, 2026-11-21:
       "any way we can have lineup projections and changes affect our match projections?",
       then "Live shadow, attack + defence".

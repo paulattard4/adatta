@@ -115,9 +115,18 @@ def confidence(m: v.MatchRow, run: models.ModelRun | None, post: dict[str, Any] 
                     "confederation's level with the team and walk spread." if cold else
                     "Both sides are in the refit's training window."),
         ))  # fmt: skip
+    out.append(sc.Component(key="capability", label="Source capability", status="limited",
+                            value="results only",
+                            detail="International results alone: no xG, call-ups or lineups "
+                                   "(Stage D v1)."))  # fmt: skip
     out.append(sc.Component(key="lineup", label="Lineup certainty", status="not_modelled",
                             value="team-level",
                             detail="Call-ups and lineups are not used (Stage D v1)."))  # fmt: skip
+    out.append(sc.Component(key="cross_league", label="Cross-league prior dependence",
+                            status="ok", value="one global scale",
+                            detail="Every national team is rated on one strength scale with "
+                                   "confederation effects, from matches between "
+                                   "confederations (Stage D)."))  # fmt: skip
     if champion is None:
         out.append(sc.Component(key="stability", label="Model stability", status="missing",
                                 value="no champion", detail="Nothing is promoted."))  # fmt: skip
@@ -139,7 +148,7 @@ def confidence(m: v.MatchRow, run: models.ModelRun | None, post: dict[str, Any] 
             value=f"refit {fresh.age_days:.1f} d old",
             detail=f"Forecast from the national refit as of {fresh.refit_as_of:%Y-%m-%d}.",
         ))  # fmt: skip
-    return out
+    return v.checklist(out)
 
 
 def groups(

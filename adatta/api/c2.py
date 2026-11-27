@@ -71,9 +71,18 @@ def confidence(m: v.MatchRow, run: models.ModelRun | None, fit: c2_live.Fit | No
                     "training window." if cold else
                     "Both sides have a full history in the training window."),
         ))  # fmt: skip
+    out.append(sc.Component(key="capability", label="Source capability", status="limited",
+                            value="results only",
+                            detail="The baseline (Phase 1a) uses results alone, whatever the "
+                                   "source has: no xG (D54)."))  # fmt: skip
     out.append(sc.Component(key="lineup", label="Lineup certainty", status="not_modelled",
                             value="results only",
                             detail="The baseline model uses results only."))  # fmt: skip
+    out.append(sc.Component(key="cross_league", label="Cross-league prior dependence",
+                            status="not_modelled", value=f"within {fresh.bundle} bundle",
+                            detail="No cross-league layer is served; both teams are rated "
+                                   "within their league's top flight + second tier.",
+                            ))  # fmt: skip
     if champion is None:
         out.append(sc.Component(key="stability", label="Model stability", status="missing",
                                 value="not served", detail=cs.NOT_SERVED))  # fmt: skip
@@ -94,7 +103,7 @@ def confidence(m: v.MatchRow, run: models.ModelRun | None, fit: c2_live.Fit | No
             value=f"refit {fresh.age_days:.1f} d old",
             detail=f"Forecast from the baseline refit as of {fresh.refit_as_of:%Y-%m-%d}.",
         ))  # fmt: skip
-    return out
+    return v.checklist(out)
 
 
 def _fit(ctx: v.Context, run: models.ModelRun | None, cache: dict[int, c2_live.Fit]

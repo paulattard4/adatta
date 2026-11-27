@@ -122,7 +122,9 @@ def test_fixture_list_groups_and_carries_components(tmp_path: Path) -> None:
     assert rows[later].headline is None
     assert rows[later].no_projection_reason
     keys = [c.key for c in rows[mid].confidence]
-    assert keys == ["history", "capability", "lineup", "cross_league", "stability", "freshness"]
+    assert keys == list(views.CHECKLIST)  # one checklist for every competition (2026-11-27)
+    assert keys == ["model", "history", "capability", "lineup", "cross_league", "stability",
+                    "freshness"]  # fmt: skip
 
 
 def test_cold_start_team_is_flagged(tmp_path: Path) -> None:

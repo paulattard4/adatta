@@ -301,6 +301,7 @@ def test_dashboard_shows_national_forecasts_and_reasons(tmp_path: Path) -> None:
     rows = {f.match_id: f for g in fl.competitions for f in g.fixtures}
     assert rows[ok].headline is not None and rows[ok].no_projection_reason is None
     assert any(c.key == "model" and c.value == "team-only" for c in rows[ok].confidence)
+    assert [c.key for c in rows[ok].confidence] == list(views.CHECKLIST)
     assert rows[youth].headline is None and rows[youth].no_projection_reason == ns.YOUTH
     mv = views.match_view(w.s, ctx, ok, now)
     assert mv.coherence is not None and mv.coherence.coherent and mv.matrix is not None

@@ -380,6 +380,19 @@ def _freshness(bundle: str, run: models.ModelRun | None, now: datetime) -> sc.Fr
 
 # --------------------------------------------------------------------------- confidence
 
+# One checklist for every competition (owner, 2026-11-27): the same components in the same
+# order, differing only in status. "Model" first, then the six of §13.2.
+CHECKLIST = ("model", "history", "capability", "lineup", "cross_league", "stability",
+             "freshness")  # fmt: skip
+
+
+def checklist(parts: list[sc.Component]) -> list[sc.Component]:
+    """The components in CHECKLIST order; refuses a missing, extra or repeated one."""
+    by = {c.key: c for c in parts}
+    if len(by) != len(parts) or set(by) != set(CHECKLIST):
+        raise ValueError(f"confidence components {[c.key for c in parts]} != {CHECKLIST}")
+    return [by[k] for k in CHECKLIST]
+
 
 def confidence(m: MatchRow, refit: serve.Refit | None, fresh: sc.Freshness,
                caps: list[models.CompetitionSourceCapability],
@@ -388,12 +401,21 @@ def confidence(m: MatchRow, refit: serve.Refit | None, fresh: sc.Freshness,
     """The six named components of §13.2, each with a plain status. No combined score:
     §13.2 requires the combining formula to be backtested first."""
     out = []
-    if m.tier == "cup":
+    if champion is None:
+        out.append(sc.Component(key="model", label="Model", status="missing",
+                                value="no champion", detail="Nothing is promoted."))  # fmt: skip
+    elif m.tier == "cup":
         out.append(sc.Component(
-            key="cup", label="Cup tie", status="limited", value="90' only, team-only",
+            key="model", label="Model", status="limited", value="league model, 90' cup tie",
             detail="The bundle's league model applied unchanged to the 90 minutes (Stage A, "
                    "passed on the cup holdout): no lineups, no rotation term, and no chance "
                    "of going through (Stage B was not promoted).",
+        ))  # fmt: skip
+    else:
+        out.append(sc.Component(
+            key="model", label="Model", status="ok", value="full model",
+            detail=f"{champion.model_name}: the production team model (Phase 1b), posterior "
+                   "draws with 90% intervals.",
         ))  # fmt: skip
     if refit is None:
         out.append(sc.Component(key="history", label="Historical data strength",
@@ -466,7 +488,7 @@ def confidence(m: MatchRow, refit: serve.Refit | None, fresh: sc.Freshness,
                    + (f"; capabilities audited {audited:%Y-%m-%d}." if audited else
                       "; capabilities never audited."),
         ))  # fmt: skip
-    return out
+    return checklist(out)
 
 
 # --------------------------------------------------------------------------- views

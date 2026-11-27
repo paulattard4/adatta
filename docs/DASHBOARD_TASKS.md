@@ -786,3 +786,35 @@ model (principle 1).
 
 **Checked live on 132 played matches:** 1X2 log loss, ours minus the market, +0.016
 [-0.007, +0.040]. **Tests:** 2 new in `tests/test_played_view.py`.
+
+## One confidence checklist for every competition (requested 2026-11-27)
+
+Owner: "every league will have the same confidence checklist simply differing in colour
+whether they include the relevant part or not". Before this, the five's leagues showed the
+six §13.2 components, their cup ties added a seventh, and the C2 leagues and internationals
+showed five (a "Model" component, but no source capability or cross-league dependence).
+
+**Now every fixture carries the same seven, in this order:**
+1. Model
+2. Historical data strength
+3. Source capability
+4. Lineup certainty
+5. Cross-league prior dependence
+6. Model stability
+7. Data freshness
+
+The six §13.2 components are unchanged. "Model" is the one extension:
+- **The five's leagues:** full model.
+- **The five's cup ties:** the league model on a 90-minute cup tie. This replaces the old
+  separate "Cup tie" component.
+- **C2 leagues:** baseline.
+- **Internationals:** team-only.
+
+**C2 and internationals gain the two components they lacked:**
+- **Source capability:** results only.
+- **Cross-league dependence:** within the bundle for C2; one global scale for
+  internationals.
+
+**Enforcement:** `views.checklist` refuses a missing, extra or repeated component.
+**Checked live:** 601 fixtures over two weeks (494 league, 105 cup, 2 international) all
+carry the seven, and every row on the page draws seven dots.

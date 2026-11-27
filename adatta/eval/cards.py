@@ -20,6 +20,7 @@ REFIT_PASS = 0.97  # the chosen variant passes (c) at >= 97% of refits
 ECE_MARGIN = 0.005
 SEGMENT_MAX = 0.010
 LINES = (3.5, 4.5, 5.5)
+TEAM_LINES = (1.5, 2.5)
 Z95 = 1.959963984540054
 
 
@@ -60,6 +61,19 @@ def calibration(rows: pl.DataFrame) -> dict[str, Any]:
         p = rows[f"p_over_{line}"].to_numpy()
         e, null = kb.ece(p, (y > line).astype(float)), kb.ece_null(p)
         out[str(line)] = {"ece": e, "noise_floor": null, "pass": e <= null + ECE_MARGIN}
+    return out
+
+
+def team_calibration(rows: pl.DataFrame) -> dict[str, Any]:
+    """Reported (D67): ECE of the team O/U lines, both sides pooled, against the noise
+    floor. Team markets are not served without their own check."""
+    out: dict[str, Any] = {}
+    for line in TEAM_LINES:
+        p = np.concatenate([rows[f"p_team_home_{line}"].to_numpy(),
+                            rows[f"p_team_away_{line}"].to_numpy()])  # fmt: skip
+        y = np.concatenate([rows["y_home"].to_numpy(), rows["y_away"].to_numpy()]) > line
+        e, null = kb.ece(p, y.astype(float)), kb.ece_null(p)
+        out[str(line)] = {"ece": e, "noise_floor": null, "within": e <= null + ECE_MARGIN}
     return out
 
 
@@ -120,6 +134,9 @@ def gate(pred: pl.DataFrame, diags: list[dict[str, Any]]) -> dict[str, Any]:
     med = {k: [g[k] for g in diags if k in g] for k in ("sigma_ref", "sigma_a", "sigma_b",
                                                           "phi")}  # fmt: skip
     out["sigmas"] = {k: [float(np.median(x)) if x else float("nan")] for k, x in med.items()}
+    out["team_ece"] = team_calibration(c)
+    out["ppc_team_q"] = float(np.median([g["ppc"]["disp_team"]["q"] for g in diags
+                                         if g["variant"] == chosen]))  # fmt: skip
     out["ppc_corr"] = float(np.median([g["ppc"]["corr"]["obs"] - g["ppc"]["corr"]["rep_mean"]
                                        for g in diags if g["variant"] == chosen]))  # fmt: skip
     return out
@@ -182,6 +199,13 @@ def markdown(v: dict[str, Any], digest: str) -> str:
                                              if m != "horizon"))  # fmt: skip
     lines.append("- T-24h vs B_clim, RPS: " + "; ".join(f"{k} {r['rel']:+.2%}"
                                                        for k, r in v["t24"].items()))  # fmt: skip
+    lines.append(
+        "- team O/U ECE (floor), reported (D67): "
+        + "; ".join(
+            f"{k} {x['ece']:.4f} ({x['noise_floor']:.4f})" for k, x in v["team_ece"].items()
+        )
+        + f"; team-dispersion PPC quantile, median over refits {v['ppc_team_q']:.3f}"
+    )
     lines.append(
         "- medians: "
         + ", ".join(f"{k} {x[0]:.3f}" for k, x in v["sigmas"].items())

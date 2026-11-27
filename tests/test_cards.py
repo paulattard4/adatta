@@ -147,6 +147,12 @@ def test_ppc_passes_on_data_from_the_model() -> None:
                        index=d.index)  # fmt: skip
         passed += mc.ppc(post, d2)["pass"]
     assert passed >= 8
+    # D67: under-dispersed team counts don't fail it; only the total's dispersion gates
+    under = np.random.default_rng(5).binomial(4, 0.5, len(d.y))
+    d4 = mc.Design(y=under.astype(np.int64), home=d.home, ls=d.ls, ls_league=d.ls_league,
+                   team=d.team, opp=d.opp, ref=d.ref, match=d.match, index=d.index)  # fmt: skip
+    got = mc.ppc(post, d4)
+    assert not got["disp_team"]["pass"] and got["pass"] == got["disp_total"]["pass"]
     over = np.random.default_rng(1).negative_binomial(2.0, 0.5, len(d.y))  # var / mean 3
     d3 = mc.Design(y=over.astype(np.int64), home=d.home, ls=d.ls, ls_league=d.ls_league,
                    team=d.team, opp=d.opp, ref=d.ref, match=d.match, index=d.index)  # fmt: skip
@@ -167,10 +173,13 @@ def _pred(gain: dict[str, float], n: int = 600) -> tuple[pl.DataFrame, list[dict
                          "model": model, "horizon": hz, "y_home": yh, "y_away": ya,
                          "rps_total": base * (1 - g), "logs_total": 2.0,
                          "ll_over_4.5": 0.69 * (1 - g), "ll_team_1.5": 0.6, "tail": 0.0,
-                         **{f"p_over_{x}": p for x in ec.LINES}})  # fmt: skip
+                         **{f"p_over_{x}": p for x in ec.LINES},
+                         **{f"p_team_{s}_{x}": p for x in ec.TEAM_LINES
+                            for s in ("home", "away")}})  # fmt: skip
     for v in ec.VARIANTS:
         diags.append({"variant": v, "as_of": asof.isoformat(), "ok": True, "phi": 20.0,
-                      "ppc": {"corr": {"obs": 0.1, "rep_mean": 0.0}}})  # fmt: skip
+                      "ppc": {"corr": {"obs": 0.1, "rep_mean": 0.0},
+                              "disp_team": {"q": 0.01}}})  # fmt: skip
     return pl.DataFrame(rows), diags
 
 

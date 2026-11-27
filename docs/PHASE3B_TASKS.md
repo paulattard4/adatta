@@ -645,10 +645,9 @@ Tick each item only when its acceptance check passes.
         bf5eba3cbfc7fa50`): 76,408 team-matches; referee named on 99.7-100% per league.
         All three variants train on rows with a named referee, so they share their rows.
       - **Model** (`adatta/model/cards.py`):
-        - NUTS 2,000 draws × 4 chains, target_accept 0.95 (P's); the league-season level
-          centred and the team and referee terms non-centred; 400 draws kept. (Changed
-          before any score: CI run 46014739829's recovery test found 3 divergences with
-          target_accept 0.9 and a non-centred level.)
+        - NUTS 1,000 draws × 4 chains (D67), target_accept 0.95 (P's); the league-season
+          level is c_l + δ with δ ~ Normal(0, 0.1) fixed (D67); the team and referee terms
+          non-centred; 400 draws kept.
         - C2 refitted at prior ×0.5 and ×2 on every refit (the sensitivity check);
         - the PPC uses 200 draws.
       - **Scores** (`adatta/eval/cards.py`):
@@ -666,11 +665,16 @@ Tick each item only when its acceptance check passes.
         distributions, referee pool, scoring, PPC calibration, variant choice, fallback.
         2 in `tests/test_cards_model.py` (CI model job): each variant's terms, and
         recovery of six referee effects.
-      - **Run:** `cards.yml`, stage dev: 25 jobs, about 60 fits each, estimated 1-2 hours.
-        It runs after P3-j step 2's run, one at a time, not on a Monday.
+      - **Run:** `cards.yml`, stage dev: 25 jobs, about 60 fits each, estimated 3-4 hours
+        at 1,000 draws (D67). It runs after P3-j step 2's run, one at a time, not on a
+        Monday.
+      - **D67 applied:** `ppc` gates on the total's dispersion alone. The team's dispersion
+        and the teams' correlation are kept in each refit's diagnostics. The dev report
+        adds the team O/U ECE against its floor and the median team-PPC quantile
+        (reported). Tests pass locally (11) and in the model container (2).
 
-      **Raised while building (2026-11-27), before any score: D67, drafted, not
-      approved.**
+      **Raised while building (2026-11-27), before any score: D67. Approved 2026-11-27**
+      (owner: "Approve as drafted").
 
       The recovery test in CI (runs 46014739829 and the next) and one real refit run
       locally (England as of 2021-01-25: 3,552 rows, 49 teams, 46 referees, 6

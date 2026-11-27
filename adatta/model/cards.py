@@ -51,7 +51,7 @@ VARIANTS = ("C0", "C1", "C2")
 WINDOW_DAYS = 730
 GRID_DAYS = 28  # D14's dev iteration grid
 LAG = timedelta(hours=3)
-DRAWS, CHAINS, TARGET_ACCEPT, PRED_DRAWS = 2000, 4, 0.95, 400
+DRAWS, CHAINS, TARGET_ACCEPT, PRED_DRAWS = 1000, 4, 0.95, 400  # D67: 1,000 draws
 SEED = 20261127
 MAX_TEAM = 20  # team counts 0-20; the match total 0-40
 TOTAL_LINES = (3.5, 4.5, 5.5)
@@ -219,8 +219,10 @@ def nb_sample(mu: Arr, phi: Arr, rng: np.random.Generator) -> Arr:
 
 def ppc(post: dict[str, Arr], d: Design, seed: int = SEED, n: int = 200) -> dict[str, Any]:
     """Dispersion (variance / mean) of team cards and of match totals, and the correlation
-    of the two teams' counts, observed against the posterior predictive. The dispersions
-    pass inside its 95% band; the correlation is reported."""
+    of the two teams' counts, observed against the posterior predictive. D67: only the
+    total's dispersion gates (inside its 95% band); the team's and the correlation are
+    reported (team cards are under-dispersed and the teams linked, which offset in the
+    total)."""
     rng = np.random.default_rng(seed)
     cols = np.linspace(0, len(post["h"]) - 1, min(n, len(post["h"]))).astype(np.int64)
     mu = train_mu(post, d)[:, cols]
@@ -261,7 +263,7 @@ def ppc(post: dict[str, Arr], d: Design, seed: int = SEED, n: int = 200) -> dict
     rc = [corr(rh[both, j], ra[both, j]) for j in range(rep.shape[1])]
     out["corr"] = {"obs": corr(yh[both], ya[both]), "rep_mean": float(np.mean(rc)),
                    "q": float(np.mean(np.array(rc) <= corr(yh[both], ya[both])))}  # fmt: skip
-    out["pass"] = out["disp_team"]["pass"] and out["disp_total"]["pass"]
+    out["pass"] = out["disp_total"]["pass"]
     return out
 
 
@@ -351,6 +353,7 @@ def score(total: Arr, th: Arr, ta: Arr, yh: int, ya: int) -> dict[str, float]:
         out[f"p_over_{line}"] = q
         out[f"ll_over_{line}"] = _ll(q, y > line)
     for line in TEAM_LINES:
+        out[f"p_team_home_{line}"], out[f"p_team_away_{line}"] = over(th, line), over(ta, line)
         out[f"ll_team_{line}"] = 0.5 * (_ll(over(th, line), yh > line)
                                         + _ll(over(ta, line), ya > line))  # fmt: skip
     return out

@@ -2375,6 +2375,28 @@ floor also widens with fewer matches.
    - (a) all of 2026/27, read once in June 2027 (recommended);
    - (b) the league phase only, read in February 2027.
 
+**Built (2026-11-27), not run:** `adatta/model/continental.py` `--variant v2`.
+- `phase_of` maps every stored UEFA round-label family to a format phase. The August
+  play-offs are qualifying; the February knockout round play-offs are knockout.
+  `load_live_gate` refuses a gate file that doesn't match.
+- `fit_q(..., rho_u=True)` adds ρ_U per phase as a Dixon-Coles low-score term, with a
+  prior centred on the training matches' mean domestic ρ, sd 0.1. `predict` uses the
+  phase's ρ_U in place of the home league's.
+- `strengths(..., redo=True)` refits a five-bundle side's failing refit once (target_accept
+  0.99, 4,000 draws), cached under that spec's own hash. A side still failing is left out
+  of the v2 fit and counted, as is an unclassed round.
+- The report adds draws by competition and phase, and ρ_U's prior sensitivity.
+  `--compare RUN` prints dev check (c): C1 v2 minus C1, paired on the dev matches both
+  scored.
+- `continental.yml` takes `variant` and `compare`.
+- **Tests:** 4 in `tests/test_continental.py` (phases, gate, prediction by phase, the
+  dev comparison). The sampler recovery test, `tests/test_continental_model.py`, recovers
+  known ρ per phase from 4,000 simulated matches; it runs in CI's model job, because the
+  model group doesn't install on the owner's Intel Mac.
+- **Next, after the push, not on a Monday:** the dev check (c). That is `continental.yml`
+  stage strengths with variant v2, then stage fit with variant v2, fetch set to that run,
+  and compare 45904644304 (C1's dev rerun).
+
 
 Its own fit, not inside the club model:
 - **v0 (team only, from results):** one global strength scale with confederation effects,

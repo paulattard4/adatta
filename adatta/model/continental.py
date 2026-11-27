@@ -64,13 +64,18 @@ OPENING = "uefa"  # the holdout opening (D58), made once
 MODEL_NAME = "c1_continental"
 GATE_FILE = "config/uefa_gate.yml"
 ECE_SIMS, ECE_QUANTILE = 2000, 0.95
+# C1 v2 (D62): a UEFA low-score dependence term per format phase, read from the round label
+PHASES = ("group_stage", "league_phase", "qualifying", "knockout")
+RHO_PRIOR_SD = 0.1
+LIVE_GATE_FILE = "config/uefa_live_gate.yml"
+REDO_TARGET_ACCEPT, REDO_DRAWS = 0.99, 4000  # one redo of a failing side refit (as A3)
 
 TARGET_SCHEMA: dict[str, Any] = {
     "match_id": pl.Int64, "comp": pl.Utf8, "season": pl.Int32,
     "kickoff": pl.Datetime("us", "UTC"), "monday": pl.Datetime("us", "UTC"),
     "home": pl.Int64, "away": pl.Int64, "bundle_home": pl.Utf8, "bundle_away": pl.Utf8,
     "league_home": pl.Int64, "league_away": pl.Int64, "hg": pl.Int64, "ag": pl.Int64,
-    "neutral": pl.Boolean, "cross": pl.Boolean, "swapped": pl.Boolean,
+    "neutral": pl.Boolean, "cross": pl.Boolean, "swapped": pl.Boolean, "phase": pl.Utf8,
 }  # fmt: skip
 
 
@@ -103,6 +108,35 @@ def _utc(t: datetime) -> datetime:
 def monday(t: datetime) -> datetime:
     t = _utc(t)
     return (t - timedelta(days=t.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def phase_of(round_label: str | None) -> str | None:
+    """The UEFA format phase of a round label (D62), known before kickoff; None if unclassed.
+    Play-offs in August are qualifying; the February knockout round play-offs are knockout."""
+    import re
+
+    r = (round_label or "").strip()
+    if re.match(r"^League Stage", r):
+        return "league_phase"
+    if re.match(r"^Group", r):
+        return "group_stage"
+    if re.search(r"Qualifying|Preliminary|^Play-offs|^Playoff round", r, re.IGNORECASE):
+        return "qualifying"
+    if re.search(r"Finals|^Round of|Quarter|Semi|^Final|Knockout", r):
+        return "knockout"
+    return None
+
+
+def load_live_gate(path: str = LIVE_GATE_FILE) -> dict[str, Any]:
+    """C1 v2's pre-registered gate (D62); refused unless it describes this code."""
+    from pathlib import Path
+
+    import yaml
+
+    g: dict[str, Any] = yaml.safe_load(Path(path).read_text())["uefa_live_gate"]
+    if tuple(g["rho_phases"]) != PHASES or g["rho_prior_sd"] != RHO_PRIOR_SD:
+        raise ValueError(f"{path} does not match C1 v2's draw term: {g}")
+    return g
 
 
 def seasons(holdout: HoldoutKey | None = None) -> tuple[tuple[int, ...], tuple[int, ...]]:
@@ -185,7 +219,7 @@ def targets(session: Any, bundles: dict[str, list[int]],
             "away": a, "bundle_home": tl[h][0], "bundle_away": tl[a][0],
             "league_home": tl[h][1], "league_away": tl[a][1], "hg": int(hg), "ag": int(ag),
             "neutral": role.get(m.match_id) == "neutral", "cross": tl[h][0] != tl[a][0],
-            "swapped": sw,
+            "swapped": sw, "phase": phase_of(m.round),
         })  # fmt: skip
     return pl.DataFrame(out, schema=TARGET_SCHEMA).sort("kickoff", "match_id")
 
@@ -222,7 +256,8 @@ def side_strength(draws: dict[str, Arr], fd: Any, team: int, league: int,
 
 
 def strengths(store: RawStore, session: Any, bundle: str, part: tuple[int, int],
-              log: Any = print, holdout: HoldoutKey | None = None) -> pl.DataFrame:  # fmt: skip
+              log: Any = print, holdout: HoldoutKey | None = None,
+              redo: bool = False) -> pl.DataFrame:  # fmt: skip
     """Rows (match, side) for this bundle's sides, from the weekly refit of each match's
     Monday: cached, else fitted and cached under the league backtest's key."""
     from adatta.eval import c2, harness
@@ -254,6 +289,10 @@ def strengths(store: RawStore, session: Any, bundle: str, part: tuple[int, int],
         return c2_strengths(df, leagues, bundle, sides, mondays, log)
     h, lag = bt.fit_hash(spec), cfg.result_available_after_hours
     fitter = bt.nuts_fitter(spec)
+    from dataclasses import replace
+
+    redo_spec = replace(spec, target_accept=REDO_TARGET_ACCEPT, draws=REDO_DRAWS)
+    h_redo = bt.fit_hash(redo_spec)
     out: list[dict[str, Any]] = []
     log(f"{bundle} part {part[0]}/{part[1]}: {len(mondays)} Mondays, fit hash {h}")
     for i, mon in enumerate(mondays):
@@ -265,13 +304,24 @@ def strengths(store: RawStore, session: Any, bundle: str, part: tuple[int, int],
         else:
             draws, diag = fitter(fd, spec.seed)
             store.put(key, bt.encode(draws, diag))
+        redone = False
+        if redo and not _gates_ok(diag):  # C1 v2 (D62): one redo, cached under its own spec
+            rkey = bt.cache_key(h_redo, bundle, mon)
+            rraw = try_get(store, rkey)
+            if rraw is not None:
+                draws, diag = bt.decode(rraw)
+            else:
+                draws, diag = bt.nuts_fitter(redo_spec)(fd, spec.seed)
+                store.put(rkey, bt.encode(draws, diag))
+            redone = True
         n = np.asarray(draws["attack_last"]).shape[1]
         idx = np.linspace(0, n - 1, SIDE_DRAWS).astype(np.int64)
         for r in sides.filter(pl.col("monday") == mon).iter_rows(named=True):
             sd = side_strength(draws, fd, int(r["team"]), int(r["league"]), idx)
             out.append({"match_id": r["match_id"], "side": r["side"], "team": r["team"],
                         "bundle": bundle, "monday": mon, "refit_as_of": mon,
-                        "gates_ok": _gates_ok(diag), "cached": raw is not None, **sd})  # fmt: skip
+                        "gates_ok": _gates_ok(diag), "cached": raw is not None,
+                        "redone": redone, **sd})  # fmt: skip
         log(f"  {i + 1}/{len(mondays)} {mon:%Y-%m-%d} {'cached' if raw is not None else 'fitted'}")
     return pl.DataFrame(out)
 
@@ -331,10 +381,13 @@ BUNDLE_ORDER = ("england", "spain", "italy", "germany", "france", "portugal", "n
                 "belgium", "austria", "scotland", "turkey", "czechia", "denmark")  # fmt: skip
 
 
-def fit_q(train: pl.DataFrame, with_q: bool, prior_scale: float = 1.0,
-          seed: int = SEED) -> tuple[dict[str, Arr], dict[str, Any]]:  # fmt: skip
+def fit_q(train: pl.DataFrame, with_q: bool, prior_scale: float = 1.0, seed: int = SEED,
+          rho_u: bool = False) -> tuple[dict[str, Arr], dict[str, Any]]:  # fmt: skip
     """C1 (with_q) or B_own on the training matches: Poisson goals, att/def at their means.
-    Returns thinned draws {c, h, Q (n, 13)} and diagnostics (§14.5 gates, PPC of goals)."""
+    With `rho_u` (C1 v2, D62) the Dixon-Coles low-score term rho_U per format phase is
+    fitted too, prior Normal(the training matches' mean domestic rho, RHO_PRIOR_SD).
+    Returns thinned draws {c, h, Q (n, 13)[, rho_u (n, 4)]} and diagnostics (§14.5 gates,
+    PPC of goals)."""
     import pymc as pm
 
     from adatta.model import diagnostics as dg
@@ -357,8 +410,22 @@ def fit_q(train: pl.DataFrame, with_q: bool, prior_scale: float = 1.0,
             dq = q[bh] - q[ba]
         else:
             dq = 0.0
-        pm.Poisson("hg", pm.math.exp(c + hh * (1 - neu) + base_h + dq), observed=hg)
-        pm.Poisson("ag", pm.math.exp(c + base_a - dq), observed=ag)
+        lam_t = pm.math.exp(c + hh * (1 - neu) + base_h + dq)
+        mu_t = pm.math.exp(c + base_a - dq)
+        pm.Poisson("hg", lam_t, observed=hg)
+        pm.Poisson("ag", mu_t, observed=ag)
+        if rho_u:
+            import pytensor.tensor as pt
+
+            ph = np.array([PHASES.index(x) for x in train["phase"]])
+            rho0 = float(np.mean([np.mean(x) for x in train["rho_home"]]))
+            r_all = pm.Normal("rho_u", rho0, RHO_PRIOR_SD * prior_scale, shape=len(PHASES))
+            r = r_all[ph]
+            m00, m01 = (hg == 0) & (ag == 0), (hg == 0) & (ag == 1)
+            m10, m11 = (hg == 1) & (ag == 0), (hg == 1) & (ag == 1)
+            tau = (m00 * (1 - lam_t * mu_t * r) + m01 * (1 + lam_t * r) + m10 * (1 + mu_t * r)
+                   + m11 * (1 - r) + ~(m00 | m01 | m10 | m11) * 1.0)  # fmt: skip
+            pm.Potential("dixon_coles", pt.log(pt.maximum(tau, 1e-10)).sum())
         idata = pm.sample(draws=DRAWS, tune=DRAWS, chains=CHAINS, nuts_sampler="numpyro",
                           random_seed=seed, target_accept=0.9, progressbar=False)  # fmt: skip
     checks = dg.convergence(idata)
@@ -368,15 +435,19 @@ def fit_q(train: pl.DataFrame, with_q: bool, prior_scale: float = 1.0,
     q = (np.concatenate([np.zeros((len(flat["c"]), 1)), flat["q"]], axis=1) if with_q
          else np.zeros((len(flat["c"]), len(BUNDLE_ORDER))))  # fmt: skip
     out = {"c": flat["c"][idx], "h": flat["h"][idx], "Q": q[idx]}
+    if rho_u:
+        out["rho_u"] = flat["rho_u"][idx]
     # PPC: total goals per match, posterior predictive mean against the observed
     lam = np.exp(out["c"][:, None] + out["h"][:, None] * (1 - neu) + base_h
                  + (out["Q"][:, bh] - out["Q"][:, ba]))  # fmt: skip
     mu = np.exp(out["c"][:, None] + base_a - (out["Q"][:, bh] - out["Q"][:, ba]))
-    diag = {c_.name: c_.value for c_ in checks}
+    diag: dict[str, Any] = {c_.name: c_.value for c_ in checks}
     diag["gates_ok"] = all(c_.passed for c_ in checks)
     diag["ppc_total_pred"] = float((lam + mu).mean())
     diag["ppc_total_obs"] = float((hg + ag).mean())
     diag["n_train"] = len(hg)
+    if rho_u:
+        diag["rho_u"] = dict(zip(PHASES, out["rho_u"].mean(axis=0).tolist(), strict=True))
     return out, diag
 
 
@@ -416,8 +487,12 @@ def predict(post: dict[str, Arr], tg: pl.DataFrame) -> Arr:
         aa, da = np.asarray(r["att_draws_away"]), np.asarray(r["def_draws_away"])
         lam = np.exp(post["c"] + post["h"] * (1 - float(r["neutral"])) + ah - da + dq)
         mu = np.exp(post["c"] + aa - dh - dq)
-        m = cup_terms.matrices(lam, mu, np.asarray(r["rho_home"]), np.asarray(r["kappa_home"]),
-                               MAX_GOALS)  # fmt: skip
+        rho = (
+            post["rho_u"][:, PHASES.index(r["phase"])]
+            if "rho_u" in post
+            else np.asarray(r["rho_home"])
+        )  # C1 v2 (D62): the UEFA phase's rho
+        m = cup_terms.matrices(lam, mu, rho, np.asarray(r["kappa_home"]), MAX_GOALS)
         ph, pd = np.tril(m, -1).sum(axis=(-2, -1)), np.trace(m, axis1=-2, axis2=-1)
         out.append([ph.mean(), pd.mean(), 1 - ph.mean() - pd.mean()])
     return np.asarray(out)
@@ -598,7 +673,7 @@ def join_sides(tg: pl.DataFrame, st: pl.DataFrame) -> pl.DataFrame:
 
 
 def run_fit(tg: pl.DataFrame, elo: dict[int, float], scored: Sequence[int] = DEV,
-            ) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
+            variant: str = "c1") -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
     """C1 and B_own on the 28-day grid over the targets of the `scored` seasons (dev, or the
     holdout), walk-forward from the first one's Monday, trained on every cross-bundle match
     final before each refit; Elo's ordered logit refitted at the same times. Returns scored
@@ -617,7 +692,7 @@ def run_fit(tg: pl.DataFrame, elo: dict[int, float], scored: Sequence[int] = DEV
             continue
         train = cross.filter(pl.col("kickoff") + LAG <= t)
         assert (train["kickoff"] + LAG <= t).all()
-        post_q, dq = fit_q(train, True)
+        post_q, dq = fit_q(train, True, rho_u=variant == "v2")
         post_0, d0 = fit_q(train, False)
         x = np.array([elo[m] for m in train["match_id"]]) / 100
         y = outcome(train["hg"].to_numpy(), train["ag"].to_numpy())
@@ -625,7 +700,7 @@ def run_fit(tg: pl.DataFrame, elo: dict[int, float], scored: Sequence[int] = DEV
         pe = logit_probs(np.array([elo[m] for m in tgt["match_id"]]) / 100, b, c1, c2)
         pq, p0 = predict(post_q, tgt), predict(post_0, tgt)
         rows.append(tgt.select("match_id", "comp", "season", "hg", "ag", "neutral",
-                               "bundle_home", "bundle_away").with_columns(
+                               "bundle_home", "bundle_away", "phase").with_columns(
             refit=pl.lit(t), c1_tail=pl.Series(tails(post_q, tgt)),
             **{f"{m}_{o}": pl.Series(p[:, k]) for m, p in
                                 (("c1", pq), ("own", p0), ("elo", pe))
@@ -722,10 +797,17 @@ def gate(scored: pl.DataFrame, diags: list[dict[str, Any]],
     return "\n".join(lines) + "\n", rep
 
 
-def sensitivity(tg: pl.DataFrame, t: datetime) -> dict[str, list[float]]:
-    """Q at the last refit with every prior sd halved and doubled (reported)."""
+def sensitivity(tg: pl.DataFrame, t: datetime, variant: str = "c1"
+                ) -> dict[str, dict[str, list[float]]]:  # fmt: skip
+    """Q (and with C1 v2, rho_U) at the last refit with every prior sd halved and doubled."""
     train = tg.filter(pl.col("cross") & (pl.col("kickoff") + LAG <= t))
-    return {str(s): fit_q(train, True, s)[0]["Q"].mean(axis=0).tolist() for s in (0.5, 1.0, 2.0)}
+    out: dict[str, dict[str, list[float]]] = {}
+    for s_ in (0.5, 1.0, 2.0):
+        post = fit_q(train, True, s_, rho_u=variant == "v2")[0]
+        out[str(s_)] = {"Q": post["Q"].mean(axis=0).tolist(),
+                        **({"rho_u": post["rho_u"].mean(axis=0).tolist()} if "rho_u" in post
+                           else {})}  # fmt: skip
+    return out
 
 
 def venue_check(session: Any, tg: pl.DataFrame, five: dict[str, list[int]],
@@ -786,6 +868,39 @@ def leakage(tg: pl.DataFrame, hist: pl.DataFrame, elo: dict[int, float],
     return {"n": len(idx), "changed": int(bad), "ok": bad == 0}
 
 
+def draw_lines(scored: pl.DataFrame) -> str:
+    """Draw calibration by competition and format phase (reported, D62 (d))."""
+    y = outcome(scored["hg"].to_numpy(), scored["ag"].to_numpy())
+    pd_ = scored["c1_draw"].to_numpy()
+    parts = []
+    for col in ("comp", "phase"):
+        if col not in scored.columns:
+            continue
+        for v in sorted({x for x in scored[col].to_list() if x is not None}):
+            s_ = (scored[col] == v).to_numpy()
+            parts.append(f"{v} n {int(s_.sum())} predicted {pd_[s_].mean():.3f} observed "
+                         f"{(y[s_] == 1).mean():.3f}")  # fmt: skip
+    return "Draws, C1 predicted against observed (reported): " + "; ".join(parts) + "\n"
+
+
+def compare_lines(new: pl.DataFrame, old: pl.DataFrame) -> str:
+    """D62 (c): C1 v2 against C1 on the dev matches both scored (paired by match)."""
+    j = new.select("match_id", "hg", "ag", *[f"c1_{o}" for o in ("home", "draw", "away")]).join(
+        old.select("match_id", *[pl.col(f"c1_{o}").alias(f"old_{o}")
+                                 for o in ("home", "draw", "away")]),
+        on="match_id", how="inner")  # fmt: skip
+    y = outcome(j["hg"].to_numpy(), j["ag"].to_numpy())
+    a = log_loss(j.select("c1_home", "c1_draw", "c1_away").to_numpy(), y)
+    b = log_loss(j.select("old_home", "old_draw", "old_away").to_numpy(), y)
+    d = paired(a, b)
+    ok = d["mean"] <= 0
+    return (
+        f"Dev check (c), C1 v2 minus C1 on {d['n']} paired dev matches: log loss "
+        f"{d['mean']:+.4f} [{d['lo']:+.4f}, {d['hi']:+.4f}] ({d['rel']:+.2%}): "
+        f"{'pass' if ok else 'FAIL'} (point estimate <= 0).\n"
+    )
+
+
 def passed(checks: dict[str, bool], holdout: bool) -> bool:
     """Dev: all six checks. The holdout: the gate file's checks (1-4) alone, 5 and 6
     reported."""
@@ -814,6 +929,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     for sp in (s1, s2):
         sp.add_argument("--holdout", default=None, metavar="RUN_ID",
                         help="the run that made the UEFA opening (D58)")  # fmt: skip
+        sp.add_argument("--variant", choices=("c1", "v2"), default="c1",
+                        help="v2: C1 with the UEFA draw term, side refit redo (D62)")  # fmt: skip
+    s2.add_argument("--compare", default=None, metavar="RUN_ID",
+                    help="v2 dev check (c): C1's scored rows of that strengths run")  # fmt: skip
     s3 = sub.add_parser("claim", help="open the UEFA holdout once (marker uefa, D58)")
     s3.add_argument("--run", required=True, metavar="RUN_ID")
     s3.add_argument("--commit", required=True)
@@ -837,7 +956,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.cmd == "strengths":
         i, n = (int(x) for x in args.part.split("/"))
         with get_session() as s:
-            rows = strengths(store, s, args.bundle, (i, n), holdout=key)
+            rows = strengths(store, s, args.bundle, (i, n), holdout=key,
+                             redo=args.variant == "v2")  # fmt: skip
         buf = io.BytesIO()
         rows.write_parquet(buf, compression="zstd")
         store.put(
@@ -868,24 +988,44 @@ def main(argv: Sequence[str] | None = None) -> None:
           f"; sides from refits failing the gates "
           f"{int((~tg['refit_ok_home']).cast(pl.Int64).sum())
              + int((~tg['refit_ok_away']).cast(pl.Int64).sum())}")  # fmt: skip
+    if args.variant == "v2":  # D62: a side still failing after its redo is left out
+        bad = tg.filter(~pl.col("refit_ok_home") | ~pl.col("refit_ok_away"))
+        unclassed = tg.filter(pl.col("phase").is_null())
+        print(f"C1 v2: {bad.height} targets left out (a side's refit fails after its redo); "
+              f"{unclassed.height} with an unclassed round left out")  # fmt: skip
+        tg = tg.filter(pl.col("refit_ok_home") & pl.col("refit_ok_away")
+                       & pl.col("phase").is_not_null())  # fmt: skip
     neutral = set(tg.filter(pl.col("neutral"))["match_id"].to_list())
     elo = elo_at(hist, [(r["match_id"], r["monday"], r["home"], r["away"])
                         for r in tg.iter_rows(named=True)], neutral)  # fmt: skip
-    scored, diags = run_fit(tg, elo, scored_seasons)
+    scored, diags = run_fit(tg, elo, scored_seasons, args.variant)
     text, rep = gate(scored, diags, label)
-    sens = sensitivity(tg, datetime.fromisoformat(diags[-1]["as_of"]))
+    text += draw_lines(scored)
+    sens = sensitivity(tg, datetime.fromisoformat(diags[-1]["as_of"]), args.variant)
     leak = leakage(tg, hist, elo, neutral, scored_seasons)
     rep["checks"]["6 leakage"] = leak["ok"]
     rep["passed"] = passed(rep["checks"], key is not None)
     text += (f"6 leakage: {leak['changed']} of {leak['n']} sampled targets changed: "
              f"{'pass' if leak['ok'] else 'FAIL'}.\n"
              "Prior sensitivity, Q at the last refit (prior sd x0.5 / x1 / x2): "
-             + "; ".join(f"{b} " + " / ".join(f"{sens[k][j]:+.3f}" for k in ("0.5", "1.0", "2.0"))
+             + "; ".join(f"{b} " + " / ".join(f"{sens[k]['Q'][j]:+.3f}"
+                                               for k in ("0.5", "1.0", "2.0"))
                          for j, b in enumerate(BUNDLE_ORDER)) + "\n"
+             + ("rho_U at the last refit (prior sd x0.5 / x1 / x2): " + "; ".join(
+                 f"{ph} " + " / ".join(f"{sens[k]['rho_u'][j]:+.3f}" for k in ("0.5", "1.0", "2.0"))
+                 for j, ph in enumerate(PHASES)) + "\n" if args.variant == "v2" else "")
              + ("Gating on the holdout: checks 1-4 (config/uefa_gate.yml); 5 and 6 reported.\n"
                 if key else "")
-             + f"**C1 {'PASSES' if rep['passed'] else 'FAILS'} on {label}.**\n")  # fmt: skip
-    out = f"{PREFIX}/{'holdout' if key else 'reports'}/{args.fetch}"
+             + f"**C1{' v2' if args.variant == 'v2' else ''} "
+               f"{'PASSES' if rep['passed'] else 'FAILS'} on {label}.**\n")  # fmt: skip
+    if args.compare:  # D62 (c): C1 v2 not worse than C1 on dev log loss (point estimate)
+        old = pl.read_parquet(
+            io.BytesIO(store.get(f"{PREFIX}/reports/{args.compare}/scored.parquet"))
+        )
+        text += compare_lines(scored, old)
+    out = f"{PREFIX}/{'holdout' if key else 'reports'}/{args.fetch}" + (
+        "/v2" if args.variant == "v2" else ""
+    )
     buf = io.BytesIO()
     scored.write_parquet(buf, compression="zstd")
     store.put(f"{out}/scored.parquet", buf.getvalue())

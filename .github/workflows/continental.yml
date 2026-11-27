@@ -26,6 +26,12 @@ on:
       fetch:
         description: "fit: the strengths run id"
         default: ""
+      variant:
+        description: "c1 | v2 (C1 v2: the UEFA draw term and side refit redo, D62)"
+        default: "c1"
+      compare:
+        description: "fit, v2 dev check (c): the strengths run id of C1's dev scored rows"
+        default: ""
 permissions:
   contents: read
 concurrency:
@@ -80,6 +86,7 @@ jobs:
           --bundle ${{ matrix.bundle }} --part ${{ matrix.part }}/${{ inputs.parts }}
           --upload ${{ github.run_id }}
           ${{ inputs.stage == 'holdout-strengths' && format('--holdout {0}', github.run_id) || '' }}
+          --variant ${{ inputs.variant }}
   fit:
     if: ${{ inputs.stage == 'fit' || inputs.stage == 'holdout-fit' }}
     runs-on: ubuntu-latest
@@ -95,4 +102,6 @@ jobs:
           uv run --frozen --group model python -m adatta.model.continental fit
           --fetch ${{ inputs.fetch }} --parts ${{ inputs.parts }}
           ${{ inputs.stage == 'holdout-fit' && format('--holdout {0}', inputs.fetch) || '' }}
+          --variant ${{ inputs.variant }}
+          ${{ inputs.compare != '' && format('--compare {0}', inputs.compare) || '' }}
           | tee -a "$GITHUB_STEP_SUMMARY"

@@ -253,3 +253,54 @@ def test_the_c2_league_gate_is_per_league_with_d59_routes() -> None:
     assert all(lk["interval"] == 0.975 for lk in g["looks"])
     old = yaml.safe_load(Path("config/c2_retest_gate.yml").read_text())["c2_gate"]
     assert g["segment_metrics"] == old["segment_metrics"]  # the same segments as D54 (h)
+
+
+# ---------------------------------------------------------- C1 v2: the UEFA draw term (D62)
+
+STORED_ROUNDS = [  # every UEFA round-label family stored for 2016-2026 (2026-11-27)
+    ("16th Finals", "knockout"), ("1st Qualifying Round", "qualifying"),
+    ("2nd Qualifying Round", "qualifying"), ("3rd Qualifying Round", "qualifying"),
+    ("8th Finals", "knockout"), ("Final", "knockout"), ("Group A", "group_stage"),
+    ("Group L", "group_stage"), ("Group Stage - 3", "group_stage"),
+    ("Knockout Round Play-offs", "knockout"), ("League Stage - 8", "league_phase"),
+    ("Play-offs", "qualifying"), ("Playoff round", "qualifying"),
+    ("Preliminary Round", "qualifying"), ("Preliminary Round - Final", "qualifying"),
+    ("Preliminary Round - Semi-finals", "qualifying"), ("Preliminary round", "qualifying"),
+    ("Preliminary round 1", "qualifying"), ("Quarter-finals", "knockout"),
+    ("Round of 16", "knockout"), ("Round of 32", "knockout"), ("Semi-finals", "knockout"),
+]  # fmt: skip
+
+
+def test_every_stored_uefa_round_has_a_format_phase() -> None:
+    for label, phase in STORED_ROUNDS:
+        assert ct.phase_of(label) == phase, label
+    assert ct.phase_of("Mystery Round") is None and ct.phase_of(None) is None
+    g = ct.load_live_gate()
+    assert tuple(g["rho_phases"]) == ct.PHASES and g["rho_prior_sd"] == ct.RHO_PRIOR_SD
+
+
+def test_predict_uses_the_uefa_phase_rho_when_fitted() -> None:
+    row = {"bundle_home": "england", "bundle_away": "spain", "neutral": False,
+           "att_draws_home": [0.0], "def_draws_home": [0.0], "att_draws_away": [0.0],
+           "def_draws_away": [0.0], "rho_home": [0.0], "kappa_home": [0.0],
+           "phase": "league_phase"}  # fmt: skip
+    tg = pl.DataFrame([row])
+    base = {"c": np.array([0.2]), "h": np.array([0.0]), "Q": np.zeros((1, len(ct.BUNDLE_ORDER)))}
+    p0 = ct.predict(base, tg)
+    rho = np.zeros((1, len(ct.PHASES)))
+    rho[0, ct.PHASES.index("league_phase")] = 0.15  # fewer low-score draws
+    p1 = ct.predict({**base, "rho_u": rho}, tg)
+    assert p1[0, 1] < p0[0, 1] and np.allclose(p1.sum(axis=1), 1)
+    rho[0, ct.PHASES.index("league_phase")] = 0.0
+    rho[0, ct.PHASES.index("knockout")] = 0.15  # another phase's rho changes nothing here
+    assert ct.predict({**base, "rho_u": rho}, tg) == pytest.approx(p0)
+
+
+def test_the_dev_check_compares_v2_with_c1_on_shared_matches() -> None:
+    def rows(p_draw: float) -> pl.DataFrame:
+        return pl.DataFrame({"match_id": [1, 2], "hg": [1, 0], "ag": [1, 0],
+                             "c1_home": [0.4, 0.4], "c1_draw": [p_draw] * 2,
+                             "c1_away": [0.6 - p_draw] * 2})  # fmt: skip
+
+    assert "pass" in ct.compare_lines(rows(0.3), rows(0.2))  # both draws: v2 better
+    assert "FAIL" in ct.compare_lines(rows(0.2), rows(0.3))

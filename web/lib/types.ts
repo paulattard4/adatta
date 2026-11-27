@@ -16,9 +16,12 @@ export interface Freshness {
   age_days: number | null; gates_pass: boolean | null; stale: boolean;
 }
 
-export interface Headline { milestone: string; home: Prob; draw: Prob; away: Prob }
+export interface Headline {
+  milestone: string; home: Prob; draw: Prob; away: Prob;
+  over25: Prob | null; btts: Prob | null; // null where withheld (internationals)
+}
 
-/** The bookmakers' latest de-margined prices beside an upcoming forecast: information only, no edge flag. */
+/** The bookmakers' latest de-margined prices beside an upcoming forecast: never a model input. */
 export interface MarketLine {
   home: number; draw: number; away: number; over25: number | null; btts: number | null; bookmakers: number;
 }
@@ -184,11 +187,14 @@ export interface PlayedList {
 }
 
 // In play (docs/DASHBOARD_TASKS.md, option 1): live score beside the pre-match projection.
-export interface LiveForecast { milestone: string; generated_at: string; home: Prob; draw: Prob; away: Prob }
+export interface LiveForecast {
+  milestone: string; generated_at: string; home: Prob; draw: Prob; away: Prob; over25: Prob | null; btts: Prob | null;
+}
 export interface LiveMatch {
   team_level: string;
   match_id: number; kickoff: string; competition_id: number; competition: string; competition_tier: string;
   home: string; away: string; status: string; elapsed: number | null; extra: number | null;
   home_goals: number | null; away_goals: number | null; forecast: LiveForecast | null;
+  market: MarketLine | null; // the last price before kickoff
 }
 export interface LiveList { generated_at: string; fetched_at: string | null; note: string | null; matches: LiveMatch[] }

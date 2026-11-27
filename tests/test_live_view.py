@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import numpy as np
 import pytest
 import test_serve
 from fastapi.testclient import TestClient
@@ -131,6 +132,8 @@ def test_live_view_shows_the_pre_match_projection_beside_the_live_score(
     assert (m.status, m.elapsed, m.home_goals, m.away_goals) == ("2H", 63, 1, 0)
     assert m.forecast is not None and m.forecast.generated_at < K  # published before kickoff
     assert abs(m.forecast.home.p + m.forecast.draw.p + m.forecast.away.p - 1) < 1e-9
+    assert m.forecast.over25 is not None and m.forecast.btts is not None  # beside the 1X2
+    assert m.market is None  # no price was captured
     assert m.competition_tier == "1" and v.fetched_at == IN_PLAY and v.note is None
     assert m.team_level == "senior"  # the page shows pre-match fair odds for senior only
 
@@ -243,3 +246,20 @@ def test_live_view_covers_c2_top_flights_and_national_competitions(tmp_path: Pat
     assert {m.match_id for m in v.matches} == {mid, c2_mid, nat}
     assert p.calls == 1  # one provider request covers every competition
     assert next(m for m in v.matches if m.match_id == c2_mid).forecast is None  # none published
+
+
+def test_live_market_is_the_last_price_before_kickoff(tmp_path: Path) -> None:
+    """The market beside a live match is each bookmaker's last price at or before kickoff,
+    de-margined: a price observed in play never shows."""
+    from test_played_view import _odds
+
+    w, mid, _ = published(tmp_path)
+    _odds(w, mid, "b1", "1X2", {"home": 2.0, "draw": 3.5, "away": 4.0}, timedelta(hours=-2))
+    _odds(w, mid, "b1", "1X2", {"home": 1.5, "draw": 4.0, "away": 7.0}, timedelta(minutes=10))
+    ref = w.s.get(models.Match, mid).source_ref  # type: ignore[union-attr]
+    feed = LiveFeed(FakeProvider([LiveState(int(ref), "1H", 20, None, 0, 0)]))
+    v = views.live(w.s, ctx(w), IN_PLAY, feed)
+    mk = v.matches[0].market
+    inv = np.array([1 / 2.0, 1 / 3.5, 1 / 4.0])
+    assert mk is not None and mk.bookmakers == 1 and mk.over25 is None
+    np.testing.assert_allclose([mk.home, mk.draw, mk.away], inv / inv.sum(), rtol=1e-12)

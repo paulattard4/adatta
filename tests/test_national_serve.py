@@ -300,6 +300,8 @@ def test_dashboard_shows_national_forecasts_and_reasons(tmp_path: Path) -> None:
     fl = views.fixture_list(w.s, ctx, now, end=now + timedelta(days=14))
     rows = {f.match_id: f for g in fl.competitions for f in g.fixtures}
     assert rows[ok].headline is not None and rows[ok].no_projection_reason is None
+    h = rows[ok].headline
+    assert h is not None and h.over25 is None and h.btts is None  # withheld
     assert any(c.key == "model" and c.value.startswith("team-only") for c in rows[ok].confidence)
     assert [c.key for c in rows[ok].confidence] == list(views.CHECKLIST)
     assert rows[youth].headline is None and rows[youth].no_projection_reason == ns.NOT_COVERED

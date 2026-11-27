@@ -41,8 +41,7 @@ def _p(r: models.MarketProjection) -> sc.Prob:
 
 
 def _headline(ms: str, rows: list[models.MarketProjection]) -> sc.Headline:
-    x = {r.selection: _p(r) for r in rows if r.market_type == "1X2"}
-    return sc.Headline(milestone=ms, home=x["home"], draw=x["draw"], away=x["away"])
+    return v._headline(ms, rows, _p)  # point forecasts (D54): no interval
 
 
 def confidence(m: v.MatchRow, run: models.ModelRun | None, fit: c2_live.Fit | None,

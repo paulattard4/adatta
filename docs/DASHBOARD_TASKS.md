@@ -884,6 +884,43 @@ appear under each upcoming senior fixture with a forecast, and on the match page
 ours. It is information only: no edge flag and no "has edge" filter until an edge test is
 written and passed.
 
+**5a. The largest gap to the market (owner, 2026-11-27, later that day).** "Show/highlight
+the selection for each market which has the highest positive probability difference between
+our model and the market, both for fixtures and played." Per market, the selection with
+the largest ours − market (de-margined) above zero is marked ▲ with the gap in percentage
+points: 1X2 on the fixture browser (its rows carry only our 1X2) and 1X2, over/under 2.5
+and both teams score on the played view, where the two-way cell shows the selection that
+came in, so a gap on the other one is named under it. Computed in the page from what the
+API already sends (`topGap`, `web/lib/format.ts`); nothing is stored and the model never
+sees it (principle 1). The pages call it a comparison, not a betting signal: calibration
+against the market is the edge test's job, and the "has edge" filter still waits for it.
+Checked in the browser: one mark per priced market on 144 fixtures and on the played
+rows, none on unpriced ones, no overlap with the interval or the bar.
+
+**5b. Totals and BTTS on the fixture browser; the same pick on played (owner, same day).**
+"Also find a way to include the totals and btts for fixtures, showing the selection with
+highest positive difference and replicate it for played, always keeping everything tidy.
+For played highlight it if the selection was a winning selection."
+- The fixture headline (`schemas.Headline`) carries over/under 2.5 and both teams score
+  from the same milestone's rows as the 1X2 (point forecasts for the C2 baseline; null
+  where withheld, the internationals). Tested in `test_dashboard_api.py`,
+  `test_c2_projection.py` and `test_national_serve.py`.
+- Fixture rows gain Goals 2.5 and BTTS columns. Each shows the selection we rate furthest
+  above the market, marked ▲ with its gap, or Over 2.5 / BTTS Yes when the market has no
+  price for it. The market line adds the over 2.5 and BTTS prices, so each gap can be read
+  off the row. Every cell names its selection, so values line up.
+- Played: the two-way cells show the same pick, or the selection that came in when there
+  was no price. A cell is green when its selection came in, and a marked selection that
+  came in has a green ▲ ✓ (1X2 too).
+- Tidy: no cell overflow and no sideways scroll at 1366 px or at phone width (375 px).
+  Below 960 px a fixture row stacks into 1X2 then Goals 2.5 and BTTS, and the gap tag
+  wraps under the price when the cell is narrow.
+- In play (owner: "also do this for inplay matches"): live rows show the pre-match 1X2,
+  Goals 2.5 and BTTS with the same marks against the market at kickoff (each bookmaker's
+  last price at or before kickoff, `views._kickoff_market_lines`; a price observed in play
+  never shows, tested in `test_live_view.py`), and that market under the teams. No win
+  highlight while the match is open.
+
 **The odds guard** (`tests/test_dashboard_api.py`) now checks imports by syntax tree:
 `adatta/api/market.py` is the only module that reads odds, and `adatta/api/views.py` is
 the only module that imports it.

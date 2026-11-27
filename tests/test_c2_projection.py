@@ -236,6 +236,8 @@ def test_the_match_view_shows_the_baseline_without_intervals(tmp_path: Path) -> 
     lst = v.fixture_list(w.s, ctx, K - timedelta(days=2), end=K + timedelta(days=1))
     rows: list[Any] = [f for g in lst.competitions for f in g.fixtures]
     assert [f.match_id for f in rows] == [m] and rows[0].headline is not None
+    h = rows[0].headline  # over/under and BTTS as point forecasts too
+    assert all(x is not None and x.lo is None and x.point for x in (h.over25, h.btts))
 
 
 def test_only_an_explicit_point_forecast_has_no_interval() -> None:

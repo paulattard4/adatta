@@ -119,6 +119,9 @@ def test_fixture_list_groups_and_carries_components(tmp_path: Path) -> None:
     h = rows[mid].headline
     assert h is not None
     assert abs(h.home.p + h.draw.p + h.away.p - 1.0) < 1e-9
+    # over/under 2.5 and both teams score beside the 1X2, from the same milestone's rows
+    assert h.over25 is not None and h.btts is not None and h.over25.lo is not None
+    assert 0 < h.over25.p < 1 and 0 < h.btts.p < 1
     assert rows[later].headline is None
     assert rows[later].no_projection_reason
     keys = [c.key for c in rows[mid].confidence]

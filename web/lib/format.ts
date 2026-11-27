@@ -72,3 +72,36 @@ export function cameIn(s: { market: string; line: number | null; selection: stri
 /** The other side of a two-way market: 1 − p, the interval flipped. */
 export const complement = (x: Prob) =>
   ({ p: 1 - x.p, lo: x.hi == null ? null : 1 - x.hi, hi: x.lo == null ? null : 1 - x.lo });
+
+/** The selection of one market whose probability is furthest above the market's (ours − the
+ * de-margined market), if any is above it; null when none is or the market has no price.
+ * Display only: odds never reach the model (principle 1). */
+export function topGap<K extends string>(ours: Record<K, number>, market: NoInfer<Record<K, number | null | undefined>>):
+  { key: K; diff: number; market: number } | null {
+  let best: { key: K; diff: number; market: number } | null = null;
+  for (const key of Object.keys(ours) as K[]) {
+    const m = market[key];
+    if (m == null) return null;
+    const diff = ours[key] - m;
+    if (diff > 0 && (best === null || diff > best.diff)) best = { key, diff, market: m };
+  }
+  return best;
+}
+
+/** The two selections of a yes/no market from the probability of the first. */
+export const twoWay = (p: number | null | undefined) => (p == null ? null : { yes: p, no: 1 - p });
+
+/** A gap as signed percentage points: "+3.2". */
+export const gapPts = (d: number) => `${d >= 0 ? "+" : "−"}${Math.abs(100 * d).toFixed(1)}`;
+
+export type Gap = { diff: number; market: number };
+
+/** The selection of a yes/no market to show: the one we rate furthest above the market when it
+ * has a price (with its gap), else `fallback`. `p` is our probability of yes. */
+export function twoWayPick(p: Prob, price: number | null | undefined, fallback: "yes" | "no" = "yes"):
+  { side: "yes" | "no"; prob: Prob; gap?: Gap } {
+  const both = twoWay(price);
+  const g = both ? topGap({ yes: p.p, no: 1 - p.p }, both) : null;
+  const side = g ? g.key : fallback;
+  return { side, prob: side === "yes" ? p : { ...complement(p), point: p.point }, gap: g ?? undefined };
+}

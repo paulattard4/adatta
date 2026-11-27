@@ -68,11 +68,14 @@ class Headline(BaseModel):
     home: Prob
     draw: Prob
     away: Prob
+    over25: Prob | None = None  # P(over 2.5 goals); None where withheld (internationals)
+    btts: Prob | None = None  # P(both teams score)
 
 
 class MarketLine(BaseModel):
     """The market beside an upcoming forecast, de-margined from each bookmaker's latest
-    price: information only, never an edge flag and never a model input (principle 1)."""
+    price: never a model input (principle 1). The page marks the selection we rate furthest
+    above it per market (owner, 2026-11-27), a comparison, not a betting signal."""
 
     home: float
     draw: float
@@ -92,7 +95,7 @@ class FixtureRow(BaseModel):
     headline: Headline | None
     no_projection_reason: str | None
     confidence: list[Component]
-    market: MarketLine | None = None  # information only, no edge flag (owner, 2026-11-27)
+    market: MarketLine | None = None  # never a model input; gap marked on the page
 
 
 class CompetitionGroup(BaseModel):
@@ -359,7 +362,7 @@ class MatchView(BaseModel):
     # its refits; shown only when coherent. Otherwise `half_reason` says why there are none.
     half_coherence: Coherence | None = None
     half_reason: str | None = None
-    market: MarketLine | None = None  # information only, no edge flag (owner, 2026-11-27)
+    market: MarketLine | None = None  # never a model input; gap marked on the page
 
 
 class TournamentEntry(BaseModel):
@@ -556,6 +559,8 @@ class LiveForecast(BaseModel):
     home: Prob
     draw: Prob
     away: Prob
+    over25: Prob | None = None  # None where withheld (internationals)
+    btts: Prob | None = None
 
 
 class LiveMatch(BaseModel):
@@ -573,6 +578,7 @@ class LiveMatch(BaseModel):
     home_goals: int | None
     away_goals: int | None
     forecast: LiveForecast | None  # None: no projection was published before kickoff
+    market: MarketLine | None = None  # the last price before kickoff; never a model input
 
 
 class LiveList(BaseModel):

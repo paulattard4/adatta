@@ -66,6 +66,12 @@ h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 .prob-compact .prob-odds .dim { display: none; } /* the interval is in the tooltip */
 .prob-bar { grid-area: bar; position: relative; height: 4px; margin-top: 5px; background: var(--line); border-radius: 2px; }
 .prob-band { position: absolute; top: 0; bottom: 0; background: rgba(var(--home), .35); border-radius: 2px; }
+/* the price and its gap tag share a line while it fits; in a narrow cell the tag wraps under it */
+.prob-odds.with-gap { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+.prob-price { white-space: nowrap; }
+.prob-gap { display: inline-block; white-space: nowrap; font-size: 10px; line-height: 1; padding: 2px 4px; border-radius: 3px;
+  color: var(--text); border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.prob-gap.won { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 22%, transparent); }
 .prob-tick { position: absolute; top: -2px; width: 2px; height: 8px; margin-left: -1px; background: var(--text); }
 .prob-compact { min-width: 0; }
 .prob-compact .prob-value { font-size: 14px; }
@@ -81,6 +87,10 @@ h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 .fx-head, .fx-row { display: grid; grid-template-columns: 150px minmax(220px, 1fr) 120px 120px 120px 90px; gap: var(--row-gap); align-items: center; }
 .fx-head { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; padding: 4px var(--row-pad); border-bottom: 1px solid var(--line); }
 .fx-head .c { text-align: left; }
+/* the fixture browser: 1X2, over/under 2.5 and BTTS; every cell names its selection so values line up */
+.fx-head.fx-wide, .fx-row.fx-wide { grid-template-columns: 130px minmax(200px, 1fr) repeat(5, minmax(84px, 110px)) 90px; }
+.fx-wide .prob-compact .prob-label { display: block; font-size: 10px; }
+.fx-wide .no-proj { grid-column: span 5; }
 .fx-row { padding: var(--row-pad); border-bottom: 1px solid var(--line); }
 .fx-row:hover { background: var(--panel-2); }
 .fx-row:last-child, .played-row:last-child, .history tr:last-child td, table.scores tr:last-child td { border-bottom: none; }
@@ -170,7 +180,7 @@ h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 @media (max-width: 960px) {
   .fx-head { display: none; }
   .fx-row .prob-compact .prob-label { display: block; }
-  .fx-row { grid-template-columns: 1fr 1fr 1fr; gap: 6px 10px; }
+  .fx-row, .fx-row.fx-wide { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; }
   .fx-row .kickoff, .fx-row .teams, .fx-row .no-proj, .fx-row .conf-badge, .fx-row > .small { grid-column: 1 / -1; }
 }
 
@@ -202,7 +212,7 @@ h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 .topnav { display: flex; gap: 14px; margin-left: 18px; font-size: 13px; }
 .topnav a { color: var(--dim); text-decoration: none; }
 .topnav a:hover { color: var(--text); }
-.played-head, .played-row { display: grid; grid-template-columns: 110px minmax(180px, 1fr) 50px repeat(5, minmax(84px, 110px)) 110px; gap: var(--row-gap); align-items: center; }
+.played-head, .played-row { display: grid; grid-template-columns: 110px minmax(180px, 1fr) 50px repeat(5, minmax(84px, 124px)) 110px; gap: var(--row-gap); align-items: center; }
 .played-row .played-cell { align-self: stretch; } /* marked and unmarked cells, one height per row */
 .played-cell .prob-compact .prob-label { display: block; font-size: 10px; } /* every cell names its selection, so values line up */
 .played-cell .prob { grid-template-areas: "label label" "value value" "interval interval" "odds odds" "bar bar"; }
@@ -316,4 +326,5 @@ table.scores th { color: var(--dim); font-weight: 500; font-size: 11px; }
 .chart .band { fill: rgba(var(--home), 0.15); stroke: none; }
 .chart .hit { fill: transparent; }
 .market-line { font-size: 11px; display: block; }
+.nw { white-space: nowrap; } /* one price stays on one line when the market line wraps */
 .market-cmp { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; }

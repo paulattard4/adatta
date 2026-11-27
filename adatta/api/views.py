@@ -338,9 +338,19 @@ def _p(r: models.MarketProjection) -> sc.Prob:
     return sc.Prob(p=r.probability, lo=lo, hi=hi)
 
 
-def _headline(ms: str, rows: list[models.MarketProjection]) -> sc.Headline:
-    x = {r.selection: _p(r) for r in rows if r.market_type == "1X2"}
-    return sc.Headline(milestone=ms, home=x["home"], draw=x["draw"], away=x["away"])
+def _headline(ms: str, rows: list[models.MarketProjection],
+              p: Callable[[models.MarketProjection], sc.Prob] = _p) -> sc.Headline:  # fmt: skip
+    """The 1X2 of a milestone, with over/under 2.5 and both teams score where published."""
+    x = {r.selection: p(r) for r in rows if r.market_type == "1X2"}
+    two = {
+        (r.market_type, r.selection): r
+        for r in rows
+        if (r.market_type, r.line, r.selection) in (("OU", 2.5, "over"), ("BTTS", None, "yes"))
+    }
+    over, btts = two.get(("OU", "over")), two.get(("BTTS", "yes"))
+    return sc.Headline(milestone=ms, home=x["home"], draw=x["draw"], away=x["away"],
+                       over25=None if over is None else p(over),
+                       btts=None if btts is None else p(btts))  # fmt: skip
 
 
 def _capabilities(session: Session, season_ids: set[int]
@@ -583,12 +593,23 @@ def fixture_list(session: Session, ctx: Context, now: datetime, start: datetime 
 def _market_lines(session: Session, upcoming: dict[int, datetime], now: datetime
                   ) -> dict[int, sc.MarketLine]:  # fmt: skip
     """The bookmakers' latest de-margined prices for upcoming forecasts {match: kickoff},
-    shown beside ours for information only (owner, 2026-11-27): no edge flag until an edge
-    test is written and passed."""
+    shown beside ours (owner, 2026-11-27); the page marks, per market, the selection we rate
+    furthest above it (owner, later that day). No "has edge" filter until an edge test is
+    written and passed."""
     from adatta.api.market import market_view, upcoming_market
 
     view = market_view(session, {mid: min(now, _utc(k)) for mid, k in upcoming.items()
                                  if _utc(k) > now})  # fmt: skip
+    return {mid: line for mid in view if (line := upcoming_market(view[mid])) is not None}
+
+
+def _kickoff_market_lines(session: Session, kickoffs: dict[int, datetime]
+                          ) -> dict[int, sc.MarketLine]:  # fmt: skip
+    """The market as it stood at kickoff {match: kickoff}, for matches in play: each
+    bookmaker's last price at or before kickoff, beside the pre-match projection."""
+    from adatta.api.market import market_view, upcoming_market
+
+    view = market_view(session, {mid: _utc(k) for mid, k in kickoffs.items()})
     return {mid: line for mid in view if (line := upcoming_market(view[mid])) is not None}
 
 
@@ -1249,22 +1270,26 @@ def live(session: Session, ctx: Context, now: datetime, feed: Any | None) -> sc.
     snap = feed.get(now, sorted({r.league_id for r in rows}))
     by_ref = {str(s.fixture_id): s for s in snap.states}
     playing = [(r, by_ref[r.source_ref]) for r in rows if r.source_ref in by_ref]
-    forecasts = _pre_kickoff_forecasts(session, {r.match_id: r.kickoff for r, _ in playing})
+    kicks = {r.match_id: r.kickoff for r, _ in playing}
+    forecasts = _pre_kickoff_forecasts(session, kicks)
+    markets = _kickoff_market_lines(session, kicks)
     out = []
     for r, s in playing:
         forecast = None
         if r.match_id in forecasts:
             ms, gen, prs = forecasts[r.match_id]
-            x = {p.selection: p for p in prs if p.market_type == "1X2"}
             pp = c2v._p if r.match_id in point_ids else _p  # a C2 point forecast: no interval
-            if {"home", "draw", "away"} <= x.keys():
-                forecast = sc.LiveForecast(milestone=ms, generated_at=gen, home=pp(x["home"]),
-                                           draw=pp(x["draw"]), away=pp(x["away"]))  # fmt: skip
+            if {"home", "draw", "away"} <= {p.selection for p in prs if p.market_type == "1X2"}:
+                h = _headline(ms, prs, pp)
+                forecast = sc.LiveForecast(milestone=ms, generated_at=gen, home=h.home,
+                                           draw=h.draw, away=h.away, over25=h.over25,
+                                           btts=h.btts)  # fmt: skip
         out.append((r, sc.LiveMatch(
             match_id=r.match_id, kickoff=r.kickoff, competition_id=r.competition_id,
             competition=r.competition, competition_tier=r.tier, team_level=r.team_level,
             home=r.home, away=r.away, status=s.status, elapsed=s.elapsed, extra=s.extra,
             home_goals=s.home_goals, away_goals=s.away_goals, forecast=forecast,
+            market=markets.get(r.match_id),
         )))  # fmt: skip
     out.sort(key=lambda t: (competition_order(t[0].country, t[0].tier, t[0].competition),
                             t[0].kickoff, t[0].match_id))  # fmt: skip

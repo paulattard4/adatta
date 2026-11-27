@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ProbCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
-import { complement, dateLocal, fairOdds, kickoffLocal, pct, tierLabel } from "@/lib/format";
+import { dateLocal, fairOdds, kickoffLocal, pct, tierLabel, topGap, twoWayPick } from "@/lib/format";
 import { GapTrend, Reliability } from "@/components/Charts";
 import type { ClvSummary, MeanScore, PlayedList, PlayedMatch, ScoreSummary } from "@/lib/types";
 
@@ -24,24 +24,31 @@ function Outcome({ m }: { m: PlayedMatch }) {
   const cells: [string, "home" | "draw" | "away", PlayedMatch["home_p"]][] = [
     ["Home", "home", m.home_p], ["Draw", "draw", m.draw_p], ["Away", "away", m.away_p],
   ];
+  const g = m.market ? topGap({ home: m.home_p.p, draw: m.draw_p.p, away: m.away_p.p }, m.market) : null;
   return (
     <>
       {cells.map(([label, key, p]) => (
         <div key={key} className={m.outcome === key ? "played-cell hit" : "played-cell"}>
-          <ProbCell prob={p} label={label} compact odds />
+          <ProbCell prob={p} label={label} compact odds gap={g?.key === key ? g : undefined} won={m.outcome === key} />
         </div>
       ))}
     </>
   );
 }
 
-/** A two-way side market: the selection that came in and the probability it was given. */
-function Side({ prob, hit, yes, no, market, ll, odds }:
-  { prob: PlayedMatch["over25"]; hit: boolean; yes: string; no: string; market: string; ll: number | null; odds: boolean }) {
+/** A yes/no market: the selection we rated furthest above the market before kickoff (when it
+ * had a price), else the one that came in; the cell is marked when the selection shown came in. */
+function Side({ prob, hit, yes, no, market, ll, price }:
+  { prob: PlayedMatch["over25"]; hit: boolean; yes: string; no: string; market: string; ll: number | null;
+    price: number | null | undefined }) {
   if (!prob) return <span className="c dim played-side">—</span>;
+  const won = hit ? "yes" : "no";
+  const pick = twoWayPick(prob, price, won);
+  const came = pick.side === won;
   return (
-    <div className="played-cell hit played-side" title={`${market}: log loss ${ll?.toFixed(3) ?? "—"}`}>
-      <ProbCell prob={hit ? prob : complement(prob)} label={hit ? yes : no} compact odds={odds} />
+    <div className={came ? "played-cell hit played-side" : "played-cell played-side"}
+         title={`${market}: log loss ${ll?.toFixed(3) ?? "—"}; ${hit ? yes : no} came in`}>
+      <ProbCell prob={pick.prob} label={pick.side === "yes" ? yes : no} compact odds gap={pick.gap} won={came} />
     </div>
   );
 }
@@ -52,9 +59,9 @@ function MarketLine({ m }: { m: PlayedMatch }) {
   const k = m.market;
   return (
     <span className="dim played-comp" title={`last price before kickoff, margin removed, averaged over ${k.bookmakers} bookmakers; 1X2 log loss ${k.scores.log_loss_1x2.toFixed(3)}`}>
-      Market: <span className="num">{pct(k.home)}% · {pct(k.draw)}% · {pct(k.away)}%</span>
-      {k.over25 !== null && <> · over 2.5 <span className="num">{pct(k.over25)}%</span></>}
-      {k.btts !== null && <> · BTTS <span className="num">{pct(k.btts)}%</span></>}
+      <span className="nw">Market: <span className="num">{pct(k.home)}% · {pct(k.draw)}% · {pct(k.away)}%</span></span>
+      {k.over25 !== null && <> · <span className="nw">over 2.5 <span className="num">{pct(k.over25)}%</span></span></>}
+      {k.btts !== null && <> · <span className="nw">BTTS <span className="num">{pct(k.btts)}%</span></span></>}
     </span>
   );
 }
@@ -281,6 +288,11 @@ export default function Played() {
       {data && data.matches.length > 0 && (
         <section className="panel">
           <h2>Matches</h2>
+          <p className="note">
+            ▲ marks, in each market, the selection we rated furthest above the market before kickoff (ours minus the market, in
+            percentage points); Goals 2.5 and BTTS show that selection, or the one that came in when there was no price. A green
+            cell came in, and a green ▲ ✓ is a marked selection that came in. A comparison, not a betting signal.
+          </p>
           <div className="played-head">
             <span>Kickoff</span><span>Match</span><span className="c">Result</span><span className="pc">Home</span>
             <span className="pc">Draw</span><span className="pc">Away</span><span className="pc">Goals 2.5</span>
@@ -296,9 +308,9 @@ export default function Played() {
               <span className="num c result">{m.home_goals}–{m.away_goals}</span>
               <Outcome m={m} />
               <Side prob={m.over25} hit={m.home_goals + m.away_goals > 2.5} yes="Over 2.5" no="Under 2.5"
-                    market="Over/under 2.5" ll={m.scores.log_loss_ou25} odds />
+                    market="Over/under 2.5" ll={m.scores.log_loss_ou25} price={m.market?.over25} />
               <Side prob={m.btts} hit={m.home_goals > 0 && m.away_goals > 0} yes="BTTS Yes" no="BTTS No"
-                    market="Both teams score" ll={m.scores.log_loss_btts} odds />
+                    market="Both teams score" ll={m.scores.log_loss_btts} price={m.market?.btts} />
               <span className="num c ll">{m.scores.log_loss_1x2.toFixed(3)}
                 <span className="dim played-pp"> p {pct(hitP(m))}% · @{fairOdds(hitP(m))}</span>
               </span>

@@ -115,7 +115,8 @@ def played_market(view: dict[str, Any] | None, hg: int, ag: int) -> sc.PlayedMar
 
 
 def upcoming_market(view: dict[str, Any] | None) -> sc.MarketLine | None:
-    """The market beside an upcoming forecast: information only, no edge flag."""
+    """The market beside an upcoming forecast: never a model input; the page marks the
+    selection we rate furthest above it (display only, owner 2026-11-27)."""
     if not view or "1X2" not in view:
         return None
     p, n = view["1X2"]

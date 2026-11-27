@@ -4,9 +4,9 @@ import { useMemo, useState } from "react";
 import { CapabilityBadge, FreshnessBadge } from "@/components/Badges";
 import { ConfidenceBadge } from "@/components/Confidence";
 import { InPlay, LIVE_REFRESH_MS } from "@/components/Live";
-import { ProbCell } from "@/components/Prob";
+import { ProbCell, TwoWayCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
-import { kickoffLocal, pct, tierLabel } from "@/lib/format";
+import { kickoffLocal, pct, tierLabel, topGap } from "@/lib/format";
 import type { FixtureList, LiveList, TournamentList } from "@/lib/types";
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
@@ -74,24 +74,33 @@ export default function Browser() {
             <FreshnessBadge f={g.freshness} />
             <CapabilityBadge caps={g.capabilities} />
           </div>
-          <div className="fx-head">
+          <div className="fx-head fx-wide">
             <span>Kickoff</span><span>Match</span><span className="c">Home</span><span className="c">Draw</span>
-            <span className="c">Away</span><span>Confidence</span>
+            <span className="c">Away</span><span className="c">Goals 2.5</span><span className="c">BTTS</span><span>Confidence</span>
           </div>
           {g.fixtures.map((f) => (
-            <Link key={f.match_id} href={`/match/${f.match_id}`} className="fx-row">
+            <Link key={f.match_id} href={`/match/${f.match_id}`} className="fx-row fx-wide">
               <span className="num kickoff">{kickoffLocal(f.kickoff)}</span>
               <span className="teams">{f.home} <span className="dim">v</span> {f.away}
-                {f.market && <span className="dim market-line" title={`Bookmakers' latest prices, margin removed, averaged over ${f.market.bookmakers}: for information only, not a model input and not an edge signal`}>
-                  Market <span className="num">{pct(f.market.home)}% · {pct(f.market.draw)}% · {pct(f.market.away)}%</span></span>}
+                {f.market && <span className="dim market-line" title={`Bookmakers' latest prices, margin removed, averaged over ${f.market.bookmakers}: not a model input`}>
+                  <span className="nw">Market <span className="num">{pct(f.market.home)}% · {pct(f.market.draw)}% · {pct(f.market.away)}%</span></span>
+                  {f.market.over25 !== null && <> · <span className="nw">over 2.5 <span className="num">{pct(f.market.over25)}%</span></span></>}
+                  {f.market.btts !== null && <> · <span className="nw">BTTS <span className="num">{pct(f.market.btts)}%</span></span></>}</span>}
               </span>
-              {f.headline ? (
-                <>
-                  <ProbCell prob={f.headline.home} label="Home" compact odds />
-                  <ProbCell prob={f.headline.draw} label="Draw" compact odds />
-                  <ProbCell prob={f.headline.away} label="Away" compact odds />
-                </>
-              ) : (
+              {f.headline ? (() => {
+                const h = f.headline;
+                const g = f.market ? topGap({ home: h.home.p, draw: h.draw.p, away: h.away.p }, f.market) : null;
+                const at = (k: "home" | "draw" | "away") => (g?.key === k ? g : undefined);
+                return (
+                  <>
+                    <ProbCell prob={h.home} label="Home" compact odds gap={at("home")} />
+                    <ProbCell prob={h.draw} label="Draw" compact odds gap={at("draw")} />
+                    <ProbCell prob={h.away} label="Away" compact odds gap={at("away")} />
+                    <TwoWayCell prob={h.over25} price={f.market?.over25} yes="Over 2.5" no="Under 2.5" />
+                    <TwoWayCell prob={h.btts} price={f.market?.btts} yes="BTTS Yes" no="BTTS No" />
+                  </>
+                );
+              })() : (
                 <span className="no-proj dim">{f.no_projection_reason}</span>
               )}
               <ConfidenceBadge components={f.confidence} />
@@ -104,7 +113,10 @@ export default function Browser() {
         Leagues tagged baseline model show point forecasts, without an interval.
         The @ figure is the fair decimal price 1/p, with no margin; hover for its interval.
         Kickoffs in your local time. Each dot is one named confidence component; hover for its value.
-        Market is the bookmakers&apos; latest price with the margin removed, shown for information: it is not a model input and not an edge signal.
+        Market is the bookmakers&apos; latest price with the margin removed: it is not a model input.
+        ▲ marks, in each market, the selection we rate furthest above the market (ours minus the market, in percentage points).
+        Goals 2.5 and BTTS show that selection; without a market price they show Over 2.5 and BTTS Yes.
+        It is a comparison, not a betting signal: our probabilities have not yet been checked for calibration against the market.
       </p>
     </div>
   );

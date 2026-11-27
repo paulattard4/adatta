@@ -2205,5 +2205,6 @@ Consequences:
       - **Effects are small:** about 1-2% of a team's goals per standard deviation. A fully
         changed XI (S_miss = 1) is about −10%.
       - **Step 2 uses S_miss and S_rat.**
-      - Signals table `features/lineup_signals/v1` (digest in the run's manifest, with the
+      - Signals table `features/lineup_signals/v1/0d625a62f5d310dd` (deterministic: two runs
+        give the same digest; its manifest holds the
         code SHA, λ, the line means and the library versions).

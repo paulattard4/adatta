@@ -99,7 +99,7 @@ def usual(prev: pl.DataFrame, sq: pl.DataFrame) -> pl.DataFrame:
     pp = prev.join(sq.select("team_id", "player_id", "share", prev_id="match_id"),
                    on=["team_id", "prev_id"])  # fmt: skip
     n = prev.group_by(KEY).agg(n_prev=pl.len())
-    u = pp.group_by(*KEY, "player_id").agg(pl.col("share").sum()).join(n, on=KEY)
+    u = pp.group_by(*KEY, "player_id").agg(pl.col("share").sort().sum()).join(n, on=KEY)
     u = u.with_columns(share=pl.col("share") / pl.col("n_prev"))
     u = u.sort(*KEY, "share", "player_id", descending=[False, False, True, False])
     return u.with_columns(usual=pl.int_range(pl.len()).over(KEY) < XI_N)
@@ -115,9 +115,10 @@ def starters(sq: pl.DataFrame, tm: pl.DataFrame) -> pl.DataFrame:
 def s_miss(xi: pl.DataFrame, u: pl.DataFrame) -> pl.DataFrame:
     """(match_id, team_id, s_miss, n_prev, n_xi); s_miss null without a baseline."""
     xs = xi.join(u.select(*KEY, "player_id", "share"), on=[*KEY, "player_id"], how="left")
-    num = xs.group_by(KEY).agg(xi_share=pl.col("share").fill_null(0.0).sum(), n_xi=pl.len())
+    num = xs.group_by(KEY).agg(xi_share=pl.col("share").fill_null(0.0).sort().sum(),
+                               n_xi=pl.len())  # fmt: skip
     den = u.filter(pl.col("usual")).group_by(KEY).agg(
-        usual_share=pl.col("share").sum(), n_prev=pl.col("n_prev").first()
+        usual_share=pl.col("share").sort().sum(), n_prev=pl.col("n_prev").first()
     )  # fmt: skip
     j = num.join(den, on=KEY, how="left")
     ok = (pl.col("n_prev") >= MIN_PREV) & (pl.col("usual_share") > 0) & (pl.col("n_xi") == XI_N)
@@ -135,9 +136,9 @@ def line_means(sq: pl.DataFrame, before: datetime) -> dict[str, float]:
     seasons), and "" for the overall mean."""
     r = sq.filter((pl.col("kickoff") < before) & pl.col("rating").is_not_null()
                   & (pl.col("minutes").fill_null(0) > 0))  # fmt: skip
-    out = {str(k): float(v) for k, v in r.group_by("line").agg(pl.col("rating").mean()).iter_rows()
-           if k is not None}  # fmt: skip
-    out[""] = float(r["rating"].mean()) if r.height else 6.7  # type: ignore[arg-type]
+    by_line = r.group_by("line").agg(pl.col("rating").sort().mean())
+    out = {str(k): float(v) for k, v in by_line.iter_rows() if k is not None}
+    out[""] = float(r["rating"].sort().mean()) if r.height else 6.7  # type: ignore[arg-type]
     return out
 
 
@@ -177,8 +178,8 @@ def s_rat(xi: pl.DataFrame, u: pl.DataFrame, tm: pl.DataFrame, hist: pl.DataFram
     ux = u.filter(pl.col("usual")).select(*KEY, "player_id", line=pl.lit(None, pl.Utf8))
     a = ratings_asof(xi.join(kick, on=KEY), hist, means)
     b = ratings_asof(ux.join(kick, on=KEY), hist, means)
-    ma = a.group_by(KEY).agg(r_xi=pl.col("r").mean())
-    mb = b.group_by(KEY).agg(r_usual=pl.col("r").mean())
+    ma = a.group_by(KEY).agg(r_xi=pl.col("r").sort().mean())
+    mb = b.group_by(KEY).agg(r_usual=pl.col("r").sort().mean())
     return ma.join(mb, on=KEY, how="inner").select(*KEY, s_rat=pl.col("r_xi") - pl.col("r_usual"))
 
 
@@ -238,7 +239,7 @@ def apm(sq: pl.DataFrame, tm: pl.DataFrame, xg: pl.DataFrame, xi: pl.DataFrame,
     home = tm.filter(pl.col("is_home")).select("match_id", "team_id", "bundle", "kickoff")
     pool = home.join(xg, on="match_id").filter(
         pl.col("xg_home").is_not_null() & pl.col("xg_away").is_not_null()
-    ).with_columns(y=pl.col("xg_home") - pl.col("xg_away"))  # fmt: skip
+    ).with_columns(y=pl.col("xg_home") - pl.col("xg_away")).sort("kickoff", "match_id")  # fmt: skip
     signed = sq.join(home.select("match_id", home_team="team_id"), on="match_id").select(
         "match_id", "player_id",
         v=pl.when(pl.col("team_id") == pl.col("home_team")).then(pl.col("share"))
@@ -284,7 +285,7 @@ def apm(sq: pl.DataFrame, tm: pl.DataFrame, xg: pl.DataFrame, xi: pl.DataFrame,
                                                           range(len(lambdas))}})  # fmt: skip
             w = sel.join(week.select(KEY), on=KEY).join(coef, on="player_id", how="left")
             out.append(w.group_by(KEY).agg(
-                [(pl.col("w") * pl.col(f"b{i}").fill_null(0.0)).sum().alias(f"s_apm_{i}")
+                [(pl.col("w") * pl.col(f"b{i}").fill_null(0.0)).sort().sum().alias(f"s_apm_{i}")
                  for i in range(len(lambdas))]))  # fmt: skip
     if not out:
         return pl.DataFrame(schema={"match_id": pl.Int64, "team_id": pl.Int64}), sse, n_pred

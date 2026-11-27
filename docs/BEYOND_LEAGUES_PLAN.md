@@ -2175,6 +2175,44 @@ after the Phase 1b opening.
 
 **Tests:** 5 new in `tests/test_continental.py`.
 
+#### UEFA holdout result (2026-11-27): FAILS check 4 alone (draw calibration); not promoted, nothing tuned
+
+**Runs:** opening "uefa" claimed once by strengths run 45949448002 (53 jobs; the five's
+194 missing holdout refits fitted and cached). Fit run 45967427283. Scored rows are in R2
+at `continental/holdout/45949448002/`; the logs carry metrics only. The gate is
+`config/uefa_gate.yml`, as written before the opening.
+
+There were 560 holdout cross-bundle UEFA matches and 24 refits.
+
+| Check (gating: 1-4) | Result |
+|---|---|
+| 1. Beats B_own | **Pass.** Log loss −0.0796 [−0.1131, −0.0461] (−7.62%); RPS −0.0269 [−0.0383, −0.0154] (−11.48%) |
+| 2. Beats B_elo | **Pass.** Log loss −0.0304 [−0.0537, −0.0071] (−3.05%); RPS −0.0109 [−0.0188, −0.0029] (−4.99%) |
+| 3. No competition worse than either by > 1.0% | **Pass.** CL n 306: −6.38% / −3.06%; EL n 194: −8.90% / −2.45%; ECL n 60: −9.15% / −5.09% |
+| 4. 1X2 ECE within its noise floor | **Fail.** Home 0.052 / 0.064 and away 0.037 / 0.057 pass; **draw 0.043 against a limit of 0.040** |
+| 5. Inference gates (reported) | Pass: worst R-hat 1.002, 0 divergences; PPC total goals 2.971 against 2.971 |
+| 6. Leakage (reported) | Pass: 0 of 50 changed |
+
+**Reported:**
+- **Venues:** 0 role changes among the five's 198 matches; all 46 C2 home clubs have a
+  ground. Known limit (D57): 10 holdout matches neutral by the city rule.
+- **Split, log loss:**
+  - the five only (n 198): vs own +0.0000 [−0.0218, +0.0219], vs Elo −0.0125
+    [−0.0436, +0.0186];
+  - with a C2 side (n 362): vs own −0.1232 [−0.1730, −0.0733], vs Elo −0.0402
+    [−0.0720, −0.0085].
+- **Tails:** the largest is 1.7e−7, under 1e−4.
+- **Q at the last refit:** within 0.06 of dev's for every bundle, with the same order;
+  Spain −0.045, Germany −0.057.
+- **Side strengths:** 151 of the side rows came from five-bundle refits that failed their
+  own inference gates (newly fitted holdout Mondays). This is reported, not gated.
+
+**Consequence (pre-registered):**
+- C1 is not promoted, and UEFA matches keep showing why there is no forecast.
+- The UEFA holdout is now spent: a respecification cannot be judged on it. Any C1 claim
+  goes to the live period as a new, pre-registered challenger (D59).
+- D59's routes don't change this. Calibration is a safeguard on every route.
+
 
 Its own fit, not inside the club model:
 - **v0 (team only, from results):** one global strength scale with confederation effects,

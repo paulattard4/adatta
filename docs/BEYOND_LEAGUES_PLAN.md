@@ -2213,7 +2213,7 @@ There were 560 holdout cross-bundle UEFA matches and 24 refits.
   goes to the live period as a new, pre-registered challenger (D59).
 - D59's routes don't change this. Calibration is a safeguard on every route.
 
-### C2 step 5: the full model on each of the eight leagues, judged league by league (drafted 2026-11-27 before building; owner: "Yes, draft both"; not approved)
+### C2 step 5: the full model on each of the eight leagues, judged league by league (drafted 2026-11-27 before building; owner: "Approve both as drafted", D61, the recommended choice in each)
 
 **Why.**
 - On the c2 holdout, the full model (`phase1b_strength_open_xg`) was rejected for all
@@ -2302,7 +2302,7 @@ matches 2019/20-2023/24, full model against Phase 1a. The SD is the spread of on
      `config/c2_league_gate.yml` is written before any score (recommended);
    - (b) both run.
 
-### C1 v2: European club matches with a learned UEFA draw term (drafted 2026-11-27 before building; owner: "Yes, draft both"; not approved)
+### C1 v2: European club matches with a learned UEFA draw term (drafted 2026-11-27 before building; owner: "Approve both as drafted", D62, the recommended choice in each)
 
 **Why.**
 - The C1 rerun failed the UEFA holdout on draw calibration alone: ECE 0.043 against a

@@ -1,0 +1,36 @@
+# C2 step 5 (D61; docs/BEYOND_LEAGUES_PLAN.md "C2 step 5"): the pre-registered gate for the
+# full model on each of the eight C2 top flights, judged league by league. Written
+# 2026-11-27, before any full-model score on 2026/27 or 2027/28 exists; never edited after
+# it. It supersedes config/c2_retest_gate.yml (D54 (h)), which stays as history and is not
+# run.
+#
+# Challenger: the production spec (phase1b_strength_open_xg) on each C2 bundle, unchanged
+# from the c2 holdout; reference: the served Phase 1a (phase1a_selected). Both are scored by
+# one walk-forward backtest per look on the same weekly plan, warm top-flight matches,
+# scored to 20 goals (D53). No full-model score on a look's seasons is computed or looked
+# at before that look opens.
+#
+# Per top flight, each alone (nothing pooled decides anything): it moves to the full model
+# at a look if it passes any D59 route against Phase 1a with that look's interval:
+#   route 1  1X2 log loss and RPS improve, each interval excluding zero;
+#   route 2  both better on the point estimate, each upper bound under +margin (relative);
+#   route 2T total CRPS and OU2.5 log loss better on the point estimate with upper bounds
+#            under +margin, 1X2 log loss and RPS no worse (point), the ECE of each 1X2
+#            outcome and of OU2.5 within +0.005 of Phase 1a's;
+# and every safeguard: no league x market segment worse than max_segment_rel_worse (point),
+# 1X2 ECE per outcome within its noise floor, the inference gates on its refits, runtime.
+# A league that passes is served on the full model after its own serving check. Look 2
+# judges only the leagues still on Phase 1a, on both seasons together.
+c2_league_gate:
+  challenger: phase1b_strength_open_xg
+  reference: phase1a_selected
+  top_flights: [94, 88, 144, 218, 179, 203, 345, 119]
+  looks:
+    - {name: look1, seasons: [2026], opens_after: "2027-06-30", interval: 0.975}
+    - {name: look2, seasons: [2026, 2027], opens_after: "2028-06-30", interval: 0.975}
+  routes: ["1", "2", "2T"]
+  margin: 0.0010
+  ece_2t_tolerance: 0.005
+  max_segment_rel_worse: 0.010
+  segment_metrics: ["1X2:log_loss", "1X2:rps", "OU2.5:log_loss", "BTTS:log_loss", "total:crps"]
+  max_goals: 20

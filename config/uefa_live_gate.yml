@@ -1,0 +1,32 @@
+# C1 v2 (D62; docs/BEYOND_LEAGUES_PLAN.md "C1 v2"): the pre-registered gate for C1 with a
+# learned UEFA draw term, judged on the 2026/27 season. Written 2026-11-27, before any C1
+# score on 2026/27 exists; never edited after it.
+#
+# Model: C1 as it failed the UEFA holdout (Q over 13 bundles, side strengths as of each
+# match's Monday, venues per D57, scored to 20 goals), plus one low-score dependence term
+# rho_U per format phase, fitted in every walk-forward refit (Dixon-Coles likelihood, prior
+# Normal(mean domestic rho, 0.1)) and used in prediction in place of the home side's rho.
+# Side strengths from refits failing their gates are refitted once (target_accept 0.99,
+# 4,000 draws); a refit still failing is reported and its sides are left out.
+#
+# Window: UEFA matches of 2026/27 between teams of two different bundles, the whole season,
+# read once after opens_after. Gate: the UEFA holdout's checks 1-4, unchanged:
+#   1. C1 v2 beats B_own on 1X2 log loss and RPS, each paired 95% interval excluding 0;
+#   2. C1 v2 beats B_elo the same way;
+#   3. no competition (CL, EL, ECL) worse than either by more than max_competition_rel_worse;
+#   4. 1X2 ECE per outcome within its noise floor.
+# Reported, not gating: the inference gates and leakage, draw calibration by competition and
+# phase, rho_U over time, the five's matches apart, tails, venues. A pass means serving UEFA
+# matches between bundle teams gets its own acceptance; a fail changes nothing.
+uefa_live_gate:
+  seasons: [2026]
+  opens_after: "2027-06-30"
+  rho_phases: [group_stage, league_phase, qualifying, knockout]
+  rho_prior_sd: 0.1
+  grid_days: 28
+  max_goals: 20
+  paired_interval: 0.95
+  max_competition_rel_worse: 0.010
+  ece_sims: 2000
+  ece_quantile: 0.95
+  checks: [1, 2, 3, 4]

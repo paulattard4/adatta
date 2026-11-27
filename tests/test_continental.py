@@ -217,3 +217,39 @@ def test_leakage_samples_only_the_scored_seasons() -> None:
     elo = ct.elo_at(hist, [(100, mon, 1, 2), (101, mon, 3, 4)])
     leak = ct.leakage(tg, hist, elo, set(), scored=(2024,))
     assert leak == {"n": 1, "changed": 0, "ok": True}
+
+
+# ---------------------------------------------- pre-registrations of 2026-11-27 (D61, D62)
+
+
+def test_the_uefa_live_gate_keeps_the_holdout_checks() -> None:
+    """D62: C1 v2 is judged on 2026/27 by the UEFA holdout's checks 1-4, unchanged."""
+    from pathlib import Path
+
+    import yaml
+
+    live = yaml.safe_load(Path("config/uefa_live_gate.yml").read_text())["uefa_live_gate"]
+    held = ct.load_gate()
+    for k in ("grid_days", "max_goals", "paired_interval", "max_competition_rel_worse",
+              "ece_sims", "ece_quantile", "checks"):  # fmt: skip
+        assert live[k] == held[k], k
+    assert live["seasons"] == [2026] and live["opens_after"] == "2027-06-30"
+    assert live["rho_phases"] == ["group_stage", "league_phase", "qualifying", "knockout"]
+
+
+def test_the_c2_league_gate_is_per_league_with_d59_routes() -> None:
+    """D61: each C2 top flight alone, two looks at 97.5%, D59's routes and margin."""
+    from pathlib import Path
+
+    import yaml
+
+    from adatta.eval import c2
+
+    g = yaml.safe_load(Path("config/c2_league_gate.yml").read_text())["c2_league_gate"]
+    tops = sorted(ls[0] for ls in c2.load_config().bundles.values())
+    assert sorted(g["top_flights"]) == tops and g["routes"] == ["1", "2", "2T"]
+    assert g["margin"] == 0.001 and g["max_segment_rel_worse"] == 0.01 and g["max_goals"] == 20
+    assert [lk["seasons"] for lk in g["looks"]] == [[2026], [2026, 2027]]
+    assert all(lk["interval"] == 0.975 for lk in g["looks"])
+    old = yaml.safe_load(Path("config/c2_retest_gate.yml").read_text())["c2_gate"]
+    assert g["segment_metrics"] == old["segment_metrics"]  # the same segments as D54 (h)

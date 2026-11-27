@@ -2447,6 +2447,35 @@ floor also widens with fewer matches.
   stage strengths with variant v2, then stage fit with variant v2, fetch set to that run,
   and compare 45904644304 (C1's dev rerun).
 
+**Dev check (c), 2026-11-27 (strengths 45975097719, fit 45993970637): not passed yet, on
+one divergence.**
+- **Not worse than C1:** C1 v2 minus C1 on 1,082 paired dev matches, log loss −0.0015
+  [−0.0038, +0.0007] (−0.16%). Pass.
+- **Inference gates:** 43 of 44 refits are clean (worst R-hat 1.002). The refit of
+  2021-11-22 had 1 divergence after tuning, which fails the gate (0 allowed). The plan
+  redoes failing side-strength refits, but not C1's own refits.
+- **Prior sensitivity, ρ_U at the last refit (×0.5 / ×1 / ×2):**
+  - group stage −0.051 / −0.057 / −0.057;
+  - league phase −0.045 / −0.044 / −0.048 (no dev data, so this is the prior);
+  - qualifying −0.065 / −0.096 / −0.128;
+  - knockout −0.037 / −0.032 / −0.027.
+
+  Qualifying moves by about 0.03 at each step. The report does not print ρ_U's posterior
+  sd, so the project's rule (a shift under 1 posterior sd) can't be applied yet.
+- **Reported:**
+  - Dev checks 1-4 pass: against own −6.42%, against Elo −2.94%.
+  - Draw ECE 0.005 against a limit of 0.031.
+  - Draws predicted against observed:
+    - Champions League 0.236 against 0.217;
+    - Europa League 0.243 against 0.274;
+    - Conference League 0.241 against 0.250;
+    - group stage 0.238 against 0.237;
+    - knockout 0.239 against 0.255;
+    - qualifying 0.247 against 0.248.
+  - Largest tail 4.6e-3, beyond 1e-4 (C1's was 1.1e-3, accepted under D58).
+  - 1 target left out because a side's refit still fails after its redo.
+  - Leakage: 0 of 50 sampled targets changed.
+
 
 Its own fit, not inside the club model:
 - **v0 (team only, from results):** one global strength scale with confederation effects,

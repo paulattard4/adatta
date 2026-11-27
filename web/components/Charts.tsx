@@ -2,6 +2,9 @@
 import { useState } from "react";
 import type { ReliabilityBin, TrendPoint } from "@/lib/types";
 
+/** One point of a running profit line: after bet `n`, the total so far. */
+export type PLPoint = { n: number; total: number; label: string; detail: string };
+
 const W = 360, H = 240, PAD = { l: 40, r: 12, t: 12, b: 30 };
 const iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
 
@@ -82,6 +85,54 @@ export function GapTrend({ points }: { points: TrendPoint[] }) {
         {hover
           ? <>To {hover.day}: <span className="num">{hover.n}</span> matches, ours <span className="num">{hover.ours.toFixed(3)}</span>, market <span className="num">{hover.market.toFixed(3)}</span>, gap <span className="num">{hover.diff >= 0 ? "+" : ""}{hover.diff.toFixed(3)}</span>{hover.diff_lo !== null && hover.diff_hi !== null && <> [{hover.diff_lo.toFixed(3)}, {hover.diff_hi.toFixed(3)}]</>}</>
           : "Cumulative ours minus the market's 1X2 log loss, with its 95% interval. Below the zero line, ours scored better; hover a day."}
+      </figcaption>
+    </figure>
+  );
+}
+
+/** Cumulative profit and loss over bets in kickoff order, in units. One series (the title
+ * names it), one axis, the zero line for reference; hover a bet for its detail. */
+export function ProfitLine({ points }: { points: PLPoint[] }) {
+  const [hover, setHover] = useState<PLPoint | null>(null);
+  if (points.length === 0) return null;
+  const PW = 1000, pw = PW - PAD.l - PAD.r;
+  const vals = [0, ...points.map((p) => p.total)];
+  const top = Math.max(...vals), bot = Math.min(...vals);
+  const pad = (top - bot) * 0.08 || 1;
+  const hi = top + pad, lo = bot - pad;
+  // x: bet 0 (the start, total 0) to bet n
+  const x = (n: number) => PAD.l + (n / points.length) * pw;
+  const y = (v: number) => PAD.t + ((hi - v) / (hi - lo)) * ih;
+  const line = [`${x(0)},${y(0)}`, ...points.map((p) => `${x(p.n)},${y(p.total)}`)].join(" ");
+  const ticks = [top, 0, bot].filter((t, i, a) => a.indexOf(t) === i);
+  const fmt = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}`;
+  const w = Math.max(3, pw / points.length);
+  return (
+    <figure className="chart chart-wide">
+      <svg viewBox={`0 0 ${PW} ${H}`} role="img" aria-label="Running profit and loss in units, bet by bet">
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={PAD.l} x2={PAD.l + pw} y1={y(t)} y2={y(t)} className={t === 0 ? "ref" : "grid"} />
+            <text x={PAD.l - 6} y={y(t) + 4} className="tick" textAnchor="end">{fmt(t)}</text>
+          </g>
+        ))}
+        <polyline points={line} className="line" />
+        {points.map((p) => (
+          <g key={p.n} onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}>
+            <rect x={x(p.n) - w / 2} y={PAD.t} width={w} height={ih} className="hit" />
+            {hover === p && <>
+              <line x1={x(p.n)} x2={x(p.n)} y1={PAD.t} y2={PAD.t + ih} className="grid" />
+              <circle cx={x(p.n)} cy={y(p.total)} r={4} className="dot-mark" />
+            </>}
+          </g>
+        ))}
+        <text x={PAD.l} y={H - 10} className="tick" textAnchor="start">{points[0].label}</text>
+        {points.length > 1 && <text x={PAD.l + pw} y={H - 10} className="tick" textAnchor="end">{points.at(-1)!.label}</text>}
+      </svg>
+      <figcaption className="dim">
+        {hover
+          ? <>Bet <span className="num">{hover.n}</span>: {hover.detail}; running total <span className="num">{fmt(hover.total)}</span> units</>
+          : "Running profit and loss in units, one unit per bet in kickoff order; hover a bet."}
       </figcaption>
     </figure>
   );

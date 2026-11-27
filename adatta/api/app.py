@@ -61,6 +61,10 @@ def create_app(sessions: Callable[[], Session], ctx: views.Context,
                competition_id: int | None = None) -> sc.PlayedList:  # fmt: skip
         return views.played(db, ctx, clock(), start, end, competition_id)
 
+    @app.get("/api/bets", response_model=sc.BetList)
+    def bets(db: Db) -> sc.BetList:
+        return views.bets(db, ctx, clock())
+
     @app.get("/api/tournaments", response_model=sc.TournamentList)
     def tournaments(db: Db) -> sc.TournamentList:
         from adatta.sim import tournament_serve as ts

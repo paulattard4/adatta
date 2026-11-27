@@ -202,3 +202,14 @@ export interface LiveMatch {
   market: MarketLine | null; // the last price before kickoff
 }
 export interface LiveList { generated_at: string; fetched_at: string | null; note: string | null; matches: LiveMatch[] }
+
+/** One selection we rated above the market before kickoff: 1 unit at the bookmakers' odds as
+ * quoted (never de-margined), settled on the 90-minute score. */
+export interface Bet {
+  match_id: number; kickoff: string; competition_id: number; competition: string; country: string; tier: string;
+  team_level: string; home: string; away: string; home_goals: number; away_goals: number;
+  market: "1X2" | "OU2.5" | "BTTS"; selection: "home" | "draw" | "away" | "over" | "under" | "yes" | "no";
+  ours: number; market_p: number; gap: number; odds_mean: number; odds_best: number; bookmakers: number;
+  won: boolean; point: boolean; milestone: string;
+}
+export interface BetList { generated_at: string; forecasts_since: string | null; bets: Bet[] }

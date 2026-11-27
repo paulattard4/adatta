@@ -88,7 +88,8 @@ def _average(picked: dict[Key, Price]) -> dict[int, dict[str, Any]]:
         prices = out[mid].setdefault("prices", {})
         for x in MARKET_SELECTIONS[mk][1]:
             odds = [picked[(mid, bk, mk, x)][1] for bk in whole]
-            prices[x] = sc.MarketPrice(mean=float(np.mean(odds)), best=float(max(odds)))
+            prices[x] = sc.MarketPrice(mean=float(np.mean(odds)), best=float(max(odds)),
+                                       bookmakers=len(odds))  # fmt: skip
     return out
 
 

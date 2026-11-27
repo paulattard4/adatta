@@ -939,6 +939,32 @@ market odds not just market probability ... as long as it's accurate and tidy".
   priced rows every mark agrees with ours above the market, and every "mkt @" equals the
   average in its hover.
 
+**5d. Bets above the market (owner, 2026-11-27).** "A page where I can see how our
+selections which had a positive difference compared against market, ie placing 1 unit on
+each selection with a positive difference and seeing the p/l, win rate, etc. ... filterable
+by market, selection, country, league, margin and anything else you think would make sense."
+- What it measures (stated before building): every selection of a played match we rated
+  above the market before kickoff (ours minus the de-margined market > 0, the ▲ elsewhere),
+  1 unit each at the bookmakers' odds as quoted (never de-margined; their average, or the
+  best as an upper bound), the last before kickoff, settled on the 90-minute score. Ours is
+  the last forecast published before kickoff. 1X2, over/under 2.5, both teams score. A
+  selection whose odds were not quoted whole is no bet. Profit per bet: odds − 1 if it came
+  in, else −1; ROI is the mean with a 95% interval (± 1.96 sd/√n).
+- `GET /api/bets` (`views.bets`, `views.bet_rows`) returns every bet from the played
+  view's own matches, forecasts and market (`views._played_matches`, now shared); the page
+  `/bets` filters and totals in the browser: dates, market, selection, country,
+  competition, team level, model (full / baseline), gap range in points, odds range, and
+  average or best odds. It shows bets, win rate beside ours and the market's implied rate,
+  profit, ROI [95%], average odds and gap, the running profit, breakdowns by selection,
+  competition, gap band and odds band, and the bets themselves (cards on a phone).
+- Tests: `tests/test_bets_view.py` (two 1X2 selections above the market are two bets;
+  settlement at 90'; no market or no quoted price is no bet; the endpoint reads the last
+  quoted prices before kickoff, mean and best). Checked in the browser against an
+  independent sum over the API's rows: all bets, home only, best odds, gap ≥ 5 with odds
+  ≤ 2.50, England BTTS; no sideways scroll at 1366 or 375 px.
+- First read, 27 November: 498 bets on 138 matches, −17.05 units at average odds, ROI
+  −3.4% [−15.8%, +9.0%]: far too few to say anything yet.
+
 **The odds guard** (`tests/test_dashboard_api.py`) now checks imports by syntax tree:
 `adatta/api/market.py` is the only module that reads odds, and `adatta/api/views.py` is
 the only module that imports it.

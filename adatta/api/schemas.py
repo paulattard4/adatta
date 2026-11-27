@@ -78,6 +78,7 @@ class MarketPrice(BaseModel):
 
     mean: float
     best: float
+    bookmakers: int = 0  # quoting this market whole
 
 
 class MarketLine(BaseModel):
@@ -596,3 +597,39 @@ class LiveList(BaseModel):
     fetched_at: datetime | None  # when the live state was read from the provider
     note: str | None  # why it may be stale or missing
     matches: list[LiveMatch]
+
+
+class Bet(BaseModel):
+    """One selection we rated above the market before kickoff (ours minus the de-margined
+    market > 0, the dashboard's ▲), staked 1 unit at the bookmakers' odds as quoted (never
+    de-margined) and settled on the 90-minute result. Evaluation only: odds never reach a
+    model (principle 1)."""
+
+    match_id: int
+    kickoff: datetime
+    competition_id: int
+    competition: str
+    country: str
+    tier: str
+    team_level: str
+    home: str
+    away: str
+    home_goals: int
+    away_goals: int
+    market: Literal["1X2", "OU2.5", "BTTS"]
+    selection: Literal["home", "draw", "away", "over", "under", "yes", "no"]
+    ours: float  # our probability (the latest forecast published before kickoff)
+    market_p: float  # the market's, margin removed
+    gap: float  # ours - market_p, > 0
+    odds_mean: float  # the bookmakers' average odds as quoted, the last before kickoff
+    odds_best: float  # the best of them
+    bookmakers: int
+    won: bool
+    point: bool  # a point forecast (the C2 baseline, D54)
+    milestone: str
+
+
+class BetList(BaseModel):
+    generated_at: datetime
+    forecasts_since: datetime | None
+    bets: list[Bet]

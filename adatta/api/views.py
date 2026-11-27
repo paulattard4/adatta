@@ -1099,17 +1099,17 @@ def _lineup_scores(session: Session, store: RawStore, ms: list[sc.PlayedMatch],
             setattr(m, f"{side}_lineup", got)
 
 
-def played(
+def _played_matches(
     session: Session,
     ctx: Context,
     now: datetime,
     start: datetime | None = None,
     end: datetime | None = None,
     competition_id: int | None = None,
-) -> sc.PlayedList:
-    """Finished matches of every served competition (the five's leagues and cups, the C2
-    top flights, senior internationals) against the forecast published before their kickoff
-    (docs/DASHBOARD_TASKS.md, played view)."""
+) -> tuple[list[sc.PlayedMatch], list[MatchRow], datetime | None, datetime | None, datetime]:
+    """The played view's matches (each against the forecast published before kickoff and
+    the market as it stood then), their rows, the first forecast time, the window start and
+    end. Shared by the played view and the bets view so both read the same matches."""
     from adatta.adapters.normalize import FINISHED
     from adatta.api.market import clv_inputs, market_view, played_market
     from adatta.eval import metrics
@@ -1180,6 +1180,21 @@ def played(
             scores=scores, market=played_market(market.get(r.match_id), hg, ag),
             clv=clv.get(r.match_id),
         ))  # fmt: skip
+    return out, rows, since, lo, end
+
+
+def played(
+    session: Session,
+    ctx: Context,
+    now: datetime,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    competition_id: int | None = None,
+) -> sc.PlayedList:
+    """Finished matches of every served competition (the five's leagues and cups, the C2
+    top flights, senior internationals) against the forecast published before their kickoff
+    (docs/DASHBOARD_TASKS.md, played view)."""
+    out, rows, since, lo, end = _played_matches(session, ctx, now, start, end, competition_id)
     _lineup_scores(session, ctx.store, out, {r.match_id: r for r in rows})
     out.sort(key=lambda m: (m.kickoff, m.match_id), reverse=True)
     summary = [_summary("all", None, out)] if out else []
@@ -1295,3 +1310,49 @@ def live(session: Session, ctx: Context, now: datetime, feed: Any | None) -> sc.
                             t[0].kickoff, t[0].match_id))  # fmt: skip
     return sc.LiveList(generated_at=now, fetched_at=snap.fetched_at, note=snap.note,
                        matches=[m for _, m in out])  # fmt: skip
+
+
+def bet_rows(m: sc.PlayedMatch, country: str) -> list[sc.Bet]:
+    """Every selection of a played match that we rated above the market before kickoff, as a
+    1-unit bet at the bookmakers' odds as quoted, settled on the 90-minute score. A selection
+    whose odds were not quoted whole (no price) is not a bet."""
+    k = m.market
+    if k is None:
+        return []
+    goals = m.home_goals + m.away_goals
+    picks: list[tuple[str, str, float, float | None, bool]] = [
+        ("1X2", s, p.p, mp, m.outcome == s)
+        for s, p, mp in (("home", m.home_p, k.home), ("draw", m.draw_p, k.draw),
+                         ("away", m.away_p, k.away))
+    ]  # fmt: skip
+    if m.over25 is not None and k.over25 is not None:
+        picks += [("OU2.5", "over", m.over25.p, k.over25, goals > 2.5),
+                  ("OU2.5", "under", 1 - m.over25.p, 1 - k.over25, goals < 2.5)]  # fmt: skip
+    if m.btts is not None and k.btts is not None:
+        both = m.home_goals > 0 and m.away_goals > 0
+        picks += [("BTTS", "yes", m.btts.p, k.btts, both),
+                  ("BTTS", "no", 1 - m.btts.p, 1 - k.btts, not both)]  # fmt: skip
+    out = []
+    for market, sel, ours, mp, won in picks:
+        price = k.prices.get(sel)
+        if mp is None or price is None or ours - mp <= 0:
+            continue
+        out.append(sc.Bet(
+            match_id=m.match_id, kickoff=m.kickoff, competition_id=m.competition_id,
+            competition=m.competition, country=country, tier=m.competition_tier,
+            team_level=m.team_level, home=m.home, away=m.away, home_goals=m.home_goals,
+            away_goals=m.away_goals, market=market, selection=sel, ours=ours, market_p=mp,
+            gap=ours - mp, odds_mean=price.mean, odds_best=price.best,
+            bookmakers=price.bookmakers, won=won, point=m.home_p.point, milestone=m.milestone,
+        ))  # fmt: skip
+    return out
+
+
+def bets(session: Session, ctx: Context, now: datetime) -> sc.BetList:
+    """Every played match's selections we rated above the market (the played view's matches,
+    forecasts and market), for the bets page; it filters and totals them itself."""
+    out, rows, since, _, _ = _played_matches(session, ctx, now)
+    country = {r.match_id: r.country for r in rows}
+    found = [b for m in out for b in bet_rows(m, country.get(m.match_id) or "")]
+    found.sort(key=lambda b: (b.kickoff, b.match_id, b.market, b.selection))
+    return sc.BetList(generated_at=now, forecasts_since=since, bets=found)

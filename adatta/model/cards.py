@@ -7,10 +7,11 @@ For team j against opponent o in match i, with referee r:
 
 c[l, s] ~ Normal(c_l, sigma_season) (league-season level pooled to the league), a own card
 tendency, b the cards a team draws from opponents, s_ref the referee (one per identity in
-the country's pool). Non-centred; sigma ~ HalfNormal(0.3 x scale), c_l ~ Normal(log 2.2,
-0.5), h ~ Normal(0, 0.2), phi ~ Gamma(2, 0.1). Variants, nested: C0 (c, h), C1 (+ a, b),
-C2 (+ s_ref). Fitted per bundle on league matches with a named referee, final by the as-of
-(kickoff + 3 h) within WINDOW_DAYS, every GRID_DAYS on the dev Mondays.
+the country's pool). c[l, s] centred, a, b and s_ref non-centred; sigma ~ HalfNormal(0.3
+x scale), c_l ~ Normal(log 2.2, 0.5), h ~ Normal(0, 0.2), phi ~ Gamma(2, 0.1). Variants,
+nested: C0 (c, h), C1 (+ a, b), C2 (+ s_ref). Fitted per bundle on league matches with a
+named referee, final by the as-of (kickoff + 3 h) within WINDOW_DAYS, every GRID_DAYS on
+the dev Mondays.
 
 Prediction: a team or referee without a training match gets 0 for a team and a pool draw
 Normal(0, sigma_ref) per posterior draw for a referee; so does a match whose referee is not
@@ -49,7 +50,7 @@ VARIANTS = ("C0", "C1", "C2")
 WINDOW_DAYS = 730
 GRID_DAYS = 28  # D14's dev iteration grid
 LAG = timedelta(hours=3)
-DRAWS, CHAINS, TARGET_ACCEPT, PRED_DRAWS = 2000, 4, 0.9, 400
+DRAWS, CHAINS, TARGET_ACCEPT, PRED_DRAWS = 2000, 4, 0.95, 400
 SEED = 20261127
 MAX_TEAM = 20  # team counts 0-20; the match total 0-40
 TOTAL_LINES = (3.5, 4.5, 5.5)
@@ -127,8 +128,9 @@ def build(d: Design, variant: str, prior_scale: float = 1.0) -> Any:
     with pm.Model() as model:
         c_l = pm.Normal("c_league", C_MEAN, C_SD, shape=len(ix.leagues))
         s_s = pm.HalfNormal("sigma_season", SIGMA_SD * k)
-        z_s = pm.Normal("z_ls", 0.0, 1.0, shape=len(ix.ls))
-        c_ls = c_l[d.ls_league] + s_s * z_s
+        # centred: every league-season has hundreds of rows (CI run 46014739829: the
+        # non-centred form diverged)
+        c_ls = pm.Normal("c_ls", c_l[d.ls_league], s_s, shape=len(ix.ls))
         h = pm.Normal("h", 0.0, H_SD)
         eta = c_ls[d.ls] + h * d.home
         if variant in ("C1", "C2"):
@@ -157,7 +159,7 @@ def post_draws(idata: Any, variant: str, n: int = PRED_DRAWS) -> dict[str, Arr]:
     take = np.linspace(0, len(flat["h"]) - 1, min(n, len(flat["h"]))).astype(np.int64)
     f = {k: v[take] for k, v in flat.items()}
     out: dict[str, Arr] = {"c_league": f["c_league"].T, "sigma_season": f["sigma_season"],
-                           "z_ls": f["z_ls"].T, "h": f["h"], "phi": f["phi"]}  # fmt: skip
+                           "c_ls": f["c_ls"].T, "h": f["h"], "phi": f["phi"]}  # fmt: skip
     if variant in ("C1", "C2"):
         out |= {"a": (f["z_a"] * f["sigma_a"][:, None]).T,
                 "b": (f["z_b"] * f["sigma_b"][:, None]).T,
@@ -168,7 +170,7 @@ def post_draws(idata: Any, variant: str, n: int = PRED_DRAWS) -> dict[str, Arr]:
 
 
 def c_ls(post: dict[str, Arr], d: Design) -> Arr:
-    return post["c_league"][d.ls_league] + post["z_ls"] * post["sigma_season"][None, :]
+    return post["c_ls"]
 
 
 def fit(d: Design, variant: str, prior_scale: float = 1.0, seed: int = SEED,
@@ -282,7 +284,7 @@ def target_mu(post: dict[str, Arr], ix: Index, t: pl.DataFrame, pool: NDArray[np
     nd = len(post["h"])
     li, lsi = {x: i for i, x in enumerate(ix.leagues)}, {x: i for i, x in enumerate(ix.ls)}
     ti, ri = {x: i for i, x in enumerate(ix.teams)}, {x: i for i, x in enumerate(ix.refs)}
-    cls = post["c_league"][[li[a] for a, _ in ix.ls]] + post["z_ls"] * post["sigma_season"]
+    cls = post["c_ls"]
     eta = np.zeros((t.height, nd))
     for k, r in enumerate(t.iter_rows(named=True)):
         key = (int(r["league_id"]), int(r["season"]))

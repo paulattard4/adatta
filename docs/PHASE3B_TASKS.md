@@ -645,7 +645,10 @@ Tick each item only when its acceptance check passes.
         bf5eba3cbfc7fa50`): 76,408 team-matches; referee named on 99.7-100% per league.
         All three variants train on rows with a named referee, so they share their rows.
       - **Model** (`adatta/model/cards.py`):
-        - NUTS 2,000 draws × 4 chains, target_accept 0.9, non-centred, 400 draws kept;
+        - NUTS 2,000 draws × 4 chains, target_accept 0.95 (P's); the league-season level
+          centred and the team and referee terms non-centred; 400 draws kept. (Changed
+          before any score: CI run 46014739829's recovery test found 3 divergences with
+          target_accept 0.9 and a non-centred level.)
         - C2 refitted at prior ×0.5 and ×2 on every refit (the sensitivity check);
         - the PPC uses 200 draws.
       - **Scores** (`adatta/eval/cards.py`):

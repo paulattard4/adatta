@@ -1868,9 +1868,20 @@ Consequences:
         `slots`. The API and the panel don't read them.
       - Migration 0019 is additive (two nullable columns) and was applied 2026-11-27.
       - **Tests:** 3 new in `tests/test_formation_view.py`.
-      - **Still to build before the window opens (winter break):** the verdict script.
-        It reads both pitches against the announced lineups (XI overlap, and slot accuracy
-        in positional league-seasons), paired by team-match. It is run once.
+      - **Verdict script built 2026-11-27, before any score** (`adatta/eval/pitch_replaced.py`;
+        2 tests in `tests/test_pitch_replaced.py`).
+        - It reads both pitches of the stored formation row as of kickoff − 24 h, against
+          the announced XI (11 known starters). Slot accuracy only counts where the
+          league-season is positional and the announced formation is the pitch's.
+        - `count` prints the eligible number only. `judge` runs once: a marker in the
+          store refuses a second reading.
+      - **Window fixed now (D59: in advance; it read "to the winter break"):** kickoff
+        from 2026-11-27 to before 2026-12-24.
+        - With fewer than 1,000 eligible team-matches by then, it runs on a week at a time
+          until it has them. Only the count is read, never a score.
+        - The last two weeks (the international break) gave 218 eligible team-matches
+          from 132 matches. A normal week should give about 170, so about 750 by
+          2026-12-24, and the window will probably run into January.
 
 - [ ] **P3-i Lineup offset with attack and defence, live shadow (D43). Closed (D44).** Owner, 2026-11-21:
       "any way we can have lineup projections and changes affect our match projections?",

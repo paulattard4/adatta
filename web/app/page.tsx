@@ -6,7 +6,7 @@ import { ConfidenceBadge } from "@/components/Confidence";
 import { InPlay, LIVE_REFRESH_MS } from "@/components/Live";
 import { ProbCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
-import { kickoffLocal, pct, showsOdds, tierLabel } from "@/lib/format";
+import { kickoffLocal, pct, tierLabel } from "@/lib/format";
 import type { FixtureList, LiveList, TournamentList } from "@/lib/types";
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
@@ -87,9 +87,9 @@ export default function Browser() {
               </span>
               {f.headline ? (
                 <>
-                  <ProbCell prob={f.headline.home} label="Home" compact odds={showsOdds(f.team_level)} />
-                  <ProbCell prob={f.headline.draw} label="Draw" compact odds={showsOdds(f.team_level)} />
-                  <ProbCell prob={f.headline.away} label="Away" compact odds={showsOdds(f.team_level)} />
+                  <ProbCell prob={f.headline.home} label="Home" compact odds />
+                  <ProbCell prob={f.headline.draw} label="Draw" compact odds />
+                  <ProbCell prob={f.headline.away} label="Away" compact odds />
                 </>
               ) : (
                 <span className="no-proj dim">{f.no_projection_reason}</span>
@@ -102,7 +102,7 @@ export default function Browser() {
       <p className="note">
         Probabilities are posterior means with 90% credible intervals (small numbers, and the band in each bar).
         Leagues tagged baseline model show point forecasts, without an interval.
-        The @ figure is the fair decimal price 1/p, with no margin (senior football only); hover for its interval.
+        The @ figure is the fair decimal price 1/p, with no margin; hover for its interval.
         Kickoffs in your local time. Each dot is one named confidence component; hover for its value.
         Market is the bookmakers&apos; latest price with the margin removed, shown for information: it is not a model input and not an edge signal.
       </p>

@@ -2,7 +2,7 @@ import type { Prob } from "@/lib/types";
 import { fairOdds, interval, oddsInterval, pct } from "@/lib/format";
 
 /** A probability with its 90% interval: the number, the range, and a bar showing both.
- * With `odds`, also the fair decimal odds 1/p and their interval (senior only, principle 10). */
+ * With `odds`, also the fair decimal odds 1/p and their interval (every team level, D60). */
 export function ProbCell({ prob, label, compact = false, odds = false, cameIn = false }:
   { prob: Prob; label?: string; compact?: boolean; odds?: boolean; cameIn?: boolean }) {
   const point = prob.lo == null || prob.hi == null; // C2 baseline (D54): no interval

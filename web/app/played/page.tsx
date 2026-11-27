@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ProbCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
-import { complement, dateLocal, fairOdds, kickoffLocal, pct, showsOdds, tierLabel } from "@/lib/format";
+import { complement, dateLocal, fairOdds, kickoffLocal, pct, tierLabel } from "@/lib/format";
 import { GapTrend, Reliability } from "@/components/Charts";
 import type { ClvSummary, MeanScore, PlayedList, PlayedMatch, ScoreSummary } from "@/lib/types";
 
@@ -28,7 +28,7 @@ function Outcome({ m }: { m: PlayedMatch }) {
     <>
       {cells.map(([label, key, p]) => (
         <div key={key} className={m.outcome === key ? "played-cell hit" : "played-cell"}>
-          <ProbCell prob={p} label={label} compact odds={showsOdds(m.team_level)} />
+          <ProbCell prob={p} label={label} compact odds />
         </div>
       ))}
     </>
@@ -219,7 +219,7 @@ export default function Played() {
         </label>
         <label>From <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
         <label>To <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
-        <span className="filter-note">Only forecasts published before kickoff. Lower scores are better. @ fair decimal odds 1/p (senior).</span>
+        <span className="filter-note">Only forecasts published before kickoff. Lower scores are better. @ fair decimal odds 1/p.</span>
       </div>
       {error && <div className="panel error">Could not load played matches: {error}. Is the API running on 127.0.0.1:8000?</div>}
       {loading && !data && <div className="panel dim">Loading played matches…</div>}
@@ -296,11 +296,11 @@ export default function Played() {
               <span className="num c result">{m.home_goals}–{m.away_goals}</span>
               <Outcome m={m} />
               <Side prob={m.over25} hit={m.home_goals + m.away_goals > 2.5} yes="Over 2.5" no="Under 2.5"
-                    market="Over/under 2.5" ll={m.scores.log_loss_ou25} odds={showsOdds(m.team_level)} />
+                    market="Over/under 2.5" ll={m.scores.log_loss_ou25} odds />
               <Side prob={m.btts} hit={m.home_goals > 0 && m.away_goals > 0} yes="BTTS Yes" no="BTTS No"
-                    market="Both teams score" ll={m.scores.log_loss_btts} odds={showsOdds(m.team_level)} />
+                    market="Both teams score" ll={m.scores.log_loss_btts} odds />
               <span className="num c ll">{m.scores.log_loss_1x2.toFixed(3)}
-                <span className="dim played-pp"> p {pct(hitP(m))}%{showsOdds(m.team_level) && <> · @{fairOdds(hitP(m))}</>}</span>
+                <span className="dim played-pp"> p {pct(hitP(m))}% · @{fairOdds(hitP(m))}</span>
               </span>
             </Link>
           ))}

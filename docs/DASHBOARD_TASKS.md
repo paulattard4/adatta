@@ -882,3 +882,17 @@ written and passed.
 the only module that imports it.
 
 **Tests:** 4 new in `tests/test_played_view.py`, plus one in `tests/test_c2_projection.py`.
+
+## No youth restriction (D60, owner, 2026-11-27)
+
+Owner: "never exclude youth matches, we can remove that restriction entirely". CLAUDE.md
+rule 10 is replaced. Every policy exclusion of youth sides is removed:
+- fair odds show at every level (`showsOdds` is gone);
+- the market line shows on youth fixtures;
+- the squad panel lists youth players;
+- the played view includes youth internationals;
+- the national view no longer gives a "youth sides get nothing betting-facing" reason.
+
+Youth internationals still have no forecast. The Stage D model rates the 218 senior men's
+sides only, so they show `NOT_COVERED` ("Stage D covers senior men's national teams
+only"): not in the model, rather than excluded. A youth model would be its own task.

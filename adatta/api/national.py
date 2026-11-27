@@ -1,7 +1,8 @@
 """National-team views (Stage D v1 serving; docs/BEYOND_LEAGUES_PLAN.md, "D v1 serving
 acceptance"): the fixture list's national groups and the national match view, from the
 national live refits and their published 1X2 milestones. Labelled team-only; Over/Under and
-BTTS withheld; youth and non-servable pairings show why, with no probability."""
+BTTS withheld; a pairing outside the model (youth sides included, D60) shows why, with no
+probability."""
 
 from __future__ import annotations
 

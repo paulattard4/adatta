@@ -572,7 +572,7 @@ def fixture_list(session: Session, ctx: Context, now: datetime, start: datetime 
              *c2.groups(session, ctx, now, start, end, competition_id, team_level)]  # fmt: skip
     order = sorted(every, key=lambda g: competition_order(g.country, g.tier, g.name))
     lines = _market_lines(session, {f.match_id: f.kickoff for g in order for f in g.fixtures
-                                    if f.team_level == "senior" and f.headline is not None},
+                                    if f.headline is not None},
                           now)  # fmt: skip
     for g in order:
         for f in g.fixtures:
@@ -582,9 +582,9 @@ def fixture_list(session: Session, ctx: Context, now: datetime, start: datetime 
 
 def _market_lines(session: Session, upcoming: dict[int, datetime], now: datetime
                   ) -> dict[int, sc.MarketLine]:  # fmt: skip
-    """The bookmakers' latest de-margined prices for upcoming senior forecasts {match:
-    kickoff}, shown beside ours for information only (owner, 2026-11-27): no edge flag until
-    an edge test is written and passed; senior only (principle 10)."""
+    """The bookmakers' latest de-margined prices for upcoming forecasts {match: kickoff},
+    shown beside ours for information only (owner, 2026-11-27): no edge flag until an edge
+    test is written and passed."""
     from adatta.api.market import market_view, upcoming_market
 
     view = market_view(session, {mid: min(now, _utc(k)) for mid, k in upcoming.items()
@@ -606,7 +606,7 @@ def match_view(session: Session, ctx: Context, match_id: int, now: datetime) -> 
     """The match page, with the market line beside an upcoming senior forecast."""
     view = _match_view(session, ctx, match_id, now)
     h = view.header
-    if view.milestones and h.team_level == "senior":
+    if view.milestones:
         view.market = _market_lines(session, {h.match_id: h.kickoff}, now).get(h.match_id)
     return view
 
@@ -745,8 +745,8 @@ def _lineup(row: models.LineupSnapshot | None) -> sc.Lineup | None:
 def squad(session: Session, m: MatchRow, now: datetime,
           store: RawStore | None = None) -> sc.Squad:  # fmt: skip
     """The squad panel (docs/DASHBOARD_TASKS.md): status spells valid at min(now, kickoff),
-    the last status capture of the competition by then, and lineups seen by now. Senior
-    team levels only (principle 10)."""
+    the last status capture of the competition by then, and lineups seen by now. Every team
+    level (D60)."""
     from adatta.adapters.normalize import FINISHED
 
     t = min(now, m.kickoff)
@@ -762,12 +762,6 @@ def squad(session: Session, m: MatchRow, now: datetime,
         note = f"Not announced yet: polled from {int(LINEUP_POLL_FROM.total_seconds() // 60)} "
         note += "minutes before kickoff."
     teams = {"home": (m.home_id, m.home), "away": (m.away_id, m.away)}
-    if m.team_level != "senior":
-        empty = {k: sc.TeamSquad(team=name, lineup=None, absences=[])
-                 for k, (_, name) in teams.items()}  # fmt: skip
-        return sc.Squad(as_of=t, status_checked_at=_utc(checked) if checked else None,
-                        lineup_note=None, hidden_reason="Players are not listed for "
-                        f"{m.team_level} teams (principle 10).", **empty)  # fmt: skip
     lineups = {r.team_id: r for r in session.scalars(
         select(L).where(L.match_id == m.match_id, L.observed_at <= now))}  # fmt: skip
     spells = session.execute(
@@ -1118,8 +1112,7 @@ def played(
         c2_rows = _matches(session, ctx, where, leagues=list(c2v.leagues()))
         point_ids = {r.match_id for r in c2_rows}  # baseline point forecasts (D54)
         rows += c2_rows
-        rows += [r for r in _matches(session, ctx, where, national=True)
-                 if r.team_level == "senior"]  # principle 10: no youth output  # fmt: skip
+        rows += _matches(session, ctx, where, national=True)  # every team level (D60)
     else:
         point_ids = set()
     results = _results(session, [r.match_id for r in rows])

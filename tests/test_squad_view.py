@@ -106,7 +106,8 @@ def test_started_match_without_a_lineup_says_not_captured(tmp_path: Path) -> Non
     assert sq is not None and sq.lineup_note is not None and "Not captured" in sq.lineup_note
 
 
-def test_youth_levels_list_no_players(tmp_path: Path) -> None:
+def test_youth_levels_list_their_players_like_senior_ones(tmp_path: Path) -> None:
+    """D60 (owner, 2026-11-27): no youth restriction."""
     w, mid = _world(tmp_path)
     for tid in (1, 2):
         t = w.s.get(models.Team, tid)
@@ -116,8 +117,8 @@ def test_youth_levels_list_no_players(tmp_path: Path) -> None:
     _lineup(w, mid, 1, K - timedelta(minutes=50))
     w.s.commit()
     sq = views.match_view(w.s, ctx(w), mid, K - timedelta(minutes=10)).squad
-    assert sq is not None and sq.hidden_reason is not None
-    assert sq.home.absences == [] and sq.home.lineup is None
+    assert sq is not None and sq.hidden_reason is None
+    assert sq.home.absences != [] and sq.home.lineup is not None
 
 
 def test_squad_leaves_the_not_available_list(tmp_path: Path) -> None:

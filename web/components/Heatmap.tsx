@@ -4,7 +4,7 @@ import type { Prob, ScoreMatrix } from "@/lib/types";
 import { fairOdds, interval, oddsInterval, pct } from "@/lib/format";
 
 /** Correct-score heatmap (§16.3): posterior-mean P(home = i, away = j), each cell's 90%
- *  interval on hover and in the cell's accessible label. With `odds` (senior only), a switch
+ *  interval on hover and in the cell's accessible label. With `odds`, a switch
  *  shows the cells as fair decimal odds 1/p instead; the tooltip always carries both. */
 export function Heatmap({ m, home, away, odds = false }:
   { m: ScoreMatrix; home: string; away: string; odds?: boolean }) {

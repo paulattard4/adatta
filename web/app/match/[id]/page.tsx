@@ -9,7 +9,7 @@ import { ProbCell } from "@/components/Prob";
 import { SquadPanel } from "@/components/Squad";
 import { Waterfall } from "@/components/Waterfall";
 import { useJson, useNow } from "@/lib/fetch";
-import { cameIn, countdown, dateLocal, fairOdds, HALF_MARKETS, interval, kickoffLocal, liveClock, MARKET_LABEL, oddsInterval, pct, showsOdds, tierLabel } from "@/lib/format";
+import { cameIn, countdown, dateLocal, fairOdds, HALF_MARKETS, interval, kickoffLocal, liveClock, MARKET_LABEL, oddsInterval, pct, tierLabel } from "@/lib/format";
 import type { LiveList, MatchView, Milestone, Qualify, Result, Selection } from "@/lib/types";
 
 const SEL_LABEL: Record<string, string> = { home: "Home", draw: "Draw", away: "Away", over: "Over", under: "Under", yes: "Yes", no: "No" };
@@ -212,10 +212,10 @@ export default function MatchPage() {
 
       {last ? (
         <section className="panel">
-          <h3>Markets <span className="dim">· {last.milestone} projection, posterior mean and 90% interval{showsOdds(h.team_level) && ", @ fair decimal odds 1/p"}{inPlay && !h.result && " · pre-match, not updated in play"}{h.result && " · outlined: came in"}</span></h3>
-          <Markets m={last} odds={showsOdds(h.team_level)} result={h.result} />
+          <h3>Markets <span className="dim">· {last.milestone} projection, posterior mean and 90% interval, @ fair decimal odds 1/p{inPlay && !h.result && " · pre-match, not updated in play"}{h.result && " · outlined: came in"}</span></h3>
+          <Markets m={last} odds result={h.result} />
           <h4>Milestone history</h4>
-          <div className="history-wrap"><History ms={v.milestones} odds={showsOdds(h.team_level)} /></div>
+          <div className="history-wrap"><History ms={v.milestones} odds /></div>
         </section>
       ) : (
         <section className="panel dim">{v.no_projection_reason}</section>
@@ -224,7 +224,7 @@ export default function MatchPage() {
       {last && v.half_coherence?.coherent && (
         <section className="panel">
           <h3>Half time <span className="dim">· {last.milestone} projection, the 90-minute score split by each side&apos;s first-half share; posterior mean and 90% interval</span></h3>
-          <HalfTime m={last} odds={showsOdds(h.team_level)} />
+          <HalfTime m={last} odds />
         </section>
       )}
       {last && v.half_coherence && !v.half_coherence.coherent && (
@@ -240,7 +240,7 @@ export default function MatchPage() {
       {v.qualify && (
         <section className="panel">
           <h3>Going through</h3>
-          <GoingThrough q={v.qualify} home={h.home} away={h.away} odds={showsOdds(h.team_level)} />
+          <GoingThrough q={v.qualify} home={h.home} away={h.away} odds />
         </section>
       )}
 
@@ -254,7 +254,7 @@ export default function MatchPage() {
       {v.matrix && (
         <section className="panel">
           <h3>Correct score</h3>
-          <Heatmap m={v.matrix} home={h.home} away={h.away} odds={showsOdds(h.team_level)} />
+          <Heatmap m={v.matrix} home={h.home} away={h.away} odds />
         </section>
       )}
 

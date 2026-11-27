@@ -29,7 +29,6 @@ export const oddsInterval = (lo: number | null, hi: number | null) =>
   lo == null || hi == null ? "" : `${fairOdds(hi)}–${fairOdds(lo)}`;
 
 /** Principle 10: no betting-facing output for youth levels without review. */
-export const showsOdds = (teamLevel: string) => teamLevel === "senior";
 
 const CAP_LABELS: Record<string, string> = {
   has_lineups: "Lineups", has_player_match_stats: "Player stats", has_xg: "xG",

@@ -12,7 +12,7 @@ Probabilistic football forecasting platform. Reference spec: `docs/adatta_archit
 7. **Lineup offset enters Layer 6 exactly once** and is in the training likelihood.
 8. **Degrade gracefully:** missing capability for a competition/season (see capability table) falls back to the simpler layer, never to imputed fiction.
 9. **Schema is sport-agnostic** where cheap (team_level, is_national, parent_team_id, PlayerRegistration).
-10. Minors' data: treat with GDPR/legal caution; no betting-facing output for youth levels without review.
+10. Youth football: no restriction (owner, D60, 2026-11-27). Youth matches and players are captured, shown, forecast and priced like senior ones. Youth sides stay out of a senior model's training unless that model is built to include them (a modelling choice, not a policy).
 
 ## Conventions
 - Python 3.12, `uv` for env/deps, Polars for dataframes, PyMC + ArviZ for inference, SQLAlchemy + Alembic for the DB, FastAPI for the API.
@@ -30,4 +30,4 @@ Probabilistic football forecasting platform. Reference spec: `docs/adatta_archit
 - Promotion routes (D59, `docs/GATE_POLICY.md`): beside D18's "proven better", a challenger may pass as non-inferior (1X2 log loss and RPS better on the point estimate, each paired 95% upper bound under +0.10%; a totals form for terms acting on total goals) or as a stacked blend fitted on dev and judged once. Same safeguards; one step at a time against the served model; production must stay provably better than Phase 1a on every window (a failure is raised, not auto-reverted); every acceptance states its detectable gain; live windows are fixed in advance (default a half-season) and read once; opened holdouts are never re-judged.
 - Inference gates: R-hat, ESS, divergences, PPC (incl. dispersion), prior sensitivity, identifiability.
 - Respect API-Football quota (Pro: ~7,500 req/day, ~300/min — verify). Every adapter goes through the quota planner; upgrade trigger ~70% sustained use.
-- Ask before: spending money, adding a paid service, destructive DB operations, anything touching minors' data.
+- Ask before: spending money, adding a paid service, destructive DB operations.

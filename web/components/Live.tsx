@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ProbCell } from "@/components/Prob";
-import { liveClock, showsOdds, timeLocal, tierLabel } from "@/lib/format";
+import { liveClock, timeLocal, tierLabel } from "@/lib/format";
 import type { LiveList, LiveMatch } from "@/lib/types";
 
 export const LIVE_REFRESH_MS = 60_000; // the API asks the provider at most once a minute anyway
@@ -9,7 +9,7 @@ export const score = (m: LiveMatch) =>
   m.home_goals == null || m.away_goals == null ? "–" : `${m.home_goals}–${m.away_goals}`;
 
 /** "In play" at the top of the fixture browser: live score beside the pre-match projection
- * and its fair odds (senior only), both labelled pre-match: neither is updated in play. */
+ * and its fair odds, both labelled pre-match: neither is updated in play. */
 export function InPlay({ live }: { live: LiveList }) {
   if (live.matches.length === 0 && !live.note) return null;
   return (
@@ -37,9 +37,9 @@ export function InPlay({ live }: { live: LiveList }) {
           </span>
           {m.forecast ? (
             <>
-              <ProbCell prob={m.forecast.home} label="Home" compact odds={showsOdds(m.team_level)} />
-              <ProbCell prob={m.forecast.draw} label="Draw" compact odds={showsOdds(m.team_level)} />
-              <ProbCell prob={m.forecast.away} label="Away" compact odds={showsOdds(m.team_level)} />
+              <ProbCell prob={m.forecast.home} label="Home" compact odds />
+              <ProbCell prob={m.forecast.draw} label="Draw" compact odds />
+              <ProbCell prob={m.forecast.away} label="Away" compact odds />
               <span className="dim small" title={`published ${timeLocal(m.forecast.generated_at)}`}>pre-match · {m.forecast.milestone}</span>
             </>
           ) : (

@@ -201,7 +201,7 @@ def test_only_servable_pairings_are_projected_and_others_say_why(tmp_path: Path)
     for m in (youth, club, far, off):
         assert w.written(m) == {}
     why = ns.reason(w.s, w.store, [youth, club], MONDAY)
-    assert why[youth] == ns.YOUTH and why[club] == ns.NOT_COVERED
+    assert why[youth] == ns.NOT_COVERED and why[club] == ns.NOT_COVERED  # not in the model (D60)
     assert ns.reason(w.s, w.store, [far], MONDAY)[far] == ns.NO_CURRENT
     assert w.tick(MONDAY + timedelta(hours=7)).written == {}  # idempotent
 
@@ -302,7 +302,7 @@ def test_dashboard_shows_national_forecasts_and_reasons(tmp_path: Path) -> None:
     assert rows[ok].headline is not None and rows[ok].no_projection_reason is None
     assert any(c.key == "model" and c.value.startswith("team-only") for c in rows[ok].confidence)
     assert [c.key for c in rows[ok].confidence] == list(views.CHECKLIST)
-    assert rows[youth].headline is None and rows[youth].no_projection_reason == ns.YOUTH
+    assert rows[youth].headline is None and rows[youth].no_projection_reason == ns.NOT_COVERED
     mv = views.match_view(w.s, ctx, ok, now)
     assert mv.coherence is not None and mv.coherence.coherent and mv.matrix is not None
     assert mv.matrix.max_goals == nt.MAX_GOALS and mv.squad is None
@@ -311,4 +311,4 @@ def test_dashboard_shows_national_forecasts_and_reasons(tmp_path: Path) -> None:
     assert [s.market for s in mv.milestones[-1].selections] == ["1X2"] * 3
     mv_y = views.match_view(w.s, ctx, youth, now)
     assert mv_y.milestones == [] and mv_y.matrix is None
-    assert mv_y.no_projection_reason == ns.YOUTH
+    assert mv_y.no_projection_reason == ns.NOT_COVERED

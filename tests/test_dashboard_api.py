@@ -69,7 +69,7 @@ def test_match_view_reproduces_the_published_milestone(tmp_path: Path) -> None:
     w, mid, _ = published(tmp_path)
     v = views.match_view(w.s, ctx(w), mid, NOW)
     assert [m.milestone for m in v.milestones] == ["initial"]
-    assert v.header.team_level == "senior"  # gates the fair odds (principle 10)
+    assert v.header.team_level == "senior"  # fair odds show at every level (D60)
     assert v.header.competition_tier == "1"  # shown beside the league name
     assert v.coherence is not None and v.coherence.coherent
     assert v.coherence.max_abs_diff <= 1e-9

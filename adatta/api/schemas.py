@@ -138,7 +138,7 @@ class Header(BaseModel):
     status: str
     home: str
     away: str
-    team_level: str  # fair odds are shown for senior only (principle 10)
+    team_level: str  # shown with fair odds at every level (D60)
     venue: str | None
     weather: Weather | None
     referee: str | None  # None = not announced yet
@@ -481,7 +481,7 @@ class PlayedMatch(BaseModel):
     competition_id: int
     competition: str
     competition_tier: str
-    team_level: str  # fair odds are shown for senior only (principle 10)
+    team_level: str  # shown with fair odds at every level (D60)
     home: str
     away: str
     home_goals: int
@@ -564,7 +564,7 @@ class LiveMatch(BaseModel):
     competition_id: int
     competition: str
     competition_tier: str
-    team_level: str  # fair odds are shown for senior only (principle 10)
+    team_level: str  # shown with fair odds at every level (D60)
     home: str
     away: str
     status: str  # provider short status: 1H, HT, 2H, ET, BT, P, ...

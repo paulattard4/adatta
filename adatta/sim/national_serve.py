@@ -33,7 +33,6 @@ LABEL = ("Team-only: results-based national model (Stage D v1), no squad or call
          "information")  # fmt: skip
 WITHHELD = "Over/Under and BTTS are not validated for national teams (Stage D v1 tested 1X2)."
 NOT_COVERED = "Stage D covers senior men's national teams only."
-YOUTH = "Not forecast: youth sides get nothing betting-facing (CLAUDE.md rule 10)."
 NO_REFIT = "No passing national refit yet."
 NO_CURRENT = "No current national refit: none from this match's week or the week before."
 NOT_YET = "Not projected yet: the next capture tick writes it."
@@ -170,23 +169,17 @@ def run_projection(session: Session, store: RawStore, manifest: dict[str, Any],
 
 def reason(session: Session, store: RawStore, match_ids: list[int], now: datetime
            ) -> dict[int, str]:  # fmt: skip
-    """Why a national match has no forecast: not a servable pairing (youth apart), no
-    refit, no current refit, or not projected yet."""
-    M, T = models.Match, models.Team
+    """Why a national match has no forecast: not a servable pairing (a youth side is not in
+    the senior model, D60), no refit, no current refit, or not projected yet."""
+    M = models.Match
     if not match_ids:
         return {}
     side = nt.sides(session)
     matches = session.scalars(select(M).where(M.match_id.in_(match_ids))).all()
-    team_ids = {t for m in matches for t in (m.home_team_id, m.away_team_id)}
-    q = select(T.team_id, T.team_level).where(T.team_id.in_(team_ids))
-    level = {int(t): str(lv) for t, lv in session.execute(q)}
     run, _ = latest(session, now)
     out = {}
     for m in matches:
-        lv = (level.get(m.home_team_id) or "", level.get(m.away_team_id) or "")
-        if any(v.startswith("u") for v in lv):
-            out[m.match_id] = YOUTH
-        elif m.home_team_id not in side or m.away_team_id not in side:
+        if m.home_team_id not in side or m.away_team_id not in side:
             out[m.match_id] = NOT_COVERED
         elif run is None:
             out[m.match_id] = NO_REFIT

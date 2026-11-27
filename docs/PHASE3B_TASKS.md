@@ -481,3 +481,159 @@ Tick each item only when its acceptance check passes.
         - Then for a week: every in-scope fixture with a 90' milestone has its half rows
           or a stated reason, the page's coherence flag is true, and the share refit
           passes in CI.
+
+- [ ] **P3b-3 Discipline: team cards with referee strictness (§8.4, Layer 5c).** Drafted
+      2026-11-27 before building (owner: "Yes, that order", item 3); not approved.
+
+      **Seen so far** (counts and spreads only, no requests, 2026-11-27). Card numbers
+      come from warm-up + dev (2016-2023). Holdout and 2026/27 card outcomes were not
+      inspected beyond coverage.
+      - **Coverage:** card, foul and corner counts for both teams on 100% of stored
+        matches in the ten bundle leagues, 2016-2025. The referee is named on 99.6-100%.
+      - **Cards per match** (yellow + red as the provider counts, both teams),
+        2016-2023:
+        - top flights: Premier League 3.64, Ligue 1 4.00, Bundesliga 3.92, Serie A 4.77,
+          La Liga 5.24;
+        - second tiers: 3.73 to 5.30.
+        - Variance / mean 0.93-1.26, close to Poisson at match level.
+        - Red cards 0.21 per match.
+        - The yearly mean moves 4.16 (2020) to 4.61 (2019).
+      - **Referees:** 26-61 per league with at least 10 dev matches (median 28-72 each).
+        The sd of their true cards-per-match means (method of moments) is 0.19
+        (Bundesliga) to 0.59 (Segunda), against a single match's sd of 2.1-2.6.
+      - **Teams:** the sd of a team-season's true cards per team-match is 0.19-0.38,
+        against 1.4-1.7 for a single team-match. Two teams together are about the same
+        size as the referee. Each is roughly 5-12% of a match's cards: real, but modest.
+      - **When the referee is known** (2026/27 matches tracked from at least 72 h
+        before kickoff; 9-26 per league):
+        - every top flight and second tier except Spain's is named at least 24 h ahead
+          in 74-100% of matches, with a median of 35-58 h;
+        - La Liga's median is 8 h (none at 24 h, 80% by T-60m) and Segunda's 10 h (4% at
+          24 h, all by T-60m).
+
+        This matches D26.
+
+      **Scope.** Team cards (yellow + red, as the provider counts) in regular-season
+      league matches of the ten bundle leagues, where `has_cards_data` holds (rule 8:
+      otherwise no card markets).
+      - **Markets:** total match cards (the distribution; O/U 3.5, 4.5, 5.5) and team
+        cards (O/U 1.5, 2.5).
+      - **Later items:** red-card probability (a separate, heavily shrunk process,
+        §8.4), fouls (tier 2), player cards, corners (P3b-4), cups, national teams, and
+        importance and derby terms (§8.4's other inputs, as a gated refinement).
+      - Layer 2 is untouched. Cards feed markets only (§8.4: "Layer 6 only as minor
+        context", not used here).
+
+      **(a) The model.** For team j against opponent o in match i, with referee r of
+      country c:
+
+          y_ij ~ NegBinomial(mu_ij, phi)          (owner choice 2)
+          log mu_ij = c[l, s] + h·home_ij + a[j] + b[o] + s_ref[r]
+
+      - **c[l, s]**, league-season level: ~ Normal(c_l, σ_season), so the current
+        season's level is pooled to the league's while it has few matches.
+      - **h**, home term.
+      - **a[j]**, own card tendency: ~ Normal(0, σ_a), team pooled to league through
+        c_l.
+      - **b[o]**, the cards a team draws from its opponents (the spec's "opponent foul
+        tendency"): ~ Normal(0, σ_b).
+      - **s_ref[r]**, referee strictness: ~ Normal(0, σ_ref), one per referee identity
+        (`features.referees`, the country's pool across tiers). A referee with no
+        training match gets a draw from the pool, Normal(0, σ_ref), as does any match
+        whose referee isn't known at the horizon. A new team gets a = b = 0.
+      - **Priors:** σ ~ HalfNormal(0.3); c_l ~ Normal(log 2.2, 0.5); h ~ Normal(0, 0.2);
+        phi ~ Gamma(2, 0.1).
+      - **Fitting:** per bundle (one referee pool per country), on league matches final
+        by the as-of (kickoff + 3 h) within 730 days. NUTS, 2,000 draws, refit every 28
+        days on the dev Mondays (D14).
+      - The two teams' counts are independent given the referee and teams. That's an
+        assumption: the PPC below checks it, and a shared match term is the named fix,
+        raised first.
+
+      **Three nested variants, pre-registered in this order:**
+      - **C0:** league-season level and home only (climatology with pooling).
+      - **C1:** + a and b (team only).
+      - **C2:** + s_ref (the referee). The item is about C2. The referee enters only if
+        C2 beats C1.
+
+      **(b) Horizons:**
+      - **Headline T-60m:** the referee from the final record. Live, it is known by then
+        in 80-100% of matches in every league.
+      - **T-24h, reported:** the actual referee in every league except La Liga and
+        Segunda, which draw from the pool (from the live timing above, not D26's
+        optimistic rule).
+
+      **(c) Inference gates, every refit:**
+      - R-hat ≤ 1.01, bulk and tail ESS ≥ 400, no divergences;
+      - PPC: dispersion of team cards and of total cards inside the posterior predictive
+        95% band; the correlation between the two teams' counts reported;
+      - prior sensitivity: σ priors halved and doubled, every referee's posterior mean
+        moves by less than 1 posterior sd;
+      - identifiability: the correlation between a and b reported.
+
+      A failing refit falls back to the next simpler variant for that date and is
+      counted. The chosen variant must pass at ≥ 97% of refits.
+
+      **(d) Dev run.** Dev seasons 2019-2023, at T-60m.
+      - **Score:** the RPS of the total-cards distribution (0-40, team caps at 20) per
+        match, plus O/U 4.5 log loss and team O/U 1.5 log loss.
+      - **B_clim:** each league's empirical distribution of team cards, home and away,
+        over the same 730-day training window.
+
+      **(e) Dev gate (all must pass):**
+      1. **Coherence, exact:** the total distribution is the two team distributions
+         convolved, and sums to 1 minus the cap's tail. O/U probabilities are monotone
+         across lines (tests).
+      2. **Variant chosen by total-cards RPS:** C1 replaces C0, and C2 replaces C1, only
+         if the paired 95% interval of the mean difference is below 0.
+      3. **Better than B_clim:** total-cards RPS and O/U 4.5 log loss, paired 95%
+         interval below 0.
+      4. **Calibrated:** ECE of O/U 3.5, 4.5 and 5.5 within its noise floor + 0.005.
+      5. **Segments:** no league worse than B_clim by more than 1.0% on total-cards RPS,
+         and, if C2 is chosen, none worse than C1 by more than 1.0%.
+      6. **Leakage:** adding later matches changes no forecast. A referee's estimate
+         reads only matches final by the as-of. Odds are not read.
+
+      **Reported:** each variant's scores; σ_ref, σ_a, σ_b and phi over time; the
+      referee effect for the T-24h pool leagues; RPS at T-24h; scores by league.
+
+      **(f) Promotion window (owner choice 1).** On a dev pass, checks 1, 3 and 4 run
+      once on a window never used for card work, with the chosen variant:
+      - **(i) 2026/27 to date, fixed now (recommended).** Every in-scope 2026/27 match
+        with kickoff before 2026-11-27 (1,269 matches). The card model refits on the
+        same 28-day Mondays, with no Layer 2 dependency.
+      - **(ii) Live only,** from the first shadow forecast, judged at 2,000 matches
+        (around April 2027).
+      - **(iii) Open the 2024/25-2025/26 holdout** for card outcomes (never used for
+        cards). That would be the holdout's third opening.
+
+      **(g) On a pass,** serving the card markets is its own item, with the dashboard
+      and the market comparison where card odds are stored. **On a fail,** nothing is
+      served.
+
+      **Power (D59):**
+      - Dev has about 19,000 matches, enough to detect a referee gain in RPS of a few
+        tenths of a percent.
+      - On window (i) (1,269 matches) the comparison is against climatology. There
+        the team and referee terms together move about 10-15% of the cards' spread, so
+        the expected gain is larger.
+      - Recomputed from dev pairs before the window is read.
+
+      **Cost:** 0 API requests. Small fits (about 90 team and 70 referee effects per
+      bundle, about 1,500 matches): an estimated 20-60 s each, so about 1,000 fits for
+      dev with the sensitivity runs. That is one backtest-type CI run of about 25 jobs,
+      under an hour, one at a time, not on a Monday.
+
+      **Owner choices:**
+      1. **Promotion window:** (i) 2026/27 to date, fixed (recommended) / (ii) live only
+         / (iii) the holdout's third opening.
+      2. **Count likelihood:**
+         - (a) negative binomial with a learned phi (recommended): Poisson is its limit,
+           and the match-level ratio up to 1.26 includes referee and team spread the
+           model explains;
+         - (b) Poisson.
+      3. **Cups:**
+         - (a) league matches only now, with cups added in the tier-3 / cups-in-training
+           work (item 5 of the agreed order) (recommended);
+         - (b) domestic cup matches between two bundle sides in training now, which add
+           referee matches.

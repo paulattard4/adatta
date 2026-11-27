@@ -100,7 +100,7 @@ def test_team_and_total_distributions() -> None:
 def _post(nd: int = 400, refs: int = 4, teams: int = 4) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(1)
     return {"c_league": np.full((1, nd), np.log(2.0)), "c_ls": np.full((2, nd), np.log(2.0)),
-            "sigma_season": np.full(nd, 0.1), "h": np.zeros(nd), "phi": np.full(nd, 20.0),
+            "h": np.zeros(nd), "phi": np.full(nd, 20.0),
             "a": np.zeros((teams, nd)), "b": np.zeros((teams, nd)), "sigma_a": np.full(nd, 0.1),
             "sigma_b": np.full(nd, 0.1),
             "r": np.vstack([np.full(nd, 0.3), np.zeros((refs - 1, nd))]),
@@ -137,8 +137,8 @@ def test_ppc_passes_on_data_from_the_model() -> None:
     t = _table(200, seed=3)
     d = mc.design(t)
     post = {"c_league": np.full((1, 400), np.log(2.0)),
-            "c_ls": np.full((len(d.index.ls), 400), np.log(2.0)), "sigma_season": np.zeros(400),
-            "h": np.zeros(400), "phi": np.full(400, 30.0)}  # fmt: skip
+            "c_ls": np.full((len(d.index.ls), 400), np.log(2.0)), "h": np.zeros(400),
+            "phi": np.full(400, 30.0)}  # fmt: skip
     passed = 0
     for seed in range(10):
         y = np.random.default_rng(100 + seed).negative_binomial(30.0, 30.0 / 32.0, len(d.y))

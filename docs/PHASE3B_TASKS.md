@@ -668,3 +668,49 @@ Tick each item only when its acceptance check passes.
         recovery of six referee effects.
       - **Run:** `cards.yml`, stage dev: 25 jobs, about 60 fits each, estimated 1-2 hours.
         It runs after P3-j step 2's run, one at a time, not on a Monday.
+
+      **Raised while building (2026-11-27), before any score: D67, drafted, not
+      approved.**
+
+      The recovery test in CI (runs 46014739829 and the next) and one real refit run
+      locally (England as of 2021-01-25: 3,552 rows, 49 teams, 46 referees, 6
+      league-seasons; diagnostics only, no forecast scored) found three things.
+
+      1. **The learned league-season sd diverges.** With only 2-3 seasons per league in a
+         730-day window, σ_season isn't identified: 3 divergences non-centred, 72
+         centred. This is D21's reset problem again. **Proposed:** a fixed sd, δ ~
+         Normal(0, 0.1). Yearly card levels moved about ±5% over 2016-2023. With it:
+         - the recovery tests pass in the local container (0 divergences);
+         - the real refit is clean in all three variants (R-hat ≤ 1.003, ESS ≥ 2,300,
+           0 divergences);
+         - C2's prior sensitivity moves no referee more than 0.04 sd.
+      2. **Team cards are under-dispersed, and the two teams are positively linked.** At
+         that refit, under C2:
+         - the Pearson dispersion of team cards is 0.91;
+         - the team-dispersion PPC quantile is 0.00 (C1 0.005);
+         - the observed correlation of the two teams' counts is 0.14, against the
+           model's 0.03;
+         - the match-total PPC passes (quantile 0.70; C1 0.94).
+
+         A negative binomial can't go below Poisson, and the draft's named fix (a shared
+         match term) would add spread, making the team check worse. The two errors
+         offset in the total, which is the headline market.
+
+         **Proposed (as D48 did for the half split):**
+         - the team-dispersion PPC is reported, not gating;
+         - the total-dispersion PPC stays gating;
+         - team O/U calibration is reported, and team markets aren't served without
+           their own check;
+         - same-game combinations of the two teams' cards are not claimed (§11.3).
+
+         An under-dispersed likelihood (Conway-Maxwell-Poisson) with a match term is
+         the larger alternative, left for later.
+      3. **Fits are slower than the draft's estimate.** In the container a refit's five
+         fits take about 16 minutes (C0 120 s, C1 207 s, C2 218 s, sensitivity about
+         440 s). At 2,000 draws, bulk ESS was 2,300-3,000, against a gate of 400.
+         **Proposed:** 1,000 draws × 4 chains (the fit time roughly halves, and ESS stays
+         well above 400). The dev run is then about 25 jobs of 1.5-2 h, about 3-4 h in
+         all.
+
+      Nothing has been scored, and these change no metric or gate threshold. They're
+      raised because 1 and 3 change approved settings and 2 changes what gates.

@@ -5,10 +5,11 @@ For team j against opponent o in match i, with referee r:
     y_ij ~ NegBinomial(mu_ij, phi)
     log mu_ij = c[l, s] + h home_ij + a[j] + b[o] + s_ref[r]
 
-c[l, s] ~ Normal(c_l, sigma_season) (league-season level pooled to the league), a own card
+c[l, s] = c_l + delta[l, s], delta ~ Normal(0, SEASON_SD) with SEASON_SD fixed (a stated
+assumption, as D21's reset: 2-3 seasons per window don't identify a learned sd), a own card
 tendency, b the cards a team draws from opponents, s_ref the referee (one per identity in
-the country's pool). c[l, s] centred, a, b and s_ref non-centred; sigma ~ HalfNormal(0.3
-x scale), c_l ~ Normal(log 2.2, 0.5), h ~ Normal(0, 0.2), phi ~ Gamma(2, 0.1). Variants,
+the country's pool). a, b and s_ref non-centred; sigma ~ HalfNormal(0.3 x scale),
+c_l ~ Normal(log 2.2, 0.5), h ~ Normal(0, 0.2), phi ~ Gamma(2, 0.1). Variants,
 nested: C0 (c, h), C1 (+ a, b), C2 (+ s_ref). Fitted per bundle on league matches with a
 named referee, final by the as-of (kickoff + 3 h) within WINDOW_DAYS, every GRID_DAYS on
 the dev Mondays.
@@ -16,7 +17,7 @@ the dev Mondays.
 Prediction: a team or referee without a training match gets 0 for a team and a pool draw
 Normal(0, sigma_ref) per posterior draw for a referee; so does a match whose referee is not
 known at the horizon (T-24h in POOL_24's leagues, or never named). A league-season without
-training matches draws its level from Normal(c_l, sigma_season). The two teams' counts are
+training matches draws its level from Normal(c_l, SEASON_SD). The two teams' counts are
 independent given the draw; the match total is their convolution within each draw.
 
 CLI (CI, model group; one backtest-type run at a time):
@@ -56,6 +57,7 @@ MAX_TEAM = 20  # team counts 0-20; the match total 0-40
 TOTAL_LINES = (3.5, 4.5, 5.5)
 TEAM_LINES = (1.5, 2.5)
 SIGMA_SD, C_MEAN, C_SD, H_SD, PHI_A, PHI_B = 0.3, float(np.log(2.2)), 0.5, 0.2, 2.0, 0.1
+SEASON_SD = 0.1  # fixed: yearly card levels moved about +-5% (2016-2023); see the docstring
 POOL_24 = frozenset({140, 141})  # La Liga, Segunda: referee from the pool at T-24h
 HORIZONS = ("60", "24")
 DEV = (2019, 2020, 2021, 2022, 2023)
@@ -127,10 +129,10 @@ def build(d: Design, variant: str, prior_scale: float = 1.0) -> Any:
     ix = d.index
     with pm.Model() as model:
         c_l = pm.Normal("c_league", C_MEAN, C_SD, shape=len(ix.leagues))
-        s_s = pm.HalfNormal("sigma_season", SIGMA_SD * k)
-        # centred: every league-season has hundreds of rows (CI run 46014739829: the
-        # non-centred form diverged)
-        c_ls = pm.Normal("c_ls", c_l[d.ls_league], s_s, shape=len(ix.ls))
+        # fixed sd (CI runs 46014739829 and the next: a learned sigma_season over 2-3
+        # seasons diverged, non-centred 3 and centred 72)
+        delta = pm.Normal("delta_ls", 0.0, SEASON_SD, shape=len(ix.ls))
+        c_ls = pm.Deterministic("c_ls", c_l[d.ls_league] + delta)
         h = pm.Normal("h", 0.0, H_SD)
         eta = c_ls[d.ls] + h * d.home
         if variant in ("C1", "C2"):
@@ -151,14 +153,14 @@ def build(d: Design, variant: str, prior_scale: float = 1.0) -> Any:
 
 
 def post_draws(idata: Any, variant: str, n: int = PRED_DRAWS) -> dict[str, Arr]:
-    """The thinned posterior on the natural scale: c_league (L, D), c_ls (LS, D),
-    sigma_season, h, phi (D); C1+: a, b (T, D), sigma_a, sigma_b; C2: r (R, D), sigma_ref."""
+    """The thinned posterior on the natural scale: c_league (L, D), c_ls (LS, D), h, phi
+    (D); C1+: a, b (T, D), sigma_a, sigma_b; C2: r (R, D), sigma_ref."""
     post = idata["posterior"]
     flat = {v: np.asarray(post[v].values).reshape(-1, *post[v].shape[2:])
             for v in post.data_vars}  # fmt: skip
     take = np.linspace(0, len(flat["h"]) - 1, min(n, len(flat["h"]))).astype(np.int64)
     f = {k: v[take] for k, v in flat.items()}
-    out: dict[str, Arr] = {"c_league": f["c_league"].T, "sigma_season": f["sigma_season"],
+    out: dict[str, Arr] = {"c_league": f["c_league"].T,
                            "c_ls": f["c_ls"].T, "h": f["h"], "phi": f["phi"]}  # fmt: skip
     if variant in ("C1", "C2"):
         out |= {"a": (f["z_a"] * f["sigma_a"][:, None]).T,
@@ -291,7 +293,7 @@ def target_mu(post: dict[str, Arr], ix: Index, t: pl.DataFrame, pool: NDArray[np
         if key in lsi:
             lvl = cls[lsi[key]]
         else:  # a league-season with no training match
-            lvl = post["c_league"][li[key[0]]] + post["sigma_season"] * rng.standard_normal(nd)
+            lvl = post["c_league"][li[key[0]]] + SEASON_SD * rng.standard_normal(nd)
         e = lvl + post["h"] * float(r["is_home"])
         if "a" in post:
             j, o = ti.get(int(r["team_id"])), ti.get(int(r["opp_id"]))

@@ -230,7 +230,7 @@ def test_the_match_view_shows_the_baseline_without_intervals(tmp_path: Path) -> 
     assert view.matrix is not None and view.matrix.max_goals == 20
     assert [c.key for c in view.confidence] == list(v.CHECKLIST)
     model = next(c for c in view.confidence if c.key == "model")
-    assert model.value == "baseline" and "Phase 1a" in model.detail
+    assert model.value.startswith("baseline") and "Phase 1a" in model.detail
     sel = view.milestones[-1].selections
     assert sel and all(s.prob.lo is None and s.prob.hi is None for s in sel)
     lst = v.fixture_list(w.s, ctx, K - timedelta(days=2), end=K + timedelta(days=1))

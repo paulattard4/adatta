@@ -818,3 +818,24 @@ The six §13.2 components are unchanged. "Model" is the one extension:
 **Enforcement:** `views.checklist` refuses a missing, extra or repeated component.
 **Checked live:** 601 fixtures over two weeks (494 league, 105 cup, 2 international) all
 carry the seven, and every row on the page draws seven dots.
+
+## Source capability reports the data; Model reports what is used (owner, 2026-11-27)
+
+The owner noticed Eredivisie showing "results only" while second tiers showed "results + xG
+partial". The model choice was never about xG: the full model failed the C2 holdout (D54),
+and Eredivisie stores xG for about 99% of matches.
+
+**The fix:**
+- **Source capability** is now one shared check (`views.capability_component`) for every
+  competition. It shows what the audit found for the competition and season, with the
+  audit date.
+- **Model** says what the model uses:
+  - full model: results + xG;
+  - baseline: results only;
+  - team-only: results only.
+
+**The 2026 audit:** the eight C2 top flights showed "capabilities not audited" because the
+25 November audit covered 2016-2025, not the 2026 season the badge reads. The owner agreed
+a 2026 audit on 2026-11-27. It took 32 requests and found every league with lineups,
+player stats, shots, xG, corners, cards, half-time splits and substitution times available
+(Scotland's referee history partial).

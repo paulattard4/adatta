@@ -47,9 +47,12 @@ def _headline(ms: str, rows: list[models.MarketProjection]) -> sc.Headline:
 
 def confidence(m: v.MatchRow, run: models.ModelRun | None, fit: c2_live.Fit | None,
                fresh: sc.Freshness, champion: models.ModelRun | None, warmup: int,
-               now: datetime) -> list[sc.Component]:  # fmt: skip
-    out = [sc.Component(key="model", label="Model", status="limited", value="baseline",
-                        detail=cs.LABEL)]  # fmt: skip
+               now: datetime,
+               caps: list[models.CompetitionSourceCapability]) -> list[sc.Component]:  # fmt: skip
+    out = [sc.Component(key="model", label="Model", status="limited",
+                        value="baseline · results only",
+                        detail=cs.LABEL + ". It uses results alone, not the xG or other data "
+                               "the source has (D54).")]  # fmt: skip
     if fit is None or run is None:
         out.append(
             sc.Component(
@@ -71,10 +74,7 @@ def confidence(m: v.MatchRow, run: models.ModelRun | None, fit: c2_live.Fit | No
                     "training window." if cold else
                     "Both sides have a full history in the training window."),
         ))  # fmt: skip
-    out.append(sc.Component(key="capability", label="Source capability", status="limited",
-                            value="results only",
-                            detail="The baseline (Phase 1a) uses results alone, whatever the "
-                                   "source has: no xG (D54)."))  # fmt: skip
+    out.append(v.capability_component(caps))
     out.append(sc.Component(key="lineup", label="Lineup certainty", status="not_modelled",
                             value="results only",
                             detail="The baseline model uses results only."))  # fmt: skip
@@ -170,7 +170,7 @@ def groups(
             headline=_headline(ms := v._latest_milestone(by_ms), by_ms[ms]) if by_ms else None,
             no_projection_reason=None if by_ms else why,
             confidence=confidence(r, run, _fit(ctx, run, _FITS), fresh,
-                                  champs.get(r.league_id), warmup, now),
+                                  champs.get(r.league_id), warmup, now, caps[r.season_id]),
         ))  # fmt: skip
     return list(out.values())
 
@@ -225,7 +225,8 @@ def match_view(session: Session, ctx: v.Context, m: v.MatchRow, header: sc.Heade
     warmup = harness.load_config().min_warmup_matches
     return sc.MatchView(
         generated_at=now, header=header, freshness=fresh,
-        confidence=confidence(m, run or serving, fit, fresh, champ, warmup, now),
+        confidence=confidence(m, run or serving, fit, fresh, champ, warmup, now,
+                              v._capabilities(session, {m.season_id})[m.season_id]),
         milestones=milestones, matrix=matrix if coh is None or coh.coherent else None,
         decomposition=[], coherence=coh, no_projection_reason=reason, squad=None,
         unavailable=UNAVAILABLE,

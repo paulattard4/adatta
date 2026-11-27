@@ -96,10 +96,12 @@ def _row_dict(session: Session, ctx: v.Context, m: v.MatchRow) -> dict[str, Any]
 
 
 def confidence(m: v.MatchRow, run: models.ModelRun | None, post: dict[str, Any] | None,
-               fresh: sc.Freshness, champion: models.ModelRun | None,
-               now: datetime) -> list[sc.Component]:  # fmt: skip
-    out = [sc.Component(key="model", label="Model", status="limited", value="team-only",
-                        detail=ns.LABEL + ". 90' only.")]  # fmt: skip
+               fresh: sc.Freshness, champion: models.ModelRun | None, now: datetime,
+               caps: list[models.CompetitionSourceCapability]) -> list[sc.Component]:  # fmt: skip
+    out = [sc.Component(key="model", label="Model", status="limited",
+                        value="team-only · results only",
+                        detail=ns.LABEL + ". 90' only; it uses international results alone, "
+                               "not xG, call-ups or lineups (Stage D v1).")]  # fmt: skip
     if post is None or run is None:
         out.append(sc.Component(key="history", label="Historical data strength",
                                 status="missing", value="no refit",
@@ -115,10 +117,7 @@ def confidence(m: v.MatchRow, run: models.ModelRun | None, post: dict[str, Any] 
                     "confederation's level with the team and walk spread." if cold else
                     "Both sides are in the refit's training window."),
         ))  # fmt: skip
-    out.append(sc.Component(key="capability", label="Source capability", status="limited",
-                            value="results only",
-                            detail="International results alone: no xG, call-ups or lineups "
-                                   "(Stage D v1)."))  # fmt: skip
+    out.append(v.capability_component(caps))
     out.append(sc.Component(key="lineup", label="Lineup certainty", status="not_modelled",
                             value="team-level",
                             detail="Call-ups and lineups are not used (Stage D v1)."))  # fmt: skip
@@ -191,7 +190,7 @@ def groups(
             team_level=r.team_level,
             headline=v._headline(ms := v._latest_milestone(by_ms), by_ms[ms]) if by_ms else None,
             no_projection_reason=None if by_ms else why.get(r.match_id, ns.NOT_COVERED),
-            confidence=confidence(r, run, post, fresh, champ, now),
+            confidence=confidence(r, run, post, fresh, champ, now, caps[r.season_id]),
         ))  # fmt: skip
     return list(out.values())
 
@@ -241,7 +240,8 @@ def match_view(session: Session, ctx: v.Context, m: v.MatchRow, header: sc.Heade
     q, q_why = qualify(session, ctx, m, by_ms, now)
     return sc.MatchView(
         generated_at=now, header=header, freshness=fresh,
-        confidence=confidence(m, run or serving, post, fresh, nl.champion(session), now),
+        confidence=confidence(m, run or serving, post, fresh, nl.champion(session), now,
+                              v._capabilities(session, {m.season_id})[m.season_id]),
         milestones=milestones, matrix=matrix if coh is None or coh.coherent else None,
         decomposition=[], coherence=coh, no_projection_reason=reason, squad=None,
         unavailable=UNAVAILABLE + ([q_why] if q_why else []), qualify=q,

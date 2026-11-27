@@ -201,3 +201,16 @@ def test_competitions_list_tier_1_before_tier_2_within_a_country() -> None:
     got = [c[2] for c in sorted(comps, key=lambda c: views.competition_order(*c))]
     assert got == ["Premier League", "Championship", "Tenth", "FA Cup", "La Liga",
                    "Segunda Division", "World Cup"]  # fmt: skip
+
+
+def test_source_capability_reports_the_data_whatever_the_model() -> None:
+    """Owner, 2026-11-27: Source capability says what the source has; Model says what it uses."""
+    from datetime import UTC, datetime
+
+    assert views.capability_component([]).value == "not audited"
+    at = datetime(2026, 11, 27, tzinfo=UTC)
+    xg = models.CompetitionSourceCapability(capability="has_xg", status="available",
+                                            coverage_ratio=0.99, last_audited_at=at)  # fmt: skip
+    c = views.capability_component([xg])
+    assert c.status == "ok" and c.value == "results + xG available (99%)"
+    assert "2026-11-27" in c.detail and "Model" in c.detail

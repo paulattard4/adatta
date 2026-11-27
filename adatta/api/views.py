@@ -394,6 +394,27 @@ def checklist(parts: list[sc.Component]) -> list[sc.Component]:
     return [by[k] for k in CHECKLIST]
 
 
+def capability_component(caps: list[models.CompetitionSourceCapability]) -> sc.Component:
+    """Source capability: what the source has for this competition and season (the audit),
+    the same for every competition. Which of it a model uses is the Model component's."""
+    if not caps:
+        return sc.Component(key="capability", label="Source capability", status="missing",
+                            value="not audited",
+                            detail="This competition's data for the season has not been "
+                                   "audited yet.")  # fmt: skip
+    xg = next((c for c in caps if c.capability == "has_xg"), None)
+    xg_status = xg.status if xg else "unknown"
+    cov = f" ({xg.coverage_ratio:.0%})" if xg and xg.coverage_ratio is not None else ""
+    audited = max(_utc(c.last_audited_at) for c in caps)
+    return sc.Component(
+        key="capability", label="Source capability",
+        status="ok" if xg_status == "available" else "limited",
+        value=f"results + xG {xg_status}{cov}",
+        detail=f"What the source has for this competition and season (audited "
+               f"{audited:%Y-%m-%d}). Which of it the served model uses is under Model.",
+    )  # fmt: skip
+
+
 def confidence(m: MatchRow, refit: serve.Refit | None, fresh: sc.Freshness,
                caps: list[models.CompetitionSourceCapability],
                champion: models.ModelRun | None, now: datetime,
@@ -413,9 +434,10 @@ def confidence(m: MatchRow, refit: serve.Refit | None, fresh: sc.Freshness,
         ))  # fmt: skip
     else:
         out.append(sc.Component(
-            key="model", label="Model", status="ok", value="full model",
+            key="model", label="Model", status="ok", value="full model · results + xG",
             detail=f"{champion.model_name}: the production team model (Phase 1b), posterior "
-                   "draws with 90% intervals.",
+                   "draws with 90% intervals; it uses results, and xG where the source has "
+                   "it.",
         ))  # fmt: skip
     if refit is None:
         out.append(sc.Component(key="history", label="Historical data strength",
@@ -440,16 +462,7 @@ def confidence(m: MatchRow, refit: serve.Refit | None, fresh: sc.Freshness,
                     "league average of the last 52 weeks." if cold else
                     f"Training matches in the refit window as of {refit.as_of:%Y-%m-%d}."),
         ))  # fmt: skip
-    xg = next((c for c in caps if c.capability == "has_xg"), None)
-    xg_status = xg.status if xg else "unknown"
-    cov = f" ({xg.coverage_ratio:.0%})" if xg and xg.coverage_ratio is not None else ""
-    out.append(sc.Component(
-        key="capability", label="Source capability",
-        status="ok" if xg_status == "available" else "limited",
-        value=f"results + xG {xg_status}{cov}",
-        detail="The served model uses results everywhere and xG where the source has it; "
-               "without xG it runs on results alone.",
-    ))  # fmt: skip
+    out.append(capability_component(caps))
     out.append(sc.Component(key="lineup", label="Lineup certainty", status="not_modelled",
                             value="team-level",
                             detail="The score forecasts don't use lineups: the lineup offset "

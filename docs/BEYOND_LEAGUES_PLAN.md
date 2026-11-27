@@ -2213,6 +2213,168 @@ There were 560 holdout cross-bundle UEFA matches and 24 refits.
   goes to the live period as a new, pre-registered challenger (D59).
 - D59's routes don't change this. Calibration is a safeguard on every route.
 
+### C2 step 5: the full model on each of the eight leagues, judged league by league (drafted 2026-11-27 before building; owner: "Yes, draft both"; not approved)
+
+**Why.**
+- On the c2 holdout, the full model (`phase1b_strength_open_xg`) was rejected for all
+  eight leagues together: pooled 1X2 log loss −0.38% [−0.81%, +0.06%].
+- League by league, six were better on the point estimate:
+  - Belgium −1.66% [−2.86%, −0.46%];
+  - Czechia −0.63%;
+  - Turkey −0.28%;
+  - Denmark −0.25%;
+  - Netherlands −0.24%;
+  - Austria −0.06%.
+- Scotland (+0.14%) and Portugal (+0.32%) were worse.
+- The owner wants each league modelled and decided on its own, under D59.
+- D54 (h) already pre-registers a retest on 2026/27-2027/28 (`config/c2_retest_gate.yml`),
+  but pooled and read once after 2028-06-30. No full-model score on those seasons exists
+  yet, so this step can replace it.
+
+**Seen so far, for this draft (dev only; holdout and live seasons not read):** paired dev
+matches 2019/20-2023/24, full model against Phase 1a. The SD is the spread of one match's
+1X2 log loss difference.
+
+| League | Dev n | SD | Gain detectable at 80% power, one season | Gain detectable at 80% power, two seasons |
+|---|---|---|---|---|
+| Portugal | 1,530 | 0.062 | 1.05% | 0.74% |
+| Belgium | 1,532 | 0.077 | 1.39% | 0.98% |
+| Czechia | 1,380 | 0.079 | 1.49% | 1.05% |
+| Scotland | 1,091 | 0.078 | 1.53% | 1.08% |
+| Netherlands | 1,456 | 0.093 | 1.59% | 1.12% |
+| Turkey | 1,827 | 0.106 | 1.68% | 1.19% |
+| Denmark | 1,004 | 0.090 | 1.76% | 1.24% |
+| Austria | 960 | 0.122 | 2.43% | 1.72% |
+
+**Power statement (D59).**
+- One league's season can detect a 1X2 gain of only about 1-2.4%.
+- Most holdout gains were 0.25-0.6%, so per-league 1X2 decisions will usually need two
+  seasons.
+- Only a Belgium-sized gain could pass within one.
+- On dev the full model's gains were larger on totals markets (pooled: OU2.5 −0.47%,
+  BTTS −0.35%, total CRPS −0.51%, each interval below zero), so D59's totals route (2T)
+  is the more likely path for several leagues.
+- The gains grew with xG (2023/24: −0.60% pooled), and xG coverage is now close to full in
+  all eight (the 2026 audit), so live gains may be larger than these figures assume.
+
+**Acceptance (stated before building):**
+- **(a) Same model, no new build.**
+  - The challenger is the spec rejected on the c2 holdout, unchanged: production
+    `phase1b_strength_open_xg` on each C2 bundle, the same weekly plan, scored to 20 goals
+    (D53).
+  - The reference is the served Phase 1a.
+  - Both are scored once per look by one walk-forward backtest over the window, as the
+    holdout was. There is no live shadow serving: the harness replicates production as of
+    each refit (temporal contract), at a fraction of the cost.
+- **(b) Window and looks (owner choice 1).** The eight top flights' 2026/27 and 2027/28
+  seasons, warm top-flight matches.
+  - **Look 1**, after the end of 2026/27 (about June 2027), on 2026/27.
+  - **Look 2**, after the end of 2027/28 (about June 2028), on both seasons together, for
+    the leagues still on the baseline.
+  - Each look uses 97.5% intervals, splitting the 5% error over the two looks.
+  - No full-model score on these seasons is computed or looked at before a look.
+- **(c) Per league, each alone** (nothing pooled decides anything). A league moves to the
+  full model if, at a look, it passes any D59 route against Phase 1a:
+  - route 1 (1X2 log loss and RPS improve, intervals excluding zero);
+  - route 2 (both better on the point estimate, upper bounds under +0.10%);
+  - route 2T (totals).
+
+  It must also pass the safeguards: no league x market segment worse than 1.0%; 1X2 ECE
+  within its noise floor; inference gates on its refits; runtime. All eight are judged;
+  none is picked in advance.
+- **(d) Then serving, per league:** the full model's live refits for that bundle. The
+  league leaves the C2 baseline path, gains intervals, and its Model check becomes "full
+  model". A serving check like C2 step 3's runs first: same code path to 1e-9, truncation,
+  milestones.
+- **(e) Reported, not gating:**
+  - per league and season;
+  - the 2023/24-onward xG seasons apart;
+  - promoted sides;
+  - the pooled figure, which decides nothing.
+
+**Owner choices:**
+1. **Looks:**
+   - (a) two looks, June 2027 and June 2028, at 97.5% each (recommended);
+   - (b) one look in June 2028, at 95% (D54 (h)'s timing, per league);
+   - (c) yearly looks with no end date.
+2. **What happens to D54 (h):**
+   - (a) superseded by this step; `config/c2_retest_gate.yml` stays as history, and a new
+     `config/c2_league_gate.yml` is written before any score (recommended);
+   - (b) both run.
+
+### C1 v2: European club matches with a learned UEFA draw term (drafted 2026-11-27 before building; owner: "Yes, draft both"; not approved)
+
+**Why.**
+- The C1 rerun failed the UEFA holdout on draw calibration alone: ECE 0.043 against a
+  noise floor of 0.040. It passed checks 1-3 by wide margins.
+- The cause, seen in the holdout rows (the holdout is now spent, so looking is no longer
+  selection):
+  - predicted draws were 23.8% against 19.5% observed;
+  - the miss is almost all in the Champions League (23.4% against 16.3%; Europa League
+    24.4% against 23.2%; Conference League 23.5% against 23.3%);
+  - on dev, the Champions League was 23.0% against 21.7%.
+- The holdout's seasons are the first two of UEFA's 36-team league phase (from 2024/25),
+  which replaced the group stage.
+- C1 takes each match's draw tendency (ρ, κ) from the home side's domestic league, so it
+  cannot learn a change in UEFA's draw rate.
+- A fix designed after seeing this cannot be judged on that holdout. It is judged on the
+  live 2026/27 season.
+
+**The model change (one, structural; nothing hand-set):**
+- C1's goals likelihood gains a UEFA low-score dependence term ρ_U[f] by format phase f:
+  - group stage (to 2023/24);
+  - league phase (from 2024/25);
+  - qualifying and play-off rounds;
+  - knockout rounds.
+
+  The phase is known from the round label before kickoff, so this leaks nothing.
+- It is fitted inside each walk-forward refit with the other C1 parameters:
+  - Dixon-Coles likelihood on the training matches;
+  - prior Normal(mean of the bundles' domestic ρ, 0.1);
+  - the same sampler, seed and 28-day grid.
+- Prediction uses ρ_U[f] in place of the home side's domestic ρ. κ stays the home
+  league's.
+- Everything else is C1 as it failed: Q, the side strengths, venues (D57) and 20-goal
+  scoring.
+- **Side strengths from refits failing their gates** (151 rows on the holdout) are refitted
+  once at target_accept 0.99 and 4,000 draws, as A3 did. A refit still failing is reported
+  and its sides are left out.
+
+**Acceptance (stated before building):**
+- **(a) Window:** UEFA matches of 2026/27 between teams of two different bundles (13
+  bundles), the whole season, read once after the season ends (about June 2027). No C1
+  score on 2026/27 has been computed, so every 2026/27 match qualifies. About 280 matches
+  are expected (the holdout had 560 over two seasons).
+- **(b) Gate:** the UEFA holdout's checks 1-4, unchanged:
+  1. beats B_own on log loss and RPS;
+  2. beats B_elo on log loss and RPS;
+  3. no competition worse than either by more than 1.0%;
+  4. 1X2 ECE per outcome within its noise floor.
+
+  It is written to `config/uefa_live_gate.yml` before any score.
+- **(c) Dev check first, not a judge:** on the dev seasons, ρ_U must pass the inference
+  gates and prior sensitivity (×0.5, ×2), and C1 v2 must not be worse than C1 on dev log
+  loss (point estimate). This shows the term is fitted and harmless; dev cannot show the
+  league-phase effect, because dev has no league phase.
+- **(d) Reported:** draw calibration by competition and phase; ρ_U[f] over time; the
+  split into the five's matches and those with a C2 side; tails; venues.
+- **(e) On a pass,** serving UEFA matches between bundle teams gets its own serving
+  acceptance. **On a fail,** nothing changes.
+
+**Power statement (D59):** on the holdout, C1's gains over B_own (−7.6%) and B_elo
+(−3.1%) were 2-3 times the interval half-widths at 560 matches. At about 280 matches the
+half-widths grow by about 1.4 times, so checks 1-2 keep most of their margin. The ECE noise
+floor also widens with fewer matches.
+
+**Owner choices:**
+1. **Format phases for ρ_U:**
+   - (a) the four above (recommended);
+   - (b) league phase against everything else;
+   - (c) one UEFA ρ for all.
+2. **Window:**
+   - (a) all of 2026/27, read once in June 2027 (recommended);
+   - (b) the league phase only, read in February 2027.
+
 
 Its own fit, not inside the club model:
 - **v0 (team only, from results):** one global strength scale with confederation effects,

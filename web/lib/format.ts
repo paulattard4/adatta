@@ -1,4 +1,4 @@
-import type { Prob } from "@/lib/types";
+import type { MarketPrice, Prob } from "@/lib/types";
 
 export const pct = (p: number, digits = 1) => (100 * p).toFixed(digits);
 
@@ -105,3 +105,51 @@ export function twoWayPick(p: Prob, price: number | null | undefined, fallback: 
   const side = g ? g.key : fallback;
   return { side, prob: side === "yes" ? p : { ...complement(p), point: p.point }, gap: g ?? undefined };
 }
+
+/** Every selection of a market that we rate above the market (ours − the de-margined market
+ * > 0), with its gap; a three-way market can have two. Display only (principle 1). */
+export function positiveGaps<K extends string>(ours: Record<K, number>,
+  market: NoInfer<Record<K, number | null | undefined>> | null | undefined): Partial<Record<K, Gap>> {
+  const out: Partial<Record<K, Gap>> = {};
+  if (!market) return out;
+  for (const key of Object.keys(ours) as K[]) {
+    const m = market[key];
+    if (m == null) return {};
+    if (ours[key] - m > 0) out[key] = { diff: ours[key] - m, market: m };
+  }
+  return out;
+}
+
+/** The market as the API sends it beside a forecast (upcoming, in play or played). */
+export type Priced = {
+  home: number; draw: number; away: number; over25: number | null; btts: number | null; bookmakers: number;
+  prices?: Record<string, MarketPrice>;
+};
+
+/** The market beside one selection: its probability with the margin removed, and the same
+ * bookmakers' actual odds (margin included). */
+export type Mkt = { p: number; price?: MarketPrice; books: number };
+
+export const mktOf = (m: Priced | null | undefined, key: "home" | "draw" | "away"): Mkt | undefined =>
+  m ? { p: m[key], price: m.prices?.[key], books: m.bookmakers } : undefined;
+
+const TWO_WAY = {
+  ou: { field: "over25", yes: "Over 2.5", no: "Under 2.5", keys: ["over", "under"] },
+  btts: { field: "btts", yes: "BTTS Yes", no: "BTTS No", keys: ["yes", "no"] },
+} as const;
+export type TwoWayKind = keyof typeof TWO_WAY;
+
+/** A yes/no market's cell: the selection we rate above the market (else `fallback`), its
+ * label, gap and market. */
+export function twoWaySide(kind: TwoWayKind, p: Prob, market: Priced | null | undefined, fallback: "yes" | "no" = "yes") {
+  const t = TWO_WAY[kind];
+  const price = market?.[t.field];
+  const pick = twoWayPick(p, price, fallback);
+  const key = pick.side === "yes" ? t.keys[0] : t.keys[1];
+  const mkt: Mkt | undefined = market && price != null
+    ? { p: pick.side === "yes" ? price : 1 - price, price: market.prices?.[key], books: market.bookmakers } : undefined;
+  return { ...pick, label: pick.side === "yes" ? t.yes : t.no, mkt };
+}
+
+/** Decimal odds as shown: two decimals. */
+export const odds2 = (x: number) => x.toFixed(2);

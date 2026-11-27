@@ -69,6 +69,7 @@ h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 /* the price and its gap tag share a line while it fits; in a narrow cell the tag wraps under it */
 .prob-odds.with-gap { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 .prob-price { white-space: nowrap; }
+.prob-mkt { flex-basis: 100%; font-size: 11px; color: var(--dim); white-space: nowrap; } /* the bookmakers' odds, under ours */
 .prob-gap { display: inline-block; white-space: nowrap; font-size: 10px; line-height: 1; padding: 2px 4px; border-radius: 3px;
   color: var(--text); border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .prob-gap.won { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 22%, transparent); }

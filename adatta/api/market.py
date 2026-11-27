@@ -73,15 +73,22 @@ def _fair(
 
 def _average(picked: dict[Key, Price]) -> dict[int, dict[str, Any]]:
     """Per match and market: the de-margined probabilities averaged over the bookmakers
-    quoting every selection, and their count."""
+    quoting every selection, and their count; under "prices", per selection, those same
+    bookmakers' actual decimal odds (margin included): their mean and the best."""
     books: dict[tuple[int, str], set[str]] = {}
     for mid, bk, mk, _ in picked:
         books.setdefault((mid, mk), set()).add(bk)
     out: dict[int, dict[str, Any]] = {}
     for (mid, mk), bks in books.items():
-        per = [f[0] for bk in sorted(bks) if (f := _fair(picked, mid, bk, mk)) is not None]
-        if per:
-            out.setdefault(mid, {})[mk] = (np.mean(per, axis=0), len(per))
+        whole = [bk for bk in sorted(bks) if _fair(picked, mid, bk, mk) is not None]
+        if not whole:
+            continue
+        per = [f[0] for bk in whole if (f := _fair(picked, mid, bk, mk)) is not None]
+        out.setdefault(mid, {})[mk] = (np.mean(per, axis=0), len(per))
+        prices = out[mid].setdefault("prices", {})
+        for x in MARKET_SELECTIONS[mk][1]:
+            odds = [picked[(mid, bk, mk, x)][1] for bk in whole]
+            prices[x] = sc.MarketPrice(mean=float(np.mean(odds)), best=float(max(odds)))
     return out
 
 
@@ -105,6 +112,7 @@ def played_market(view: dict[str, Any] | None, hg: int, ag: int) -> sc.PlayedMar
         home=float(p[0]), draw=float(p[1]), away=float(p[2]),
         over25=None if ou is None else float(ou[0][0]),
         btts=None if bt is None else float(bt[0][0]), bookmakers=n,
+        prices=view.get("prices", {}),
         scores=sc.PlayedScores(
             log_loss_1x2=metrics.log_loss(p, k["1X2"]), rps_1x2=metrics.rps(p, k["1X2"]),
             brier_1x2=metrics.brier(p, k["1X2"]),
@@ -124,7 +132,7 @@ def upcoming_market(view: dict[str, Any] | None) -> sc.MarketLine | None:
     return sc.MarketLine(home=float(p[0]), draw=float(p[1]), away=float(p[2]),
                          over25=None if ou is None else float(ou[0][0]),
                          btts=None if bt is None else float(bt[0][0]),
-                         bookmakers=n)  # fmt: skip
+                         bookmakers=n, prices=view.get("prices", {}))  # fmt: skip
 
 
 def clv_inputs(session: Session, first: dict[int, tuple[datetime, datetime, np.ndarray]]

@@ -72,6 +72,14 @@ class Headline(BaseModel):
     btts: Prob | None = None  # P(both teams score)
 
 
+class MarketPrice(BaseModel):
+    """One selection's actual bookmaker decimal odds (margin included), over the bookmakers
+    the market's probabilities average: their mean and the best."""
+
+    mean: float
+    best: float
+
+
 class MarketLine(BaseModel):
     """The market beside an upcoming forecast, de-margined from each bookmaker's latest
     price: never a model input (principle 1). The page marks the selection we rate furthest
@@ -82,7 +90,8 @@ class MarketLine(BaseModel):
     away: float
     over25: float | None
     btts: float | None
-    bookmakers: int
+    bookmakers: int  # quoting the whole 1X2
+    prices: dict[str, MarketPrice] = {}  # home, draw, away, over, under, yes, no
 
 
 class FixtureRow(BaseModel):
@@ -430,6 +439,7 @@ class PlayedMarket(BaseModel):
     over25: float | None  # P(over 2.5)
     btts: float | None  # P(both teams score)
     bookmakers: int  # quoting the whole 1X2
+    prices: dict[str, MarketPrice] = {}  # home, draw, away, over, under, yes, no
     scores: PlayedScores
 
 

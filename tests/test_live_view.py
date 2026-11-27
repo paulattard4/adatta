@@ -256,10 +256,17 @@ def test_live_market_is_the_last_price_before_kickoff(tmp_path: Path) -> None:
     w, mid, _ = published(tmp_path)
     _odds(w, mid, "b1", "1X2", {"home": 2.0, "draw": 3.5, "away": 4.0}, timedelta(hours=-2))
     _odds(w, mid, "b1", "1X2", {"home": 1.5, "draw": 4.0, "away": 7.0}, timedelta(minutes=10))
+    _odds(w, mid, "b2", "1X2", {"home": 2.2, "draw": 3.3, "away": 3.6}, timedelta(hours=-1))
+    _odds(w, mid, "b3", "1X2", {"home": 2.5, "draw": 3.0}, timedelta(hours=-1))  # not whole
     ref = w.s.get(models.Match, mid).source_ref  # type: ignore[union-attr]
     feed = LiveFeed(FakeProvider([LiveState(int(ref), "1H", 20, None, 0, 0)]))
     v = views.live(w.s, ctx(w), IN_PLAY, feed)
     mk = v.matches[0].market
-    inv = np.array([1 / 2.0, 1 / 3.5, 1 / 4.0])
-    assert mk is not None and mk.bookmakers == 1 and mk.over25 is None
-    np.testing.assert_allclose([mk.home, mk.draw, mk.away], inv / inv.sum(), rtol=1e-12)
+    a, b = np.array([1 / 2.0, 1 / 3.5, 1 / 4.0]), np.array([1 / 2.2, 1 / 3.3, 1 / 3.6])
+    assert mk is not None and mk.bookmakers == 2 and mk.over25 is None
+    np.testing.assert_allclose([mk.home, mk.draw, mk.away], (a / a.sum() + b / b.sum()) / 2,
+                               rtol=1e-12)  # fmt: skip
+    # the actual odds of the same two bookmakers (margin included): mean and best
+    assert set(mk.prices) == {"home", "draw", "away"}
+    assert (mk.prices["home"].mean, mk.prices["home"].best) == pytest.approx((2.1, 2.2))
+    assert (mk.prices["away"].mean, mk.prices["away"].best) == pytest.approx((3.8, 4.0))

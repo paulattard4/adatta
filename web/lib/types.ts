@@ -22,8 +22,12 @@ export interface Headline {
 }
 
 /** The bookmakers' latest de-margined prices beside an upcoming forecast: never a model input. */
+/** One selection's actual bookmaker decimal odds (margin included): their mean and the best. */
+export interface MarketPrice { mean: number; best: number }
+
 export interface MarketLine {
   home: number; draw: number; away: number; over25: number | null; btts: number | null; bookmakers: number;
+  prices: Record<string, MarketPrice>; // home, draw, away, over, under, yes, no
 }
 
 export interface FixtureRow {
@@ -144,7 +148,7 @@ export interface PlayedScores {
 /** The bookmakers' de-margined view, last price before kickoff (evaluation only, principle 1). */
 export interface PlayedMarket {
   home: number; draw: number; away: number; over25: number | null; btts: number | null;
-  bookmakers: number; scores: PlayedScores;
+  bookmakers: number; prices: Record<string, MarketPrice>; scores: PlayedScores;
 }
 
 /** Closing-line value inputs: d = our first 1X2 − the market then, m = closing − that market. */

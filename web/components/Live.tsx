@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ProbCell, TwoWayCell } from "@/components/Prob";
-import { liveClock, pct, timeLocal, tierLabel, topGap } from "@/lib/format";
+import { liveClock, mktOf, pct, positiveGaps, timeLocal, tierLabel } from "@/lib/format";
 import type { LiveList, LiveMatch } from "@/lib/types";
 
 export const LIVE_REFRESH_MS = 60_000; // the API asks the provider at most once a minute anyway
@@ -17,7 +17,7 @@ export function InPlay({ live }: { live: LiveList }) {
       <div className="comp-head">
         <h2><span className="live-dot" aria-hidden /> In play</h2>
         <span className="dim small">
-          Pre-match projection and fair odds, not updated in play; ▲ marks the selection furthest above the market at kickoff.
+          Pre-match projection and fair odds, not updated in play; ▲ marks each selection above the market at kickoff, and mkt @ is its average bookmaker odds then.
           {live.fetched_at && <> Scores as of <span className="num">{timeLocal(live.fetched_at)}</span>.</>}
         </span>
         {live.note && <span className="live-note">{live.note}</span>}
@@ -39,8 +39,8 @@ export function InPlay({ live }: { live: LiveList }) {
           {m.forecast ? (
             <>
               <Outcome m={m} />
-              <TwoWayCell prob={m.forecast.over25} price={m.market?.over25} yes="Over 2.5" no="Under 2.5" />
-              <TwoWayCell prob={m.forecast.btts} price={m.market?.btts} yes="BTTS Yes" no="BTTS No" />
+              <TwoWayCell prob={m.forecast.over25} market={m.market} kind="ou" />
+              <TwoWayCell prob={m.forecast.btts} market={m.market} kind="btts" />
               <span className="dim small" title={`published ${timeLocal(m.forecast.generated_at)}`}>pre-match · {m.forecast.milestone}</span>
             </>
           ) : (
@@ -52,16 +52,15 @@ export function InPlay({ live }: { live: LiveList }) {
   );
 }
 
-/** The pre-match 1X2, the selection furthest above the market at kickoff marked. */
+/** The pre-match 1X2, every selection above the market at kickoff marked. */
 function Outcome({ m }: { m: LiveMatch }) {
   const f = m.forecast!;
-  const g = m.market ? topGap({ home: f.home.p, draw: f.draw.p, away: f.away.p }, m.market) : null;
-  const at = (k: "home" | "draw" | "away") => (g?.key === k ? g : undefined);
+  const g = positiveGaps({ home: f.home.p, draw: f.draw.p, away: f.away.p }, m.market);
   return (
     <>
-      <ProbCell prob={f.home} label="Home" compact odds gap={at("home")} />
-      <ProbCell prob={f.draw} label="Draw" compact odds gap={at("draw")} />
-      <ProbCell prob={f.away} label="Away" compact odds gap={at("away")} />
+      <ProbCell prob={f.home} label="Home" compact odds gap={g.home} mkt={mktOf(m.market, "home")} />
+      <ProbCell prob={f.draw} label="Draw" compact odds gap={g.draw} mkt={mktOf(m.market, "draw")} />
+      <ProbCell prob={f.away} label="Away" compact odds gap={g.away} mkt={mktOf(m.market, "away")} />
     </>
   );
 }

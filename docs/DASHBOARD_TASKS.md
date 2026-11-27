@@ -921,6 +921,24 @@ For played highlight it if the selection was a winning selection."
   never shows, tested in `test_live_view.py`), and that market under the teams. No win
   highlight while the match is open.
 
+**5c. Every positive gap, and the market's odds (owner, same day).** "If more than one
+selection has a positive difference then show it for every positive difference", and "show
+market odds not just market probability ... as long as it's accurate and tidy".
+- 1X2 (the only three-way market shown) marks every selection we rate above the market
+  (`positiveGaps`): two when the market is lower on two outcomes. A two-way market has at
+  most one, so its cells are unchanged.
+- Each priced cell adds "mkt @x.xx": the bookmakers' average decimal odds for that
+  selection, margin included, over the same bookmakers whose margin-free probabilities
+  the market line averages (`market._average`, `schemas.MarketPrice`: mean and best). The
+  hover adds the best price, the margin-free probability and the bookmaker count. Owner:
+  "do not demarginise when showing bookmaker odds": odds are only ever shown as quoted;
+  the margin is removed from the market's probabilities alone (the gaps use those). Fixtures use the latest price, played and in play the last before
+  kickoff. Tested in `test_live_view.py` (two bookmakers' mean and best; a bookmaker
+  without the whole market and a price after kickoff are left out).
+- Checked in the browser at 1366 and 375 px: no overflow and no sideways scroll; on 147
+  priced rows every mark agrees with ours above the market, and every "mkt @" equals the
+  average in its hover.
+
 **The odds guard** (`tests/test_dashboard_api.py`) now checks imports by syntax tree:
 `adatta/api/market.py` is the only module that reads odds, and `adatta/api/views.py` is
 the only module that imports it.

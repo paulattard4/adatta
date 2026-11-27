@@ -6,7 +6,7 @@ import { ConfidenceBadge } from "@/components/Confidence";
 import { InPlay, LIVE_REFRESH_MS } from "@/components/Live";
 import { ProbCell, TwoWayCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
-import { kickoffLocal, pct, tierLabel, topGap } from "@/lib/format";
+import { kickoffLocal, mktOf, pct, positiveGaps, tierLabel } from "@/lib/format";
 import type { FixtureList, LiveList, TournamentList } from "@/lib/types";
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
@@ -89,15 +89,14 @@ export default function Browser() {
               </span>
               {f.headline ? (() => {
                 const h = f.headline;
-                const g = f.market ? topGap({ home: h.home.p, draw: h.draw.p, away: h.away.p }, f.market) : null;
-                const at = (k: "home" | "draw" | "away") => (g?.key === k ? g : undefined);
+                const g = positiveGaps({ home: h.home.p, draw: h.draw.p, away: h.away.p }, f.market);
                 return (
                   <>
-                    <ProbCell prob={h.home} label="Home" compact odds gap={at("home")} />
-                    <ProbCell prob={h.draw} label="Draw" compact odds gap={at("draw")} />
-                    <ProbCell prob={h.away} label="Away" compact odds gap={at("away")} />
-                    <TwoWayCell prob={h.over25} price={f.market?.over25} yes="Over 2.5" no="Under 2.5" />
-                    <TwoWayCell prob={h.btts} price={f.market?.btts} yes="BTTS Yes" no="BTTS No" />
+                    <ProbCell prob={h.home} label="Home" compact odds gap={g.home} mkt={mktOf(f.market, "home")} />
+                    <ProbCell prob={h.draw} label="Draw" compact odds gap={g.draw} mkt={mktOf(f.market, "draw")} />
+                    <ProbCell prob={h.away} label="Away" compact odds gap={g.away} mkt={mktOf(f.market, "away")} />
+                    <TwoWayCell prob={h.over25} market={f.market} kind="ou" />
+                    <TwoWayCell prob={h.btts} market={f.market} kind="btts" />
                   </>
                 );
               })() : (
@@ -114,8 +113,9 @@ export default function Browser() {
         The @ figure is the fair decimal price 1/p, with no margin; hover for its interval.
         Kickoffs in your local time. Each dot is one named confidence component; hover for its value.
         Market is the bookmakers&apos; latest price with the margin removed: it is not a model input.
-        ▲ marks, in each market, the selection we rate furthest above the market (ours minus the market, in percentage points).
-        Goals 2.5 and BTTS show that selection; without a market price they show Over 2.5 and BTTS Yes.
+        ▲ marks every selection we rate above the market (ours minus the market, in percentage points); in 1X2 that can be two.
+        Goals 2.5 and BTTS show the selection above the market; without a market price they show Over 2.5 and BTTS Yes.
+        mkt @ is the bookmakers&apos; average decimal odds for that selection, margin included; hover for the best price.
         It is a comparison, not a betting signal: our probabilities have not yet been checked for calibration against the market.
       </p>
     </div>

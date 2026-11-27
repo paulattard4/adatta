@@ -2084,7 +2084,8 @@ Consequences:
 
 - [ ] **P3-j Lineup strength from three signals, in the likelihood (§7.5, principle 7).**
       Drafted 2026-11-27 before building (owner: "Yes, that order"; the three signals
-      chosen 2026-11-27, Transfermarkt values declined); not approved.
+      chosen 2026-11-27, Transfermarkt values declined). **Approved 2026-11-27** (owner:
+      "pushed and approve", D65), the recommended choice in each.
 
       **Why, and what is different from P3-d and P3-i.**
       - P3-d summed player shares of expected goals. Trained on the minutes actually
@@ -2180,3 +2181,29 @@ Consequences:
          - (a) to the end of 2026/27, read once (recommended);
          - (b) D59's default half-season, to the winter break. The shadow could only start
            after step 2, in about two weeks, so that window would be short.
+
+      **Step 1 run, 2026-11-27** (`adatta/features/lineup_signals.py`, run locally, 0 API
+      requests, about 1 minute). Dev 2019-2023, the five bundles: 38,508 team-matches,
+      announced XI at T-60m.
+
+      | signal | n | slope | 95% interval | per sd | expected | result |
+      |---|---|---|---|---|---|---|
+      | S_miss | 38,365 | −0.102 | [−0.178, −0.026] | −1.2% goals | − | pass |
+      | S_apm | 7,368 | +0.002 | [−0.141, +0.145] | +0.0% | + | fail |
+      | S_rat | 38,365 | +0.459 | [+0.216, +0.703] | +1.6% goals | + | pass |
+
+      - **S_apm fails, and is dropped as (b) states.** It can barely be tested: the stored
+        team xG starts in 2022 (965 of 3,905 bundle matches that season, 2,302 of 3,832 in
+        2023, none before). A 365-day xG window therefore exists only for 2023's
+        team-matches, one season instead of five. This limit was not seen when drafting;
+        the draft checked rating and minute coverage, not xG by season. The result is
+        recorded as a fail and not rerun with another target.
+      - **Ridge penalty** by time-ordered CV: 30. Next-week xG-difference MSE over 2,246
+        matches: 1.599 (λ 1), 1.285, 1.113, **1.065 (λ 30)**, 1.102, 1.208, 1.340 (λ 1000).
+      - **Correlations:** S_miss ~ S_rat −0.335, S_miss ~ S_apm −0.025, S_apm ~ S_rat
+        +0.231.
+      - **Effects are small:** about 1-2% of a team's goals per standard deviation. A fully
+        changed XI (S_miss = 1) is about −10%.
+      - **Step 2 uses S_miss and S_rat.**
+      - Signals table `features/lineup_signals/v1` (digest in the run's manifest, with the
+        code SHA, λ, the line means and the library versions).

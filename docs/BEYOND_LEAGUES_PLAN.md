@@ -2485,6 +2485,23 @@ one divergence.**
 - This changes a sampler setting and a report, not the model. It was decided after a dev
   result and is recorded as such. Only the fit stage reruns, on the same cached strengths.
 
+**Dev check (c) rerun, 2026-11-27 (fit 45997230893, code cb6c5da): passed.**
+- **Inference gates:** the 2021-11-22 refit was redone (C1 only) and is clean: R-hat
+  1.001, 0 divergences. All 44 refits pass, with worst R-hat 1.002.
+- **Prior sensitivity of ρ_U** (shift in posterior sds, limit 1):
+  - group stage 0.13 (sd 0.042);
+  - league phase 0.03 (sd 0.104, the prior: no dev data);
+  - qualifying 0.43 (sd 0.072);
+  - knockout 0.11 (sd 0.048).
+
+  All pass.
+- **Not worse than C1:** −0.0015 [−0.0037, +0.0007] (−0.15%). Pass.
+- **Unchanged from the first run:** checks 1-4 (−6.42% against own, −2.94% against
+  Elo), draw ECE 0.005, the draw lines, the 4.6e-3 tail and leakage 0 of 50.
+- **What this means:** C1 v2 is fitted and harmless on dev. It is judged once on 2026/27
+  under `config/uefa_live_gate.yml` after 2027-06-30 (D62 (a)-(b)). Dev cannot show the
+  league-phase effect it was built for.
+
 
 Its own fit, not inside the club model:
 - **v0 (team only, from results):** one global strength scale with confederation effects,

@@ -1224,16 +1224,23 @@ def _trend(ms: list[sc.PlayedMatch]) -> list[sc.TrendPoint]:
 
 
 def live(session: Session, ctx: Context, now: datetime, feed: Any | None) -> sc.LiveList:
-    """Bundle matches in play: the provider's live score beside the latest projection
-    published before kickoff (docs/DASHBOARD_TASKS.md, in play; no in-play recalculation).
-    The provider is not asked unless a bundle match is in the live window."""
+    """Matches in play in every served competition (the played view's scope: the bundles
+    and their cups, the C2 top flights, the national competitions at every team level): the
+    provider's live score beside the latest projection published before kickoff
+    (docs/DASHBOARD_TASKS.md, in play; no in-play recalculation). The provider is not asked
+    unless one of these matches is in the live window; one request covers them all."""
     from adatta.adapters.api_football_capture import NO_MATCH
     from adatta.adapters.normalize import FINISHED
+    from adatta.api import c2 as c2v
     from adatta.api import live as lv
 
     M = models.Match
     window = [M.kickoff_time >= now - lv.WINDOW_BEFORE, M.kickoff_time <= now + lv.WINDOW_AHEAD]
-    rows = [r for r in _matches(session, ctx, window) if r.status not in FINISHED | NO_MATCH]
+    c2_rows = _matches(session, ctx, window, leagues=list(c2v.leagues()))
+    point_ids = {r.match_id for r in c2_rows}  # baseline point forecasts (D54)
+    every = _matches(session, ctx, window) + c2_rows + _matches(session, ctx, window,
+                                                                national=True)  # fmt: skip
+    rows = [r for r in every if r.status not in FINISHED | NO_MATCH]
     if not rows:
         return sc.LiveList(generated_at=now, fetched_at=None, note=None, matches=[])
     if feed is None:
@@ -1249,9 +1256,10 @@ def live(session: Session, ctx: Context, now: datetime, feed: Any | None) -> sc.
         if r.match_id in forecasts:
             ms, gen, prs = forecasts[r.match_id]
             x = {p.selection: p for p in prs if p.market_type == "1X2"}
+            pp = c2v._p if r.match_id in point_ids else _p  # a C2 point forecast: no interval
             if {"home", "draw", "away"} <= x.keys():
-                forecast = sc.LiveForecast(milestone=ms, generated_at=gen, home=_p(x["home"]),
-                                           draw=_p(x["draw"]), away=_p(x["away"]))  # fmt: skip
+                forecast = sc.LiveForecast(milestone=ms, generated_at=gen, home=pp(x["home"]),
+                                           draw=pp(x["draw"]), away=pp(x["away"]))  # fmt: skip
         out.append((r, sc.LiveMatch(
             match_id=r.match_id, kickoff=r.kickoff, competition_id=r.competition_id,
             competition=r.competition, competition_tier=r.tier, team_level=r.team_level,

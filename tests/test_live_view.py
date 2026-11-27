@@ -203,3 +203,43 @@ def test_fetch_raises_on_a_body_error_and_keeps_nothing(tmp_path: Path) -> None:
         body["errors"] = {}
         assert client.fixtures(s, 39, 2026, live=True) == []
         assert s.query(models.RawPayload).count() == 1
+
+
+def _competition_match(w: Any, ref: str, kickoff: datetime, national: bool = False,
+                       tier: str = "1") -> int:  # fmt: skip
+    c = models.Competition(source_id="api_football", source_ref=ref, name=f"L{ref}",
+                           country="Y", tier=tier, is_national=national)  # fmt: skip
+    w.s.add(c)
+    w.s.flush()
+    se = models.Season(competition_id=c.competition_id, year=2026)
+    w.s.add(se)
+    w.s.flush()
+    w.n += 1
+    m = models.Match(source_id="api_football", source_ref=str(1000 + w.n),
+                     season_id=se.season_id, home_team_id=3, away_team_id=4,
+                     kickoff_time=kickoff, status="NS", round="Regular Season - 12")  # fmt: skip
+    w.s.add(m)
+    w.s.flush()
+    return m.match_id
+
+
+def test_live_view_covers_c2_top_flights_and_national_competitions(tmp_path: Path) -> None:
+    """Every served competition, as on the played view: a C2 top flight (Portugal, 94) and a
+    national competition are in play beside the bundle match; a C2 second tier is not."""
+    from adatta.api import c2 as c2v
+
+    w, mid, _ = published(tmp_path)
+    assert 94 in c2v.leagues() and 95 not in c2v.leagues()
+    c2_mid = _competition_match(w, "94", K)
+    second = _competition_match(w, "95", K, tier="2")
+    nat = _competition_match(w, "10", K, national=True)
+    w.s.commit()
+    refs = {
+        i: w.s.get(models.Match, i).source_ref  # type: ignore[union-attr]
+        for i in (mid, c2_mid, second, nat)
+    }
+    p = FakeProvider([LiveState(int(r), "1H", 20, None, 0, 0) for r in refs.values()])
+    v = views.live(w.s, ctx(w), IN_PLAY, LiveFeed(p))
+    assert {m.match_id for m in v.matches} == {mid, c2_mid, nat}
+    assert p.calls == 1  # one provider request covers every competition
+    assert next(m for m in v.matches if m.match_id == c2_mid).forecast is None  # none published

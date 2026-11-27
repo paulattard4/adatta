@@ -212,6 +212,13 @@ Acceptance test (stated 2026-11-14, before building):
       reporting it in a 200 body, so the feed asks for `all` and filters to the bundle
       leagues, and a body `errors` field now raises (`ProviderError`) instead of reading as
       "nothing in play".
+- [x] 2026-11-27 (owner: no live updates for the new leagues): `views.live` had kept the
+      bundle scope after the fixture and played views gained every served competition.
+      It now takes the played view's scope: the bundles and their cups, the C2 top flights
+      (baseline point forecasts shown without an interval, D54) and the national
+      competitions at every team level (D60). Still one `live=all` request a minute for
+      all of them. **Pass:** `tests/test_live_view.py` (9 tests; the new one fails without
+      the change). Checked live: 7 matches in play, 4 of them C2 top flights.
 
 ### Follow-up: provider errors on the main fetch path
 The same 200-with-`errors` body on `ApiFootballClient.fetch` (capture, backfill, audit) would

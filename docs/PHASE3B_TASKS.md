@@ -483,7 +483,9 @@ Tick each item only when its acceptance check passes.
           passes in CI.
 
 - [ ] **P3b-3 Discipline: team cards with referee strictness (§8.4, Layer 5c).** Drafted
-      2026-11-27 before building (owner: "Yes, that order", item 3); not approved.
+      2026-11-27 before building (owner: "Yes, that order", item 3). **Approved
+      2026-11-27** (owner: "Approve as drafted", D66): window (i), negative binomial,
+      league matches only.
 
       **Seen so far** (counts and spreads only, no requests, 2026-11-27). Card numbers
       come from warm-up + dev (2016-2023). Holdout and 2026/27 card outcomes were not
@@ -637,3 +639,29 @@ Tick each item only when its acceptance check passes.
            work (item 5 of the agreed order) (recommended);
          - (b) domestic cup matches between two bundle sides in training now, which add
            referee matches.
+
+      **Built 2026-11-27, not run.** Details fixed here, before any score:
+      - **Table** (`adatta/features/cards.py`, built locally, `features/cards/v1/
+        bf5eba3cbfc7fa50`): 76,408 team-matches; referee named on 99.7-100% per league.
+        All three variants train on rows with a named referee, so they share their rows.
+      - **Model** (`adatta/model/cards.py`):
+        - NUTS 2,000 draws × 4 chains, target_accept 0.9, non-centred, 400 draws kept;
+        - C2 refitted at prior ×0.5 and ×2 on every refit (the sensitivity check);
+        - the PPC uses 200 draws.
+      - **Scores** (`adatta/eval/cards.py`):
+        - `rps_total` is the discrete CRPS of the total over 0-40 (unnormalised; only
+          differences are read);
+        - B_clim uses 0.5 pseudo-counts per value 0-20;
+        - a refit failing (c) is replaced by the next simpler variant for that refit
+          (C2 → C1 → C0 → B_clim). The gate reads these effective rows.
+      - **Window (i)'s refits** train, as P3b-1's did, on the 730 days before each
+        Monday, which reach into 2024/25 and 2025/26. Those are history for a live
+        forecast, not holdout targets.
+      - **Judging:** the judge step refuses to read window (i) unless the named dev run
+        passed, and a store marker allows one reading.
+      - **Tests:** 9 in `tests/test_cards.py`: table, leakage, holdout refusal,
+        distributions, referee pool, scoring, PPC calibration, variant choice, fallback.
+        2 in `tests/test_cards_model.py` (CI model job): each variant's terms, and
+        recovery of six referee effects.
+      - **Run:** `cards.yml`, stage dev: 25 jobs, about 60 fits each, estimated 1-2 hours.
+        It runs after P3-j step 2's run, one at a time, not on a Monday.

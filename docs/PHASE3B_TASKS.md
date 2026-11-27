@@ -671,7 +671,7 @@ Tick each item only when its acceptance check passes.
       - **D67 applied:** `ppc` gates on the total's dispersion alone. The team's dispersion
         and the teams' correlation are kept in each refit's diagnostics. The dev report
         adds the team O/U ECE against its floor and the median team-PPC quantile
-        (reported). Tests pass locally (11) and in the model container (2).
+        (reported). Tests pass locally (9) and in the model container (2).
 
       **Raised while building (2026-11-27), before any score: D67. Approved 2026-11-27**
       (owner: "Approve as drafted").

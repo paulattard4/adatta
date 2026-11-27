@@ -144,3 +144,76 @@ def test_predict_and_tails_reach_the_c2_bundles_at_20_goals() -> None:
     assert ct.tails(post, tg)[0] < 1e-12
     big = {"c": np.array([2.6]), "h": np.array([0.0]), "Q": np.zeros((1, len(ct.BUNDLE_ORDER)))}
     assert ct.tails(big, tg)[0] > ct.TAIL_MAX  # rates of about 13 goals a side
+
+
+# ------------------------------------------------------------- the UEFA holdout (D58)
+
+
+def test_holdout_seasons_need_the_uefa_opening() -> None:
+    from adatta.eval import harness
+
+    assert ct.seasons() == (ct.SEASONS, ct.DEV)
+    ho = tuple(harness.load_config().holdout_seasons)
+    assert ct.seasons(harness.HoldoutKey("7", "uefa")) == (ct.SEASONS + ho, ho)
+    for other in ("phase1b", "phase2", "cups", "c2", "international"):
+        with pytest.raises(harness.HoldoutLocked):
+            ct.seasons(harness.HoldoutKey("7", other))
+        with pytest.raises(harness.HoldoutLocked):  # before any query
+            ct.targets(None, {}, harness.HoldoutKey("7", other))
+    assert not set(ct.SEASONS) & set(ho)  # dev runs never load a holdout season
+
+
+def test_the_uefa_gate_file_matches_the_scoring_code(tmp_path: Any) -> None:
+    import yaml
+
+    g = ct.load_gate()
+    assert g["checks"] == [1, 2, 3, 4] and g["max_goals"] == ct.MAX_GOALS
+    assert g["grid_days"] == ct.REFIT_DAYS
+    from pathlib import Path
+
+    bad = yaml.safe_load(Path(ct.GATE_FILE).read_text())
+    bad["uefa_gate"]["max_competition_rel_worse"] = 0.02
+    path = tmp_path / "gate.yml"
+    path.write_text(yaml.safe_dump(bad))
+    with pytest.raises(ValueError, match="does not match"):
+        ct.load_gate(str(path))
+
+
+def test_the_holdout_is_judged_on_checks_1_to_4_alone() -> None:
+    checks = {"1 C1 beats B_own": True, "2 C1 beats B_elo": True, "3 no competition": True,
+              "4 ECE": True, "5 inference gates": False, "6 leakage": False}  # fmt: skip
+    assert ct.passed(checks, holdout=True) and not ct.passed(checks, holdout=False)
+    assert not ct.passed({**checks, "3 no competition": False}, holdout=True)
+    with pytest.raises(ValueError, match="not all reported"):
+        ct.passed({k: v for k, v in checks.items() if not k.startswith("4")}, holdout=True)
+
+
+def test_the_uefa_opening_is_made_once_after_phase1b(tmp_path: Any) -> None:
+    from adatta.adapters.storage import LocalStore
+    from adatta.eval import harness
+    from adatta.eval import holdout as ho
+
+    store = LocalStore(tmp_path)
+    with pytest.raises(harness.HoldoutLocked, match="comes first"):
+        ho.claim(store, "9", ct.MODEL_NAME, "abc", ct.OPENING)
+    ho.claim(store, "1", "phase1b_strength_open_xg", "abc")
+    assert ho.claim(store, "9", ct.MODEL_NAME, "abc", ct.OPENING)["opening"] == "uefa"
+    assert ho.claim(store, "9", ct.MODEL_NAME, "abc", ct.OPENING)["run_id"] == "9"  # a rerun
+    with pytest.raises(harness.HoldoutLocked):
+        ho.claim(store, "10", ct.MODEL_NAME, "abc", ct.OPENING)
+    assert ho.unlock(store, "9", ct.MODEL_NAME, ct.OPENING) == harness.HoldoutKey("9", "uefa")
+    with pytest.raises(harness.HoldoutLocked):
+        ho.unlock(store, "10", ct.MODEL_NAME, ct.OPENING)
+    with pytest.raises(harness.HoldoutLocked):  # the C2 opening's marker is not this one
+        ho.unlock(store, "9", ct.MODEL_NAME, "c2")
+
+
+def test_leakage_samples_only_the_scored_seasons() -> None:
+    hist = _hist([(1, 2, 1, 0, "39", 0), (3, 4, 0, 0, "39", 2)])
+    mon = K + timedelta(days=12)
+    tg = pl.DataFrame({"match_id": [100, 101], "season": [2023, 2024], "cross": [True, True],
+                       "monday": [mon, mon], "kickoff": [mon + timedelta(days=1)] * 2,
+                       "home": [1, 3], "away": [2, 4]})  # fmt: skip
+    elo = ct.elo_at(hist, [(100, mon, 1, 2), (101, mon, 3, 4)])
+    leak = ct.leakage(tg, hist, elo, set(), scored=(2024,))
+    assert leak == {"n": 1, "changed": 0, "ok": True}

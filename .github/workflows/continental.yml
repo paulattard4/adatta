@@ -5,8 +5,12 @@
 #   strengths  one job per bundle x part: each side's attack / defence as of its match's
 #              Monday, from the cached weekly refit or a new one (fitted and cached)
 #   fit        C1 and B_own walk-forward on the 28-day grid, the Elo, the gate
+#   holdout-strengths, holdout-fit
+#              the UEFA holdout (D58), opened once: the first claims the "uefa" marker for
+#              its run, then the strengths through the holdout seasons; the second (fetch =
+#              that run) scores the holdout alone against config/uefa_gate.yml (checks 1-4)
 # The repo is public: logs carry metrics only. Match-level rows go to R2 (continental/...),
-# never to workflow artifacts. Holdout seasons are never loaded.
+# never to workflow artifacts. Holdout seasons only with the "uefa" opening.
 # One backtest-type run at a time (backtest, gate, holdout, timing, cups, selection, ...,
 # continental): two runs together fill the account's 20 job slots and starve the capture.
 name: continental
@@ -14,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       stage:
-        description: "strengths | fit"
+        description: "strengths | fit | holdout-strengths | holdout-fit"
         required: true
       parts:
         description: "parts per bundle (strengths and fit must agree)"
@@ -35,8 +39,25 @@ env:
   R2_BUCKET: ${{ secrets.R2_BUCKET }}
   STORAGE_BACKEND: r2
 jobs:
+  claim:
+    # D58: the UEFA holdout is opened once, by this run; a rerun of it may claim again
+    if: ${{ inputs.stage == 'holdout-strengths' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - run: >-
+          uv run --frozen --group model python -m adatta.model.continental claim
+          --run ${{ github.run_id }} --commit ${{ github.sha }}
   strengths:
-    if: ${{ inputs.stage == 'strengths' }}
+    needs: claim
+    if: >-
+      ${{ always() && (inputs.stage == 'strengths'
+      || (inputs.stage == 'holdout-strengths' && needs.claim.result == 'success')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     strategy:
@@ -58,8 +79,9 @@ jobs:
           uv run --frozen --group model python -m adatta.model.continental strengths
           --bundle ${{ matrix.bundle }} --part ${{ matrix.part }}/${{ inputs.parts }}
           --upload ${{ github.run_id }}
+          ${{ inputs.stage == 'holdout-strengths' && format('--holdout {0}', github.run_id) || '' }}
   fit:
-    if: ${{ inputs.stage == 'fit' }}
+    if: ${{ inputs.stage == 'fit' || inputs.stage == 'holdout-fit' }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
@@ -71,4 +93,6 @@ jobs:
       - name: C1, B_own, Elo and the gate (metrics only)
         run: >-
           uv run --frozen --group model python -m adatta.model.continental fit
-          --fetch ${{ inputs.fetch }} --parts ${{ inputs.parts }} | tee -a "$GITHUB_STEP_SUMMARY"
+          --fetch ${{ inputs.fetch }} --parts ${{ inputs.parts }}
+          ${{ inputs.stage == 'holdout-fit' && format('--holdout {0}', inputs.fetch) || '' }}
+          | tee -a "$GITHUB_STEP_SUMMARY"

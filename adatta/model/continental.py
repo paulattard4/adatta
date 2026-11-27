@@ -18,7 +18,13 @@ CLI (CI, model group for `strengths` and `fit`; one backtest-type run at a time)
   fit       --fetch RUN
             C1 and B_own walk-forward on the 28-day grid, the Elo, the gate; metrics only
             to stdout, the scored rows to R2 (continental/reports/RUN/)
-Holdout seasons are never loaded. The repo is public: logs carry metrics, never data.
+  claim     --run RUN --commit SHA
+            open the UEFA holdout once (marker "uefa", D58; `eval.holdout`)
+  strengths / fit with --holdout RUN
+            the same stages over the holdout seasons too, scored on the holdout alone and
+            judged by checks 1-4 (config/uefa_gate.yml)
+Holdout seasons are loaded only with the "uefa" opening's key. The repo is public: logs
+carry metrics, never data.
 """
 
 from __future__ import annotations
@@ -36,6 +42,7 @@ from numpy.typing import NDArray
 
 from adatta.adapters.storage import RawStore, make_store, try_get
 from adatta.config import get_settings
+from adatta.eval.harness import HoldoutKey, HoldoutLocked
 
 Arr = NDArray[np.float64]
 PREFIX = "continental"
@@ -53,6 +60,10 @@ ELO_START, ELO_K, ELO_HOME = 1500.0, 20.0, 60.0  # fixed in the acceptance, not 
 ELO_FROM = datetime(2016, 7, 1, tzinfo=UTC)
 LEAKAGE_N = 50
 MIN_HISTORY = timedelta(days=365)  # a side's bundle needs this much stored league history
+OPENING = "uefa"  # the holdout opening (D58), made once
+MODEL_NAME = "c1_continental"
+GATE_FILE = "config/uefa_gate.yml"
+ECE_SIMS, ECE_QUANTILE = 2000, 0.95
 
 TARGET_SCHEMA: dict[str, Any] = {
     "match_id": pl.Int64, "comp": pl.Utf8, "season": pl.Int32,
@@ -94,29 +105,63 @@ def monday(t: datetime) -> datetime:
     return (t - timedelta(days=t.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
+def seasons(holdout: HoldoutKey | None = None) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """(loaded, scored) seasons: dev without a key; with the "uefa" opening's key, every
+    season through the holdout, scored on the holdout seasons alone."""
+    if holdout is None:
+        return SEASONS, DEV
+    if holdout.opening != OPENING:
+        raise HoldoutLocked(f"the UEFA holdout needs the {OPENING!r} opening, not "
+                            f"{holdout.opening!r}")  # fmt: skip
+    from adatta.eval import harness
+
+    ho = tuple(harness.load_config().holdout_seasons)
+    return SEASONS + ho, ho
+
+
+def load_gate(path: str = GATE_FILE) -> dict[str, Any]:
+    """The pre-registered UEFA holdout gate; refused unless it describes this code's scoring."""
+    from pathlib import Path
+
+    import yaml
+
+    from adatta.eval import harness
+
+    g: dict[str, Any] = yaml.safe_load(Path(path).read_text())["uefa_gate"]
+    want = {"seasons": list(harness.load_config().holdout_seasons), "grid_days": REFIT_DAYS,
+            "max_goals": MAX_GOALS, "paired_interval": 0.95, "max_competition_rel_worse": 0.01,
+            "ece_sims": ECE_SIMS, "ece_quantile": ECE_QUANTILE, "checks": [1, 2, 3, 4]}  # fmt: skip
+    if g != want:
+        raise ValueError(f"{path} does not match the scoring code: {g} != {want}")
+    return g
+
+
 # ------------------------------------------------------------------------------ targets
 
 
-def targets(session: Any, bundles: dict[str, list[int]]) -> pl.DataFrame:
-    """Finished UEFA matches of SEASONS between two teams that each play a bundle league that
-    season (league matches), with the 90' score; a swapped venue swaps the sides."""
+def targets(session: Any, bundles: dict[str, list[int]],
+            holdout: HoldoutKey | None = None) -> pl.DataFrame:  # fmt: skip
+    """Finished UEFA matches of the loaded seasons (`seasons`) between two teams that each
+    play a bundle league that season (league matches), with the 90' score; a swapped venue
+    swaps the sides."""
     from sqlalchemy import select
 
     from adatta.db import models
     from adatta.features import neutral
     from adatta.sim import serve
 
+    loaded = seasons(holdout)[0]
     M, S, C, R = models.Match, models.Season, models.Competition, models.MatchResult
     rows = session.execute(
         select(M, C.source_ref, S.year, R.home_goals_nt, R.away_goals_nt)
         .join(S, S.season_id == M.season_id).join(C, C.competition_id == S.competition_id)
         .join(R, (R.match_id == M.match_id) & R.superseded_at.is_(None))
-        .where(C.source_ref.in_(list(COMPS)), S.year.in_(SEASONS),
+        .where(C.source_ref.in_(list(COMPS)), S.year.in_(loaded),
                M.status.in_(["FT", "AET", "PEN"]))
     ).all()  # fmt: skip
     rows = [r for r in rows if r[3] is not None and r[4] is not None]
     by_season: dict[int, dict[int, tuple[str, int]]] = {}
-    for y in SEASONS:
+    for y in loaded:
         by_season[y] = {}
         for b, ls in bundles.items():
             for t, lg in serve.team_leagues(session, ls, y).items():
@@ -177,7 +222,7 @@ def side_strength(draws: dict[str, Arr], fd: Any, team: int, league: int,
 
 
 def strengths(store: RawStore, session: Any, bundle: str, part: tuple[int, int],
-              log: Any = print) -> pl.DataFrame:  # fmt: skip
+              log: Any = print, holdout: HoldoutKey | None = None) -> pl.DataFrame:  # fmt: skip
     """Rows (match, side) for this bundle's sides, from the weekly refit of each match's
     Monday: cached, else fitted and cached under the league backtest's key."""
     from adatta.eval import c2, harness
@@ -188,7 +233,7 @@ def strengths(store: RawStore, session: Any, bundle: str, part: tuple[int, int],
     spec = bt.production_spec(cfg)
     every = bundles()
     leagues = every[bundle]
-    tg = targets(session, every)
+    tg = targets(session, every, holdout)
     session.rollback()
     sides = pl.concat([
         tg.filter(pl.col("bundle_home") == bundle).select(
@@ -381,7 +426,8 @@ def predict(post: dict[str, Arr], tg: pl.DataFrame) -> Arr:
 # ------------------------------------------------------------------------------------ Elo
 
 
-def elo_history(session: Any, bundles: dict[str, list[int]]) -> pl.DataFrame:
+def elo_history(session: Any, bundles: dict[str, list[int]],
+                holdout: HoldoutKey | None = None) -> pl.DataFrame:  # fmt: skip
     """Every finished match since ELO_FROM of the bundle leagues, the five cups and the UEFA
     competitions, with its 90' result (or the stored total where no 90' split), in time
     order; and each team's league (bundle leagues) for new-club starts."""
@@ -399,7 +445,7 @@ def elo_history(session: Any, bundles: dict[str, list[int]]) -> pl.DataFrame:
         .join(S, S.season_id == M.season_id).join(C, C.competition_id == S.competition_id)
         .join(R, (R.match_id == M.match_id) & R.superseded_at.is_(None))
         .where(C.source_ref.in_(comps), M.kickoff_time >= ELO_FROM,
-               M.status.in_(["FT", "AET", "PEN"]), S.year.in_(SEASONS))
+               M.status.in_(["FT", "AET", "PEN"]), S.year.in_(seasons(holdout)[0]))
     ).all()  # fmt: skip
     return pl.DataFrame(
         [{"match_id": r[0], "kickoff": _utc(r[1]), "home": r[2], "away": r[3],
@@ -513,12 +559,12 @@ def paired(a: Arr, b: Arr) -> dict[str, float]:
             "hi": float(d.mean() + half), "rel": float(d.mean() / b.mean())}  # fmt: skip
 
 
-def calibration(p: Arr, y: NDArray[np.int64], n_sims: int = 2000) -> dict[str, Any]:
+def calibration(p: Arr, y: NDArray[np.int64], n_sims: int = ECE_SIMS) -> dict[str, Any]:
     """1X2 ECE per outcome against its noise floor (outcomes drawn from the forecast)."""
     from adatta.eval import knockout as ek
 
     rng = np.random.default_rng(SEED)
-    cum = p.cumsum(axis=1)
+    cum = p.cumsum(axis=1)  # ECE_SIMS draws, ECE_QUANTILE: the gate file's values
     sims: list[list[float]] = [[], [], []]
     for _ in range(n_sims):
         ys = (rng.random(len(p))[:, None] > cum).sum(axis=1)
@@ -527,7 +573,7 @@ def calibration(p: Arr, y: NDArray[np.int64], n_sims: int = 2000) -> dict[str, A
     out = {}
     for k, name in enumerate(("home", "draw", "away")):
         e = ek.ece(p[:, k], (y == k).astype(float))
-        lim = float(np.quantile(sims[k], 0.95))
+        lim = float(np.quantile(sims[k], ECE_QUANTILE))
         out[name] = {"ece": e, "limit": lim, "pass": bool(e <= lim)}
     return out
 
@@ -551,13 +597,16 @@ def join_sides(tg: pl.DataFrame, st: pl.DataFrame) -> pl.DataFrame:
                                                                   how="inner")  # fmt: skip
 
 
-def run_fit(tg: pl.DataFrame, elo: dict[int, float]) -> tuple[pl.DataFrame, list[dict[str, Any]]]:
-    """C1 and B_own on the 28-day grid over the dev targets, walk-forward; Elo's ordered
-    logit refitted at the same times. Returns scored targets and per-refit diagnostics."""
+def run_fit(tg: pl.DataFrame, elo: dict[int, float], scored: Sequence[int] = DEV,
+            ) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
+    """C1 and B_own on the 28-day grid over the targets of the `scored` seasons (dev, or the
+    holdout), walk-forward from the first one's Monday, trained on every cross-bundle match
+    final before each refit; Elo's ordered logit refitted at the same times. Returns scored
+    targets and per-refit diagnostics."""
     from adatta.eval import harness
 
     cross = tg.filter(pl.col("cross"))
-    dev = cross.filter(pl.col("season").is_in(list(DEV)))
+    dev = cross.filter(pl.col("season").is_in(list(scored)))
     times = harness.as_of_times(dev["monday"].min(), dev["monday"].max(), REFIT_DAYS)  # type: ignore[arg-type]
     rows: list[pl.DataFrame] = []
     diags: list[dict[str, Any]] = []
@@ -594,7 +643,8 @@ def run_fit(tg: pl.DataFrame, elo: dict[int, float]) -> tuple[pl.DataFrame, list
     return pl.concat(rows), diags
 
 
-def gate(scored: pl.DataFrame, diags: list[dict[str, Any]]) -> tuple[str, dict[str, Any]]:
+def gate(scored: pl.DataFrame, diags: list[dict[str, Any]],
+         label: str = "dev") -> tuple[str, dict[str, Any]]:  # fmt: skip
     y = outcome(scored["hg"].to_numpy(), scored["ag"].to_numpy())
     p = {m: scored.select(f"{m}_home", f"{m}_draw", f"{m}_away").to_numpy()
          for m in ("c1", "own", "elo")}  # fmt: skip
@@ -640,8 +690,8 @@ def gate(scored: pl.DataFrame, diags: list[dict[str, Any]]) -> tuple[str, dict[s
                            "calibration": cal, "checks": checks, "split": split,
                            "max_tail": tail}  # fmt: skip
     last = diags[-1]
-    lines = ["# C1 on dev: continental matches between bundles (13 bundles, D56)", "",
-             f"{len(y)} dev cross-bundle UEFA matches, {len(diags)} refits.",
+    lines = [f"# C1 on {label}: continental matches between bundles (13 bundles, D56)", "",
+             f"{len(y)} {label} cross-bundle UEFA matches, {len(diags)} refits.",
              "| model | 1X2 log loss | RPS |", "|---|---|---|",
              *[f"| {m} | {mll[m]:.4f} | {mrp[m]:.4f} |" for m in ("c1", "own", "elo")],
              ""]  # fmt: skip
@@ -678,14 +728,16 @@ def sensitivity(tg: pl.DataFrame, t: datetime) -> dict[str, list[float]]:
     return {str(s): fit_q(train, True, s)[0]["Q"].mean(axis=0).tolist() for s in (0.5, 1.0, 2.0)}
 
 
-def venue_check(session: Any, tg: pl.DataFrame, five: dict[str, list[int]]) -> dict[str, Any]:
+def venue_check(session: Any, tg: pl.DataFrame, five: dict[str, list[int]],
+                holdout: HoldoutKey | None = None) -> dict[str, Any]:  # fmt: skip
     """D56 (b): with every bundle's grounds, (i) C1's cross-five dev matches keep their venue
     roles (neutral, swapped) from C1's five-only rule, and (ii) every C2 club with a UEFA home
     match in dev that is not on neutral ground has a known league ground."""
     from adatta.features import neutral
 
-    dev = tg.filter(pl.col("season").is_in(list(DEV)))
-    old = targets(session, five).filter(pl.col("cross") & pl.col("season").is_in(list(DEV)))
+    sc = list(seasons(holdout)[1])
+    dev = tg.filter(pl.col("season").is_in(sc))
+    old = targets(session, five, holdout).filter(pl.col("cross") & pl.col("season").is_in(sc))
     both = old.select("match_id", n0="neutral", s0="swapped").join(
         dev.select("match_id", "neutral", "swapped"), on="match_id", how="inner"
     )
@@ -707,22 +759,22 @@ def venue_check(session: Any, tg: pl.DataFrame, five: dict[str, list[int]]) -> d
     }
 
 
-def venue_lines(v: dict[str, Any]) -> str:
+def venue_lines(v: dict[str, Any], label: str = "dev") -> str:
     return (
-        f"Venues (D56 (b)): C1's {v['c1_matches']} dev matches, roles changed "
-        f"{v['roles_changed']}; C2 clubs with a dev UEFA home match {v['c2_home_clubs']}, "
+        f"Venues (D56 (b)): the five's {v['c1_matches']} {label} matches, roles changed "
+        f"{v['roles_changed']}; C2 clubs with a {label} UEFA home match {v['c2_home_clubs']}, "
         f"without a known ground {v['c2_unknown_ground']}: "
-        f"{'pass' if v['ok'] else 'FAIL'}. Known limit (D57): {v['c2_home_neutral']} dev "
+        f"{'pass' if v['ok'] else 'FAIL'}. Known limit (D57): {v['c2_home_neutral']} {label} "
         "matches with a C2 club at home are neutral by the city rule (no home advantage)."
     )
 
 
 def leakage(tg: pl.DataFrame, hist: pl.DataFrame, elo: dict[int, float],
-            neutral: set[int]) -> dict[str, Any]:  # fmt: skip
+            neutral: set[int], scored: Sequence[int] = DEV) -> dict[str, Any]:  # fmt: skip
     """(6) For sampled targets: the strengths come from the Monday refit (as_of = Monday <=
     kickoff) and the Elo recomputed from matches final by the Monday alone is the same."""
     rng = np.random.default_rng(SEED)
-    dev = tg.filter(pl.col("cross") & pl.col("season").is_in(list(DEV)))
+    dev = tg.filter(pl.col("cross") & pl.col("season").is_in(list(scored)))
     idx = rng.choice(dev.height, min(LEAKAGE_N, dev.height), replace=False)
     bad = 0
     for i in idx:
@@ -732,6 +784,18 @@ def leakage(tg: pl.DataFrame, hist: pl.DataFrame, elo: dict[int, float],
         bad += abs(again[r["match_id"]] - elo[r["match_id"]]) > 1e-9
         bad += not (r["monday"] <= r["kickoff"])
     return {"n": len(idx), "changed": int(bad), "ok": bad == 0}
+
+
+def passed(checks: dict[str, bool], holdout: bool) -> bool:
+    """Dev: all six checks. The holdout: the gate file's checks (1-4) alone, 5 and 6
+    reported."""
+    if not holdout:
+        return all(checks.values())
+    want = {str(n) for n in load_gate()["checks"]}
+    gating = {k: v for k, v in checks.items() if k.split()[0] in want}
+    if len(gating) != len(want):
+        raise ValueError(f"checks {sorted(want)} not all reported: {sorted(checks)}")
+    return all(gating.values())
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -747,13 +811,33 @@ def main(argv: Sequence[str] | None = None) -> None:
     s2 = sub.add_parser("fit")
     s2.add_argument("--fetch", required=True)
     s2.add_argument("--parts", type=int, default=4)
+    for sp in (s1, s2):
+        sp.add_argument("--holdout", default=None, metavar="RUN_ID",
+                        help="the run that made the UEFA opening (D58)")  # fmt: skip
+    s3 = sub.add_parser("claim", help="open the UEFA holdout once (marker uefa, D58)")
+    s3.add_argument("--run", required=True, metavar="RUN_ID")
+    s3.add_argument("--commit", required=True)
     args = ap.parse_args(argv)
     store = make_store(get_settings())
     cfg = harness.load_config()
+    if args.cmd == "claim":
+        from adatta.eval import holdout as ho
+
+        load_gate()  # the pre-registered gate exists and matches this code before opening
+        m = ho.claim(store, args.run, MODEL_NAME, args.commit, OPENING)
+        print(f"UEFA holdout opened by run {m['run_id']} at {m['opened_at']}")
+        return
+    key = None
+    if args.holdout:
+        from adatta.eval import holdout as ho
+
+        load_gate()
+        key = ho.unlock(store, args.holdout, MODEL_NAME, OPENING)
+    label = "holdout" if key else "dev"
     if args.cmd == "strengths":
         i, n = (int(x) for x in args.part.split("/"))
         with get_session() as s:
-            rows = strengths(store, s, args.bundle, (i, n))
+            rows = strengths(store, s, args.bundle, (i, n), holdout=key)
         buf = io.BytesIO()
         rows.write_parquet(buf, compression="zstd")
         store.put(
@@ -771,11 +855,12 @@ def main(argv: Sequence[str] | None = None) -> None:
             parts.append(pl.read_parquet(io.BytesIO(raw)))
     st = pl.concat([p for p in parts if p.height], how="diagonal_relaxed")
     with get_session() as s:
-        tg0 = targets(s, every)
-        hist = elo_history(s, every)
-        venues = venue_check(s, tg0, cfg.bundles)
+        tg0 = targets(s, every, key)
+        hist = elo_history(s, every, key)
+        venues = venue_check(s, tg0, cfg.bundles, key)
         s.rollback()
-    print(venue_lines(venues))
+    print(venue_lines(venues, label))
+    scored_seasons = seasons(key)[1]
     tg = join_sides(tg0, st)
     print(f"targets with both sides' strengths: {tg.height} of {tg0.height} (cross-bundle "
           f"{tg.filter(pl.col('cross')).height}); cold sides "
@@ -786,22 +871,25 @@ def main(argv: Sequence[str] | None = None) -> None:
     neutral = set(tg.filter(pl.col("neutral"))["match_id"].to_list())
     elo = elo_at(hist, [(r["match_id"], r["monday"], r["home"], r["away"])
                         for r in tg.iter_rows(named=True)], neutral)  # fmt: skip
-    scored, diags = run_fit(tg, elo)
-    text, rep = gate(scored, diags)
+    scored, diags = run_fit(tg, elo, scored_seasons)
+    text, rep = gate(scored, diags, label)
     sens = sensitivity(tg, datetime.fromisoformat(diags[-1]["as_of"]))
-    leak = leakage(tg, hist, elo, neutral)
+    leak = leakage(tg, hist, elo, neutral, scored_seasons)
     rep["checks"]["6 leakage"] = leak["ok"]
-    rep["passed"] = all(rep["checks"].values())
+    rep["passed"] = passed(rep["checks"], key is not None)
     text += (f"6 leakage: {leak['changed']} of {leak['n']} sampled targets changed: "
              f"{'pass' if leak['ok'] else 'FAIL'}.\n"
              "Prior sensitivity, Q at the last refit (prior sd x0.5 / x1 / x2): "
              + "; ".join(f"{b} " + " / ".join(f"{sens[k][j]:+.3f}" for k in ("0.5", "1.0", "2.0"))
                          for j, b in enumerate(BUNDLE_ORDER)) + "\n"
-             f"**C1 {'PASSES' if rep['passed'] else 'FAILS'} on dev.**\n")  # fmt: skip
+             + ("Gating on the holdout: checks 1-4 (config/uefa_gate.yml); 5 and 6 reported.\n"
+                if key else "")
+             + f"**C1 {'PASSES' if rep['passed'] else 'FAILS'} on {label}.**\n")  # fmt: skip
+    out = f"{PREFIX}/{'holdout' if key else 'reports'}/{args.fetch}"
     buf = io.BytesIO()
     scored.write_parquet(buf, compression="zstd")
-    store.put(f"{PREFIX}/reports/{args.fetch}/scored.parquet", buf.getvalue())
-    store.put(f"{PREFIX}/reports/{args.fetch}/verdict.json",
+    store.put(f"{out}/scored.parquet", buf.getvalue())
+    store.put(f"{out}/verdict.json",
               json.dumps({"passed": rep["passed"], "checks": rep["checks"], "diags": diags},
                          default=str).encode())  # fmt: skip
     print(text)

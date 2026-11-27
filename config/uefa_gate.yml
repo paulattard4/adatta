@@ -1,0 +1,33 @@
+# C2 step 4 (e), D56 / D58: the pre-registered gate for the UEFA holdout (opening "uefa",
+# made once; docs/BEYOND_LEAGUES_PLAN.md "C2 step 4"). Written 2026-11-27, before the
+# opening; never edited after it.
+#
+# Scored as on dev (adatta/model/continental.py, unchanged model, priors, seed):
+# - targets: finished CL / EL / ECL matches of the holdout seasons between teams of two
+#   different bundles (13 bundles), each side's strength from its bundle's model as of the
+#   match's Monday (the five: production 1b weekly refits, fitted and cached where missing;
+#   the eight C2 bundles: Phase 1a as served, `c2_live.fit_as_of`);
+# - C1, B_own and B_elo refitted walk-forward every grid_days days from the first holdout
+#   target's Monday, each trained on every cross-bundle match (2016/17 on, dev and holdout)
+#   final 3 hours before the refit; scored to max_goals goals a side.
+#
+# Promotion gate, checks 1-4 of C1's dev gate:
+#   1. C1 beats B_own on 1X2 log loss and on RPS, each paired interval excluding 0;
+#   2. C1 beats B_elo the same way;
+#   3. no competition (CL, EL, ECL) worse than either baseline by more than
+#      max_competition_rel_worse (point estimate);
+#   4. 1X2 ECE per outcome within its noise floor (ece_quantile of ece_sims draws of
+#      outcomes from the forecast).
+# Reported, not gating: the inference gates and leakage (5, 6), the split into the five's
+# matches and those with a C2 side, Q, the truncation tails, venues and D57's count.
+# A pass means serving UEFA matches between bundle teams gets its own acceptance; a fail
+# changes nothing, and UEFA matches keep showing why there is no forecast.
+uefa_gate:
+  seasons: [2024, 2025]
+  grid_days: 28
+  max_goals: 20
+  paired_interval: 0.95
+  max_competition_rel_worse: 0.010
+  ece_sims: 2000
+  ece_quantile: 0.95
+  checks: [1, 2, 3, 4]

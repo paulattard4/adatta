@@ -31,6 +31,7 @@ MARKERS = {
     "cups": "backtest/holdout/opened_cups.json",  # Stage A/B: the cup ties, once
     "international": "backtest/holdout/opened_international.json",  # Stage D, once
     "c2": "backtest/holdout/opened_c2.json",  # C2 step 2 (g), D52: the eight C2 bundles
+    "uefa": "backtest/holdout/opened_uefa.json",  # C2 step 4 (e), D58: UEFA between bundles
 }
 C2_GATE_FILE = "config/c2_gate.yml"
 C2_RETEST_GATE_FILE = "config/c2_retest_gate.yml"  # D54 (h): the 1b retest, 2026/27-2027/28

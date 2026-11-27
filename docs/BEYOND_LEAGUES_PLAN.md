@@ -2151,6 +2151,30 @@ UEFA matches and 44 refits.
   - Not gating as drafted ((d)), but it is above the figure stated, so it is raised
     before the holdout opens ((e)).
 
+#### The UEFA holdout (D58, owner: "Accept, open holdout"): built, not opened
+
+**The gate.** `config/uefa_gate.yml` was written 2026-11-27, before the opening, and is never
+edited after it.
+- It holds checks 1-4 of the dev gate, over the 2024 and 2025 seasons.
+- The grid is 28 days, from the first holdout target's Monday, and scoring runs to 20 goals.
+- Checks 5, 6 and the tails are reported.
+- `continental.load_gate` refuses a file that doesn't match the scoring code. `claim` and
+  every `--holdout` stage check it first.
+
+**The opening.** Holdout seasons load only with the opening's key: marker "uefa", made once
+after the Phase 1b opening.
+- `continental.seasons` refuses every other opening.
+- Dev runs are unchanged.
+
+**The workflow.** `continental.yml` has two new stages:
+1. `holdout-strengths` claims the marker for its own run, then builds the 13 bundles' side
+   strengths through the holdout seasons. 194 of the five's 209 holdout Mondays have no
+   cached production refit, so they are fitted (about two hours).
+2. `holdout-fit`, run with `fetch` set to that run's id, scores the holdout alone. Rows go
+   to R2 at `continental/holdout/<run>/`; the log carries metrics only.
+
+**Tests:** 5 new in `tests/test_continental.py`.
+
 
 Its own fit, not inside the club model:
 - **v0 (team only, from results):** one global strength scale with confederation effects,

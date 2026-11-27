@@ -40,6 +40,7 @@ Arr = NDArray[np.float64]
 PREFIX = "features/lineup_signals/v1"
 KEY = ["match_id", "team_id"]
 H_LK = timedelta(minutes=60)  # the lineups-known horizon, T-60m
+H_24 = timedelta(hours=24)  # the T-24h horizon (P3-b's projected XI)
 PREV_N, MIN_PREV, XI_N = 10, 3, 11
 RATING_N, RATING_PSEUDO = 10, 5
 APM_DAYS, APM_MIN_TRAIN = 365, 200
@@ -171,13 +172,13 @@ def ratings_asof(rows: pl.DataFrame, hist: pl.DataFrame, means: Mapping[str, flo
 
 
 def s_rat(xi: pl.DataFrame, u: pl.DataFrame, tm: pl.DataFrame, hist: pl.DataFrame,
-          means: Mapping[str, float]) -> pl.DataFrame:  # fmt: skip
+          means: Mapping[str, float], horizon: timedelta = H_LK) -> pl.DataFrame:  # fmt: skip
     """(match_id, team_id, s_rat): the XI's mean shrunk rating minus the usual XI's. A
     usual-XI player's line is his last rated appearance's by then."""
     kick = tm.select(*KEY, "kickoff")
     ux = u.filter(pl.col("usual")).select(*KEY, "player_id", line=pl.lit(None, pl.Utf8))
-    a = ratings_asof(xi.join(kick, on=KEY), hist, means)
-    b = ratings_asof(ux.join(kick, on=KEY), hist, means)
+    a = ratings_asof(xi.join(kick, on=KEY), hist, means, horizon)
+    b = ratings_asof(ux.join(kick, on=KEY), hist, means, horizon)
     ma = a.group_by(KEY).agg(r_xi=pl.col("r").sort().mean())
     mb = b.group_by(KEY).agg(r_usual=pl.col("r").sort().mean())
     return ma.join(mb, on=KEY, how="inner").select(*KEY, s_rat=pl.col("r_xi") - pl.col("r_usual"))
@@ -329,6 +330,147 @@ def build(app: pl.DataFrame, matches: pl.DataFrame, xg: pl.DataFrame,
     return t.sort("kickoff", *KEY), meta
 
 
+# ------------------------------------------------------------------------- step 2 table
+
+# The signals that passed step 1 (2026-11-27, docs/PHASE3_TASKS.md P3-j): J's K, in order
+STEP2_SIGNALS = ("s_miss", "s_rat")
+STEP2_PREFIX = "features/lineup_signals/v2"
+LEAKAGE_N = 20
+
+
+def projected_xi(export: pl.DataFrame) -> pl.DataFrame:
+    """P3-b's projected XI at T-24h: per team-match, the XI_N players with the largest
+    start probability in its pool (ties: lower player id), with the line of their position
+    family. Team-matches whose pool has fewer than XI_N players have none (rule 8)."""
+    e = export.filter(pl.col("model") == "model").select(
+        *KEY, "player_id", "p_start",
+        line=pl.when(pl.col("pos").is_in(fr.LINES)).then(pl.col("pos")),
+    )  # fmt: skip
+    e = e.sort(*KEY, "p_start", "player_id", descending=[False, False, True, False])
+    e = e.with_columns(rank=pl.int_range(pl.len()).over(KEY), n=pl.len().over(KEY))
+    return e.filter((pl.col("n") >= XI_N) & (pl.col("rank") < XI_N)).select(
+        *KEY, "player_id", "line"
+    )
+
+
+def signals_at(tm: pl.DataFrame, sq: pl.DataFrame, targets: pl.DataFrame,
+               xi: pl.DataFrame, hist: pl.DataFrame, means: Mapping[str, float],
+               horizon: timedelta) -> pl.DataFrame:  # fmt: skip
+    """S_miss and S_rat of `targets` for the XI `xi`, as of kickoff - horizon. S_rat is
+    null where S_miss is (no baseline)."""
+    prev = previous(tm, horizon).join(targets.select(KEY), on=KEY)
+    u = usual(prev, sq)
+    t = targets.select(KEY).join(s_miss(xi, u), on=KEY, how="left")
+    t = t.join(s_rat(xi, u, targets, hist, means, horizon), on=KEY, how="left")
+    return t.with_columns(s_rat=pl.when(pl.col("s_miss").is_not_null()).then(pl.col("s_rat")))
+
+
+def build_step2(app: pl.DataFrame, matches: pl.DataFrame, bundle_of: Mapping[int, str],
+                seasons: Sequence[int], dev: Sequence[int], warmup_end: datetime,
+                export: pl.DataFrame, only: pl.DataFrame | None = None,
+                ) -> tuple[pl.DataFrame, dict[str, Any]]:  # fmt: skip
+    """J's table: per team-match of `seasons`, S_miss and S_rat at T-60m from the announced
+    XI (training rows and the lineups-known targets), and for `dev` team-matches at T-24h
+    from P3-b's projected XI (`export`, its rerun with the P3-d export). Scales: each
+    signal's sd over the warm-up team-matches (kickoff before warmup_end). `only` (KEY
+    rows) restricts the targets (the leakage check)."""
+    tm = team_matches(matches, bundle_of)
+    sq = squads(app, matches["match_id"])
+    targets = tm.filter(pl.col("season").is_in(list(seasons)))
+    if only is not None:
+        targets = targets.join(only.select(KEY), on=KEY)
+    hist = rating_history(sq)
+    means = line_means(sq, warmup_end)
+    lk = signals_at(tm, sq, targets, starters(sq, targets), hist, means, H_LK)
+    t24 = targets.filter(pl.col("season").is_in(list(dev)))
+    proj = projected_xi(export).join(t24.select(KEY), on=KEY)
+    p24 = signals_at(tm, sq, t24, proj, hist, means, H_24).select(
+        *KEY, s_miss_24="s_miss", s_rat_24="s_rat"
+    )
+    t = targets.select(*KEY, "opp_id", "is_home", "kickoff", "season", "league_id", "bundle")
+    t = t.join(lk.select(*KEY, "n_prev", *STEP2_SIGNALS), on=KEY, how="left")
+    t = t.join(p24, on=KEY, how="left").sort("kickoff", *KEY)
+    warm = t.filter(pl.col("kickoff") < warmup_end)
+    scale = {s: float(warm[s].drop_nulls().std() or 0.0) for s in STEP2_SIGNALS}  # type: ignore[arg-type]
+    meta = {"signals": list(STEP2_SIGNALS), "scale": scale, "line_means": means,
+            "h_lk_minutes": H_LK.total_seconds() / 60, "h_24_hours": 24, "prev_n": PREV_N,
+            "rating_n": RATING_N, "rating_pseudo": RATING_PSEUDO,
+            "n_warm": warm.height}  # fmt: skip
+    return t, meta
+
+
+def step2_leakage(app: pl.DataFrame, matches: pl.DataFrame, bundle_of: Mapping[int, str],
+                  table: pl.DataFrame, dev: Sequence[int], warmup_end: datetime,
+                  export: pl.DataFrame, n: int = LEAKAGE_N, seed: int = 20261127,
+                  ) -> dict[str, Any]:  # fmt: skip
+    """For n sampled dev team-matches: rebuild their signals from the matches before their
+    kickoff plus the match itself with its minutes and ratings removed (only who started
+    is kept), and compare with the table. Any difference means the table read the match's
+    own play or a later match."""
+    cand = table.filter(pl.col("season").is_in(list(dev)) & pl.col("s_miss").is_not_null())
+    pick = cand.sample(n=min(n, cand.height), seed=seed)
+    changed = 0
+    for r in pick.iter_rows(named=True):
+        k = r["kickoff"]
+        own = pl.col("match_id") == r["match_id"]
+        m2 = matches.filter((pl.col("kickoff") < k) | own)
+        a2 = app.filter((pl.col("kickoff") < k) | own).with_columns(
+            minutes=pl.when(own).then(None).otherwise(pl.col("minutes")),
+            rating=pl.when(own).then(None).otherwise(pl.col("rating")),
+        )  # fmt: skip
+        only = pl.DataFrame({"match_id": [r["match_id"]], "team_id": [r["team_id"]]},
+                            schema={"match_id": pl.Int64, "team_id": pl.Int64})  # fmt: skip
+        got, _ = build_step2(a2, m2, bundle_of, [r["season"]], dev, warmup_end, export, only)
+        cols = [*STEP2_SIGNALS, *(f"{s}_24" for s in STEP2_SIGNALS)]
+        a = [r[c] for c in cols]
+        b = [got.row(0, named=True)[c] for c in cols] if got.height else [None] * len(cols)
+        same = all((x is None and y is None) or (x is not None and y is not None
+                                                 and abs(x - y) < 1e-9)
+                   for x, y in zip(a, b, strict=True))  # fmt: skip
+        changed += not same
+    return {"n": pick.height, "changed": changed, "ok": changed == 0}
+
+
+def attach(df: pl.DataFrame, table: pl.DataFrame, scale: Mapping[str, float]) -> pl.DataFrame:
+    """A match frame (match_id, home, away) with each side's scaled signals, 0 where absent
+    (rule 8: the term falls back to P): j_<signal>_<h>_<side> for h in lk (training rows
+    and lineups-known targets) and 24 (T-24h targets)."""
+    out = df
+    for side in ("home", "away"):
+        sel = table.select(
+            pl.col("match_id"), pl.col("team_id").alias(side),
+            *[(pl.col(s) / scale[s]).alias(f"j_{s}_lk_{side}") for s in STEP2_SIGNALS],
+            *[(pl.col(f"{s}_24") / scale[s]).alias(f"j_{s}_24_{side}") for s in STEP2_SIGNALS],
+        )  # fmt: skip
+        out = out.join(sel, on=["match_id", side], how="left")
+    cols = [f"j_{s}_{h}_{side}" for s in STEP2_SIGNALS for h in ("lk", "24")
+            for side in ("home", "away")]  # fmt: skip
+    return out.with_columns([pl.col(c).fill_null(0.0).fill_nan(0.0) for c in cols])
+
+
+def side_signals(df: pl.DataFrame, side: str, h: str = "lk") -> Arr:
+    """(rows, K) scaled signals of one side, in STEP2_SIGNALS order."""
+    return np.column_stack([df[f"j_{s}_{h}_{side}"].to_numpy().astype(np.float64)
+                            for s in STEP2_SIGNALS])  # fmt: skip
+
+
+def save_step2(store: Any, table: pl.DataFrame, meta: dict[str, Any]) -> str:
+    h = digest(table)
+    buf = io.BytesIO()
+    table.write_parquet(buf, compression="zstd")
+    store.put(f"{STEP2_PREFIX}/{h}/table.parquet", buf.getvalue())
+    store.put(f"{STEP2_PREFIX}/{h}/meta.json",
+              json.dumps({**meta, "digest": h}, default=str).encode())  # fmt: skip
+    store.put(f"{STEP2_PREFIX}/latest", h.encode())
+    return h
+
+
+def load_step2(store: Any, ref: str = "latest") -> tuple[pl.DataFrame, dict[str, Any], str]:
+    h = store.get(f"{STEP2_PREFIX}/latest").decode() if ref == "latest" else ref
+    table = pl.read_parquet(io.BytesIO(store.get(f"{STEP2_PREFIX}/{h}/table.parquet")))
+    return table, json.loads(store.get(f"{STEP2_PREFIX}/{h}/meta.json")), h
+
+
 # ------------------------------------------------------------------------------- check
 
 
@@ -440,6 +582,13 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     ap_ = argparse.ArgumentParser(prog="adatta.features.lineup_signals")
     ap_.add_argument("--out", default=None, help="also write the report here")
+    ap_.add_argument(
+        "--step2",
+        action="store_true",
+        help="build J's table (all loaded seasons, T-60m and T-24h) instead",
+    )
+    ap_.add_argument("--export", default="",
+                     help="step 2: the selection report holding P3-b's P3-d export")  # fmt: skip
     args = ap_.parse_args(argv)
     cfg = harness.load_config()
     bundle_of = {int(x): b for b, ids in cfg.bundles.items() for x in ids}
@@ -450,10 +599,30 @@ def main(argv: Sequence[str] | None = None) -> None:
     store = make_store(get_settings())
     app = ap.load(store, [(str(lg), y) for lg in bundle_of for y in range(WARMUP[0], DEV[-1] + 1)])
     warmup_end = datetime(WARMUP[-1] + 1, 7, 1, tzinfo=UTC)
-    table, meta = build(app, matches, xg, bundle_of, DEV, warmup_end)
-    res = check(table)
     git = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
     sha = git.stdout.strip()
+    if args.step2:
+        if not args.export:
+            raise SystemExit("--step2 needs --export")
+        export = pl.read_parquet(io.BytesIO(
+            store.get(f"selection/reports/{args.export}/scored.parquet")))  # fmt: skip
+        seasons = list(range(WARMUP[0], DEV[-1] + 1))
+        t2, m2 = build_step2(app, matches, bundle_of, seasons, DEV, warmup_end, export)
+        leak = step2_leakage(app, matches, bundle_of, t2, DEV, warmup_end, export)
+        m2 = {**m2, "leakage": leak, "export": args.export, "code_sha": sha,
+              "polars": pl.__version__, "numpy": np.__version__, "seasons": seasons}  # fmt: skip
+        h2 = save_step2(store, t2, m2)
+        dev_rows = t2.filter(pl.col("season").is_in(list(DEV)))
+        cols = [*STEP2_SIGNALS, *(f"{x}_24" for x in STEP2_SIGNALS)]
+        cover = ", ".join(f"{c} {dev_rows[c].is_not_null().sum() / max(dev_rows.height, 1):.1%}"
+                          for c in cols)  # fmt: skip
+        print(f"J table {h2} ({STEP2_PREFIX}), code {sha[:7]}: {t2.height} team-matches "
+              f"({dev_rows.height} dev); dev coverage {cover}; scales "
+              + ", ".join(f"{k} {v:.4f}" for k, v in m2["scale"].items())
+              + f"; leakage {leak['changed']} of {leak['n']} changed.")  # fmt: skip
+        return
+    table, meta = build(app, matches, xg, bundle_of, DEV, warmup_end)
+    res = check(table)
     meta = {**meta, "check": res, "code_sha": sha, "polars": pl.__version__,
             "numpy": np.__version__, "seasons": list(DEV)}  # fmt: skip
     h = save(store, table, meta)

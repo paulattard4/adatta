@@ -138,3 +138,50 @@ def test_build_gives_all_three_signals_once_history_exists(monkeypatch: pytest.M
     # the two new starters have no history (6.7)
     assert last["s_rat"].to_list() == pytest.approx([-2 * 0.2 / 11, 0.0])
     assert last["s_apm"].null_count() == 0 and meta["cv_n"] > 0
+
+
+def _export(mt: pl.DataFrame, drop: dict[int, int] | None = None) -> pl.DataFrame:
+    """P3-b-like pools: every squad player, p_start 0.9 for 1-11 and 0.1 for the bench;
+    `drop[match]` makes that player of team 1 unlikely (0.05) and his bench 12 likely."""
+    rows = []
+    for m in mt["match_id"].to_list():
+        for t in (1, 2):
+            for i in range(1, 15):
+                pid = t * 100 + i
+                p = 0.9 if i <= 11 else 0.1
+                if drop and t == 1 and m in drop:
+                    p = 0.05 if pid == drop[m] else 0.95 if pid == 112 else p
+                rows.append({"match_id": m, "team_id": t, "player_id": pid, "p_start": p,
+                             "pos": "G" if i == 1 else "M", "model": "model"})  # fmt: skip
+    return pl.DataFrame(rows, schema_overrides={"match_id": pl.Int64, "team_id": pl.Int64,
+                                                "player_id": pl.Int64})  # fmt: skip
+
+
+def test_projected_xi_is_the_eleven_likeliest_starters() -> None:
+    mt, _ = _league(2)
+    xi = ls.projected_xi(_export(mt, {2: 105}))
+    t1 = set(xi.filter((pl.col("match_id") == 2) & (pl.col("team_id") == 1))["player_id"])
+    assert len(t1) == 11 and 105 not in t1 and 112 in t1
+    small = _export(mt).filter(pl.col("player_id") % 100 <= 10)  # pools of 10: no XI
+    assert ls.projected_xi(small).is_empty()
+
+
+def test_step2_table_scales_attaches_and_passes_its_leakage_check() -> None:
+    mt, ap = _league(12, {(11, 1): {102: 112}})
+    ex = _export(mt, {12: 102})
+    warm_end = K0 + timedelta(days=7 * 8)
+    t, meta = ls.build_step2(ap, mt, BUNDLE, [2020], [2020], warm_end, ex)
+    last = t.filter(pl.col("match_id") == 12).sort("team_id")
+    assert last["s_miss"].to_list() == pytest.approx([1 / 11, 0.0])
+    assert last["s_miss_24"].to_list() == pytest.approx([1 / 11, 0.0])
+    assert meta["scale"]["s_miss"] >= 0 and meta["n_warm"] > 0
+    df = ls.attach(mt, t, {"s_miss": 0.5, "s_rat": 0.1})
+    row = df.filter(pl.col("match_id") == 12)
+    home_is_1 = row["home"].item() == 1
+    v = row["j_s_miss_lk_home" if home_is_1 else "j_s_miss_lk_away"].item()
+    assert v == pytest.approx(2 / 11)
+    early = df.filter(pl.col("match_id") == 1)  # no baseline yet: 0 (rule 8)
+    assert early["j_s_miss_lk_home"].item() == 0.0 and early["j_s_rat_24_away"].item() == 0.0
+    assert ls.side_signals(df, "home", "24").shape == (12, 2)
+    leak = ls.step2_leakage(ap, mt, BUNDLE, t, [2020], warm_end, ex, n=4)
+    assert leak == {"n": 4, "changed": 0, "ok": True}

@@ -2208,3 +2208,38 @@ Consequences:
       - Signals table `features/lineup_signals/v1/0d625a62f5d310dd` (deterministic: two runs
         give the same digest; its manifest holds the
         code SHA, λ, the line means and the library versions).
+
+      **Step 2 built, 2026-11-27, not run** (owner: "Yes, build step 2"). Stated before
+      any step 2 score:
+      - **Signals in J:** S_miss and S_rat, each divided by its sd over the warm-up
+        team-matches (before 2019-07-01; 0.1131 and 0.0322), 0 where absent (rule 8).
+        - Training rows read every match's announced-XI signals at T-60m (pre-kickoff
+          facts, as P3-d's amendment 8).
+        - J_lk targets read the same. J_24 targets read the signals of P3-b's projected
+          XI: the 11 likeliest starters in P3-b's pool (selection report 44406512773, the
+          export P3-d used), as of kickoff − 24 h.
+        - The table is `features/lineup_signals/v2` (all seasons 2016-2023): 99.6% dev
+          coverage at both horizons. A rebuild of 20 sampled dev team-matches, from the
+          matches before kickoff plus the match with its minutes and ratings removed,
+          changed 0.
+      - **J** (`adatta/model/lineup_strength.py`) is P with Δ = β_miss·S_miss + β_rat·S_rat
+        added to each side's log rate, before every term that reads the rates (goals,
+        Dixon-Coles, draw inflation, xG), with β_k ~ Normal(0, 0.5).
+        - It is written out in its own file, so P's file and P's cached weekly dev refits
+          (P3-d's run, the same fit hash) stay valid. Only J is fitted.
+        - A CI test checks that J's log density equals P3-d's lineup model with that
+          offset (β_lineup = 1), up to the two priors.
+      - **Rule** (`adatta/eval/lineup_j.py`), to go to the live shadow:
+        1. at T-60m, J's 1X2 log loss and RPS point estimates beat P's;
+        2. no league × market segment (1X2 log loss and RPS, O/U 2.5, BTTS, total-goals
+           CRPS) is worse than +1.0%;
+        3. every J refit passes the inference gates, after one redo at target_accept
+           0.99 and 4,000 draws;
+        4. J's median refit is within 1.5× P's, as P3-d;
+        5. the signals leakage check passes.
+
+        T-24h is reported. The power statement for the live window is recomputed from the
+        dev pairs (J_lk − P per match, at 1,800 matches).
+      - **Run:** `lineup_j.yml`, stage fit: 5 bundles × 5 dev seasons × 4 parts = 100
+        jobs, J only, about half of P3-d's compute. Then stage redo for any failing J
+        refits. One backtest-type run at a time, not on a Monday.

@@ -2081,3 +2081,102 @@ Consequences:
       attack-only offset again. No live shadow is started. P stays production, and the
       dashboard keeps saying the forecasts don't use lineups. The stint files and the
       rating code stay as built (0 requests to rebuild).
+
+- [ ] **P3-j Lineup strength from three signals, in the likelihood (§7.5, principle 7).**
+      Drafted 2026-11-27 before building (owner: "Yes, that order"; the three signals
+      chosen 2026-11-27, Transfermarkt values declined); not approved.
+
+      **Why, and what is different from P3-d and P3-i.**
+      - P3-d summed player shares of expected goals. Trained on the minutes actually
+        played, it learned a negative weight: substitutions depend on the score, so the
+        result leaked into the input. Trained on the announced XI, it gained nothing
+        (L vs P +0.01%).
+      - P3-i's defensive rating was degenerate (k at its grid edge).
+      - P3-j uses three different signals, each built only from matches final before the
+        as-of time. It always describes the **announced or projected starting XI**,
+        never minutes played in the match itself. Each signal must first show it predicts
+        goals at all, alone, on dev.
+
+      **Seen so far, for this draft (counts only):** provider ratings exist for 98-99% of
+      appearances with minutes, in every bundle league and season checked (2016-2025);
+      minutes on and off exist for all. Team xG is match-level only, so plus-minus is
+      minutes-weighted, not built from stints.
+
+      (a) **The signals, per team-match, as of the forecast's as-of time.**
+      "Usual XI" is the team's eleven players with the largest minute shares over its last
+      10 league matches final by then.
+      1. **Missing-starter share S_miss:** 1 − (the XI's summed minute shares ÷ the usual
+         XI's summed minute shares). 0 means the usual XI; larger means more of it absent.
+      2. **Adjusted plus-minus S_apm:** a ridge regression over the bundle's team-matches
+         of the last 365 days final by then.
+         - Target: team xG minus opponent xG, per 90.
+         - Design: each player's share of the 90 minutes (+ for the team, − for the
+           opponent), plus a home term.
+         - The ridge penalty is chosen by time-ordered cross-validation inside dev
+           (owner choice 2), then fixed.
+         - S_apm is the sum over the XI of each player's coefficient minus the same sum
+           over the usual XI.
+      3. **Rating gap S_rat:** each player's mean provider rating over his last 10
+         appearances final by then, shrunk towards his line's mean with 5 pseudo-matches.
+         S_rat is the XI's mean minus the usual XI's mean.
+
+      The XI is the announced lineup at the lineups-known horizon (T-60m) and P3-b's
+      projected XI at T-24h. A team without an announced XI at T-60m uses the projected
+      one, flagged.
+
+      (b) **Step 1, dev signal check, each signal alone:** dev 2019/20-2023/24, the five
+      bundles, the announced XI.
+      - Test: the Poisson slope of a team's goals on the signal, with the team-season mean
+        as offset (P3-d's diagnosis method).
+      - A signal passes if its slope has the expected sign (negative for S_miss, positive
+        for S_apm and S_rat), with the 95% interval excluding zero.
+      - Signals that fail are dropped. With none passing, P3-j stops here and the result
+        is reported.
+
+      (c) **Step 2, the model on dev:** the production spec, P, with one lineup offset in
+      log λ for each side:
+      - the offset is Δ = Σ_k β_k · S_k over the signals that passed, with the opponent's
+        Δ entering its own rate. It is in the training likelihood, exactly once (principle
+        7).
+      - Priors: β_k ~ Normal(0, 0.5) on standardised signals.
+      - The dev walk-forward runs on P's weekly grid at both horizons.
+      - The inference gates apply to every refit; one redo at target_accept 0.99 and 4,000
+        draws (as A3).
+      - **Dev decides only whether to go live:** at T-60m the point estimates of 1X2 log
+        loss and RPS must be better than P's, with no league × market segment worse than
+        1.0%. Dev is the tuning window, so it does not promote.
+
+      (d) **Step 3, judged live (D38: the live 2026/27 period).** Shadow refits and
+      forecasts at T-60m and T-24h. They are stored and not shown.
+      - **Window:** from the first shadow forecast to the end of 2026/27, the five bundles'
+        league matches, read once (owner choice 3).
+      - **Gate:** D59 against P at T-60m, either route 1 (1X2 log loss and RPS improve,
+        intervals excluding zero) or route 2 (both better, upper bounds under +0.10%).
+        The usual safeguards apply: segments, calibration, inference gates, runtime.
+      - T-24h is reported.
+
+      (e) **On a pass:** P3-j serves from T-60m. The forecast moves when the lineup is
+      announced, and the Lineup certainty check becomes "modelled". T-24h is served only
+      if it also passes. **On a fail:** nothing changes.
+
+      **Power (D59), an estimate, recomputed from step 2's dev pairs before the window:**
+      at about 1,800 league matches in the window, with a per-match difference spread of
+      about 0.04 (P3-d's order), the detectable gain is about 0.25% at 80% power. Published
+      lineup effects at T-60m are usually of that size or larger.
+
+      **Cost:** 0 API requests (lineups, ratings and minutes are stored). Step 2 is a
+      P3-d-sized dev backtest (about 100 jobs), one backtest-type run at a time, never on
+      a Monday. The shadow adds one refit set a week.
+
+      **Owner choices:**
+      1. **Usual XI:**
+         - (a) the last 10 league matches (recommended);
+         - (b) season to date.
+      2. **The ridge penalty for S_apm:**
+         - (a) chosen by time-ordered cross-validation inside dev, then fixed
+           (recommended);
+         - (b) one fixed value, stated now.
+      3. **Live window:**
+         - (a) to the end of 2026/27, read once (recommended);
+         - (b) D59's default half-season, to the winter break. The shadow could only start
+           after step 2, in about two weeks, so that window would be short.

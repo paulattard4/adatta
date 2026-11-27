@@ -27,6 +27,7 @@ Probabilistic football forecasting platform. Reference spec: `docs/adatta_archit
 - Before building a layer, state its acceptance test (metric, segment, gate) first.
 - Evaluation: dev window vs locked holdout vs live period. Never tune on the holdout.
 - Phase 1b gate (D18): any improvement on 1X2 log loss and RPS vs Phase 1a counts, if the paired 95% interval excludes zero, no segment is worse than 1.0%, and the model is feasible (passes the inference gates, runs within the production budget).
+- Promotion routes (D59, `docs/GATE_POLICY.md`): beside D18's "proven better", a challenger may pass as non-inferior (1X2 log loss and RPS better on the point estimate, each paired 95% upper bound under +0.10%; a totals form for terms acting on total goals) or as a stacked blend fitted on dev and judged once. Same safeguards; one step at a time against the served model; production must stay provably better than Phase 1a on every window (a failure is raised, not auto-reverted); every acceptance states its detectable gain; live windows are fixed in advance (default a half-season) and read once; opened holdouts are never re-judged.
 - Inference gates: R-hat, ESS, divergences, PPC (incl. dispersion), prior sensitivity, identifiability.
 - Respect API-Football quota (Pro: ~7,500 req/day, ~300/min — verify). Every adapter goes through the quota planner; upgrade trigger ~70% sustained use.
 - Ask before: spending money, adding a paid service, destructive DB operations, anything touching minors' data.

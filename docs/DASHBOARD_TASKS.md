@@ -747,3 +747,14 @@ neatly with each other"). Already seen:
     competitions, not just the ten bundle leagues: about 216 requests a day instead of
     about 57, roughly 3% of the Pro quota. The other daily jobs are unchanged. Test:
     `test_injury_feed_is_read_about_every_6_hours`.
+
+## Default date windows (requested 2026-11-27)
+
+Owner: "by default, for the dashboard show only matches from the next 3 days for fixtures
+and matches from the last day for played".
+- Fixtures default from today to the end of the third day ahead.
+- Played defaults from yesterday to today.
+- The date pickers still widen either view.
+- A played range with no finished match now says so and suggests widening the dates. The
+  "no forecast match has been played yet" note appears only when nothing has been played
+  at all.

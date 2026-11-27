@@ -1,6 +1,6 @@
 # Gate policy (D59): how a challenger is promoted
 
-**Status: drafted 2026-11-27, not approved.**
+**Status: approved 2026-11-27 (owner: "agreed with all"), the recommended option in each choice:** m = +0.10%, route 2T yes, half-season live windows, a floor-check failure raised to the owner. The route checks are coded, with tests, before the first challenger uses them.
 
 The owner agreed the direction on 2026-11-27, after a review of what was rejected. Each owner
 choice below lists the recommended option first. Nothing changes until approval, and the

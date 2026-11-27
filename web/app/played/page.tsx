@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ProbCell } from "@/components/Prob";
 import { useJson } from "@/lib/fetch";
 import { complement, dateLocal, fairOdds, kickoffLocal, pct, showsOdds, tierLabel } from "@/lib/format";
@@ -11,6 +11,7 @@ const METRIC_LABEL: Record<string, string> = {
   log_loss_ou25: "Over/under 2.5 log loss", log_loss_btts: "Both teams score log loss",
 };
 const FEW = 200; // below this, a mean score says little
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
 const score = (s: MeanScore | undefined) =>
   s ? <><span className="num">{s.mean.toFixed(3)}</span>{s.lo !== null && s.hi !== null && <> <span className="num dim">[{s.lo.toFixed(3)}, {s.hi.toFixed(3)}]</span></>}</> : <span className="dim">—</span>;
@@ -103,8 +104,10 @@ function LineupScores({ summary }: { summary: ScoreSummary[] }) {
 /** Finished matches against the forecast published before kickoff (no reconstructions). */
 export default function Played() {
   const [comp, setComp] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // default: the last day (owner, 2026-11-27); clear the dates for every played match
+  const today = useMemo(() => new Date(), []);
+  const [from, setFrom] = useState(isoDay(new Date(today.getTime() - 86400e3)));
+  const [to, setTo] = useState(isoDay(today));
   const all = useJson<PlayedList>("/api/played");
   const q = new URLSearchParams();
   if (comp) q.set("competition_id", comp);
@@ -129,7 +132,13 @@ export default function Played() {
       </div>
       {error && <div className="panel error">Could not load played matches: {error}. Is the API running on 127.0.0.1:8000?</div>}
       {loading && !data && <div className="panel dim">Loading played matches…</div>}
-      {data && data.matches.length === 0 && (
+      {data && data.matches.length === 0 && (all.data?.matches.length ?? 0) > 0 && (
+        <div className="panel dim">
+          No forecast match finished {from || to ? <>between {from || "the start"} and {to || "now"}</> : "in this selection"}.
+          {" "}Widen the dates, or clear them for every played match.
+        </div>
+      )}
+      {data && data.matches.length === 0 && all.data && all.data.matches.length === 0 && (
         <div className="panel dim">
           No forecast match has been played yet.
           {data.forecasts_since && <> Forecasting began on {dateLocal(data.forecasts_since)}; </>}

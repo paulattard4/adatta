@@ -15,7 +15,8 @@ const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 export default function Browser() {
   const today = useMemo(() => new Date(), []);
   const [from, setFrom] = useState(isoDay(today));
-  const [to, setTo] = useState(isoDay(new Date(today.getTime() + 14 * 86400e3)));
+  // default: the next 3 days (owner, 2026-11-27); the date pickers widen it
+  const [to, setTo] = useState(isoDay(new Date(today.getTime() + 3 * 86400e3)));
   const [comp, setComp] = useState("");
   const [level, setLevel] = useState("");
   const all = useJson<FixtureList>("/api/fixtures");

@@ -855,3 +855,13 @@ Tick each item only when its acceptance check passes.
           dev run needs parts (as P3-j's: each bundle-season split across jobs).
         - A shorter normaliser (0-25 instead of 0-40) is to be measured first; cards above
           25 per team don't occur.
+      - **The normaliser, measured:** 0-25 instead of 0-40 at the Italy refit took 1,010 s
+        instead of 1,045 s, with the same result (PPC q 0.455 and 0.385, ν 1.54 and 1.95).
+        The latent match term is the cost, not the normaliser, so 0-40 stays. The most
+        cards any team had in that window was 9.
+      - **The dev rerun, sized** (`cards.yml`, `parts` input, default three parts per
+        bundle-season):
+        - 75 jobs of about 3-4 refits each, about 2.5 h a job on CI at about 40 min a refit;
+        - 18 at a time (as before), so about 10-12 h in all;
+        - the same gate, thresholds and dev seasons. `assemble` reads the parts
+          (`--parts 3`), and window (i) stays one job per bundle.

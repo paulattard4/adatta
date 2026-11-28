@@ -123,7 +123,7 @@ The acceptance may set a longer window.
   edit.
 - The gate code gains route 2, 2T and 3 checks with tests, before any challenger uses them.
 
-## Drafted 2026-11-28, not approved: a register of every test (D70)
+## A register of every test (D70, approved 2026-11-28: "approve d70", the recommended choices)
 
 **Why.** Each gate is sound alone: a route 1 pass on a 95% interval is wrong about 2.5% of
 the time when the challenger is truly no better. Across a long backlog those chances add

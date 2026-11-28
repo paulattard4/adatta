@@ -26,7 +26,7 @@ import hashlib
 import io
 import json
 from collections.abc import Mapping, Sequence
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -466,7 +466,7 @@ def train_table(app: pl.DataFrame, matches: pl.DataFrame, bundle_of: Mapping[int
     the T-24h columns empty (training reads lk only)."""
     tm = team_matches(matches, bundle_of)
     sq = squads(app, matches["match_id"])
-    targets = tm.filter(pl.col("kickoff") >= lo)
+    targets = tm.filter(pl.col("kickoff") >= lo.astimezone(UTC))  # polars compares tz names
     lk = signals_at(tm, sq, targets, starters(sq, targets), rating_history(sq), means, H_LK)
     t = targets.select(*KEY).join(lk.select(*KEY, *STEP2_SIGNALS), on=KEY, how="left")
     return t.with_columns([pl.lit(None, pl.Float64).alias(f"{x}_24") for x in STEP2_SIGNALS])
@@ -478,7 +478,7 @@ def live_basis(app: pl.DataFrame, matches: pl.DataFrame, bundle_of: Mapping[int,
     per team, the players' minute shares over its last PREV_N league matches (`usual` for
     the XI_N largest, as `usual`) with n_prev; per player, his rating history at its last
     rated appearance (r_mean, r_n, h_line), as `ratings_asof` reads it."""
-    cut = now - RESULT_LAG
+    cut = (now - RESULT_LAG).astimezone(UTC)
     tm = team_matches(matches, bundle_of).filter(pl.col("kickoff") <= cut)
     sq = squads(app, tm["match_id"].unique())
     prev = (tm.sort("kickoff", "match_id", descending=True)

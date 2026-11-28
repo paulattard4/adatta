@@ -519,14 +519,17 @@ def score_refit(posts: dict[str, dict[str, Arr]], ix: Index, tgt: pl.DataFrame,
 
 
 def run_part(table: pl.DataFrame, bundle: str, season: int, end: datetime | None = None,
-             on_refit: Any = None) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
-    """B_clim, C0, C1, C2 (with C2's prior sensitivity) on one bundle-season."""
+             on_refit: Any = None, part: tuple[int, int] = (0, 1),
+             ) -> tuple[pl.DataFrame, list[dict[str, Any]]]:  # fmt: skip
+    """B_clim, C0, C1, C2 (with C2's prior sensitivity) on one bundle-season; `part` (i, n)
+    takes every n-th refit from the i-th (D69 (b): a CMP refit takes about 40 min on CI, so
+    a bundle-season is split to stay inside a job's 6 hours)."""
     if season in HOLDOUT or (season not in DEV and not (season == WINDOW_SEASON
                                                          and end is not None)):  # fmt: skip
         raise ValueError(f"season {season} is not a dev season (window (i) only via `window`)")
     rows: list[dict[str, Any]] = []
     diags: list[dict[str, Any]] = []
-    for as_of, tgt, train in plan(table, bundle, season, end):
+    for as_of, tgt, train in plan(table, bundle, season, end)[part[0] :: part[1]]:
         d = design(train)
         posts: dict[str, dict[str, Arr]] = {}
         for v in VARIANTS:
@@ -569,6 +572,22 @@ def _parquet(df: pl.DataFrame) -> bytes:
     return buf.getvalue()
 
 
+def part_key(bundle: str, season: int, part: tuple[int, int]) -> str:
+    """A part's store key: the bundle-season alone when unsplit (the first dev run's)."""
+    return f"{bundle}_{season}" if part[1] == 1 else f"{bundle}_{season}_p{part[0]}of{part[1]}"
+
+
+def part_keys(bundles: Sequence[str], seasons: Sequence[int], n: int) -> list[str]:
+    return [part_key(b, s, (i, n)) for b in bundles for s in seasons for i in range(n)]
+
+
+def _part(text: str) -> tuple[int, int]:
+    i, n = (int(x) for x in text.split("/"))
+    if not 0 <= i < n:
+        raise SystemExit(f"--part {text}: use i/n with 0 <= i < n")
+    return i, n
+
+
 def _collect(store: Any, run: str, keys: Sequence[str]) -> tuple[pl.DataFrame, list[Any]]:
     from adatta.adapters.storage import try_get
 
@@ -600,6 +619,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     p.add_argument("--fetch", default="")
     p.add_argument("--dev", default="", help="judge: the dev run whose chosen variant is judged")
     p.add_argument("--table", default="latest")
+    p.add_argument("--part", default="0/1", help="run, window: i/n, every n-th refit from i")
+    p.add_argument("--parts", type=int, default=1, help="assemble, judge: parts per job key")
     args = p.parse_args(argv)
     store = make_store(get_settings())
     table, _, digest = fc.load_table(store, args.table)
@@ -607,20 +628,22 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.cmd in ("run", "window"):
         season = args.season if args.cmd == "run" else WINDOW_SEASON
         end = WINDOW_END if args.cmd == "window" else None
-        key = f"{PREFIX}/parts/{args.upload}/{args.bundle}_{season}"
+        part = _part(args.part)
+        key = f"{PREFIX}/parts/{args.upload}/{part_key(args.bundle, season, part)}"
 
         def save(rows: pl.DataFrame, diags: list[dict[str, Any]]) -> None:
             store.put(f"{key}.parquet", _parquet(rows))
             store.put(f"{key}.json", json.dumps({"table": digest, "diags": diags},
                                                 default=str).encode())  # fmt: skip
 
-        rows, diags = run_part(table, args.bundle, season, end, save)
+        rows, diags = run_part(table, args.bundle, season, end, save, part)
         save(rows, diags)
-        print(f"{args.bundle} {season}: {len(diags) // len(VARIANTS)} refits; passing (c): "
+        print(f"{args.bundle} {season} part {args.part}: {len(diags) // len(VARIANTS)} refits; "
+              "passing (c): "
               + ", ".join(f"{v} {sum(g['ok'] for g in diags if g['variant'] == v)}"
                           for v in VARIANTS))  # fmt: skip
     elif args.cmd == "assemble":
-        pred, diags = _collect(store, args.fetch, [f"{b}_{s}" for b in bundles for s in DEV])
+        pred, diags = _collect(store, args.fetch, part_keys(bundles, DEV, args.parts))
         v = ec.gate(pred, diags)
         store.put(f"{PREFIX}/reports/{args.fetch}/pred.parquet", _parquet(pred))
         store.put(f"{PREFIX}/reports/{args.fetch}/gate.json",
@@ -633,7 +656,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         dev = json.loads(store.get(f"{PREFIX}/reports/{args.dev}/gate.json"))
         if not dev.get("passed"):
             raise SystemExit("the dev gate did not pass: window (i) is not read")
-        pred, diags = _collect(store, args.fetch, [f"{b}_{WINDOW_SEASON}" for b in bundles])
+        pred, diags = _collect(store, args.fetch, part_keys(bundles, [WINDOW_SEASON], args.parts))
         w = ec.window(pred, diags, dev["chosen"])
         store.put(marker, json.dumps({"fetch": args.fetch, "dev": args.dev, **w},
                                      default=str).encode())  # fmt: skip

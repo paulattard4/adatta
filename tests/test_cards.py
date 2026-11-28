@@ -232,3 +232,17 @@ def test_a_failing_refit_falls_back_to_the_simpler_variant() -> None:
     c1 = pred.filter((pl.col("model") == "C1") & (pl.col("horizon") == "60"))
     assert eff.sort("match_id")["rps_total"].to_list() == c1.sort("match_id")["rps_total"].to_list()
     assert ec.gate(pred, diags)["chosen"] == "C1"
+
+
+def test_parts_split_a_bundle_season_and_name_their_keys() -> None:
+    """D69 (b): a bundle-season's refits split across jobs, every n-th from the i-th; an
+    unsplit part keeps the first dev run's key."""
+    assert mc.part_key("italy", 2019, (0, 1)) == "italy_2019"
+    assert mc.part_key("italy", 2019, (2, 3)) == "italy_2019_p2of3"
+    keys = mc.part_keys(["italy", "spain"], [2019], 3)
+    assert len(keys) == 6 and len(set(keys)) == 6
+    times = [p[0] for p in mc.plan(_table(80), "england", 2019)]
+    split = [t for i in range(3) for t in times[i::3]]
+    assert sorted(split) == times and len(times) >= 3
+    with pytest.raises(SystemExit):
+        mc._part("3/3")

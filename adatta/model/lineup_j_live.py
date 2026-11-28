@@ -85,6 +85,7 @@ def training(df: pl.DataFrame, app: pl.DataFrame, cfg: harness.EvalConfig, bundl
     """P's training rows as of `as_of` (as `live.refit` prepares them) and each side's
     scaled signals, 0 where absent (rule 8)."""
     leagues = cfg.bundles[bundle]
+    as_of = serve._utc(as_of).astimezone(UTC)
     lo = as_of - timedelta(days=cfg.lookback_days)
     bundle_of = {int(x): bundle for x in leagues}
     table = sig.train_table(app, df, bundle_of, lo, means)
@@ -100,7 +101,7 @@ def refit(session: Session, store: RawStore, cfg: harness.EvalConfig, bundle: st
     """J fitted at P's refit's as-of time (or its stored draws reused) and recorded."""
     P = bt.production_spec(cfg)
     assert p_row.as_of is not None
-    as_of = serve._utc(p_row.as_of)
+    as_of = serve._utc(p_row.as_of).astimezone(UTC)  # the database's tz is named GMT
     scale = {k: float(v) for k, v in meta2["scale"].items()}
     means = {str(k): float(v) for k, v in meta2["line_means"].items()}
     fd, s_home, s_away = training(df, app, cfg, bundle, as_of, scale, means)

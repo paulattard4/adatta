@@ -1,7 +1,9 @@
 # P3b-3 (docs/PHASE3B_TASKS.md, D66): team cards with referee strictness. Manual dispatch
 # only, one stage per run:
-#   dev     one job per bundle x dev season: C0, C1, C2 (and C2 at prior x0.5 / x2) on the
-#           28-day Mondays, scored with B_clim at T-60m and T-24h; then the dev gate
+#   dev     one job per bundle x dev season x part: C0, C1, C2 (and C2 at prior x0.5 / x2)
+#           on the 28-day Mondays, every n-th refit from the part's i-th, scored with B_clim
+#           at T-60m and T-24h; then the dev gate. D69 (b): a CMP refit takes about 40 min
+#           on CI, so a bundle-season is split in parts (default 3, about 2.5 h a job)
 #   window  window (i), 2026/27 kickoff before 2026-11-27: one job per bundle, then the
 #           judgement, read once and only after a dev pass (input dev = that run's id)
 # The cards table is built beforehand, locally (python -m adatta.features.cards), and named
@@ -29,6 +31,9 @@ on:
       dev:
         description: "window: the passing dev run's id"
         default: ""
+      parts:
+        description: "dev: JSON list of parts i/n (n the same in all)"
+        default: '["0/3","1/3","2/3"]'
 permissions:
   contents: read
 concurrency:
@@ -52,6 +57,7 @@ jobs:
       matrix:
         bundle: ${{ fromJSON(inputs.bundles) }}
         season: ${{ fromJSON(inputs.seasons) }}
+        part: ${{ fromJSON(inputs.parts) }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -61,7 +67,7 @@ jobs:
       - name: fit and score
         run: >-
           uv run --frozen --group model python -m adatta.model.cards run
-          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }}
+          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }} --part ${{ matrix.part }}
           --upload ${{ github.run_id }} --table ${{ inputs.table }}
   assemble:
     needs: dev
@@ -75,9 +81,13 @@ jobs:
           enable-cache: true
       - run: uv sync --frozen --group model
       - name: dev gate
+        env:
+          PARTS: ${{ inputs.parts }}
         run: >-
           uv run --frozen --group model python -m adatta.model.cards assemble
-          --fetch ${{ github.run_id }} --table ${{ inputs.table }} | tee -a "$GITHUB_STEP_SUMMARY"
+          --fetch ${{ github.run_id }} --table ${{ inputs.table }}
+          --parts "$(python3 -c 'import json,os; print(json.loads(os.environ["PARTS"])[0].split("/")[1])')"
+          | tee -a "$GITHUB_STEP_SUMMARY"
   window:
     if: ${{ inputs.stage == 'window' && inputs.dev != '' }}
     runs-on: ubuntu-latest

@@ -9,6 +9,7 @@ import ast
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import polars as pl
@@ -314,7 +315,8 @@ def test_live_training_signals_align_with_ps_training_rows() -> None:
     as_of = datetime(2019, 1, 7, tzinfo=UTC)
     b = next(k for k, v in cfg.bundles.items() if set(v) == set(LEAGUES))
     cfg = cfg.model_copy(update={"bundles": {b: list(LEAGUES)}})
-    fd, sh, sa = jl.training(df, app, cfg, b, as_of, SCALE, MEANS)
+    gmt = ZoneInfo("GMT")  # how the database returns as_of (polars won't compare it to UTC)
+    fd, sh, sa = jl.training(df, app, cfg, b, as_of.astimezone(gmt), SCALE, MEANS)
     ref = ts.prepare(df, list(LEAGUES), as_of, cfg.lookback_days, cfg.result_available_after_hours)
     assert np.array_equal(fd.hg, ref.hg) and np.array_equal(fd.home, ref.home)
     assert fd.lu_home is None and sh.shape == (len(fd.hg), 2) == sa.shape

@@ -233,6 +233,26 @@ def _c2_projector(session: Session, settings: Any) -> Any:
     return run
 
 
+def _lineup_j_shadow(session: Session, settings: Any) -> Any:
+    """P3-j step 3 (D65): J's shadow forecasts beside P's, at lineups known and T-24h, from
+    the same as-of refits (comparator (a)). Stored, not shown; numpy only."""
+    from adatta.eval import harness
+    from adatta.model import horizon as hz
+    from adatta.model.backtest import production_spec
+    from adatta.sim import lineup_j_shadow as ljs
+
+    cfg = harness.load_config()
+    store = make_store(settings)
+    spec = production_spec(cfg)
+    walk = hz.Walk(spec.seed, spec.structure) if spec.widen else None
+
+    def run(now: datetime) -> ljs.Report:
+        return ljs.run(session, store, cfg.bundles, spec.model_name, cfg.max_goals, now,
+                       walk=walk)  # fmt: skip
+
+    return run
+
+
 def _refits_due(session: Session) -> Any:
     """Live refits due now (D33), as "bundle stamp" labels for the capture log."""
     from adatta.eval import harness
@@ -299,7 +319,7 @@ def capture() -> None:
             session, client, comps, weather=weather,
             projector=_projector(session, settings), refits_due=_refits_due(session),
             dispatch=_serve_dispatcher(), national=_national_projector(session, settings),
-            c2=_c2_projector(session, settings),
+            c2=_c2_projector(session, settings), lineup_j=_lineup_j_shadow(session, settings),
         )  # fmt: skip
     summary = ", ".join(f"{k}={v}" for k, v in sorted(report.actions.items())) or "nothing due"
     typer.echo(

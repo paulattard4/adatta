@@ -982,6 +982,104 @@ Tasks:
         42359964241 were code drift, not widening. Not promoted; `widen` stays off.
 - [x] Item 3: not applicable (item 2 failed).
 
+### 8. Faster refits: warm starts (D68, drafted 2026-11-27, not approved)
+
+Problem: every backtest is limited by one CI backtest at a time, and a P refit (2,000 tune +
+2,000 draws, 4 chains) takes about 450 s on CI. Each weekly refit starts from scratch,
+although its posterior is close to the previous week's (one more week of results, the window
+shifted by a week). Results-triggered serving refits (D33) start from scratch too.
+
+**Measured before any build** (local probe in the model container, not committed: England,
+dev season 2022, refits 2022-11-28 and 2022-12-05, 2,815 training rows, 50 teams, 158 weekly
+steps; local fits are about 2.4x slower than CI, so only the ratios carry over):
+
+| Fit (refit 2022-12-05 unless noted) | Tune | Wall time | R-hat max | ESS bulk / tail min | Divergences | Max \|mean diff\| / sd vs cold |
+|---|---|---|---|---|---|---|
+| Cold, refit 2022-11-28 (the warm source) | 2,000 | 1,114 s | 1.0053 | 1,594 / 2,720 | 0 | - |
+| Cold (reference) | 2,000 | 1,098 s | 1.0055 | 1,483 / 2,567 | 0 | - |
+| Cold, second seed (the Monte Carlo floor) | 2,000 | 1,015 s | 1.0048 | 1,744 / 2,643 | 0 | 0.036 |
+| Warm | 500 | 538 s | 1.0044 | 1,493 / 2,483 | 0 | 0.058 (sigma_walk) |
+| **Warm** | **250** | **491 s** | 1.0053 | 1,691 / 2,790 | 0 | **0.036** |
+
+All fits draw 2,000 per chain. "Max |mean diff| / sd" is the largest difference in posterior
+mean against the cold reference, in posterior sds, over every stored parameter (each team's
+final attack and defence, mu, home advantage, rho, kappa, sigma_walk, sigma_home). The warm
+fit at tune 250 takes 55% less time (2,250 iterations instead of 4,000, and the early
+warm-up iterations that cost most are gone), passes the same gates with as much ESS, and
+lands as close to the cold posterior as a second cold seed does.
+
+Second refit, two weeks apart across an international break (source 2023-03-13, target
+2023-03-27, 2,787 rows, a two-step shift):
+
+| Fit (refit 2023-03-27 unless noted) | Tune | Wall time | R-hat max | ESS bulk / tail min | Divergences | Max \|mean diff\| / sd vs cold |
+|---|---|---|---|---|---|---|
+| Cold, refit 2023-03-13 (the warm source) | 2,000 | 984 s | 1.0041 | 1,586 / 2,748 | 0 | - |
+| Cold (reference) | 2,000 | 968 s | 1.0050 | 1,735 / 2,465 | 0 | - |
+| Cold, second seed (the Monte Carlo floor) | 2,000 | 945 s | 1.0051 | 1,842 / 2,776 | 0 | 0.038 |
+| Warm | 500 | 549 s | 1.0044 | 1,851 / 2,944 | 0 | 0.053 (sigma_home) |
+| **Warm** | **250** | **495 s** | 1.0050 | 1,396 / 1,425 | 0 | **0.056** (sigma_walk) |
+
+At both refits the warm fit at tune 250 saves 48-55% of the wall time, with every gate
+passing and the posterior within 0.02 sd of the cold-vs-cold floor. The tail ESS at the
+second refit (1,425) is lower than cold but 3.5 times the gate (400); tune 500 keeps more
+margin for about 10% more time. Acceptance item 2 decides on CI across every dev refit.
+
+**Item 2 (avoid per-refit recompiling): not proposed now.** Model build plus compile is
+27-40 s per refit locally (tune 5, draws 5), against about 1,000-1,100 s for a full refit
+locally: at most about 3%. Padding shapes would not remove it anyway: PyMC builds a
+new compiled function for every `pm.sample` call, so the saving needs a direct NumPyro path
+with the data as inputs, a larger change than the gain. Revisit only if a CI timing shows
+compile above 10% of a refit.
+
+**Design (item 1):**
+- **Source:** the previous refit of the same bundle in the same job. Jobs today take every
+  `part[1]`-th refit (`plan[part[0]::part[1]]`), so that refit is weeks back; a warm spec
+  instead gives each job a contiguous block of refits, so the source is one week back
+  (two across an international break, as probed). Each refit stores a warm state next to its
+  cached draws (`<cache key>.warm.npz`, about 100 KB): 4 posterior draws of every free
+  variable, the per-element posterior variance of every unconstrained value variable, and
+  the median adapted step size.
+- **Mapping to the new refit** (`adatta/model/warm.py`, a new file, so
+  `team_strength.py` and every cached P refit keep their hash): steps shift by
+  `off = (start_new - start_old) / 7 days`; the walk's initial level absorbs the dropped
+  steps (`z0_new = z0 + sum of the dropped innovations / sigma0`); teams are matched by id,
+  a new team starts at 0, and zero-sum variables are re-centred. Each chain starts from a
+  different posterior draw (no jitter), so the four chains start spread over the previous
+  posterior and R-hat still compares independent starts.
+- **Sampler:** NumPyro NUTS with the stored inverse mass diagonal and step size as the
+  starting values of adaptation (adaptation still runs), tune 250 instead of 2,000; draws
+  unchanged (2,000).
+- **Cold start (as today)** at the first refit of a job, after a gap of more than 4 weeks
+  (summer), when the source refit failed a gate, and for every redo (0.99 / 4,000). Each
+  refit records its source in its diag (`warm_from`, the source as_of or none), so a rerun
+  of the same block reproduces it, and a warm chain never crosses jobs.
+- **Serving** (D33 results-triggered refits and Monday refits) can use the same warm state
+  later; not part of this step.
+- **Spec:** a new `RunSpec.warm` field (default False, dropped from the hash when False, as
+  `lineup` is), so warm refits cache under their own hash and P's cached refits stay valid.
+  The holdout and live gates keep running on the spec they were registered with; a warm
+  spec is a sampler change, not a model change, and is promoted only through the acceptance
+  below.
+
+**Acceptance (stated before building; dev refits only, never the holdout):**
+1. **Same posterior:** on a dev backtest of the 5 bundles at the production cadence, scored
+   against a cold P run of the same refits that is already cached:
+   - per refit, the largest |posterior mean difference| / posterior sd over the cached
+     parameters (team final attack and defence, mu, home advantage, rho, kappa, sigma_walk)
+     is at most 0.10 on at least 95% of refits and at most 0.20 on every refit (the probe:
+     cold-vs-cold-seed 0.036-0.038, warm 0.036-0.058);
+   - the paired mean difference in 1X2 log loss and in RPS, warm minus cold, is within
+     +/-0.10% of the cold value each (D59's non-inferiority margin, here as an equivalence
+     bound, since the model is the same).
+2. **Same gates:** the share of refits passing R-hat <= 1.01, bulk/tail ESS >= 400 and
+   0 divergences is at least the cold run's.
+3. **Faster:** median wall time per refit at least 25% lower than the cold run's on the same
+   CI runners.
+4. If 1 or 2 fails, the warm spec is not used; P and every gate stay as they are.
+
+Cost: about 2-3 days to build and test locally, then one dev backtest on CI (one at a time,
+not on a Monday), comparable with an existing cached cold run.
+
 ## Out of scope for 1b (spec places them later)
 Global cross-league layer / Q_league (§10.1; needs continental bridging data), neutral and host
 flags (needed with play-offs and cups), attendance modifier (`has_attendance_data` is absent),

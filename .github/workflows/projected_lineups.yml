@@ -6,6 +6,8 @@
 # P3-h (docs/PHASE3_TASKS.md): the same for P3-c (formation, tier unknown), refitted per
 # bundle every 28 days, projected with the last lineup in that formation into
 # formation_projection.
+# P3-j step 3 (D65): J's signal basis from the rebuilt appearances (each team's usual XI and
+# each player's rating history), read by the capture tick's shadow forecasts.
 # The repo is public: logs carry counts only. The refit job is a backtest-type load (five
 # PyMC fits); it runs only when due, at 04:41 UTC, away from the usual backtest hours.
 name: projected_lineups
@@ -87,3 +89,6 @@ jobs:
       - name: project formations, next 7 days (P3-h)
         if: ${{ !cancelled() }}
         run: uv run --frozen --group model adatta formations-project
+      - name: J's signal basis (P3-j step 3, shadow)
+        if: ${{ !cancelled() }}
+        run: uv run --frozen python -m adatta.sim.lineup_j_shadow basis

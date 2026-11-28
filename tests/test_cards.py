@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 import polars as pl
 import pytest
-from scipy.stats import nbinom
+from scipy.stats import poisson
 
 from adatta.eval import cards as ec
 from adatta.features import cards as fc
@@ -79,13 +79,16 @@ def test_holdout_and_window_seasons_are_refused_for_dev_runs() -> None:
 
 
 def test_team_and_total_distributions() -> None:
-    mu, phi = np.array([[2.0, 2.5]]), np.array([8.0, 12.0])
-    p = mc.team_pmf(mu, phi)
+    k = np.arange(mc.MAX_TEAM + 1)
+    p = mc.cmp_pmf(np.log(np.array([[2.0, 2.5]])), np.ones((1, 2)))
     assert p.shape == (1, 2, mc.MAX_TEAM + 1)
-    assert p[0, 0, 3] == pytest.approx(nbinom.pmf(3, 8.0, 8.0 / 10.0))
+    assert np.allclose(p[0, 0], poisson.pmf(k, 2.0))  # nu = 1 is Poisson
+    under = mc.cmp_pmf(np.array([np.log(2.2)]), np.array([1.5]), mc.K_Z)[0]
+    m = float(under @ np.arange(mc.K_Z + 1))
+    assert (under @ np.arange(mc.K_Z + 1) ** 2 - m * m) / m < 0.8  # nu > 1: under-dispersed
     assert 1 - 1e-6 < p.sum(axis=2).max() <= 1.0
-    ph, pa = p[0], mc.team_pmf(np.array([[1.5, 1.8]]), phi)[0]
-    tot = mc.total_pmf(ph, pa)
+    ph, pa = p[0], mc.cmp_pmf(np.log(np.array([[1.5, 1.8]])), np.ones((1, 2)))[0]
+    tot = mc.total_pmf(ph, pa)  # B_clim's independent teams
     brute = np.array([[sum(ph[d, i] * pa[d, k - i] for i in range(21) if 0 <= k - i <= 20)
                        for k in range(41)] for d in range(2)])  # fmt: skip
     assert np.allclose(tot, brute)
@@ -97,10 +100,40 @@ def test_team_and_total_distributions() -> None:
     assert mc.score(point, point[:21], point[:21], 2, 1)["rps_total"] == 0.0
 
 
+def test_the_match_term_links_the_two_teams() -> None:
+    """D69 (b): the shared match term, integrated out by quadrature. Without it the teams
+    are independent; with it they are positively linked, the joint matches a simulation,
+    and the total is the joint's anti-diagonals."""
+    eh, ea, nu = np.log(np.full(2, 2.0)), np.log(np.full(2, 1.8)), np.full(2, 1.3)
+    joint, ph, pa = mc.match_pmfs(eh, ea, nu, nu, np.array([0.0, 0.35]))
+    assert joint.shape == (2, mc.MAX_TEAM + 1, mc.MAX_TEAM + 1)
+    mc.coherent(joint, ph, pa)
+    assert np.allclose(joint[0], np.outer(ph[0], pa[0]))
+    k = np.arange(mc.MAX_TEAM + 1)
+    cov = float(k @ joint[1] @ k - (ph[1] @ k) * (pa[1] @ k))
+    assert cov > 0.3
+    rng = np.random.default_rng(0)
+    n = 200_000
+    e = rng.normal(0.0, 0.35, n)
+
+    def draw(eta: np.ndarray) -> np.ndarray:
+        cdf = np.cumsum(mc.cmp_pmf(eta, np.full(n, 1.3), mc.K_Z), axis=-1)
+        return np.asarray((cdf < rng.random(n)[:, None]).sum(axis=-1))
+
+    yh, ya = draw(np.log(2.0) + e), draw(np.log(1.8) + e)
+    emp = np.zeros((21, 21))
+    np.add.at(emp, (np.minimum(yh, 20), np.minimum(ya, 20)), 1.0)
+    assert np.abs(joint[1] - emp / n).max() < 0.003
+    tot = mc.joint_total(joint)
+    assert tot[1, 3] == pytest.approx(sum(joint[1, i, 3 - i] for i in range(4)))
+    with pytest.raises(AssertionError):  # a margin above its team's distribution
+        mc.coherent(joint, ph * 0.9, pa)
+
+
 def _post(nd: int = 400, refs: int = 4, teams: int = 4) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(1)
     return {"c_league": np.full((1, nd), np.log(2.0)), "c_ls": np.full((2, nd), np.log(2.0)),
-            "h": np.zeros(nd), "phi": np.full(nd, 20.0),
+            "h": np.zeros(nd), "nu": np.ones((1, nd)), "sigma_match": np.full(nd, 0.2),
             "a": np.zeros((teams, nd)), "b": np.zeros((teams, nd)), "sigma_a": np.full(nd, 0.1),
             "sigma_b": np.full(nd, 0.1),
             "r": np.vstack([np.full(nd, 0.3), np.zeros((refs - 1, nd))]),
@@ -138,10 +171,11 @@ def test_ppc_passes_on_data_from_the_model() -> None:
     d = mc.design(t)
     post = {"c_league": np.full((1, 400), np.log(2.0)),
             "c_ls": np.full((len(d.index.ls), 400), np.log(2.0)), "h": np.zeros(400),
-            "phi": np.full(400, 30.0)}  # fmt: skip
+            "nu": np.ones((1, 400)), "sigma_match": np.full(400, 0.25)}  # fmt: skip
     passed = 0
     for seed in range(10):
-        y = np.random.default_rng(100 + seed).negative_binomial(30.0, 30.0 / 32.0, len(d.y))
+        r = np.random.default_rng(100 + seed)  # D69: one match term per match, shared
+        y = r.poisson(2.0 * np.exp(r.normal(0.0, 0.25, int(d.match.max()) + 1))[d.match])
         d2 = mc.Design(y=y.astype(np.int64), home=d.home, ls=d.ls, ls_league=d.ls_league,
                        team=d.team, opp=d.opp, ref=d.ref, match=d.match,
                        index=d.index)  # fmt: skip
@@ -177,7 +211,7 @@ def _pred(gain: dict[str, float], n: int = 600) -> tuple[pl.DataFrame, list[dict
                          **{f"p_team_{s}_{x}": p for x in ec.TEAM_LINES
                             for s in ("home", "away")}})  # fmt: skip
     for v in ec.VARIANTS:
-        diags.append({"variant": v, "as_of": asof.isoformat(), "ok": True, "phi": 20.0,
+        diags.append({"variant": v, "as_of": asof.isoformat(), "ok": True, "nu": 1.0,
                       "ppc": {"corr": {"obs": 0.1, "rep_mean": 0.0},
                               "disp_team": {"q": 0.01}}})  # fmt: skip
     return pl.DataFrame(rows), diags

@@ -2255,3 +2255,132 @@ Consequences:
       - **Run:** `lineup_j.yml`, stage fit: 5 bundles × 5 dev seasons × 4 parts = 100
         jobs, J only, about half of P3-d's compute. Then stage redo for any failing J
         refits. One backtest-type run at a time, not on a Monday.
+
+      **Step 2 run, 2026-11-27: go to the live shadow.** Fit run 46009315685 (101 jobs),
+      redo run 46072332080 (10 J refits redone at target_accept 0.99 and 4,000 draws). Dev
+      2019-2023, the five bundles, 18,682 warm matches. Negative means J is better.
+
+      | check | value | 95% interval | pass |
+      |---|---|---|---|
+      | J vs P at T-60m, 1X2 log loss | −0.07% | [−0.11%, −0.04%] | yes |
+      | J vs P at T-60m, RPS | −0.12% | [−0.18%, −0.07%] | yes |
+      | worst league × market segment (of 50) | +0.20% (one league, O/U 2.5) | | yes |
+      | inference gates, every J refit | 0 failing after the redo | | yes |
+      | J median refit ÷ P's | 1.11 (488 s vs 438 s) | | yes |
+      | signals leakage check | 0 of 20 rebuilt changed | | yes |
+
+      - **T-24h (projected XI, reported):** −0.03% [−0.06%, +0.00%] log loss, −0.05%
+        [−0.10%, +0.00%] RPS.
+      - **By league:** 8 of 10 better on both scores at T-60m; one is +0.00% and one is
+        +0.04%.
+      - **By season:** 2020-2023 better (−0.04% to −0.14% log loss); 2019 is +0.02%.
+      - **Fits:** J's worst R-hat is 1.010, min ESS 467, 0 divergences. β_miss median
+        −0.021 per warm-up sd (range −0.045 to +0.010); β_rat median +0.010 (−0.018 to
+        +0.034). These are small, as step 1 showed.
+      - **Power for the live window, recomputed:** the per-match J − P log loss sd is
+        0.0267 over the dev pairs. At 1,800 live matches the detectable gain is 0.17%
+        (80% power, two-sided 5%), so dev's −0.07% would most likely not clear route 1.
+        Its 95% half-width at 1,800 matches is about 0.12%, so if the live gain matches
+        dev's, the upper bound would be about +0.05%, under route 2's +0.10%.
+        - Route 2 is therefore the realistic way to pass. This is stated before any live
+          score; the gate is unchanged.
+
+      **Step 3 build plan, drafted 2026-11-27. Approved 2026-11-28 (owner: "sure go ahead", comparator (a)).** Stated before building and
+      before any live score.
+      1. **Live J refits** (`adatta/model/lineup_j_live.py`, a new job in `serve.yml` after
+         P's refits):
+         - J is fitted per bundle at every as-of time P is refitted live: Mondays, plus the
+           results triggers, since RESULTS_REFITS is on (D33).
+         - Training signals are rebuilt from the stored appearances, matches final by the
+           as-of time (as step 2's table).
+         - The draws go under `serving/lineup_j/`, with a `model_run` row: component p3j,
+           window shadow, the inference gates and one redo as in step 2.
+         - Cost: about 1.1× P's refit time per refit, 0 API requests.
+      2. **Signal basis, daily:** each team's usual XI (minute shares over its last 10
+         league matches) and each player's shrunk prior rating, as of the run.
+         - It is written by the same 04:41 UTC daily job as P3-b's projected lineups, so
+           the capture tick does no history reads.
+      3. **Shadow forecasts, in the capture tick:**
+         - **J_lk:** on the tick that first sees both announced XIs (`lineup_snapshot`,
+           before kickoff). S_miss and S_rat come from the announced XIs and the basis. A
+           side whose XI is missing uses its projected XI, flagged (as (a)).
+         - **J_24:** at the T-24h milestone, from P3-b's projected XI as of then.
+         - Both J and P are projected from their latest passing refits of the same as-of
+           time. P's draws there are the served model's, so each pair differs only by the
+           lineup offset.
+         - Stored: the 1X2, O/U 2.5, BTTS and total-goals probabilities 0-10+, and the
+           four signals.
+      4. **Storage:** `lineup_j_shadow` (a new forward-only migration), append-only, one
+         row per match × horizon × model. The API never reads it, and a guard test checks
+         this, as the odds guard does.
+      5. **Judgement:** `config/lineup_j_live_gate.yml` is written now, before any score,
+         holding (d)'s gate, the segments and the power statement above. It is read once
+         after 2026/27 ends (`python -m adatta.eval.lineup_j_live`), on the five bundles'
+         league matches with a J_lk pair.
+      6. **Tests:** J's offset is applied once and only from pre-kickoff facts. A lineup
+         seen after kickoff gives no J_lk. A refit from the future is refused. The pairs
+         share an as-of time. Youth sides follow D60, with no filter.
+
+      **Owner choice, J's comparator:**
+      - (a) **J vs P projected from the same as-of refit in the shadow step, at the same
+        moment (recommended).** This is the served model's draws, paired exactly.
+      - (b) J vs P's served T-60m milestone in `market_projection`. That is closer to
+        "what was shown", but it holds O/U only at 1.5/2.5/3.5 (no total-goals CRPS), and
+        P's T-60m is up to about an hour earlier than J_lk.
+
+      **Timing:** about a day to build and test. The first J refit would come with the
+      next serve run after approval, and shadow forecasts with that week's fixtures. Every
+      week of delay shortens the window, which ends with the season.
+
+      **Step 3 built, 2026-11-28, not deployed** (comparator (a)). As drafted above, with
+      these details fixed before any live score:
+      - **Live J refits** (`adatta/model/lineup_j_live.py`; `serve.yml` job `lineup_j`,
+        after P's refits, one bundle at a time).
+        - J is fitted at the as-of time of each passing P live refit not yet matched. The
+          first run fits only each bundle's latest, with no backfill. A failed J refit is
+          recorded and not retried.
+        - Training signals are step 2's `signals_at` over the window, with step 2's
+          warm-up scales and line means (table `021eb8f8c77ed8f1`).
+        - Each refit's manifest records whether its training rows hash to P's
+          (`same_training_as_p`) and the share of rows with a signal.
+      - **Daily basis** (`adatta/sim/lineup_j_shadow.py basis`, `projected_lineups.yml`
+        after the appearances rebuild):
+        - each team's minute shares over its last 10 league matches, and each player's
+          rating history at his last rated appearance, final by the run;
+        - a basis older than 2 days, or dated after the tick, is reported and no row is
+          written.
+        - A test checks that the basis plus an XI give step 2's `signals_at` exactly
+          (to 1e-12) for the same match.
+        - What differs from dev: a match final between the 04:41 run and kickoff isn't
+          in the basis. A team rarely plays twice in a day.
+      - **The tick step** (`run_capture`, `lineup_j_shadow`, numpy and polars only):
+        - lk is written on the first tick that sees both announced XIs, observed before
+          kickoff. At the last call (20 min before kickoff), a side still without one uses
+          P3-b's latest projected XI, flagged; with neither, its signals are 0 (rule 8).
+        - 24 is written in the T-24h milestone window, from P3-b's run at or before T-24h.
+        - J's matrices are P's projection path (`serve.fixture_matrices`, with the D34
+          walk) plus β·x on each side's log rate. P's row is the served model's
+          projection from the same refit.
+        - The tick module loads without the model group.
+      - **Storage:** `lineup_j_shadow` (migration 0020), unique per match × horizon × model.
+        It holds the signals and the posterior-mean 11×11 matrix. A test checks that
+        nothing in `adatta/api` reads it.
+      - **Gate:** `config/lineup_j_live_gate.yml`, written now. The judge
+        (`adatta/eval/lineup_j_live.py judge`) refuses before 2027-06-15 and after a
+        stored verdict.
+      - **Tests:** `tests/test_lineup_j_shadow.py` (10) and `tests/test_lineup_signals.py`
+        (live parity) cover:
+        - pairs from the same refit, and P equal to the served projection;
+        - one row per match × horizon;
+        - a lineup seen after kickoff never read;
+        - rule 8 giving J = P;
+        - T-24h from P3-b's projection in its window;
+        - no pair, or a stale basis, writing nothing;
+        - J following P's refits;
+        - the redo;
+        - training alignment;
+        - the scores and routes;
+        - read once.
+      - **To go live:** apply migration 0020 to the database, push, then run
+        `projected_lineups` once (the basis) and `serve` once (the first J refits, about
+        40 min for the five bundles).

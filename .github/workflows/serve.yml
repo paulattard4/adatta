@@ -58,6 +58,29 @@ jobs:
         run: >-
           uv run --frozen --group model python -m adatta.model.live refit
           --bundle ${{ matrix.bundle }} ${AS_OF:+--as-of "$AS_OF"}
+  lineup_j:
+    # P3-j step 3 (D65), shadow: J refitted at the as-of time of every passing P refit of the
+    # bundle not yet matched (the latest one on the first run), after the bundle refits (also
+    # when one of them failed). About 1.1x P's refit time each; nothing served. Metrics only.
+    needs: refit
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        bundle: ["england", "spain", "italy", "germany", "france"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: J refits due (shadow)
+        run: >-
+          uv run --frozen --group model python -m adatta.model.lineup_j_live refit
+          --bundle ${{ matrix.bundle }}
   share:
     # P3b-2 (D51): this week's production S0 share refit as of Monday 00:00 UTC, after the
     # bundle refits (also when one of them failed); a trigger as_of has no share refit.

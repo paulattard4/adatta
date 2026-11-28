@@ -642,6 +642,33 @@ class FormationProjection(Base):
     __table_args__ = (Index("ix_formation_projection_match", "match_id", "generated_at"),)
 
 
+class LineupJShadow(Base):
+    """P3-j step 3 (docs/PHASE3_TASKS.md, D65): J's shadow forecast of one bundle league
+    fixture and, beside it, P's from the passing refit of the same as-of time (comparator
+    (a)), at lineups known (`lk`, from the announced XIs) and at T-24h (`24`, P3-b's
+    projected XIs). Append-only, one row per match x horizon x model; never shown (the API
+    does not read it) until the live verdict. `matrix` is the posterior-mean 90' score
+    matrix, row-major; no odds."""
+
+    __tablename__ = "lineup_j_shadow"
+    lineup_j_shadow_id: Mapped[int] = mapped_column(BigIntPk, primary_key=True,
+                                                    autoincrement=True)  # fmt: skip
+    match_id: Mapped[int] = mapped_column(ForeignKey("match.match_id"))
+    horizon: Mapped[str] = mapped_column(String(4))  # lk / 24
+    model: Mapped[str] = mapped_column(String(8))  # J / P
+    model_run_id: Mapped[int] = mapped_column(Integer)
+    refit_as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    lineup_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                            nullable=True)  # fmt: skip
+    signals: Mapped[dict[str, Any]] = mapped_column(JsonType)
+    matrix: Mapped[list[float]] = mapped_column(JsonType)
+    p_home: Mapped[float] = mapped_column(Float)
+    p_draw: Mapped[float] = mapped_column(Float)
+    p_away: Mapped[float] = mapped_column(Float)
+    __table_args__ = (UniqueConstraint("match_id", "horizon", "model"),)
+
+
 class MatchCoach(Temporal, Base):
     """The coach named in a team's lineup for one match (Phase 1b, D12), parsed from the
     stored detail payload. Known from the lineup release, about an hour before kickoff; the

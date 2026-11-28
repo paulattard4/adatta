@@ -1,24 +1,31 @@
 """P3b-3: team cards with referee strictness (docs/PHASE3B_TASKS.md P3b-3, D66; spec §8.4).
 
-For team j against opponent o in match i, with referee r:
+For team j against opponent o in match i, with referee r (D69 (b)):
 
-    y_ij ~ NegBinomial(mu_ij, phi)
-    log mu_ij = c[l, s] + h home_ij + a[j] + b[o] + s_ref[r]
+    y_ij | e_i ~ CMP(lambda_ij, nu_l),  log lambda_ij = nu_l (eta_ij + e_i)
+    eta_ij = c[l, s] + h home_ij + a[j] + b[o] + s_ref[r],  e_i ~ Normal(0, sigma_match)
+
+CMP is Conway-Maxwell-Poisson, P(y) = lambda^y / (y!)^nu / Z (Z summed over 0..K_Z): nu > 1
+is under-dispersed, nu < 1 over-dispersed, nu = 1 Poisson; with log lambda = nu eta the
+mean is about exp(eta). nu is per league. e_i, shared by the two sides of a match, links
+them (D69: the dev run found the teams' counts correlated in every league, and Italy's team
+counts under-dispersed, which a negative binomial can't give).
 
 c[l, s] = c_l + delta[l, s], delta ~ Normal(0, SEASON_SD) with SEASON_SD fixed (a stated
 assumption, as D21's reset: 2-3 seasons per window don't identify a learned sd), a own card
 tendency, b the cards a team draws from opponents, s_ref the referee (one per identity in
-the country's pool). a, b and s_ref non-centred; sigma ~ HalfNormal(0.3 x scale),
-c_l ~ Normal(log 2.2, 0.5), h ~ Normal(0, 0.2), phi ~ Gamma(2, 0.1). Variants,
-nested: C0 (c, h), C1 (+ a, b), C2 (+ s_ref). Fitted per bundle on league matches with a
-named referee, final by the as-of (kickoff + 3 h) within WINDOW_DAYS, every GRID_DAYS on
-the dev Mondays.
+the country's pool). a, b, s_ref and e non-centred; sigma ~ HalfNormal(0.3 x scale) (the
+match term's too), c_l ~ Normal(log 2.2, 0.5), h ~ Normal(0, 0.2), log nu ~ Normal(0, 0.5).
+Variants, nested: C0 (c, h), C1 (+ a, b), C2 (+ s_ref), each with nu and the match term.
+Fitted per bundle on league matches with a named referee, final by the as-of (kickoff +
+3 h) within WINDOW_DAYS, every GRID_DAYS on the dev Mondays.
 
 Prediction: a team or referee without a training match gets 0 for a team and a pool draw
 Normal(0, sigma_ref) per posterior draw for a referee; so does a match whose referee is not
 known at the horizon (T-24h in POOL_24's leagues, or never named). A league-season without
-training matches draws its level from Normal(c_l, SEASON_SD). The two teams' counts are
-independent given the draw; the match total is their convolution within each draw.
+training matches draws its level from Normal(c_l, SEASON_SD). Within each draw the match
+term is integrated out by Gauss-Hermite quadrature (GH_NODES): the joint of the two teams'
+counts (`match_pmfs`), the total its anti-diagonals, each team its own margin.
 
 CLI (CI, model group; one backtest-type run at a time):
   run      --bundle B --season S --upload RUN [--table DIGEST]     dev seasons only
@@ -56,7 +63,9 @@ SEED = 20261127
 MAX_TEAM = 20  # team counts 0-20; the match total 0-40
 TOTAL_LINES = (3.5, 4.5, 5.5)
 TEAM_LINES = (1.5, 2.5)
-SIGMA_SD, C_MEAN, C_SD, H_SD, PHI_A, PHI_B = 0.3, float(np.log(2.2)), 0.5, 0.2, 2.0, 0.1
+SIGMA_SD, C_MEAN, C_SD, H_SD, NU_SD = 0.3, float(np.log(2.2)), 0.5, 0.2, 0.5
+K_Z = 40  # CMP normaliser terms, 0..K_Z
+GH_NODES = 9  # Gauss-Hermite nodes for the match term at prediction
 SEASON_SD = 0.1  # fixed: yearly card levels moved about +-5% (2016-2023); see the docstring
 POOL_24 = frozenset({140, 141})  # La Liga, Segunda: referee from the pool at T-24h
 HORIZONS = ("60", "24")
@@ -147,21 +156,40 @@ def build(d: Design, variant: str, prior_scale: float = 1.0) -> Any:
             s_r = pm.HalfNormal("sigma_ref", SIGMA_SD * k)
             z_r = pm.Normal("z_ref", 0.0, 1.0, shape=len(ix.refs))
             eta = eta + s_r * z_r[d.ref]
-        phi = pm.Gamma("phi", PHI_A, PHI_B)
-        pm.NegativeBinomial("y", mu=pt.exp(eta), alpha=phi, observed=d.y)
+        log_nu = pm.Normal("log_nu", 0.0, NU_SD, shape=len(ix.leagues))
+        s_m = pm.HalfNormal("sigma_match", SIGMA_SD * k)
+        z_m = pm.Normal("z_match", 0.0, 1.0, shape=int(d.match.max()) + 1)
+        nu = pt.exp(log_nu)[d.ls_league[d.ls]]
+        loglam = nu * (eta + s_m * z_m[d.match])
+        pm.Potential("y_cmp", pt.sum(cmp_logp_pt(d.y, loglam, nu)))
     return model
 
 
+def cmp_logp_pt(y: IntArr, loglam: Any, nu: Any) -> Any:
+    """CMP log pmf of y per row (PyTensor), the normaliser summed over 0..K_Z."""
+    import pymc as pm
+    import pytensor.tensor as pt
+    from scipy.special import gammaln
+
+    kk = np.arange(K_Z + 1, dtype=np.float64)
+    lgk = gammaln(kk + 1)
+    log_z = pm.math.logsumexp(loglam[:, None] * kk[None, :] - nu[:, None] * lgk[None, :],
+                              axis=1).flatten()  # fmt: skip
+    yt = pt.as_tensor(y.astype(np.float64))  # a tensor first: ndarray * tensor misbehaves
+    return yt * loglam - nu * pt.as_tensor(gammaln(y + 1.0)) - log_z
+
+
 def post_draws(idata: Any, variant: str, n: int = PRED_DRAWS) -> dict[str, Arr]:
-    """The thinned posterior on the natural scale: c_league (L, D), c_ls (LS, D), h, phi
-    (D); C1+: a, b (T, D), sigma_a, sigma_b; C2: r (R, D), sigma_ref."""
+    """The thinned posterior on the natural scale: c_league (L, D), c_ls (LS, D), nu (L, D),
+    h, sigma_match (D); C1+: a, b (T, D), sigma_a, sigma_b; C2: r (R, D), sigma_ref."""
     post = idata["posterior"]
     flat = {v: np.asarray(post[v].values).reshape(-1, *post[v].shape[2:])
             for v in post.data_vars}  # fmt: skip
     take = np.linspace(0, len(flat["h"]) - 1, min(n, len(flat["h"]))).astype(np.int64)
     f = {k: v[take] for k, v in flat.items()}
     out: dict[str, Arr] = {"c_league": f["c_league"].T,
-                           "c_ls": f["c_ls"].T, "h": f["h"], "phi": f["phi"]}  # fmt: skip
+                           "c_ls": f["c_ls"].T, "h": f["h"], "nu": np.exp(f["log_nu"]).T,
+                           "sigma_match": f["sigma_match"]}  # fmt: skip
     if variant in ("C1", "C2"):
         out |= {"a": (f["z_a"] * f["sigma_a"][:, None]).T,
                 "b": (f["z_b"] * f["sigma_b"][:, None]).T,
@@ -211,22 +239,48 @@ def train_mu(post: dict[str, Arr], d: Design) -> Arr:
     return np.asarray(np.exp(eta))
 
 
-def nb_sample(mu: Arr, phi: Arr, rng: np.random.Generator) -> Arr:
-    """Negative binomial draws (mean mu, dispersion phi per column) via Gamma-Poisson."""
-    lam = rng.gamma(phi[None, :], mu / phi[None, :])
-    return rng.poisson(lam).astype(np.float64)
+def row_nu(post: dict[str, Arr], ix: Index, leagues: NDArray[Any]) -> Arr:
+    """(rows, D) each row's league nu."""
+    li = {x: i for i, x in enumerate(ix.leagues)}
+    return np.asarray(post["nu"][[li[int(x)] for x in leagues]])
+
+
+def cmp_pmf(eta: Arr, nu: Arr, k_max: int = MAX_TEAM) -> Arr:
+    """(..., k_max + 1) CMP probabilities with log lambda = nu eta, the normaliser over
+    0..K_Z (mass beyond k_max kept out, never renormalised)."""
+    from scipy.special import gammaln, logsumexp
+
+    kk = np.arange(K_Z + 1, dtype=np.float64)
+    lp = (nu * eta)[..., None] * kk - nu[..., None] * gammaln(kk + 1)
+    return np.asarray(np.exp(lp[..., : k_max + 1] - logsumexp(lp, axis=-1, keepdims=True)))
+
+
+def cmp_sample(eta: Arr, nu: Arr, sigma_m: Arr, match: IntArr, rng: np.random.Generator,
+               chunk: int = 25) -> Arr:  # fmt: skip
+    """Replicated counts (rows, D): one match term per match and draw, Normal(0, sigma_m),
+    shared by its rows, then CMP (inverse cdf over 0..K_Z)."""
+    nm = int(match.max()) + 1
+    out = np.empty(eta.shape)
+    for c0 in range(0, eta.shape[1], chunk):
+        sl = slice(c0, c0 + chunk)
+        e = rng.standard_normal((nm, eta[:, sl].shape[1])) * sigma_m[None, sl]
+        cdf = np.cumsum(cmp_pmf(eta[:, sl] + e[match], nu[:, sl], K_Z), axis=-1)
+        u = rng.random(eta[:, sl].shape)
+        out[:, sl] = (cdf < u[..., None]).sum(axis=-1)
+    return out
 
 
 def ppc(post: dict[str, Arr], d: Design, seed: int = SEED, n: int = 200) -> dict[str, Any]:
     """Dispersion (variance / mean) of team cards and of match totals, and the correlation
     of the two teams' counts, observed against the posterior predictive. D67: only the
     total's dispersion gates (inside its 95% band); the team's and the correlation are
-    reported (team cards are under-dispersed and the teams linked, which offset in the
-    total)."""
+    reported. The replicates share each match's term (D69), so they carry the model's own
+    link between the teams."""
     rng = np.random.default_rng(seed)
     cols = np.linspace(0, len(post["h"]) - 1, min(n, len(post["h"]))).astype(np.int64)
     mu = train_mu(post, d)[:, cols]
-    rep = nb_sample(mu, post["phi"][cols], rng)
+    nu = post["nu"][d.ls_league[d.ls]][:, cols]
+    rep = cmp_sample(np.log(mu), nu, post["sigma_match"][cols], d.match, rng)
     y = d.y.astype(np.float64)
     nm = int(d.match.max()) + 1
     two = np.bincount(d.match, minlength=nm) == 2
@@ -311,23 +365,49 @@ def target_mu(post: dict[str, Arr], ix: Index, t: pl.DataFrame, pool: NDArray[np
     return np.asarray(np.exp(eta))
 
 
-def team_pmf(mu: Arr, phi: Arr) -> Arr:
-    """(rows, D, MAX_TEAM + 1) negative binomial probabilities (tail beyond the cap kept
-    out, never renormalised)."""
-    from scipy.stats import nbinom
+def match_pmfs(eta_h: Arr, eta_a: Arr, nu_h: Arr, nu_a: Arr, sigma_m: Arr,
+               ) -> tuple[Arr, Arr, Arr]:  # fmt: skip
+    """Per draw (D,), the match term integrated out by Gauss-Hermite quadrature: the joint
+    (D, K, K) of the two teams' counts and each team's distribution (D, K), 0..MAX_TEAM
+    (mass beyond the caps kept out)."""
+    x, w = np.polynomial.hermite.hermgauss(GH_NODES)
+    wq = w / np.sqrt(np.pi)
+    e = np.sqrt(2.0) * sigma_m[:, None] * x[None, :]  # (D, Q)
+    ph = cmp_pmf(eta_h[:, None] + e, np.broadcast_to(nu_h[:, None], e.shape))
+    pa = cmp_pmf(eta_a[:, None] + e, np.broadcast_to(nu_a[:, None], e.shape))
+    joint = np.einsum("dqi,dqj,q->dij", ph, pa, wq)
+    return joint, np.einsum("dqi,q->di", ph, wq), np.einsum("dqi,q->di", pa, wq)
 
-    p = phi[None, :] / (phi[None, :] + mu)
-    k = np.arange(MAX_TEAM + 1)
-    return np.asarray(nbinom.pmf(k[None, None, :], phi[None, :, None], p[:, :, None]))
+
+def joint_total(joint: Arr) -> Arr:
+    """(D, 2 MAX_TEAM + 1) the match total within each draw: the joint's anti-diagonals."""
+    n = joint.shape[1]
+    out = np.zeros((joint.shape[0], 2 * n - 1))
+    for i in range(n):
+        out[:, i : i + n] += joint[:, i, :]
+    return out
 
 
 def total_pmf(ph: Arr, pa: Arr) -> Arr:
-    """(D, 2 MAX_TEAM + 1) totals within each draw (independent teams), from (D, K) pmfs."""
+    """(D, 2 MAX_TEAM + 1) totals within each draw of independent teams (B_clim), from (D, K)
+    pmfs."""
     n = ph.shape[1]
     out = np.zeros((ph.shape[0], 2 * n - 1))
     for i in range(n):
         out[:, i : i + n] += ph[:, i : i + 1] * pa
     return out
+
+
+def coherent(joint: Arr, ph: Arr, pa: Arr, tol: float = 1e-9) -> None:
+    """Check 1 (D69): within every draw each team's capped joint margin is at most its own
+    distribution, and the capped joint loses at most the two teams' tails beyond the cap.
+    The total is the joint's anti-diagonals (`joint_total`)."""
+    for marg, own in ((joint.sum(axis=2), ph), (joint.sum(axis=1), pa)):
+        if np.any(marg > own + tol):
+            raise AssertionError("a team margin of the joint exceeds the team's distribution")
+    lost = 1.0 - joint.sum(axis=(1, 2))
+    if np.any(lost < -tol) or np.any(lost > (1 - ph.sum(axis=1)) + (1 - pa.sum(axis=1)) + tol):
+        raise AssertionError("the joint's mass is not 1 less the teams' tails")
 
 
 def over(p: Arr, line: float) -> float:
@@ -426,13 +506,13 @@ def score_refit(posts: dict[str, dict[str, Arr]], ix: Index, tgt: pl.DataFrame,
         for hz in HORIZONS:
             pool = ~named | ((np.isin(lg, list(POOL_24))) if hz == "24" else False)
             mu = target_mu(post, ix, t, np.asarray(pool, dtype=bool))
-            pmf = team_pmf(mu, post["phi"])
+            eta, nu = np.log(mu), row_nu(post, ix, lg)
             for i, b in enumerate(base):
-                tot = total_pmf(pmf[2 * i], pmf[2 * i + 1]).mean(axis=0)
-                th, ta = pmf[2 * i].mean(axis=0), pmf[2 * i + 1].mean(axis=0)
-                mass = float((pmf[2 * i].sum(axis=1) * pmf[2 * i + 1].sum(axis=1)).mean())
-                if abs(tot.sum() - mass) > 1e-9:
-                    raise AssertionError("total is not the convolution of the team counts")
+                joint, ph, pa = match_pmfs(eta[2 * i], eta[2 * i + 1], nu[2 * i], nu[2 * i + 1],
+                                           post["sigma_match"])  # fmt: skip
+                coherent(joint, ph, pa)
+                tot = joint_total(joint).mean(axis=0)
+                th, ta = ph.mean(axis=0), pa.mean(axis=0)
                 rows.append({**b, "model": v, "horizon": hz,
                              **score(tot, th, ta, b["y_home"], b["y_away"])})  # fmt: skip
     return rows
@@ -461,9 +541,12 @@ def run_part(table: pl.DataFrame, bundle: str, season: int, end: datetime | None
             if v != "C0":
                 diag |= {"sigma_a": float(post["sigma_a"].mean()),
                          "sigma_b": float(post["sigma_b"].mean())}  # fmt: skip
-            diag |= {"phi": float(post["phi"].mean()), "variant": v, "bundle": bundle,
-                     "season": season, "as_of": as_of.isoformat(), "n_train": len(d.y),
-                     "n_refs": len(d.index.refs)}  # fmt: skip
+            diag |= {"nu": float(post["nu"].mean()),
+                     "nu_league": {str(lg): float(x) for lg, x in
+                                   zip(d.index.leagues, post["nu"].mean(axis=1), strict=True)},
+                     "sigma_match": float(post["sigma_match"].mean()), "variant": v,
+                     "bundle": bundle, "season": season, "as_of": as_of.isoformat(),
+                     "n_train": len(d.y), "n_refs": len(d.index.refs)}  # fmt: skip
             diag["ok"] = bool(diag["gates_ok"] and diag["ppc_ok"] and diag.get("sens_ok", True))
             posts[v] = post
             diags.append(diag)

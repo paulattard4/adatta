@@ -185,3 +185,31 @@ def test_step2_table_scales_attaches_and_passes_its_leakage_check() -> None:
     assert ls.side_signals(df, "home", "24").shape == (12, 2)
     leak = ls.step2_leakage(ap, mt, BUNDLE, t, [2020], warm_end, ex, n=4)
     assert leak == {"n": 4, "changed": 0, "ok": True}
+
+
+def test_live_signals_equal_step2s_for_the_same_xi_and_history() -> None:
+    """P3-j step 3: the capture tick's signals (the daily basis and the announced XI) are
+    step 2's `signals_at` for the same match, so J live reads what J was judged on."""
+    swaps = {(w, t): {t * 100 + 3: t * 100 + 12} for w in range(4, 16, 3) for t in (1, 2)}
+    swaps[(15, 1)] = {103: 112, 107: 113, 109: 114}
+    mt, ap = _league(16, swaps)
+    rng = np.random.default_rng(7)
+    ap = ap.with_columns(rating=pl.when(pl.col("started"))
+                         .then(pl.Series(rng.uniform(5.5, 8.5, ap.height))))  # fmt: skip
+    tm = ls.team_matches(mt, BUNDLE)
+    sq = ls.squads(ap, mt["match_id"])
+    means = ls.line_means(sq, K0 + timedelta(days=60))
+    target = tm.filter(pl.col("match_id") == 16)
+    want = ls.signals_at(tm, sq, target, ls.starters(sq, target), ls.rating_history(sq), means,
+                         ls.H_LK).sort("team_id")  # fmt: skip
+    kick = target["kickoff"][0]
+    usual_, players = ls.live_basis(ap, mt, BUNDLE, kick - ls.H_LK)
+    xi = ls.starters(sq, target).select("team_id", "player_id", "line")
+    got = ls.live_signals(usual_, players, xi, means).sort("team_id")
+    assert want["s_miss"].to_list() == pytest.approx(got["s_miss"].to_list(), abs=1e-12)
+    assert want["s_rat"].to_list() == pytest.approx(got["s_rat"].to_list(), abs=1e-12)
+    assert got.filter(pl.col("team_id") == 1)["s_miss"][0] > 0.2  # three of the usual out
+    # training signals: the same definitions over every team-match from `lo`
+    tt = ls.train_table(ap, mt, BUNDLE, K0, means).filter(pl.col("match_id") == 16)
+    assert tt.sort("team_id")["s_miss"].to_list() == pytest.approx(want["s_miss"].to_list())
+    assert tt["s_miss_24"].null_count() == tt.height

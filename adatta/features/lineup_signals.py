@@ -454,6 +454,85 @@ def side_signals(df: pl.DataFrame, side: str, h: str = "lk") -> Arr:
                             for s in STEP2_SIGNALS])  # fmt: skip
 
 
+# ------------------------------------------------------------------- live (P3-j step 3)
+
+J_TABLE = "021eb8f8c77ed8f1"  # step 2's table: its warm-up scales and line means are J's
+
+
+def train_table(app: pl.DataFrame, matches: pl.DataFrame, bundle_of: Mapping[int, str],
+                lo: datetime, means: Mapping[str, float]) -> pl.DataFrame:  # fmt: skip
+    """A live J refit's training signals: S_miss and S_rat at T-60m from the announced XI
+    of every team-match kicking off from `lo` (step 2's definitions, `signals_at`), with
+    the T-24h columns empty (training reads lk only)."""
+    tm = team_matches(matches, bundle_of)
+    sq = squads(app, matches["match_id"])
+    targets = tm.filter(pl.col("kickoff") >= lo)
+    lk = signals_at(tm, sq, targets, starters(sq, targets), rating_history(sq), means, H_LK)
+    t = targets.select(*KEY).join(lk.select(*KEY, *STEP2_SIGNALS), on=KEY, how="left")
+    return t.with_columns([pl.lit(None, pl.Float64).alias(f"{x}_24") for x in STEP2_SIGNALS])
+
+
+def live_basis(app: pl.DataFrame, matches: pl.DataFrame, bundle_of: Mapping[int, str],
+               now: datetime) -> tuple[pl.DataFrame, pl.DataFrame]:  # fmt: skip
+    """What a live forecast needs besides its XI, from matches final by now - RESULT_LAG:
+    per team, the players' minute shares over its last PREV_N league matches (`usual` for
+    the XI_N largest, as `usual`) with n_prev; per player, his rating history at its last
+    rated appearance (r_mean, r_n, h_line), as `ratings_asof` reads it."""
+    cut = now - RESULT_LAG
+    tm = team_matches(matches, bundle_of).filter(pl.col("kickoff") <= cut)
+    sq = squads(app, tm["match_id"].unique())
+    prev = (tm.sort("kickoff", "match_id", descending=True)
+            .group_by("team_id", maintain_order=True).head(PREV_N)
+            .select("team_id", prev_id="match_id"))  # fmt: skip
+    pp = prev.join(sq.select("team_id", "player_id", "share", prev_id="match_id"),
+                   on=["team_id", "prev_id"])  # fmt: skip
+    n = prev.group_by("team_id").agg(n_prev=pl.len())
+    u = pp.group_by("team_id", "player_id").agg(pl.col("share").sort().sum()).join(n, on="team_id")
+    u = u.with_columns(share=pl.col("share") / pl.col("n_prev"))
+    u = u.sort("team_id", "share", "player_id", descending=[False, True, False])
+    u = u.with_columns(usual=pl.int_range(pl.len()).over("team_id") < XI_N)
+    hist = rating_history(sq).filter(pl.col("kickoff") <= cut)
+    last = (hist.sort("player_id", "kickoff").group_by("player_id", maintain_order=True).last()
+            .select("player_id", "r_mean", "r_n", h_line="line"))  # fmt: skip
+    return u, last
+
+
+def live_signals(usual_: pl.DataFrame, players: pl.DataFrame, xi: pl.DataFrame,
+                 means: Mapping[str, float]) -> pl.DataFrame:  # fmt: skip
+    """(team_id, s_miss, s_rat, n_prev, n_xi) for `xi` (team_id, player_id, line) from the
+    basis (`live_basis`), as `s_miss` and `s_rat` compute them. Null without a baseline
+    (rule 8)."""
+    xs = xi.join(usual_.select("team_id", "player_id", "share"), on=["team_id", "player_id"],
+                 how="left")  # fmt: skip
+    num = xs.group_by("team_id").agg(xi_share=pl.col("share").fill_null(0.0).sort().sum(),
+                                     n_xi=pl.len())  # fmt: skip
+    den = usual_.filter(pl.col("usual")).group_by("team_id").agg(
+        usual_share=pl.col("share").sort().sum(), n_prev=pl.col("n_prev").first()
+    )  # fmt: skip
+    j = num.join(den, on="team_id", how="left")
+    ok = (pl.col("n_prev") >= MIN_PREV) & (pl.col("usual_share") > 0) & (pl.col("n_xi") == XI_N)
+    frac = pl.col("xi_share") / pl.col("usual_share")
+    miss = j.select("team_id", pl.col("n_prev").fill_null(0), "n_xi",
+                    s_miss=pl.when(ok).then(1.0 - frac))  # fmt: skip
+
+    def shrunk(rows: pl.DataFrame) -> pl.DataFrame:
+        r = rows.join(players, on="player_id", how="left")
+        line = pl.coalesce(pl.col("line"), pl.col("h_line"), pl.lit(""))
+        target = line.replace_strict(dict(means), default=means[""], return_dtype=pl.Float64)
+        nn = pl.col("r_n").fill_null(0.0)
+        return r.with_columns(
+            r=(nn * pl.col("r_mean").fill_null(0.0) + RATING_PSEUDO * target) / (nn + RATING_PSEUDO)
+        )
+
+    ux = usual_.filter(pl.col("usual")).select("team_id", "player_id", line=pl.lit(None, pl.Utf8))
+    ma = shrunk(xi).group_by("team_id").agg(r_xi=pl.col("r").sort().mean())
+    mb = shrunk(ux).group_by("team_id").agg(r_usual=pl.col("r").sort().mean())
+    rat = ma.join(mb, on="team_id", how="inner").select(
+        "team_id", s_rat=pl.col("r_xi") - pl.col("r_usual"))  # fmt: skip
+    out = miss.join(rat, on="team_id", how="left")
+    return out.with_columns(s_rat=pl.when(pl.col("s_miss").is_not_null()).then(pl.col("s_rat")))
+
+
 def save_step2(store: Any, table: pl.DataFrame, meta: dict[str, Any]) -> str:
     h = digest(table)
     buf = io.BytesIO()

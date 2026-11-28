@@ -122,3 +122,46 @@ The acceptance may set a longer window.
 - The Phase 1b gate line in `CLAUDE.md` gains the routes, with the owner's sign-off on that
   edit.
 - The gate code gains route 2, 2T and 3 checks with tests, before any challenger uses them.
+
+## Drafted 2026-11-28, not approved: a register of every test (D70)
+
+**Why.** Each gate is sound alone: a route 1 pass on a 95% interval is wrong about 2.5% of
+the time when the challenger is truly no better. Across a long backlog those chances add
+up, and the risk is highest when several challengers are judged on the same matches (the
+2026/27 live period now holds P3-j, P3-h2, C1 v2, Stage B and the C2 leagues). Nothing
+records how many tests have been run, so nobody can say how many passes to expect by luck.
+
+**Proposed:**
+1. **A register**, `docs/TEST_REGISTER.md`: one row per judged test, opened when its
+   acceptance is pre-registered and closed when it is read. The register is append-only;
+   a closed row is never edited.
+   - Columns: item, decision row, window and its dates, route, n, the headline difference
+     and interval, the detectable gain, pass or fail, and what it changed.
+   - Every judged test gets a row: dev gates that decide go or stop, holdout and live
+     verdicts. Fails and abandoned tests count too.
+   - The rows to date are backfilled from the task docs (counts and verdicts only, no
+     match-level data).
+2. **A family rule for shared windows.**
+   - Tests that promote into the same served market and are read on the same window form
+     a family: for example two challengers to the 1X2 forecast judged on 2026/27.
+   - A family's k tests each use a 1 − 0.05/k interval (Bonferroni; 97.5% for two), stated
+     in each acceptance before the window is read.
+   - Tests on different windows, or for different markets, stay at 95%.
+3. **A running count** in the register's header: the tests read, the passes, and the
+   expected false passes if every challenger were no better (the sum of each test's
+   one-sided error).
+
+**What it costs:** the register and backfill are a documentation task (about half a day);
+the family rule changes no gate already pre-registered. P3-j's live gate is alone in its
+family (the 1X2 forecast, lineups known) unless another 1X2 challenger is registered on
+2026/27, which would then share it at 97.5% each.
+
+**Owner choices:**
+1. **The register:**
+   - (a) as above (recommended);
+   - (b) not kept.
+2. **Stricter intervals:**
+   - (a) the family rule for shared windows only (recommended): it targets the real
+     multiplicity risk and leaves independent tests alone;
+   - (b) every promotion at 99% from now on;
+   - (c) none: the register only.

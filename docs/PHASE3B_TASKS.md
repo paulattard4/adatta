@@ -718,3 +718,140 @@ Tick each item only when its acceptance check passes.
 
       Nothing has been scored, and these change no metric or gate threshold. They're
       raised because 1 and 3 change approved settings and 2 changes what gates.
+
+      **Dev run, 2026-11-28: the gate fails on (c); window (i) is not opened.** Run
+      46078971953 (25 jobs, cards table bf5eba3cbfc7fa50), 17,721 dev matches at T-60m.
+
+      | check | result | pass |
+      |---|---|---|
+      | 1 coherence | largest tail beyond the caps 1.2e-06 | yes |
+      | 2 C1 vs C0, total-cards RPS | −1.17% [−0.0173, −0.0116] | C1 replaces C0 |
+      | 2 C2 vs C1, total-cards RPS | −0.59% [−0.0101, −0.0044] | C2 replaces C1 |
+      | 2 refits passing (c), chosen variant | C0 57.1%, C1 72.8%, C2 73.9% (97% needed) | **no** |
+      | 3 C2 vs B_clim, total-cards RPS | −1.83% [−0.0270, −0.0186] | yes |
+      | 3 C2 vs B_clim, O/U 4.5 log loss | −1.82% [−0.0147, −0.0095] | yes |
+      | 4 ECE, O/U 3.5 / 4.5 / 5.5 (floor) | 0.0115 (0.0105) / 0.0124 (0.0110) / 0.0124 (0.0100) | yes |
+      | 5 segments, by league vs B_clim / vs C1 | worst −0.42% / +0.00% | yes |
+
+      - **Reported:** T-24h vs B_clim RPS: C2 −1.68%. Team O/U ECE (floor): 1.5 0.0089
+        (0.0072), 2.5 0.0111 (0.0073). Medians: σ_ref 0.106, σ_a 0.101, σ_b 0.085,
+        phi 64.5.
+      - **Every failing refit fails one check, the total-cards dispersion PPC.**
+        Convergence (R-hat, ESS, divergences) and C2's prior sensitivity pass at all 261
+        refits of every variant.
+        - **The failures go both ways** (corrected 2026-11-28; the draft below first said
+          only "too narrow", read from a C0 refit). Under C2, 54 failing refits have a
+          model total *wider* than observed (PPC quantile about 0): Italy 44, France 7,
+          Spain 3. 14 have it *narrower* (quantile about 1): Spain 13, England 1. Under C0
+          almost all are narrower (107 of 112).
+        - Medians over dev (observed): total dispersion is 1.19 in England, 1.18 in Spain,
+          1.14 in Germany, 1.10 in France and 1.01 in Italy. Team dispersion is 1.03,
+          1.03, 0.99, 0.95 and **0.88**.
+        - The two teams' counts are linked in every league: observed correlation 0.14-0.18
+          (median), against the model's 0.03-0.05 under C2. Over dev, observed minus
+          replicated is +0.124 (median).
+        - The failures cluster by league: under C2, Italy fails 44 of 51 refits, Spain
+          2023 10 of 11, France 2020 6 of 10. England fails 1 of 54 and Germany none.
+        - D67 expected the team-level errors to offset in the total, from one England
+          refit; over dev they do not in these leagues.
+      - The dev scores are the tuning window's, so the rule gives "do not proceed", and
+        nothing is served. The window (i) marker is untouched.
+
+      **Raised: D69, drafted 2026-11-28. Approved 2026-11-28 (owner: "Approve D69 (a)").** The team terms are independent
+      given the rates, so nothing in the model links the two sides of a match.
+      - **(a) A shared match frailty, closed form (recommended).** Both teams' rates share
+        one Gamma(phi, phi) multiplier per match. Integrated out, the joint pmf is the
+        bivariate negative binomial:
+
+        P(y₁, y₂) = Γ(φ+y₁+y₂) / (Γ(φ) y₁! y₂!) · (φ/(φ+λ₁+λ₂))^φ ·
+        λ₁^y₁ λ₂^y₂ / (φ+λ₁+λ₂)^(y₁+y₂).
+
+        - There are no latent variables per match, so fit time stays about the same.
+        - The total is NB(λ₁+λ₂, φ), and the correlation is positive.
+        - Each team's own count is NB(λᵢ, φ), so it is a little over-dispersed, while
+          observed team counts are slightly under. That is the team PPC D67 already made
+          reported only, and team markets stay unserved.
+        - Check 1 becomes: the total is the sum along the joint matrix's anti-diagonals,
+          not the convolution of the two marginals. Same-game team combinations can then
+          be read from the joint.
+      - **(b) Conway-Maxwell-Poisson teams with a latent match term:** D67's larger
+        alternative. It fits both the team under-dispersion and the link, but adds a
+        latent term per match and a numerically summed normaliser. It would take days to
+        build and is about 2-3× slower to fit.
+      - **(c) Stop P3b-3 here.** Cards stay unserved.
+
+      With (a) or (b), C0-C2 are rebuilt on the same frailty and the dev run is repeated:
+      the same gate, thresholds and dev seasons, and window (i) is still read once, after
+      a dev pass. It takes about 25 jobs and 3-4 h, one backtest at a time, not on a
+      Monday.
+
+      **D69 (a) built and probed, 2026-11-28: it fixes one direction only. Raised to the
+      owner before any CI run.**
+      - **Built (uncommitted):**
+        - the likelihood is the match total ~ NB(μ₁+μ₂, φ) × home | total ~ Binomial,
+          with a single row fitted by its NB margin;
+        - `joint_pmf` and `joint_total` give the prediction, and `coherent` is check 1 as
+          amended;
+        - the PPC replicates share each match's frailty.
+        - Tests: 11 in `tests/test_cards.py`, and 3 in the model container, including
+          the likelihood equal to the bivariate NB summed over matches, and referee
+          recovery.
+      - **Probe**, C2 refitted with the frailty at two dev refits that failed (metrics only;
+        `data/scratch/cards_frailty_probe.py`):
+
+        | refit | φ | correlation, replicated (observed) | total PPC q | before |
+        |---|---|---|---|---|
+        | Spain 2023-12-25 | 26.3 | 0.13 (0.21) | 0.415, **pass** | too narrow |
+        | Italy 2019-10-14 | 80.0 | 0.06 (0.21) | 0.000, fail | too wide |
+
+        Gates were clean in both: R-hat ≤ 1.006, ESS ≥ 680, 0 divergences, 70-100 s.
+      - **Why Italy can't pass under (a):** a shared Gamma frailty only adds spread. Italy's
+        team counts are under-dispersed (0.85 at this refit), so φ goes towards Poisson
+        and the frailty vanishes. The total stays wider than observed, as it was without
+        the frailty. If (a) fixes the 14 "too narrow" refits and none of the 54 "too
+        wide", C2 passes about 79% (97% needed), and the gate fails again.
+      - **Owner choice (D69 reopened):**
+        - (a) as approved: run it anyway. Expected to fail (c) at about 79%.
+        - (b) **team counts under-dispersed as well as linked (recommended if continuing).**
+          A Conway-Maxwell-Poisson team likelihood (ν per league; ν > 1 is
+          under-dispersed), with the link as a latent match term on the log rate,
+          non-centred. It is D67's larger alternative, now with evidence for both halves.
+          It takes about 1-2 days to build and fits about 2-3× slower, so the dev run is
+          about 6-9 h. A probe on these two refits comes first.
+        - (c) stop P3b-3. Cards stay unserved, and the (a) code is not committed.
+        - Widening the PPC band after seeing dev is not offered: that would loosen a gate
+          on the evidence it was meant to judge.
+
+      **D69 (b) chosen 2026-11-28** (owner: "Build (b), CMP + link"). **Built and probed the
+      same day, before any CI run.**
+      - **Model** (`adatta/model/cards.py`):
+        - each team's count is Conway-Maxwell-Poisson with log λ = ν(η + e), where ν is
+          per league with log ν ~ Normal(0, 0.5), and the normaliser is summed over 0-40;
+        - e ~ Normal(0, σ_match) is shared by a match's two sides, non-centred, with
+          σ_match ~ HalfNormal(0.3 × scale), so the sensitivity fits scale it too;
+        - η is unchanged, and all three variants carry ν and the match term.
+      - **Prediction:** the match term is integrated out by 9-node Gauss-Hermite quadrature
+        within each draw. The total is the joint's anti-diagonals.
+        - Check 1 becomes: each team's joint margin is at most its own distribution, and
+          the joint loses at most the two teams' tails beyond the cap.
+      - **PPC:** the replicates draw one match term per match and draw.
+      - **Tests:**
+        - `tests/test_cards.py`, 10: ν = 1 is Poisson, ν > 1 is under-dispersed, the
+          quadrature joint matches a simulation within 0.003, no match term gives
+          independence, and coherence.
+        - Model container, 3: the variants' terms, the likelihood equal to the CMP log
+          pmf summed by hand, and referee recovery with the PPC passing.
+      - **Probe**, C2 at the two dev refits that failed (metrics only):
+
+        | refit | total PPC q | team PPC q | correlation, replicated (observed) | ν by league | σ_match | fit |
+        |---|---|---|---|---|---|---|
+        | Italy 2019-10-14 (was too wide) | 0.45, pass | 0.355 | 0.198 (0.209) | 1.54, 1.95 | 0.21 | 1,045 s |
+        | Spain 2023-12-25 (was too narrow) | 0.445, pass | 0.315 | 0.200 (0.211) | 1.20, 1.26 | 0.24 | 1,175 s |
+
+        Gates were clean in both: R-hat ≤ 1.007, ESS ≥ 660, 0 divergences.
+      - **Cost:** a fit takes about 10× the negative binomial's locally (about 470 s on CI at
+        the usual 2.4× ratio), so a refit's five fits take about 40 min on CI.
+        - A bundle-season job of about 10 refits would exceed GitHub's 6-hour limit, so the
+          dev run needs parts (as P3-j's: each bundle-season split across jobs).
+        - A shorter normaliser (0-25 instead of 0-40) is to be measured first; cards above
+          25 per team don't occur.

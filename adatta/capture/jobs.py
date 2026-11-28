@@ -686,6 +686,7 @@ def run_capture(
     dispatch: Callable[[], None] | None = None,
     national: Callable[[datetime], Any] | None = None,
     c2: Callable[[datetime], Any] | None = None,
+    lineup_j: Callable[[datetime], Any] | None = None,
 ) -> CaptureReport:  # fmt: skip
     now = now or datetime.now(UTC)
     started = clock()
@@ -742,6 +743,12 @@ def run_capture(
                 report.actions.update({f"c2_{k}": v for k, v in c2r.written.items()})
                 report.actions["c2_no_refit"] += c2r.no_refit
                 report.errors += _alert_once(session, "c2_alert", c2r.problems, now)
+        if lineup_j is not None:  # P3-j step 3 (adatta.sim.lineup_j_shadow): shadow, no API
+            lj = step("lineup_j_shadow", "all", lambda: lineup_j(now))
+            if lj is not None:
+                report.actions.update({f"lineup_j_{k}": v for k, v in lj.written.items()})
+                report.actions["lineup_j_no_pair"] += lj.no_pair
+                report.errors += _alert_once(session, "lineup_j_alert", lj.problems, now)
         if weather is not None:
             w = step("weather", "all", lambda: capture_weather(session, weather, now))
             report.actions.update({f"weather_{k}": v for k, v in (w or {}).items()})

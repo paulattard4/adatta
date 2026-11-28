@@ -131,8 +131,8 @@ def gate(pred: pl.DataFrame, diags: list[dict[str, Any]]) -> dict[str, Any]:
                                                               else ("60",))}  # fmt: skip
     out["t24"] = {v: paired(effective(pred, diags, v, "24"), clim, "rps_total")
                   for v in VARIANTS}  # fmt: skip
-    med = {k: [g[k] for g in diags if k in g] for k in ("sigma_ref", "sigma_a", "sigma_b",
-                                                          "phi")}  # fmt: skip
+    med = {k: [g[k] for g in diags if k in g and g["variant"] == chosen]
+           for k in ("sigma_ref", "sigma_a", "sigma_b", "sigma_match", "nu")}  # fmt: skip
     out["sigmas"] = {k: [float(np.median(x)) if x else float("nan")] for k, x in med.items()}
     out["team_ece"] = team_calibration(c)
     out["ppc_team_q"] = float(np.median([g["ppc"]["disp_team"]["q"] for g in diags

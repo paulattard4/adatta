@@ -1,0 +1,38 @@
+# P3-j step 3 (D65; docs/PHASE3_TASKS.md P3-j (d)): the pre-registered gate for J's live
+# shadow. Written 2026-11-28, before any J shadow forecast exists; never edited after it.
+#
+# Pairs: lineup_j_shadow's J and P rows of the same match and horizon, P from its passing
+# live refit of J's refit's as-of time (comparator (a), owner 2026-11-28). Window: the five
+# bundles' regular-season league matches of 2026/27 from the first shadow forecast, final,
+# read once after opens_after (owner choice 3). Headline horizon lk (lineups known); 24
+# (T-24h, P3-b's projected XI) is reported, and served only if it passes the same gate.
+#
+# Gate (D59), at lk, either route:
+#   route 1: 1X2 log loss and RPS relative difference J - P, both paired 95% upper bounds
+#            below 0;
+#   route 2: both point estimates below 0 and both upper bounds below +route2_upper;
+# with the safeguards:
+#   segments: no league x metric (1X2 log loss, RPS, O/U 2.5 log loss, BTTS log loss,
+#             total-goals CRPS) worse than +max_segment_rel (point estimate);
+#   calibration: J's 1X2 ECE per outcome within its noise floor (ece_quantile of ece_sims
+#                draws of outcomes from the forecast);
+#   inference: every J refit a pair was read from passed the gates (failing refits write
+#              no pair; their count is reported);
+#   runtime: J's median refit time within max_runtime_ratio x P's, over the paired refits.
+# Power, stated before any live score (step 2's dev pairs): per-match J - P log loss sd
+# 0.0267 at P's mean 1.0251, so at 1,800 matches the detectable gain is 0.17% (80% power,
+# two-sided 5%); dev's -0.07% is unlikely to clear route 1, route 2 is the realistic route.
+# A pass serves J from T-60m (and T-24h only if it passes too); a fail changes nothing.
+lineup_j_live_gate:
+  season: 2026
+  opens_after: "2027-06-15"
+  horizon: lk
+  report_horizons: ["24"]
+  route2_upper: 0.0010
+  max_segment_rel: 0.010
+  max_runtime_ratio: 1.5
+  ece_sims: 2000
+  ece_quantile: 0.95
+  dev_sd: 0.0267
+  dev_mean_p: 1.0251
+  power_n: 1800

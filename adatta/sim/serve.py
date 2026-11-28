@@ -165,9 +165,11 @@ def summarise(m: Arr) -> dict[tuple[str, float | None, str], tuple[float, float,
 
 
 def fixture_matrices(draws: Draws, fd: FitData, fixtures: list[Fixture], max_goals: int,
-                     walk: hz.Walk | None = None) -> list[Arr]:  # fmt: skip
+                     walk: hz.Walk | None = None,
+                     extra_offset: tuple[Arr, Arr] | None = None) -> list[Arr]:  # fmt: skip
     """Per fixture, the (draws, n, n) score matrices `project` scores (P3b-1 reads them for
-    the half split of a served forecast)."""
+    the half split of a served forecast). `extra_offset` (P3-j's shadow): per (fixture,
+    draw) terms on log lambda_home and log lambda_away, added to the walk's."""
     if "delta" in draws:
         raise ValueError("D16 shifts are not served; the champion has none")
     tix = {int(t): i for i, t in enumerate(fd.team_ids)}
@@ -182,6 +184,7 @@ def fixture_matrices(draws: Draws, fd: FitData, fixtures: list[Fixture], max_goa
         seasons = np.array([f.season if f.season is not None else -1 for f in fixtures])
         weeks = hz.weeks_ahead(horizon, hz.new_season(fd, seasons))
         offset = hz.offsets(draws, fd, home, away, weeks, walk)
+    offset = hz.combine(offset, extra_offset)
     lam, mu_ = rates_from_draws(draws, fd, home, away, league, horizon=horizon, offset=offset)
     rho = np.asarray(draws["rho"])
     rho = rho[league] if rho.ndim == 2 else np.broadcast_to(rho, lam.shape)

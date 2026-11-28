@@ -1,0 +1,83 @@
+# D68 dev check (docs/PHASE1B_TASKS.md "8. Faster refits"): warm-started P refits (W)
+# against P's cold refits of the same dev weeks. Each job takes a contiguous block of a
+# bundle-season's weekly refits (the first refit of a block starts cold, each later one from
+# the one before it); P comes from its cached refits (fitted only if missing); both are
+# scored on the same targets, then the pre-registered acceptance. Manual dispatch only.
+# The repo is public: logs and artifacts carry metrics only. Per-match rows go to R2
+# (warm/...), never to workflow artifacts. Holdout seasons are refused.
+# One backtest-type run at a time (backtest, gate, holdout, timing, cups, selection,
+# selection_rerun, formation, rates, lineup, lineup_j, continental, cards, warm), never on a
+# Monday: two runs together fill the account's 20 job slots and starve the capture.
+name: warm
+on:
+  workflow_dispatch:
+    inputs:
+      bundles:
+        description: "JSON list of bundles"
+        default: '["england","spain","italy","germany","france"]'
+      seasons:
+        description: "JSON list of dev seasons"
+        default: "[2019,2020,2021,2022,2023]"
+      parts:
+        description: "JSON list of contiguous blocks (i/n) per bundle-season"
+        default: '["0/2","1/2"]'
+      assemble:
+        description: "apply the acceptance after the fits (false for a timing pilot)"
+        default: "true"
+permissions:
+  contents: read
+concurrency:
+  group: warm
+  cancel-in-progress: false
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+  R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  STORAGE_BACKEND: r2
+jobs:
+  fit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 18
+      matrix:
+        bundle: ${{ fromJSON(inputs.bundles) }}
+        season: ${{ fromJSON(inputs.seasons) }}
+        part: ${{ fromJSON(inputs.parts) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: fit and score
+        run: >-
+          uv run --frozen --group model python -m adatta.model.warm run
+          --bundle ${{ matrix.bundle }} --season ${{ matrix.season }} --part ${{ matrix.part }}
+          --upload ${{ github.run_id }}
+  assemble:
+    needs: fit
+    if: ${{ !cancelled() && inputs.assemble == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group model
+      - name: assemble
+        env:
+          BUNDLES: ${{ inputs.bundles }}
+          SEASONS: ${{ inputs.seasons }}
+          PARTS: ${{ inputs.parts }}
+        run: |
+          b=$(echo "$BUNDLES" | uv run python -c "import json,sys; print(','.join(json.load(sys.stdin)))")
+          s=$(echo "$SEASONS" | uv run python -c "import json,sys; print(','.join(map(str, json.load(sys.stdin))))")
+          n=$(echo "$PARTS" | uv run python -c "import json,sys; print(len(json.load(sys.stdin)))")
+          uv run --frozen --group model python -m adatta.model.warm assemble \
+            --fetch ${{ github.run_id }} --bundles "$b" --seasons "$s" --parts "$n" \
+            | tee -a "$GITHUB_STEP_SUMMARY"

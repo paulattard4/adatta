@@ -2386,7 +2386,7 @@ Consequences:
         40 min for the five bundles).
 
 - [ ] **P3-k Team strength from penalty-free xG (§5.2; improvement 5, 2026-11-27).**
-      **Drafted 2026-11-28, not approved (D71).** Stated before building and before any
+      **Drafted 2026-11-28. Approved 2026-11-28 (owner: "approve d71"; 0.76, season end).** Stated before building and before any
       score.
 
       **Why.** P's xG term (each side's xG ~ Gamma around its goal rate) reads the
@@ -2442,3 +2442,23 @@ Consequences:
          - (a) to the end of 2026/27, read once, shared with P3-j's season-end reading
            (recommended);
          - (b) D59's half-season default.
+
+      **Built 2026-11-28, not run** (owner: "approve d71"). Details fixed here, before any
+      score:
+      - **Q** (`adatta/model/penalty_xg.py`) is P's spec, fitted on xG less 0.76 per
+        penalty the side took (floored at 0.01). The counts come from the stored
+        appearances' `pen_scored` + `pen_missed`, over team-matches with a statistics
+        block; a match missing either side's count keeps no xG (rule 8).
+        - Coverage on dev 2022-2023: every one of the 3,267 xG matches has both counts,
+          and 875 team-matches are adjusted.
+      - **Run** (`penalty_xg.yml`): 2 seasons × 5 bundles × 4 parts = 40 jobs on P's weekly
+        grid.
+        - P is read from its cached dev refits (P3-d's, the same fit hash); only Q is
+          fitted, with its own cache key.
+        - A Q refit failing the gates is redone once in the same job at target_accept 0.99
+          and 4,000 draws.
+        - The rule is P3-j step 2's (`eval.lineup_j.verdict` with Q as the challenger,
+          without the signals check), and the power for the live window is recomputed.
+      - **Tests:** `tests/test_penalty_xg.py` (2): the adjustment and rule 8; Q beside P's
+        cache, the one redo, the holdout refused, the rule with Q.
+      - **Queue:** after the cards dev run (CI 46128927347), one at a time, not on a Monday.

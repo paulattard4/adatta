@@ -866,8 +866,8 @@ Tick each item only when its acceptance check passes.
         - the same gate, thresholds and dev seasons. `assemble` reads the parts
           (`--parts 3`), and window (i) stays one job per bundle.
 
-- [ ] **P3b-5 Penalty takers in the goalscorer forecast (§8.3; improvement 9, 2026-11-27).**
-      **Drafted 2026-11-28, not approved (D72).** P3b-4 stays reserved for corners.
+- [x] **P3b-5 Penalty takers in the goalscorer forecast (§8.3; improvement 9, 2026-11-27). Closed as failed (owner, 2026-11-28: "Close it").**
+      **Drafted 2026-11-28. Approved 2026-11-28 (owner: "approve d72"; 365 days, at the kick).** P3b-4 stays reserved for corners.
       Stated before building and before any score.
 
       **Why.** P3-e's goalscorer forecast (M) shares each team's expected goals among its
@@ -925,3 +925,50 @@ Tick each item only when its acceptance check passes.
       2. **On the pitch:**
          - (a) at the kick's minute, from the events (recommended);
          - (b) played at all in the match.
+
+      **Built 2026-11-28** (owner: "approve d72"). Fixed here, before the dev verdict is
+      read:
+      - **M'** (`adatta/eval/penalty_takers.py`) gives each player a per-goal probability
+        p′ = (1 − o)(π·τ + (1 − π)·share_open), so the players still share (1 − o) of the
+        team's goals, as in M.
+        - **π:** the team's penalty goals over its non-own goals in the 730 days final by
+          t, shrunk to the league's share with 20 pseudo-goals.
+        - **τ:** e·(a + 0.5) normalised over the team-match's population, where a is the
+          player's attempts for the team in 365 days and e his expected share of the match
+          on the pitch (e_lk; at T-24h, P3-b's). A kick at a random minute finds him on the
+          pitch with probability e: (a) in expectation.
+        - **share_open:** M's weight × (1 − his line's penalty share of the league's goals
+          over the 730 days), normalised: P3-e's line rates with the penalties taken out
+          of the history.
+      - **Inputs:** P3-e's passing table (0e81c3ec404d3635), P's distributions (pmf run
+        44688838616) and the stored appearances. Pure polars and numpy: it runs on the Mac
+        with no CI.
+      - **Tests:** `tests/test_penalty_takers.py` (2) covers the inputs reading only
+        matches final by t (a penalty in the target match isn't read), M' equal to M with
+        no penalties, and the taker rising while the team total is kept. The tests caught
+        a first draft that moved own goals onto players; it was fixed before any score.
+
+      **Dev result, 2026-11-28: fails; M' is not judged live.** Goals at lineups known
+      (local run, table 0e81c3ec404d3635, pmf run 44688838616); negative means M' is
+      better.
+
+      | check | value | 95% interval | pass |
+      |---|---|---|---|
+      | M' vs M, all rows | +0.16% | [+0.13%, +0.19%] | **no** |
+      | M' vs M, team-matches with a penalty goal | −0.45% | [−0.56%, −0.33%] | yes |
+      | worst league vs M (limit +1.0%) | +0.39% (league 62) | | yes |
+      | E/O | 1.0023 | | yes |
+      | ECE, overall / worst league | 0.0032 / 0.0055 | | yes |
+
+      - T-24h (reported): +0.12% [+0.09%, +0.15%].
+      - M' helps where a penalty is scored but costs more everywhere else. Every match
+        moves π of the expected penalty goals onto the likely taker, and most matches have
+        no penalty. The cost is spread across nine of ten leagues; England is +0.00%.
+      - By (c), nothing changes and M stays.
+      - The constants (20 pseudo-goals, 0.5 pseudo-attempts, 365 days) were fixed before
+        the reading and are not tuned after it.
+      - The first two attempts at this run were killed for memory before printing
+        anything (exit 137); the third, with cumulative-sum windows, read it once.
+
+      **Closed 2026-11-28** (owner: "Close it"). M stays as served. A taker term returns only
+      as a new, pre-registered item, not as a retune of this one.

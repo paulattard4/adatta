@@ -18,10 +18,10 @@ different markets, use 95%.
 As of 2026-11-28, from the rows below (the backfill covers the result lines recorded in
 the task docs; a test found later is added as a new row).
 
-- Tests read: 43 (45 rows: two tests were read again under an approved amendment).
-- Passed: 20; failed or rejected: 23.
+- Tests read: 44 (46 rows: two tests were read again under an approved amendment).
+- Passed: 20; failed or rejected: 24.
 - **Expected lucky passes if every challenger had been no better:** about 1.1 (2.5%
-  one-sided × 43). That is a rough guide, since not every gate is a single interval test.
+  one-sided × 44). That is a rough guide, since not every gate is a single interval test.
   So about one of the 20 passes could be luck; the live windows and the floor check are
   the backstop.
 - Open, pre-registered, not yet read: 7. Of these, the 2026/27 live families are:
@@ -93,7 +93,8 @@ the task docs; a test found later is added as a new row).
 | 43 | 2026-11-27 | P3-j step 1, three signals | dev, 38,508 team-matches | S_miss, S_rat pass; S_apm fails | pass (2 of 3) | PHASE3 2206 |
 | 44 | 2026-11-27 | P3-j step 2, J vs P | dev, 18,682 | log loss −0.07% [−0.11%, −0.04%], RPS −0.12% | pass (to shadow) | PHASE3 "Step 2 run" |
 | 45 | 2026-11-28 | P3b-3 cards, dev | dev, 17,721 | refits passing (c) 73.9% vs 97% | fail | PHASE3B "Dev run, 2026-11-28" |
+| 46 | 2026-11-28 | P3b-5 penalty takers (M') vs M, goals | dev, lineups known | all rows +0.16% [+0.13%, +0.19%]; penalty matches −0.45% | fail | PHASE3B "Dev result, 2026-11-28" |
 
 Rows 27 and 28, and 35 and 36, are a first verdict and the later verdict under the
-amendment the owner approved; the count treats each pair as one test read twice (43 tests,
-45 rows). Rows 37 and 38 are two tests (dev, then window (i)).
+amendment the owner approved; the count treats each pair as one test read twice (44 tests,
+46 rows). Rows 37 and 38 are two tests (dev, then window (i)).

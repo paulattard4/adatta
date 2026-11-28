@@ -982,7 +982,7 @@ Tasks:
         42359964241 were code drift, not widening. Not promoted; `widen` stays off.
 - [x] Item 3: not applicable (item 2 failed).
 
-### 8. Faster refits: warm starts (D68, drafted 2026-11-27, not approved)
+### 8. Faster refits: warm starts (D68, drafted 2026-11-27, approved 2026-11-28: "approve d68")
 
 Problem: every backtest is limited by one CI backtest at a time, and a P refit (2,000 tune +
 2,000 draws, 4 chains) takes about 450 s on CI. Each weekly refit starts from scratch,
@@ -1064,10 +1064,13 @@ compile above 10% of a refit.
 **Acceptance (stated before building; dev refits only, never the holdout):**
 1. **Same posterior:** on a dev backtest of the 5 bundles at the production cadence, scored
    against a cold P run of the same refits that is already cached:
-   - per refit, the largest |posterior mean difference| / posterior sd over the cached
-     parameters (team final attack and defence, mu, home advantage, rho, kappa, sigma_walk)
-     is at most 0.10 on at least 95% of refits and at most 0.20 on every refit (the probe:
-     cold-vs-cold-seed 0.036-0.038, warm 0.036-0.058);
+   - (amended 2026-11-28 before any run, see "Raised while building") per refit, z_mc =
+     |posterior mean difference| / its Monte Carlo standard error over the cached
+     parameters (team final attack and defence, mu, home advantage, rho, kappa,
+     sigma_walk): every refit's largest z_mc at most 5, and the mean z_mc^2 over every
+     parameter and refit at most 1.5. The approved form, the largest difference in cold sds
+     at most 0.10 on at least 95% of refits and 0.20 on all (the probe: cold-vs-cold-seed
+     0.036-0.038, warm 0.036-0.058), is reported beside it;
    - the paired mean difference in 1X2 log loss and in RPS, warm minus cold, is within
      +/-0.10% of the cold value each (D59's non-inferiority margin, here as an equivalence
      bound, since the model is the same).
@@ -1079,6 +1082,66 @@ compile above 10% of a refit.
 
 Cost: about 2-3 days to build and test locally, then one dev backtest on CI (one at a time,
 not on a Monday), comparable with an existing cached cold run.
+
+**Built (2026-11-28; not run on CI):**
+- `adatta/model/warm.py`: the warm state (`State`, stored as `<cache key>.warm.npz`), the
+  contiguous blocks, the cold rules (`gap_weeks`: no source, a failed source, a gap of more
+  than 4 weeks or a negative one), the mapping onto the next refit (`inits`,
+  `inverse_mass`, by coordinate value for teams and leagues, by week offset for steps) and
+  the fitter (`Chain`, `team_strength.build` unchanged, P's draws and target_accept, tune
+  250 warm and P's 2,000 cold). Each refit's diag records `tune` and `warm_weeks` (weeks
+  since its source, -1 for a cold start) in place of the drafted `warm_from`.
+- `backtest.RunSpec.warm`: dropped from the hash when False, so P's fit hash is unchanged
+  (`a215d52e759864ed` before and after); a warm spec hashes `warm.py` too
+  (so any edit to it starts a new cache), is named `..._warm`, and is not a holdout spec, so the holdout
+  refuses it. `backtest.run` takes a warm spec's parts as contiguous blocks and stores and
+  reads the warm state next to each cached refit (`--warm` on the CLI).
+- The dev check: `python -m adatta.model.warm run` (a block of a dev bundle-season: W
+  fitted, P read from its cache, both scored on the same targets, the per-refit agreement)
+  and `assemble` (the acceptance, `adatta/eval/warm.py`); `.github/workflows/warm.yml`,
+  dispatch only, 50 jobs (5 bundles x 5 dev seasons x 2 blocks).
+- No redo stage: the dev check compares raw gate pass rates (acceptance 2), so a failing
+  refit is counted, not redone. A later production use would cold-redo a failing refit as
+  today.
+- Tests: `tests/test_warm.py` (7, local: blocks, cold rules, the state round trip, the
+  remap, P's hash, the block split in `backtest.run`, the verdict);
+  `tests/test_warm_model.py` (4, model container and CI: the mapped start reproduces each
+  source path exactly on the shared weeks at a one- and a two-week gap, with every chain at
+  a finite density and a mass matrix of the right size; a cold refit, then a warm one, then
+  a cold one after a failed source, the warm and cold refits of the same week agreeing; the
+  stored variances, taken from 1,000 thinned draws through the model's own transforms,
+  equal those of the unconstrained trace, which is no longer kept: keeping it doubled a
+  refit's time locally). The two hash tests that list every field added since 1b now list
+  `warm`. All 11 pass in the container; ruff, mypy and the full pytest pass.
+- Local check on real data (England 2022, refits of 12, 19 and 26 Dec 2022, P from its R2
+  cache): the cold W refit equals P's cached one (z_mc 0); the two warm refits pass the
+  gates with no divergences, max z_mc 2.7 and 2.9 (raw z 0.19 and 0.21, the cached draws'
+  noise), mean z_mc^2 0.67. 1b fails on RPS with 62 targets (interval +/-0.6%: noise, not
+  a verdict). Speed is not judged locally: the machine was shared (load average up to 12),
+  the same cold refit took 1,760 s and 1,273 s on two runs and one warm refit 3,176 s, while
+  the probe on a quiet machine measured 491-495 s warm against 945-1,114 s cold. Check 3
+  is read on CI, where P's cached times are recorded beside W's.
+- Run size: 928 dev refits (as P3-d's run), 56 of them cold starts (one per block plus the
+  gaps over 4 weeks), 872 warm. At about 450 s cold and 215 s warm on CI, about 59
+  runner-hours: about 4-4.5 h at 18 jobs at a time.
+- Suggested order: a one-job timing pilot first (`bundles ["england"]`, `seasons [2022]`,
+  `parts ["0/2"]`, `assemble false`: about 20 refits, about 1.5 h), then the 50 jobs only
+  if the warm refits there are at least 25% faster than P's cached ones.
+
+**Raised while building (before any run; approved 2026-11-28 by the owner: "Approve as
+drafted"; acceptance 1 above now reads this way):** acceptance 1's per-refit bounds
+(0.10 on 95% of refits, 0.20 on all) were set from the probe's full traces (8,000 draws on
+each side). The cached cold refits keep only 400 thinned draws, so each cold mean carries
+a Monte Carlo error of about sd / 20 = 0.05 sd. Over about 110 compared parameters, the
+largest difference would then reach about 0.15-0.2 sd for two identical posteriors, and the
+check would fail on noise. Instead, computed from the same rows (`adatta.eval.warm` gates on it and reports the
+replaced form beside it):
+- (1a') per refit, z_mc = |mean difference| / its Monte Carlo standard error
+  (sd / sqrt(draws) on each side); every refit's largest z_mc at most 5 (one parameter off
+  by about 0.35 sd), and the mean z_mc^2 over every parameter and refit at most 1.5
+  (1 for identical posteriors; a shift of 0.05 sd on every parameter gives about 1.5).
+- 1b (log loss and RPS within +/-0.10%), 2 and 3 unchanged.
+Re-fitting the cold refits in full instead would cost a second 928-refit cold run.
 
 ## Out of scope for 1b (spec places them later)
 Global cross-league layer / Q_league (§10.1; needs continental bridging data), neutral and host

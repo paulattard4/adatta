@@ -49,6 +49,7 @@ XG_MIN_MATCHES = 50  # xG matches a league needs in the window for a target to c
 HASHED_FILES = ("adatta/model/team_strength.py", "adatta/model/covariates.py",
                 "config/evaluation.yml", "uv.lock")  # fmt: skip
 CUP_MODEL_FILE = "adatta/model/cup_strength.py"  # hashed for A3 specs only
+WARM_FILE = "adatta/model/warm.py"  # hashed for warm specs only (D68)
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,9 @@ class RunSpec:
     cups: bool = False
     cup_table: str = ""
     cup_prior_sd: float = 0.25
+    # D68: each refit starts from the previous refit of its job (adatta.model.warm); a
+    # sampler change, so the same model under its own hash; parts are contiguous blocks
+    warm: bool = False
 
     @property
     def model_name(self) -> str:
@@ -98,6 +102,7 @@ class RunSpec:
         tags += "_rd" if self.grid == "results" else ""
         tags += "_lu" if self.lineup else ""
         tags += "_cup" if self.cups else ""
+        tags += "_warm" if self.warm else ""
         return f"phase1b_{self.structure}{tags}{k}"
 
 
@@ -151,6 +156,10 @@ def config_hash(spec: RunSpec) -> str:
     else:  # and one without cups (P keeps its cached refits)
         for name in ("cups", "cup_table", "cup_prior_sd"):
             del fields[name]
+    if fields["warm"]:  # D68: its own file joins the hash
+        files[WARM_FILE] = _file_hash(WARM_FILE)
+    else:  # and a cold spec hashes as before (P keeps its cached refits)
+        del fields["warm"]
     blob = json.dumps({"spec": fields, "files": files}, sort_keys=True)
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
@@ -372,7 +381,9 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
     1 h); targets use `target_context` instead when given (the T - 48 h report), checked
     against `target_horizon`. `part` = (k, n) keeps every n-th refit from the k-th, so n
     jobs together score the plan (the refits are independent; a weekly bundle-season can
-    outlast one 6-hour job)."""
+    outlast one 6-hour job). A warm spec (D68) takes the k-th of n contiguous blocks
+    instead, each refit starting from the one before it, and stores its warm state next to
+    its cached draws."""
     k_part, n_part = part
     if not 0 <= k_part < n_part:
         raise ValueError(f"part {k_part}/{n_part}: need 0 <= k < n")
@@ -384,11 +395,22 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
     if holdout is not None and c2.is_c2(bundle) != (holdout.opening == "c2"):
         raise harness.HoldoutLocked(f"bundle {bundle} is not scored by the {holdout.opening} "
                                     "opening")  # fmt: skip
+    chain = None
+    if fitter is None and spec.warm:
+        from adatta.model import warm as wm
+
+        chain = wm.Chain(spec)
+        fitter = chain.fit
     fitter = fitter or nuts_fitter(spec)
     walk = hz.Walk(spec.seed, spec.structure) if spec.widen else None
     cfg = scoring_config(cfg, bundle)  # C2: score matrices to 20 a side (D53)
     plan = harness.refit_plan(df, cfg, seasons, spec.every_days, holdout, spec.grid)[:limit]
-    plan = plan[k_part::n_part]
+    if spec.warm:
+        from adatta.model import warm as wm
+
+        plan = wm.blocks(plan, k_part, n_part)
+    else:
+        plan = plan[k_part::n_part]
     h = bundle_hash(config_hash(spec), bundle, cfg.max_goals)
     log(
         f"{bundle} seasons {seasons}"
@@ -411,9 +433,13 @@ def run(df: pl.DataFrame, leagues: list[int], bundle: str, cfg: harness.EvalConf
         cached = try_get(store, key)
         if cached is not None:
             draws, diag = decode(cached)
+            if chain is not None:  # the next refit starts from this one's stored state
+                chain.load(try_get(store, key + wm.SUFFIX))
         else:
             draws, diag = fitter(fd, spec.seed)
             store.put(key, encode(draws, diag))
+            if chain is not None:
+                store.put(key + wm.SUFFIX, chain.state_bytes())
         coefs = coefficient_summary(draws, spec.groups)
         targets = df[tgt]
         weeks = iter(hz.weeks_ahead(
@@ -1070,6 +1096,11 @@ def main() -> None:
     r.add_argument("--manager", action="store_true", help="manager-change widening (§5.2)")
     r.add_argument("--widen", action="store_true", help="strength drift ahead of the refit (D34)")
     r.add_argument(
+        "--warm",
+        action="store_true",
+        help="each refit from the previous one, parts as contiguous blocks (D68)",
+    )
+    r.add_argument(
         "--group",
         action="append",
         default=[],
@@ -1202,7 +1233,7 @@ def main() -> None:
                    form=args.form,
                    xg=args.structure == "strength_open" if args.xg is None else args.xg,
                    manager=args.manager, groups=cv.resolve(args.group),
-                   grid=args.grid, widen=args.widen)  # fmt: skip
+                   grid=args.grid, widen=args.widen, warm=args.warm)  # fmt: skip
     leagues = c2.leagues_of(args.bundle, cfg.bundles)
     df = _load(leagues, spec.xg, spec.manager)
     target_ctx, target_h = None, timedelta(hours=args.target_horizon_hours)

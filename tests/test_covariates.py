@@ -235,6 +235,7 @@ def test_config_hash_of_the_1b_spec_ignores_the_new_field() -> None:
     del fields["widen"]  # added for D34, off for 1b
     del fields["lineup"], fields["lineup_table"]  # added for P3-d, off for 1b
     del fields["cups"], fields["cup_table"], fields["cup_prior_sd"]  # added for A3, off for 1b
+    del fields["warm"]  # added for D68, off for 1b
     blob = json.dumps({"spec": fields, "files": {f: bt._file_hash(f) for f in bt.HASHED_FILES}},
                       sort_keys=True)  # fmt: skip
     assert bt.config_hash(spec) == hashlib.sha256(blob.encode()).hexdigest()[:16]

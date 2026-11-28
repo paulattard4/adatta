@@ -155,6 +155,7 @@ def test_weekly_hash_and_keys_are_unchanged() -> None:
         "cups",
         "cup_table",
         "cup_prior_sd",
+        "warm",
     ):  # fields added after the 1b spec, off for it
         del fields[k]
     blob = json.dumps({"spec": fields, "files": {f: bt._file_hash(f) for f in bt.HASHED_FILES}},

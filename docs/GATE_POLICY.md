@@ -165,3 +165,24 @@ family (the 1X2 forecast, lineups known) unless another 1X2 challenger is regist
      multiplicity risk and leaves independent tests alone;
    - (b) every promotion at 99% from now on;
    - (c) none: the register only.
+
+## A quick check before a full test (improvement 3, built 2026-11-28)
+
+`python -m adatta.eval.quick_check --signal <parquet> --expect +|-|0` checks a candidate
+team-match signal on the dev seasons in about a minute: no PyMC, no CI, 0 API requests.
+- **Input:** a parquet of match_id, team_id, value and known_at. A value known after
+  kickoff is refused and counted.
+- **Method:** the Phase 1a point fit on the 28-day grid. It reports the out-of-sample
+  Poisson slope of goals on the signal beyond strength, and the paired 1X2 log loss and
+  RPS gain with b fitted per refit on training rows.
+- **It is guidance only.** It decides nothing, and every pre-registered test stays as it is.
+
+Checked against P3-j's known results:
+
+| signal | quick check (57 s / 44 s) | full test |
+|---|---|---|
+| S_miss | worth a full test: log loss −0.061% [−0.101%, −0.021%], RPS −0.106% | step 2 (J, with S_rat): −0.07%, −0.12% |
+| S_apm | unlikely: slope interval spans 0, log loss +0.000% | step 1: fail, dropped |
+
+A new signal goes through it before its acceptance is drafted. Its result is stated in
+the draft and recorded as context, not as a test, so it takes no register row.

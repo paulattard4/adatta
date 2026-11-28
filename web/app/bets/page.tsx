@@ -56,9 +56,12 @@ function Roi({ t }: { t: Totals }) {
   );
 }
 
-function Breakdown({ title, groups, odds }: { title: string; groups: [string, Bet[]][]; odds: Odds }) {
-  const rows = groups.filter(([, bs]) => bs.length > 0);
-  if (rows.length === 0) return null;
+function Breakdown({ title, groups, odds, limit }:
+  { title: string; groups: [string, Bet[]][]; odds: Odds; limit?: number }) {
+  const [open, setOpen] = useState(false);
+  const all = groups.filter(([, bs]) => bs.length > 0);
+  if (all.length === 0) return null;
+  const rows = limit && !open ? all.slice(0, limit) : all;
   return (
     <div className="table-wrap">
       <table className="scores bets-table breakdown-table">
@@ -84,9 +87,26 @@ function Breakdown({ title, groups, odds }: { title: string; groups: [string, Be
           })}
         </tbody>
       </table>
+      {limit != null && all.length > limit && (
+        <button type="button" className="more" onClick={() => setOpen(!open)}>
+          {open ? `Show the latest ${limit}` : `Show all ${all.length}`}
+        </button>
+      )}
     </div>
   );
 }
+
+/** Tier order within a country: numbered tiers first (1, 2, ...), then cups, then the rest. */
+const tierRank = (tier: string) =>
+  /^\d+$/.test(tier) ? Number(tier) : tier === "cup" ? 50 : tier === "national" ? 90 : 99;
+const byCountryTier = (a: Bet, b: Bet) =>
+  a.country.localeCompare(b.country) || tierRank(a.tier) - tierRank(b.tier) || a.competition.localeCompare(b.competition);
+
+/** A UTC day (the date filter's) as "Sat 28 Nov 2026". */
+const dayLabel = (day: string) =>
+  new Date(`${day}T12:00:00Z`).toLocaleDateString(undefined, {
+    weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+  });
 
 const group = (bets: Bet[], key: (b: Bet) => string, order?: string[]): [string, Bet[]][] => {
   const m = new Map<string, Bet[]>();
@@ -120,7 +140,7 @@ export default function BetsPage() {
   const leagues = useMemo(() => {
     const m = new Map<number, Bet>();
     for (const b of all) if (!country || b.country === country) m.set(b.competition_id, b);
-    return [...m.values()].sort((a, b) => a.country.localeCompare(b.country) || a.competition.localeCompare(b.competition));
+    return [...m.values()].sort(byCountryTier);
   }, [all, country]);
   const levels = useMemo(() => [...new Set(all.map((b) => b.team_level))].sort(), [all]);
 
@@ -265,9 +285,11 @@ export default function BetsPage() {
             <Breakdown title="Selection" odds={odds}
                        groups={group(bets, (b) => SELECTIONS[b.selection][1], Object.values(SELECTIONS).map(([, v]) => v))} />
             <Breakdown title="Competition" odds={odds}
-                       groups={group(bets, (b) => `${b.competition} · ${b.country}`).sort((a, b) => b[1].length - a[1].length)} />
+                       groups={group([...bets].sort(byCountryTier), (b) => `${b.country} · ${b.competition} (${tierLabel(b.tier)})`)} />
             <Breakdown title="Gap (pts)" odds={odds} groups={group(bets, (b) => band(100 * b.gap, GAP_BANDS), GAP_BANDS.map((x) => x[2]))} />
             <Breakdown title="Odds" odds={odds} groups={group(bets, (b) => band(price(b, odds), ODDS_BANDS), ODDS_BANDS.map((x) => x[2]))} />
+            <Breakdown title="Date (UTC)" odds={odds} limit={14}
+                       groups={group([...bets].sort((a, b) => b.kickoff.localeCompare(a.kickoff)), (b) => dayLabel(b.kickoff.slice(0, 10)))} />
           </div>
         </section>
       )}

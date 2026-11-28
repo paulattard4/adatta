@@ -2384,3 +2384,61 @@ Consequences:
       - **To go live:** apply migration 0020 to the database, push, then run
         `projected_lineups` once (the basis) and `serve` once (the first J refits, about
         40 min for the five bundles).
+
+- [ ] **P3-k Team strength from penalty-free xG (§5.2; improvement 5, 2026-11-27).**
+      **Drafted 2026-11-28, not approved (D71).** Stated before building and before any
+      score.
+
+      **Why.** P's xG term (each side's xG ~ Gamma around its goal rate) reads the
+      provider's match xG, and that xG includes penalties. On dev 2022-2023, 6,534
+      team-matches with xG:
+
+      | penalties taken in the team-match | team-matches | mean xG |
+      |---|---|---|
+      | 0 | 5,659 | 1.26 |
+      | 1 | 811 | 2.13 |
+      | 2 | 63 | 2.90 |
+
+      - A penalty adds about 0.86 xG: the kick, plus the attack that won it.
+      - Penalties come fairly randomly, about 0.14-0.17 per team-match (dev 2019-2023),
+        and are 8-10% of goals.
+      - So an awarded penalty moves a team's rating through xG as if it had played much
+        better. Its goals are unchanged and still count.
+      - The numbers above are dev seasons only. A first count also read 2024-2026 penalty
+        counts and xG levels (descriptive, no model or score); they are not used.
+
+      **What changes (challenger Q):** P with each side's xG replaced by xG − 0.76 × the
+      penalties it took, where the count is from the stored appearances (scored plus
+      missed). The goal likelihood is unchanged. Nothing else changes.
+      - A side whose penalty count is missing has no xG row (rule 8: no imputed value).
+      - The penalty rate itself, as a term of its own, is left for the penalty market
+        (§8.3); it is not in Q.
+
+      **Acceptance:**
+      - **Dev:** the walk-forward on dev 2022-2023, the only dev seasons whose refits see
+        xG, with P read from its cached refits and only Q fitted. Q goes live only if its
+        1X2 log loss and RPS point estimates beat P's, with no league × market segment
+        worse than 1.0%, the inference gates on every refit, and the runtime within
+        1.5× P's.
+      - **Live:** D59 against P, route 1 or 2, on a pre-registered 2026/27 window.
+      - **Power:** recomputed from the dev pairs before the window. The plausible gain is
+        small (the xG term is one signal among several), so route 2 is the likely route.
+      - Under D70, Q and P3-j would be a family (both challenge the served 1X2 forecast),
+        so each would be read at 97.5% if both are judged on 2026/27.
+
+      **Cost:**
+      - 0 API requests: the penalty counts are in the stored appearances.
+      - A dev backtest of about 40 jobs (2 seasons × 5 bundles × 4 parts), Q only, about
+        half of P3-j step 2's run.
+      - One backtest-type run at a time, never on a Monday: after the cards dev run.
+
+      **Owner choices:**
+      1. **The penalty's xG:**
+         - (a) 0.76, the usual public value, fixed now (recommended): the provider gives
+           no per-shot xG, so its own value can't be read;
+         - (b) estimated on dev 2022-2023 as the regression coefficient above (0.86,
+           which also counts the attack that won the penalty).
+      2. **Live window:**
+         - (a) to the end of 2026/27, read once, shared with P3-j's season-end reading
+           (recommended);
+         - (b) D59's half-season default.

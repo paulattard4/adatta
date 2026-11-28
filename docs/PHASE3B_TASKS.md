@@ -865,3 +865,63 @@ Tick each item only when its acceptance check passes.
         - 18 at a time (as before), so about 10-12 h in all;
         - the same gate, thresholds and dev seasons. `assemble` reads the parts
           (`--parts 3`), and window (i) stays one job per bundle.
+
+- [ ] **P3b-5 Penalty takers in the goalscorer forecast (§8.3; improvement 9, 2026-11-27).**
+      **Drafted 2026-11-28, not approved (D72).** P3b-4 stays reserved for corners.
+      Stated before building and before any score.
+
+      **Why.** P3-e's goalscorer forecast (M) shares each team's expected goals among its
+      players by their scoring shares, penalties included.
+      - Penalty goals are 4,285 of 46,034 dev goals (9.3%), and on those rows M is +0.78%
+        worse than B_R1 (P3-e's verdict, reported). That is M's largest known miss.
+      - A penalty goes to one player, the team's taker, not by open-play shares. M spreads
+        a taker's penalty goals over every match he plays, and gives the other players'
+        shares a piece of penalties they don't take.
+
+      **What the data gives** (dev 2019/20-2023/24, the stored appearances, counts only;
+      0 API requests):
+      - 5,782 team-matches with a penalty taken.
+      - In 90% of them, someone who took one of the team's penalties in the previous 365
+        days played in the match.
+      - The team's usual taker (most attempts in those 365 days, among those who played)
+        took it 56% of the time. That rule counts a player who'd been substituted before
+        the kick.
+        - The goal and missed-penalty events carry the minute, so "on the pitch at the
+          time" can be built, which should raise that share.
+
+      **What changes (challenger M'):** each team's expected goals are split in two.
+      1. **Penalty goals:** the team's expected penalties times the conversion rate. Each
+         is the league-season rate in the training window, with the team's own count
+         shrunk towards it (as P3-e's rates). The split takes nothing from P's 90'
+         total, which stays as served.
+      2. **Who takes it:** each player's probability of taking a penalty if on the pitch,
+         from the team's previous 365 days of attempts, Dirichlet-smoothed over the XI,
+         weighted by his expected minutes (P3-b).
+      3. **Open-play goals** (the rest) go by open-play shares: P3-e's shares with
+         penalty goals taken out of the history.
+
+      A team with no penalty history gives every player the smoothed prior (rule 8, no
+      invented taker). Assists are unchanged.
+
+      **Acceptance (dev, P3-e's verdict with M as the baseline):** P(at least one goal)
+      log loss per player row at lineups known, paired:
+      1. M' better than M overall (point estimate), and on the rows of team-matches with
+         a penalty goal (point estimate);
+      2. no league worse than M by more than 1.0%;
+      3. E/O and ECE within P3-e's limits;
+      4. leakage: a taker's probability reads only penalties final by the as-of time.
+
+      On a dev pass, M' is judged live against M on a pre-registered 2026/27 window, as
+      D59 states; a fail changes nothing.
+
+      **Cost:** P3-e's player table plus the penalty columns, rebuilt locally (about a
+      minute), and one verdict run on CI. P is read from the cache, so there's no new team
+      fit. It is small, but it is a backtest-type run: one at a time, after the cards run.
+
+      **Owner choices:**
+      1. **The usual taker's history:**
+         - (a) the previous 365 days of the team's attempts (recommended);
+         - (b) all history, weighted towards recent attempts.
+      2. **On the pitch:**
+         - (a) at the kick's minute, from the events (recommended);
+         - (b) played at all in the match.
